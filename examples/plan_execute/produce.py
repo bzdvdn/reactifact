@@ -127,11 +127,15 @@ class Finisher(Produce[FinalAnswer]):
         body = await structured_llm(
             context,
             schema=_Text,
-            system=FINISH.render(goal=goal.data.text if goal else goal_id, transcript=transcript),
+            system=FINISH.render(
+                goal=goal.data.text if goal else goal_id, transcript=transcript
+            ),
             user=transcript,
         )
         text = body.text if body is not None else f"(offline finish)\n{transcript}"
-        final = self.effects.create(FinalAnswer(goal=goal_id, text=text), id=f"final:{goal_id}")
+        final = self.effects.create(
+            FinalAnswer(goal=goal_id, text=text), id=f"final:{goal_id}"
+        )
         for r in results:
             final.link("supported_by", r)
         return None
