@@ -6,6 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+Pre-1.0 API-freeze cleanup.
+
+### Breaking
+
+- **`Produce(Model, factory=fn)` (deprecated with a `DeprecationWarning`
+  since 0.5.0) is removed.** Port any remaining usage to the `@produce(Type)`
+  decorator (same return-style signature, plus optional `effects`/`event`
+  params) — see [docs/en/effects.md](docs/en/effects.md).
+
+### Added
+
+- `mcp_http_tools(url, headers=...)`: an optional `headers` kwarg for
+  connecting to MCP servers that require auth (e.g. `Authorization: Bearer
+  ...`). Previously there was no way to reach such a server at all over
+  streamable HTTP.
+- `reactifact.scheduler.relation_balance_metric`: the built-in
+  uncertainty-driven `Metric` for `uncertainty_policy`/`Scheduler` (§26).
+  Ranks a candidate by how lopsided the `supports`/`contradicts` relations
+  are on the artifact its event is about — deterministic, provider-agnostic,
+  the same structural signal `examples/medic_lab` computed by hand for its
+  report only (`produce/evaluate.py`). `examples/medic_lab` now wires it into
+  its own `Runtime(scheduler=medic_lab_scheduler())`, so the most-contradicted
+  open hypothesis is actually investigated first, not just ranked highest in
+  the final report.
+
+### Docs
+
+- README/`docs/*/sources.md` no longer claim direct-API/keyword/SQL sources
+  are shipped ("equally first-class") — only filesystem/CSV/web are today;
+  the others are linked to the [roadmap](docs/roadmap.md#next) instead of
+  overstated.
+- `docs/constitution.md`'s implementation-status appendix refreshed (test
+  count, MCP/testing-harness/adaptive-scheduler rows, the `plan_execute`
+  canonical port) — it had drifted since `ver 0.2`.
+- New "Security model" section in [docs/en/mcp.md](docs/en/mcp.md) /
+  [docs/ru/mcp.md](docs/ru/mcp.md): reactifact has no built-in
+  authorization primitive (§57 is "planned", not "implemented") — spelled
+  out concretely for `create_mcp_server` (read-only context resources with
+  no per-field redaction; tools are not sandboxed by MCP exposure).
+
+### Tests
+
+- `tests/test_canonical_ports.py`: a smoke test per canonical port example
+  (`reflection`, `map_reduce`, `supervisor`, `summarize`, `time_travel`,
+  `plan_execute`) — these were previously only eyeballed by hand, so a core
+  API change could silently break the very code the docs point newcomers at
+  as reference, without CI ever noticing.
+
+### CI
+
+- `pyproject.toml` now sets `[tool.coverage.report] fail_under = 85` —
+  `pytest --cov` (already run in CI) enforces it automatically. Current
+  coverage is ~90%; the floor leaves headroom for
+  `reactifact/tracing/postgres.py` (intentionally under-covered — its own
+  test only checks the graceful-`ImportError` path, `pg` being an opt-in
+  extra with no external service in CI) without a per-file carve-out.
+- PyPI classifier bumped `3 - Alpha` → `4 - Beta` (`5 - Production/Stable`
+  is reserved for the actual `1.0.0` tag, not before).
+
 ## [0.6.1] — 2026-09-11
 
 Added `reactifact.mcp` (`mcp` extra, optional — the core stays dependency-free):

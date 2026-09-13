@@ -20,7 +20,7 @@ from reactifact.providers import openai_llm, openrouter_llm
 from reactifact.sources import FileSystemSource, Source, WebSource
 from reactifact.tracing import Tracer, TraceStore
 
-from examples.medic_lab.agents import medic_lab_agents
+from examples.medic_lab.agents import medic_lab_agents, medic_lab_scheduler
 from examples.medic_lab.models import Question, ResearchReport
 
 ROOT = Path(__file__).resolve().parent
@@ -110,6 +110,7 @@ async def main() -> None:
         budget=Budget(max_runs=400),
         max_concurrency=6,
         tracer=Tracer(store=trace_store),
+        scheduler=medic_lab_scheduler(),
     )
     print("medic-lab — evidence-based hypothesis laboratory.\n")
     print('Ask e.g. "does vitamin D supplementation prevent colds?" (Ctrl+C to exit)\n')

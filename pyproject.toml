@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["agents", "llm", "ai-agents", "reactive", "provenance", "orchestration", "agentic"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -92,6 +92,15 @@ reactifact = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Enforced by CI's `pytest --cov=reactifact --cov-fail-under=85` (see
+# .github/workflows/ci.yml). Current coverage is ~90%; 85% leaves headroom
+# for `reactifact/tracing/postgres.py`, whose own test intentionally only
+# checks the graceful-ImportError path without `psycopg` installed (`pg` is
+# an opt-in extra with no external service in CI) rather than needing a
+# per-file carve-out.
+[tool.coverage.report]
+fail_under = 85
 
 [tool.ruff]
 target-version = "py311"

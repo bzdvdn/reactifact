@@ -7,7 +7,7 @@ the `mcp` extra.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
 
 from .._extras import require_extra
@@ -89,16 +89,40 @@ async def mcp_stdio_tools(
 
 
 @asynccontextmanager
-async def mcp_http_tools(url: str) -> AsyncGenerator[list[Tool], None]:
-    """Connects to an MCP server over streamable HTTP and yields its tools as `Tool`s."""
+async def mcp_http_tools(
+    url: str, *, headers: dict[str, str] | None = None
+) -> AsyncGenerator[list[Tool], None]:
+    """Connects to an MCP server over streamable HTTP and yields its tools as
+    `Tool`s.
+
+    Pass `headers` for servers that require auth (e.g.
+    `{"Authorization": "Bearer ..."}`) — the SDK's `streamable_http_client`
+    has no `headers=` kwarg of its own; the documented way is a
+    pre-configured client, which this builds (and owns/closes) with the same
+    recommended timeouts the SDK's own default client uses (30s
+    connect/write/pool, 300s read — a server may hold a response stream
+    open). Note this must be `httpx2.AsyncClient` (the MCP SDK's own httpx
+    fork/dependency, not plain `httpx` — `streamable_http_client` rejects
+    the wrong one at the type level), imported lazily here since it's only
+    guaranteed installed alongside the `mcp` extra.
+    """
     require_extra("mcp_http_tools", "mcp", "mcp")
+    import httpx2
     from mcp.client.streamable_http import streamable_http_client
 
     from mcp import ClientSession
 
-    async with (
-        streamable_http_client(url) as (read, write),
-        ClientSession(read, write) as session,
-    ):
+    async with AsyncExitStack() as stack:
+        http_client = None
+        if headers is not None:
+            http_client = await stack.enter_async_context(
+                httpx2.AsyncClient(
+                    headers=headers, timeout=httpx2.Timeout(30.0, read=300.0)
+                )
+            )
+        read, write = await stack.enter_async_context(
+            streamable_http_client(url, http_client=http_client)
+        )
+        session = await stack.enter_async_context(ClientSession(read, write))
         await session.initialize()
         yield await mcp_tools(session)

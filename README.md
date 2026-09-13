@@ -157,7 +157,7 @@ by hand. Run it yourself: `uv run python -m examples.ledger.main`.
 - **Effects** — an agent states its change via `self.effects.create/update/link/ask`; the runtime compiles it.
 - **Patch** — the compiled, validated change-set applied as one atomic commit.
 - **Agent** — a thin container declaring `consumes`/`produces`; logic lives in a `Produce`.
-- **Source** — retrieval is a capability: vector search is *one* strategy; direct API, keyword, SQL, filesystem are equally first-class.
+- **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped).
 - **Provenance** — every derived artifact links to what produced it
   (`Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→ Doc`).
 - **HITL** — humans as `effects.ask(...)` → `PendingQuestion`, answered via `effects.resume(...)` like any agent.

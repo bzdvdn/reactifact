@@ -5,11 +5,12 @@ wire-format initialize/list_tools/call_tool/read_resource round-trips."""
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel
 from reactifact import Context
-from reactifact.mcp import create_mcp_server, mcp_tools
+from reactifact.mcp import create_mcp_server, mcp_http_tools, mcp_tools
 from reactifact.tools import Tool, ToolOutput, tool
 
 pytest.importorskip("mcp")
@@ -167,3 +168,102 @@ def test_mcp_server_exposes_context_as_resources():
             assert "first" in one.contents[0].text
 
     run(scenario())
+
+
+def test_mcp_http_tools_passes_headers_to_the_transport(monkeypatch):
+    """`mcp_http_tools(url, headers=...)` must build an authenticated
+    http client and hand it to the transport — regression guard for the
+    auth gap (no way to reach a server behind Bearer/API-key auth) that
+    this parameter closes."""
+    import httpx2
+    import mcp.client.streamable_http as streamable_http_module
+
+    import mcp as mcp_pkg
+
+    captured: dict[str, object] = {}
+
+    @asynccontextmanager
+    async def fake_streamable_http_client(
+        url: str, *, http_client=None, **_: object
+    ) -> AsyncGenerator[tuple[object, object], None]:
+        captured["url"] = url
+        captured["http_client"] = http_client
+        yield (object(), object())
+
+    class FakeSession:
+        def __init__(self, read: object, write: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeSession":
+            return self
+
+        async def __aexit__(self, *exc: object) -> bool:
+            return False
+
+        async def initialize(self) -> None:
+            return None
+
+        async def list_tools(self) -> SimpleNamespace:
+            return SimpleNamespace(tools=[])
+
+    monkeypatch.setattr(
+        streamable_http_module, "streamable_http_client", fake_streamable_http_client
+    )
+    monkeypatch.setattr(mcp_pkg, "ClientSession", FakeSession)
+
+    async def scenario() -> None:
+        async with mcp_http_tools(
+            "https://example.invalid/mcp", headers={"Authorization": "Bearer tok"}
+        ) as tools:
+            assert tools == []
+
+    run(scenario())
+
+    http_client = captured["http_client"]
+    assert isinstance(http_client, httpx2.AsyncClient)
+    assert http_client.headers["authorization"] == "Bearer tok"
+
+
+def test_mcp_http_tools_without_headers_uses_the_default_client(monkeypatch):
+    """No `headers=` -> `http_client=None` is passed through unchanged, so
+    the SDK's own default client (with its own timeouts) is used."""
+    import mcp.client.streamable_http as streamable_http_module
+
+    import mcp as mcp_pkg
+
+    captured: dict[str, object] = {}
+
+    @asynccontextmanager
+    async def fake_streamable_http_client(
+        url: str, *, http_client=None, **_: object
+    ) -> AsyncGenerator[tuple[object, object], None]:
+        captured["http_client"] = http_client
+        yield (object(), object())
+
+    class FakeSession:
+        def __init__(self, read: object, write: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeSession":
+            return self
+
+        async def __aexit__(self, *exc: object) -> bool:
+            return False
+
+        async def initialize(self) -> None:
+            return None
+
+        async def list_tools(self) -> SimpleNamespace:
+            return SimpleNamespace(tools=[])
+
+    monkeypatch.setattr(
+        streamable_http_module, "streamable_http_client", fake_streamable_http_client
+    )
+    monkeypatch.setattr(mcp_pkg, "ClientSession", FakeSession)
+
+    async def scenario() -> None:
+        async with mcp_http_tools("https://example.invalid/mcp") as tools:
+            assert tools == []
+
+    run(scenario())
+    assert captured["http_client"] is None

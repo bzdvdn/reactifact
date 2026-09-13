@@ -1,8 +1,13 @@
 # Sources
 
-A **Source** is a retrieval capability. Vector search is one strategy — direct
-API, keyword/SQL, CSV, and the filesystem are equally first-class, and
-**embeddings are optional**. Sources live in `Context.resources.sources`.
+A **Source** is a retrieval capability. Vector search is one strategy, not
+*the* strategy — the filesystem, CSV, and the web (`WebSource`) are equally
+first-class today, and **embeddings are optional**. The `Source` protocol
+(`reactifact/sources.py`) is intentionally small so this list grows by adding
+implementations, not by changing the abstraction — direct API, keyword, and
+SQL sources are on the roadmap, not yet shipped (see
+[roadmap](../roadmap.md#next)); don't reach for them until they land. Sources
+live in `Context.resources.sources`.
 
 ```python
 from reactifact import Context, RuntimeResources

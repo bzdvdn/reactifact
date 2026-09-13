@@ -35,9 +35,11 @@ async with mcp_stdio_tools(
     # tools (and fs_agent) stay callable for the life of the `async with` block
 ```
 
-`mcp_http_tools(url)` connects over streamable HTTP the same way. Both are
-thin wrappers over `mcp.ClientSession` — use `mcp_tools(session)` directly if
-you're managing the session yourself (auth, custom transport, …).
+`mcp_http_tools(url, headers=...)` connects over streamable HTTP the same
+way — pass `headers` for a server that requires auth (e.g.
+`{"Authorization": "Bearer ..."}`). Both are thin wrappers over
+`mcp.ClientSession` — use `mcp_tools(session)` directly if you're managing
+the session yourself (a custom transport, non-header auth, …).
 
 ## Server: expose reactifact as MCP
 
@@ -86,6 +88,29 @@ FastAPI app as `create_trace_router`/`create_chat_router`:
 ```python
 app.mount("/mcp", server.streamable_http_app())
 ```
+
+## Security model: no built-in authorization
+
+reactifact has no built-in permission/authorization primitive — this applies
+to MCP specifically and to the framework generally (§57 is explicitly
+"planned", not "implemented"; see `docs/constitution.md`'s implementation
+appendix). Concretely, for `create_mcp_server`:
+
+- The two `context=` resources (`context://artifacts/...`, `context://artifact/...`)
+  are **read-only** — an MCP client can inspect any artifact in the `Context`
+  you pass, with no per-artifact-type or per-field redaction.
+- **Tools are not sandboxed by MCP exposure.** Any `Tool` you hand to
+  `create_mcp_server` is just as callable — and just as capable of mutating
+  state — as it would be inside your own `ToolUse`/`LLMAgent` loop. If a tool
+  can write to a database or call a paid API, an MCP client that can call it
+  can do the same, exactly like a local tool-calling agent — MCP is a
+  transport, not a permission boundary.
+
+The host application owns access control: only pass a `Context` you're
+willing to expose read-only in full, and only pass `Tool`s you're willing to
+let any connected MCP client invoke. Gate destructive tools the same way you
+would for a local `HITLLMAgent` (`ToolUseHITL`, §60) if a human approval step
+is needed before a mutating tool actually runs.
 
 ## Errors: `ToolOutput.error` → MCP `is_error`
 

@@ -47,23 +47,8 @@ async def make_upper(context, inputs):
     return [Output(text=inputs[0].data.text.upper())]
 
 
-def test_auto_run_with_produce_factory_is_deprecated_but_still_works():
-    """Produce(..., factory=...) is deprecated (§ produce styles cleanup) —
-    still functions for existing code, but warns and points at @produce."""
-    with pytest.warns(DeprecationWarning, match="Produce.*factory.*deprecated"):
-        produce_instance = Produce(Output, factory=make_upper)
-
-    class AutoAgent(Agent):
-        name = "auto_agent"
-        consumes = [Consume(Input)]
-        produces = [produce_instance]
-
-    ctx = Context()
-    runtime = Runtime(ctx, agents=[AutoAgent()])
-
-    ctx.create(Input(text="hello"))
-    asyncio.run(runtime.arun())
-
-    outputs = ctx.list_artifacts(Output)
-    assert len(outputs) == 1
-    assert outputs[0].data.text == "HELLO"
+def test_produce_factory_kwarg_was_removed():
+    """`Produce(..., factory=...)` (deprecated since 0.5) is gone entirely as
+    of the 1.0 API freeze — use the `@produce` decorator instead."""
+    with pytest.raises(TypeError):
+        Produce(Output, factory=make_upper)  # type: ignore[call-arg]

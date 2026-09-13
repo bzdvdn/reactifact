@@ -18,6 +18,7 @@ from reactifact import Budget, Runtime, SessionStore
 from reactifact.interrupt import PendingQuestion
 from reactifact.tracing import Tracer
 
+from ..agents import medic_lab_scheduler
 from ..models import Question, ResearchReport
 
 #: Runs per request before the runtime gives up (budget, §58).
@@ -102,6 +103,7 @@ def create_router(
             budget=Budget(max_runs=MAX_RUNS),
             max_concurrency=6,
             tracer=Tracer(store=trace_store) if trace_store is not None else None,
+            scheduler=medic_lab_scheduler(),
         )
         return session, runtime
 

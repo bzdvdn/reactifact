@@ -5,7 +5,7 @@ import asyncio
 from examples.adaptive.main import RULES, ArtistA, ArtistB, Task, _metric
 from reactifact import Context, PendingQuestion, RuntimeResources
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.scheduler import uncertainty_policy
+from reactifact.scheduler import relation_balance_metric, uncertainty_policy
 
 
 class ScriptedLLM(LLMProvider):
@@ -25,6 +25,15 @@ def _event_for(ctx: Context, artifact_id: str):
         if e.artifact_id == artifact_id:
             return e
     return None
+
+
+def _events_for(ctx: Context, *artifact_ids: str) -> dict[str, object]:
+    """Like `_event_for`, but drains once and resolves several ids at once —
+    `drain_events()` empties the queue, so calling `_event_for` a second time
+    for a different artifact created before the first call returns `None`."""
+    events = ctx.drain_events()
+    by_id = {e.artifact_id: e for e in events}
+    return {aid: by_id[aid] for aid in artifact_ids}
 
 
 def _ctx_with_task(tag: str = "") -> tuple[Context, object]:
@@ -166,3 +175,81 @@ def test_scheduler_rank_limit_never_starves():
     a, b = (ArtistA(), event, []), (ArtistB(), event, [])
     out = asyncio.run(policy(ctx, [a, b]))
     assert len(out) >= 1  # a non-empty ranked list is never emptied
+
+
+# --- relation_balance_metric (§26, §35-36): structural uncertainty proxy ---
+
+
+def test_relation_balance_metric_prefers_more_contradicted():
+    ctx = Context(resources=RuntimeResources())
+    well_supported = ctx.create(Task(text="well supported", tag=""))
+    contradicted = ctx.create(Task(text="contradicted", tag=""))
+    ev1, ev2, ev3 = (ctx.create(Task(text=f"ev{i}", tag="")) for i in (1, 2, 3))
+    ctx.link(ev1.id, "supports", well_supported.id)
+    ctx.link(ev2.id, "supports", well_supported.id)
+    ctx.link(ev3.id, "contradicts", contradicted.id)
+
+    events = _events_for(ctx, well_supported.id, contradicted.id)
+    metric = relation_balance_metric()
+    ok_score = metric(ctx, ArtistA(), events[well_supported.id])
+    bad_score = metric(ctx, ArtistA(), events[contradicted.id])
+    assert (
+        bad_score > ok_score
+    )  # more contradicted -> higher priority to re-investigate
+
+
+def test_relation_balance_metric_zero_with_no_relations():
+    ctx, task = _ctx_with_task()
+    event = _event_for(ctx, task.id)
+    assert relation_balance_metric()(ctx, ArtistA(), event) == 0.0
+
+
+def test_relation_balance_metric_respects_custom_relation_names_and_weights():
+    ctx = Context(resources=RuntimeResources())
+    claim = ctx.create(Task(text="claim", tag=""))
+    good, bad = (
+        ctx.create(Task(text="good", tag="")),
+        ctx.create(Task(text="bad", tag="")),
+    )
+    ctx.link(good.id, "backs", claim.id)
+    ctx.link(bad.id, "refutes", claim.id)
+
+    event = _event_for(ctx, claim.id)
+    default_metric = relation_balance_metric()
+    assert (
+        default_metric(ctx, ArtistA(), event) == 0.0
+    )  # unknown relation names -> no signal
+
+    custom_metric = relation_balance_metric(
+        support_relation="backs",
+        contradict_relation="refutes",
+        support_weight=2.0,
+        contradict_weight=3.0,
+    )
+    assert custom_metric(ctx, ArtistA(), event) == 3.0 * 1 - 2.0 * 1
+
+
+def test_scheduler_ranks_by_relation_balance_end_to_end():
+    """The generic metric plugs into `uncertainty_policy` the same way the
+    hand-written `_metric` does in `examples/adaptive` — it's a drop-in
+    `Metric`, not a separate scheduling path."""
+    ctx = Context(resources=RuntimeResources())
+    steady = ctx.create(Task(text="steady", tag=""))
+    shaky = ctx.create(Task(text="shaky", tag=""))
+    support = ctx.create(Task(text="support", tag=""))
+    against1, against2 = (
+        ctx.create(Task(text="a1", tag="")),
+        ctx.create(Task(text="a2", tag="")),
+    )
+    ctx.link(support.id, "supports", steady.id)
+    ctx.link(against1.id, "contradicts", shaky.id)
+    ctx.link(against2.id, "contradicts", shaky.id)
+
+    events = _events_for(ctx, steady.id, shaky.id)
+    steady_event = events[steady.id]
+    shaky_event = events[shaky.id]
+    policy = uncertainty_policy(metric=relation_balance_metric())
+    a = (ArtistA(), shaky_event, [])
+    b = (ArtistB(), steady_event, [])
+    out = asyncio.run(policy(ctx, [a, b]))
+    assert out == [a, b]  # more-contradicted candidate scheduled first

@@ -13,14 +13,8 @@ for one of these first:
   decorator, both signatures recognized by parameter name — pick this for a
   short, one-off produce with no class ceremony.
 
-Two other things `Produce` accepts are *not* on that list on purpose:
+One other thing `Produce`/`Agent` accepts is *not* on that list on purpose:
 
-- `Produce(Model, factory=fn)` — a bare two-argument-factory constructor
-  kwarg, **deprecated** (raises `DeprecationWarning`). It predates the
-  `@produce` decorator, only supports `(context, inputs[, event]) -> Model |
-  list | Patch | None`, and can't see the effects slot at all — strictly
-  weaker than `@produce(Model)`, which covers the same signature plus
-  `effects`. Kept only so old code doesn't break; port it to `@produce`.
 - Overriding `Agent.run(self, event, context) -> Patch | None` directly,
   bypassing `Produce` entirely (though not necessarily `effects` — the
   runtime still merges whatever `current_effects()` collected during the
@@ -36,7 +30,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import warnings
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, get_args, get_origin
 
@@ -71,43 +64,13 @@ class Produce(Generic[TOut]):
                     return
 
     artifact_type: ArtifactType | None = None
-    factory: Callable[..., Any] | None = None
 
-    def __init__(
-        self,
-        artifact_type: ArtifactType | None = None,
-        factory: Callable[..., Any] | None = None,
-    ):
+    def __init__(self, artifact_type: ArtifactType | None = None):
         self.artifact_type = artifact_type or self.__class__.artifact_type
         if self.artifact_type is None:
             raise ValueError(
                 "artifact_type must be provided either as class attribute or constructor argument"
             )
-        self.factory = factory if factory is not None else self.__class__.factory
-        if self.factory is not None:
-            warnings.warn(
-                "Produce(..., factory=...) is deprecated: it only supports "
-                "(context, inputs[, event]) -> Model | list | Patch | None and "
-                "can't see the effects slot (no `effects` param support). Use "
-                "the @produce(Type) decorator instead — same return-style "
-                "signature, plus optional effects/event params when you need "
-                "them. See the reactifact.produce module docstring.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        self._accepts_event = False
-        if self.factory is not None:
-            try:
-                signature = inspect.signature(self.factory)
-            except (TypeError, ValueError):
-                signature = None
-            if signature is not None:
-                positional = [
-                    p
-                    for p in signature.parameters.values()
-                    if not p.kind & inspect.Parameter.VAR_POSITIONAL
-                ]
-                self._accepts_event = len(positional) >= 3
 
     @property
     def effects(self) -> Effects:
@@ -132,29 +95,22 @@ class Produce(Generic[TOut]):
         inputs: list[Artifact[Any]],
         event: Event | None = None,
     ) -> None:
-        """Runs the factory and writes its effect into the slot (§24).
+        """No-op by default (§24).
 
-        Subclass-style overrides write `self.effects.*` and return None;
-        a `None` return means "no work". (The progress nest the old
-        `Patch | None` return — the runtime compiles the slot now.)
+        Subclass-style overrides write `self.effects.*` and return None; a
+        `None` return means "no work". A bare `Produce(Model)` (no override)
+        is a valid, deliberate no-op — used e.g. to widen an agent's allowed
+        `Create` types when the actual write happens via `self.effects.ask(...)`
+        in another produce (see `examples/supervisor`).
         """
-        if self.factory is None:
-            return None
-
-        if self._accepts_event:
-            result = self.factory(context, inputs, event)
-        else:
-            result = self.factory(context, inputs)
-        if asyncio.iscoroutine(result):
-            result = await result
-
-        self._apply_result(result)
+        return None
 
     def _apply_result(self, result: Any) -> None:
-        """Writes a factory result into the effect slot (§24).
+        """Writes a `@produce`-decorated function's return-style result into
+        the effect slot (§24).
 
-        `None` — nothing; a model or a list of models — creates; a Patch — the
-        factory-level legacy escape (its operations are appended to the effects).
+        `None` — nothing; a model or a list of models — creates; a Patch — a
+        legacy escape (its operations are appended to the effects).
         """
         if result is None:
             return

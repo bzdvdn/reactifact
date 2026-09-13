@@ -2,6 +2,7 @@
 
 from reactifact import Agent, Consume, Produce
 from reactifact.interrupt import PendingQuestion
+from reactifact.scheduler import Scheduler, relation_balance_metric, uncertainty_policy
 from reactifact.sources import SourceRef
 
 from .models import (
@@ -117,3 +118,12 @@ def medic_lab_agents() -> list[Agent]:
         DeepenAgent(),
         ReporterAgent(),
     ]
+
+
+def medic_lab_scheduler() -> Scheduler:
+    """Uncertainty-driven scheduling (§26): when several open hypotheses are
+    eligible for (re-)investigation in the same generation, prioritize the
+    most-contradicted one first. Same `supports`/`contradicts` relations
+    `Evaluator` already scores by hand (`produce/evaluate.py`) — this reuses
+    the signal to drive execution order, not just the report."""
+    return uncertainty_policy(metric=relation_balance_metric())

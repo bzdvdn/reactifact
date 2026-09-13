@@ -160,6 +160,36 @@ class Scheduler:
         return [top[body.first], top[1 - body.first]]
 
 
+def relation_balance_metric(
+    *,
+    support_relation: str = "supports",
+    contradict_relation: str = "contradicts",
+    support_weight: float = 1.0,
+    contradict_weight: float = 1.0,
+) -> Metric:
+    """Built-in uncertainty proxy (§26): ranks a candidate by how lopsided
+    the evidence is for the artifact its event is about — the same
+    structural signal `examples/medic_lab` computes by hand (§35-36). More
+    contradictions relative to support raises the score (higher priority to
+    re-investigate); well-supported artifacts sink toward the bottom.
+
+    Fully deterministic and provider-agnostic — reads `Link` relations
+    already recorded via `effects.link(...)` (`Context.incoming`), never
+    asks the model. Use `llm_tie_break` on `Scheduler`/`uncertainty_policy`
+    on top of this if you also want a model to break close ties.
+    """
+
+    def metric(context: Context, agent: Agent, event: Event) -> float:
+        artifact_id = event.artifact_id
+        if artifact_id is None:
+            return 0.0
+        n_support = len(context.incoming(artifact_id, relation=support_relation))
+        n_contra = len(context.incoming(artifact_id, relation=contradict_relation))
+        return contradict_weight * n_contra - support_weight * n_support
+
+    return metric
+
+
 def uncertainty_policy(
     *,
     rules: Sequence[Rule] = (),
@@ -184,5 +214,6 @@ __all__ = [
     "Rule",
     "Scheduler",
     "WorkItem",
+    "relation_balance_metric",
     "uncertainty_policy",
 ]

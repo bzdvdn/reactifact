@@ -54,7 +54,7 @@ the stable contract, not a moving target.
 | `Agent` | thin container: `name`, `consumes`, `produces`, `concurrency_limit` |
 | `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
 | `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events |
-| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `Produce(Model, factory=fn)` is deprecated (`DeprecationWarning`, use `@produce` instead) |
+| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)) |
 | `Trigger` | secondary (non-artifact) enter condition for a produce |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`) |

@@ -6,7 +6,11 @@ Hermetic: the evidence pool is the local fixture pages (no network).
 import asyncio
 from pathlib import Path
 
-from examples.medic_lab.agents import medic_lab_agents
+from examples.medic_lab.agents import (
+    InvestigatorAgent,
+    medic_lab_agents,
+    medic_lab_scheduler,
+)
 from examples.medic_lab.models import (
     Claim,
     Hypothesis,
@@ -77,6 +81,32 @@ def test_support_and_contradiction_links_exist():
     any_contra = any(ctx.incoming(hid, relation="contradicts") for hid in hypotheses)
     assert any_support, "at least one hypothesis must be supported by evidence"
     assert any_contra, "at least one hypothesis must be contradicted"
+
+
+def test_medic_lab_scheduler_prioritizes_more_contradicted_hypothesis():
+    """`medic_lab_scheduler()` (§26) wires `relation_balance_metric` in —
+    when two open hypotheses are both eligible for (re-)investigation, the
+    more-contradicted one must be scheduled first, using the same
+    `supports`/`contradicts` relations `Evaluator` scores by hand
+    (`produce/evaluate.py`)."""
+    resources = RuntimeResources(llm=None)
+    ctx = Context(resources=resources)
+    steady = ctx.create(Hypothesis(question_id="q", statement="steady"))
+    shaky = ctx.create(Hypothesis(question_id="q", statement="shaky"))
+    support = ctx.create(Hypothesis(question_id="q", statement="support-src"))
+    against1 = ctx.create(Hypothesis(question_id="q", statement="against1"))
+    against2 = ctx.create(Hypothesis(question_id="q", statement="against2"))
+    ctx.link(support.id, "supports", steady.id)
+    ctx.link(against1.id, "contradicts", shaky.id)
+    ctx.link(against2.id, "contradicts", shaky.id)
+
+    by_id = {e.artifact_id: e for e in ctx.drain_events()}
+    investigator = InvestigatorAgent()
+    steady_candidate = (investigator, by_id[steady.id], [])
+    shaky_candidate = (investigator, by_id[shaky.id], [])
+
+    out = asyncio.run(medic_lab_scheduler()(ctx, [steady_candidate, shaky_candidate]))
+    assert out == [shaky_candidate, steady_candidate]
 
 
 def test_cross_hypothesis_contradiction():

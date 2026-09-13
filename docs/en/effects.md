@@ -109,15 +109,9 @@ is compiled by the runtime, so short produces stay one-liners.
 
 The subclass and `@produce` function above are the two canonical styles —
 pick subclass when the produce has its own logic worth naming as a class,
-`@produce` for a short one-off. Two other things `Produce`/`Agent` accept are
+`@produce` for a short one-off. One other thing `Produce`/`Agent` accepts is
 *not* on that list on purpose:
 
-- `Produce(Model, factory=fn)` — a bare two-argument-factory constructor
-  kwarg. **Deprecated** (raises `DeprecationWarning`): it predates `@produce`,
-  only supports `(context, inputs[, event]) -> Model | list | Patch | None`,
-  and can't see the effects slot at all — strictly weaker than `@produce`,
-  which covers the same signature plus `effects`. Kept so old code doesn't
-  break; port it to `@produce`.
 - Overriding `Agent.run(self, event, context) -> Patch` directly, bypassing
   `effects`/`Produce` entirely to hand-assemble a `Patch`. A low-level,
   internal escape hatch for cases effects genuinely can't express — no

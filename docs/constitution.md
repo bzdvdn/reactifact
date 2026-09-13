@@ -3080,8 +3080,8 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 
 # Appendix — Implementation Status
 
-State of the public `reactifact` codebase, aligned with this constitution (ver 0.2).
-Verification: 413 tests; mypy (strict) and ruff clean.
+State of the public `reactifact` codebase, aligned with this constitution (ver 0.3).
+Verification: 494 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
@@ -3106,8 +3106,10 @@ Verification: 413 tests; mypy (strict) and ruff clean.
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |
 | Replay (§55) | §55 | implemented — `ReplayLLM` record/replay, state replay + `python -m reactifact replay` |
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
-| Security / access control | §57 | planned |
-| Adaptive / uncertainty-driven scheduling | §26, §24 | partial — budget + LLM tool router (devops demo); uncertainty-driven selection planned |
+| Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which produce/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
+| Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`, `examples/adaptive`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
+| Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault injection, record/replay, `reactifact scenario` CLI) |
+| MCP integration | — (post-constitution addition) | implemented — `reactifact.mcp`: `mcp_stdio_tools`/`mcp_http_tools` (HTTP with optional auth `headers=`) consume an external server's tools as ordinary `Tool`s; `create_mcp_server` exposes reactifact `Tool`s and, with `context=`, read-only `Context` resources, as an MCP server. Verified over the real protocol (in-memory transport) |
 
 Demos shipped in the repo (not in the wheel):
 
@@ -3128,6 +3130,14 @@ Demos shipped in the repo (not in the wheel):
   intentionally Russian** (a deliberate product choice, §68-adjacent); code and
   comments are English.
 
+Plus canonical ports of classic agent-framework patterns (`reflection`,
+`map_reduce`, `supervisor`, `summarize`, `time_travel`, `plan_execute`, each
+runnable offline as `python -m examples.<name>.main`; see
+[port-matrix](en/port-matrix.md)), `forklab` (branch/merge, §39-40), `ledger`
+(reactive recompute, §42-44), and `adaptive` (hybrid scheduling) — fifteen
+example applications total.
+
 Roadmap direction: domain connectors as examples, the evidence graph is now in
-the trace UI (§34, §54), an evaluation harness landed (§56), and stronger
+the trace UI (§34, §54), an evaluation harness landed (§56), the testing
+harness and MCP integration landed since (rows above), and stronger
 adaptive scheduling.
