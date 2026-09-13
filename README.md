@@ -198,7 +198,7 @@ uv run python ./examples/devops/web.py         # HITL ops assistant + trace dash
 ```
 
 Classic-pattern ports run as one-liners too:
-`python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,adaptive,ledger}.main`.
+`python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute,adaptive,ledger}.main`.
 
 ## Examples (in-repo, not shipped)
 
@@ -211,7 +211,7 @@ Classic-pattern ports run as one-liners too:
 - `ledger` — offline proof of reactive recompute: edit one fact, only its real `Consume`rs re-run.
 - `llm_ladder` — the workflow from one LLM call to state-changing patches (3 levels).
 - `adaptive` — hybrid scheduler: rule filters + deterministic rank + LLM tie-break + `rank_limit`.
-- `{reflection,map_reduce,supervisor,summarize,time_travel}` — canonical ports (see [port-matrix](docs/en/port-matrix.md)).
+- `{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute}` — canonical ports (see [port-matrix](docs/en/port-matrix.md)).
 
 ## Documentation
 

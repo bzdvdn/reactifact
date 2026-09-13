@@ -16,6 +16,7 @@
 | RAG (retrieve→augment→generate) | LangChain, Haystack, LlamaIndex | sources + `fan_out_sources` + `materialize_doc` + evidence→claims | `knowledge`, `research` |
 | Структурный вывод / extraction / роутер | LangChain | `StructuredLLM` / `PromptTemplate` / `llm_reply` | везде |
 | Plan-and-execute | LangGraph | производитель стадии + `StatusMachine` lifecycle | `repair` |
+| Plan-and-execute (канонический порт) | LangChain/AutoGPT | планировщик формирует упорядоченные шаги; исполнитель выполняет ровно один шаг за поколение, гейтуясь результатом предыдущего | `plan_execute` |
 | Eval-driven разработка (DSPy) | DSPy | многоуровневые метрики `reactifact.eval` (§56) | `examples` + тесты |
 | Бюджет инструментов / честность сбоя | — | `Budget` + детерминированные фолбэки, пути `None` (§59) | `devops`, `repair` |
 

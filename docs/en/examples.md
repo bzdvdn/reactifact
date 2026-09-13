@@ -1,6 +1,6 @@
 # Examples
 
-Fourteen working applications ship in `examples/` (in-repo, not packaged). They
+Fifteen working applications ship in `examples/` (in-repo, not packaged). They
 are the reference implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
 examples are split into a `produce/` package (stages) + thin
@@ -150,6 +150,9 @@ Small, self-contained ports of the classic agent patterns — every one runs
 - `summarize` — conversation memory summarization (short → long window).
 - `time_travel` — `Context.branch()`, run two strategies in parallel,
   three-way `merge()`.
+- `plan_execute` — planner drafts ordered steps, executor runs exactly one
+  per generation gated on the previous step's result, finisher synthesizes
+  the answer once every step has one; see [patterns](patterns.md#plan-and-execute-draft-once-run-one-step-at-a-time).
 
 ## Running tests
 

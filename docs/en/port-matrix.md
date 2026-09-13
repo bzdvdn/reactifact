@@ -16,6 +16,7 @@ a concrete example (`examples/`).
 | RAG (retrieve→augment→generate) | LangChain, Haystack, LlamaIndex | sources + `fan_out_sources` + `materialize_doc` + evidence→claims | `knowledge`, `research` |
 | Structured output / extraction / router | LangChain | `StructuredLLM` / `PromptTemplate` / `llm_reply` | everywhere |
 | Plan-and-execute | LangGraph | stage produce + `StatusMachine` lifecycle | `repair` |
+| Plan-and-execute (canonical port) | LangChain/AutoGPT | planner produce drafts ordered steps; executor produce runs one step per generation, gated on the previous step's result | `plan_execute` |
 | Evaluation-driven dev (DSPy) | DSPy | `reactifact.eval` multi-level metrics (§56) | `examples` + tests |
 | Tool budget / honesty on failure | — | `Budget` + deterministic fallbacks, `None` paths (§59) | `devops`, `repair` |
 

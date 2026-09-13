@@ -123,6 +123,52 @@ body = await structured_llm(context, schema=AnswerBody, user=text, on_error=aler
 `build_prompt(inputs)`, опционально `fallback(inputs)`, объявите `schema` — чтение
 и запись провенанса запишутся за вас.
 
+## Plan-and-execute: план, затем шаг за шагом
+
+Для цели, которая раскладывается на упорядоченную последовательность
+*зависимых* шагов (в отличие от независимых чанков map-reduce выше), разделите
+планирование и выполнение на два produce вместо одного большого tool-loop:
+
+```python
+class Planner(Produce[PlanStep]):
+    artifact_type = PlanStep
+
+    async def produce(self, context, inputs, event=None):
+        goal = context.get(event.artifact_id) if event is not None else None
+        if goal is None or context.list_artifacts(PlanStep):
+            return None  # не Goal, либо план уже построен (§42)
+        steps = await plan_steps(goal.data.text)  # structured LLM или фолбэк
+        for index, instruction in enumerate(steps):
+            self.effects.create(PlanStep(index=index, instruction=instruction), ...)
+
+
+class Executor(Produce[StepResult]):
+    artifact_type = StepResult
+
+    async def produce(self, context, inputs, event=None):
+        steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
+        for step in steps:
+            if context.get(f"result:{step.id}") is not None:
+                continue  # уже выполнен
+            if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
+                return None  # ждём результат предыдущего шага (§69)
+            self.effects.create(StepResult(...), id=f"result:{step.id}")
+            return None  # один шаг за поколение; следующий результат перезапустит нас
+```
+
+Ключевой момент: исполнитель **не** ветвится по `event.artifact_id`, как это
+делает поштучный produce в map-reduce — он на каждом триггере заново вычисляет
+«какой шаг следующий» из состояния (подписан и на `PlanStep`, и на
+`StepResult`) — тот же идиом «допустимость — решение по состоянию», что и у
+`Combine` в `map_reduce`. Гард `if step.data.index > 0 and ... is None: return
+None` — это и есть весь механизм упорядочивания: без явного графа
+управления, без ручной проводки «жди узел N». Produce `Finisher` зеркалит
+`Combine` из `map_reduce`: ждёт результата каждого шага, затем собирает
+финальный ответ.
+
+Полный порт — в `examples/plan_execute` (структурированное планирование с
+детерминированным однотаговым фолбэком и финишером).
+
 ## Фолбэки: честная деградация
 
 Детерминированная работа остаётся детерминированной; генеративная деградирует

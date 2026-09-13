@@ -122,6 +122,51 @@ variables, a `KeyError` on missing vars, and model-attribute fields
 `build_prompt(inputs)`, optionally `fallback(inputs)`, declare `schema` — and
 the reading/writing provenance is recorded for you.
 
+## Plan-and-execute: draft once, run one step at a time
+
+For a goal that decomposes into an ordered sequence of dependent steps
+(rather than independent chunks — see map-reduce above), split planning from
+execution into two produces instead of one big tool loop:
+
+```python
+class Planner(Produce[PlanStep]):
+    artifact_type = PlanStep
+
+    async def produce(self, context, inputs, event=None):
+        goal = context.get(event.artifact_id) if event is not None else None
+        if goal is None or context.list_artifacts(PlanStep):
+            return None  # not a Goal, or already planned (§42)
+        steps = await plan_steps(goal.data.text)  # structured LLM, or a fallback
+        for index, instruction in enumerate(steps):
+            self.effects.create(PlanStep(index=index, instruction=instruction), ...)
+
+
+class Executor(Produce[StepResult]):
+    artifact_type = StepResult
+
+    async def produce(self, context, inputs, event=None):
+        steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
+        for step in steps:
+            if context.get(f"result:{step.id}") is not None:
+                continue  # already executed
+            if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
+                return None  # wait for the predecessor's result (§69)
+            self.effects.create(StepResult(...), id=f"result:{step.id}")
+            return None  # one step per generation; the next result re-triggers us
+```
+
+The key move: the executor does **not** branch on `event.artifact_id` the way
+a per-chunk map-reduce produce does — it recomputes "which step is next" from
+state on every trigger (consuming both `PlanStep` and `StepResult`), the same
+"eligibility is a state decision" idiom `Combine` uses in `map_reduce`. That
+`if step.data.index > 0 and ... is None: return None` guard is the entire
+sequencing mechanism — no explicit control-flow graph, no manual "wait for
+node N" wiring. A `Finisher` produce mirrors `map_reduce`'s `Combine`: wait
+until every step has a result, then synthesize the final answer.
+
+See `examples/plan_execute` for the full port (structured planning with a
+deterministic single-step fallback, and the finisher).
+
 ## Fallbacks: honest degradation
 
 Deterministic work stays deterministic; generative work degrades *honestly*:
