@@ -33,6 +33,23 @@ Pre-1.0 API-freeze cleanup.
 
 ### Docs
 
+- New [docs/en/troubleshooting.md](docs/en/troubleshooting.md) /
+  [docs/ru/troubleshooting.md](docs/ru/troubleshooting.md): symptom-first
+  ("my agent didn't run" / "ran twice" / "the run stopped early" / "the
+  scheduler picked the wrong one") diagnosis guide pointing at the concrete
+  tool for each (`reactifact graph`/`reactifact trace`, `RunOutcome`/
+  `RunStats`, `context.related`/`context_to_mermaid`, `reactifact.testing`)
+  — distinct from `observability.md`, which is a feature list of the tracing
+  tooling, not a "you're stuck, here's the fastest path" guide.
+- `docs/en/design-notes/adaptive.md` / ru: mentions `relation_balance_metric`
+  and its `examples/medic_lab` wiring (was written before that metric
+  existed).
+- `docs/{en,ru}/comparison.md`: new "Starting from scratch" section — the
+  existing "If you're evaluating both" trial assumes a LangGraph/CrewAI
+  project to port from; this is the equivalent falsifiable exercise for a
+  greenfield reader with nothing to port, ending with an explicit invite to
+  report the result on
+  [GitHub Discussions](https://github.com/bzdvdn/reactifact/discussions).
 - README/`docs/*/sources.md` no longer claim direct-API/keyword/SQL sources
   are shipped ("equally first-class") — only filesystem/CSV/web are today;
   the others are linked to the [roadmap](docs/roadmap.md#next) instead of

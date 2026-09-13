@@ -68,6 +68,16 @@ runtime = Runtime(
 `Agent.capabilities` (§25) — метаданные, которые политика и LLM-разруливание
 используют для описания кандидатов; сами по себе они ничего не меняют.
 
+`reactifact.scheduler.relation_balance_metric` — встроенная uncertainty-driven
+`Metric`: ранжирует кандидата по тому, насколько несимметричны связи
+`supports`/`contradicts` у артефакта, к которому относится его событие —
+детерминированно, без привязки к провайдеру, тот же структурный сигнал,
+который `examples/medic_lab` раньше считал вручную только для отчёта
+(`produce/evaluate.py`). `medic_lab` теперь подключает его через собственный
+`Runtime(scheduler=medic_lab_scheduler())`, так что самая противоречивая
+открытая гипотеза реально исследуется первой, а не просто оказывается
+наверху в итоговом отчёте.
+
 ## Чем это НЕ является
 
 - Не альтернативный исполнитель — графа путей нет, runtime по-прежнему
@@ -81,8 +91,15 @@ runtime = Runtime(
 
 ## Что поставляется со спайком
 
-- `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`, типы.
+- `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
+  `relation_balance_metric`, типы.
 - Хук в runtime (параметр `scheduler=`), `Agent.capabilities`.
 - `examples/adaptive` — два конкурирующих «художника» + HITL-подтверждение.
+- `examples/medic_lab` — `medic_lab_scheduler()` подключает
+  `relation_balance_metric` и в консольный (`chat.py`), и в веб (`api/chat.py`)
+  вход.
 - `tests/test_adaptive.py` — ранжирование, отсев, fallback, LLM-разруливание,
-  пропуск офлайн, HITL pin, прогон демо.
+  пропуск офлайн, HITL pin, прогон демо, `relation_balance_metric` (веса,
+  кастомные имена связей, сквозное планирование).
+- `tests/test_medic_lab.py` — `medic_lab_scheduler()` приоритизирует более
+  противоречивую открытую гипотезу.

@@ -65,6 +65,16 @@ runtime = Runtime(
 `Agent.capabilities` (§25) is metadata the policy and the LLM tie-break use to
 describe candidates; it changes nothing on its own.
 
+`reactifact.scheduler.relation_balance_metric` is the built-in
+uncertainty-driven `Metric`: ranks a candidate by how lopsided the
+`supports`/`contradicts` relations are on the artifact its event is about —
+deterministic, provider-agnostic, the same structural signal
+`examples/medic_lab` used to compute by hand for its report only
+(`produce/evaluate.py`). `medic_lab` now wires it into its own
+`Runtime(scheduler=medic_lab_scheduler())`, so the most-contradicted open
+hypothesis is actually investigated first, not just ranked highest
+afterward.
+
 ## What it is NOT
 
 - Not an alternative executor — no path graph; the runtime still reacts to
@@ -78,8 +88,14 @@ describe candidates; it changes nothing on its own.
 
 ## Shipped with the spike
 
-- `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`, types.
+- `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
+  `relation_balance_metric`, types.
 - Runtime hook (`scheduler=` param), `Agent.capabilities`.
 - `examples/adaptive` — two competing artists + HITL approval.
+- `examples/medic_lab` — `medic_lab_scheduler()` wires `relation_balance_metric`
+  into both the console (`chat.py`) and web (`api/chat.py`) entrypoints.
 - `tests/test_adaptive.py` — ranking, pruning, fallback, LLM tie-break,
-  offline skip, HITL pin, demo runs.
+  offline skip, HITL pin, demo runs, `relation_balance_metric` (weights,
+  custom relation names, end-to-end scheduling).
+- `tests/test_medic_lab.py` — `medic_lab_scheduler()` prioritizes the
+  more-contradicted open hypothesis.

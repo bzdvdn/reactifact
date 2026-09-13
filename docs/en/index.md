@@ -173,6 +173,8 @@ it's trimmed from.
 
 - [Observability](observability.md) — every run traces agent spans,
   reads/writes, LLM calls; offline dashboard, or ship to Langfuse/Postgres.
+- [Troubleshooting](troubleshooting.md) — "my agent didn't run" / "ran twice" /
+  "the run stopped early" — organized by symptom, not by feature.
 - [Evaluation](eval.md) — multi-level scoring over the final `Context`
   (evidence quality, provenance grounding, calculation correctness, …).
 - [Branching & merge](branching.md) — fork state, explore alternatives,

@@ -119,3 +119,24 @@ logic *shorter and more honest about failure* (no silent wrong-number
 hallucination, real "why" for its answer), the rest of the system is probably
 worth porting too. If it mostly adds ceremony for a genuinely linear flow,
 that agent was never the graph-heavy case reactifact is built for.
+
+## Starting from scratch (nothing to port)
+
+The trial above assumes an existing graph to compare against. If you don't
+have one, the equivalent test doesn't need a pre-existing project — it needs
+a *third* thing to wire in after the fact:
+
+1. Pick a question that genuinely needs two independent things combined (a
+   CSV number and a doc lookup, say — not a fixed A→B pipeline).
+2. Write it as two `Produce`s that each declare only what they `consume`/
+   `produce` — the [front-page example](index.md)'s two-agent snippet
+   (`find_evidence`/answer) is the shape. Neither should import or reference
+   the other by name.
+3. Now add a *third* agent for a follow-up question that needs a different
+   subset of the same data — without touching the first two agents' code.
+
+If step 3 composes cleanly, that's the actual claim on this page, not a
+marketing line — [open a discussion](https://github.com/bzdvdn/reactifact/discussions)
+with what you built (or where it didn't compose the way this page claims);
+that's a faster way to get a straight answer than reading more docs, and it's
+exactly the kind of report that makes this comparison more honest over time.

@@ -174,6 +174,8 @@ print("supported_by:", evidence.data.text)  # провенанс, который
 
 - [Observability](observability.md) — трейс каждого запуска: агентские спаны,
   чтения/записи, LLM-вызовы; офлайн-дашборд или экспорт в Langfuse/Postgres.
+- [Диагностика проблем](troubleshooting.md) — «агент не запустился» / «запустился
+  дважды» / «run остановился раньше времени» — по симптомам, не по фичам.
 - [Evaluation](eval.md) — многоуровневая оценка финального `Context`
   (качество evidence, provenance grounding, корректность вычислений, …).
 - [Branching & merge](branching.md) — форк состояния, исследование
