@@ -90,14 +90,19 @@ async def mcp_stdio_tools(
 
 @asynccontextmanager
 async def mcp_http_tools(
-    url: str, *, headers: dict[str, str] | None = None
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: Any = None,
 ) -> AsyncGenerator[list[Tool], None]:
     """Connects to an MCP server over streamable HTTP and yields its tools as
     `Tool`s.
 
-    Pass `headers` for servers that require auth (e.g.
-    `{"Authorization": "Bearer ..."}`) — the SDK's `streamable_http_client`
-    has no `headers=` kwarg of its own; the documented way is a
+    Pass `headers` for servers that require a static credential (e.g.
+    `{"Authorization": "Bearer ..."}`), or `auth` (an `httpx2.Auth`) for a
+    server that requires OAuth — see `reactifact.mcp.oauth_client_credentials`
+    for the machine-to-machine case. The SDK's `streamable_http_client` has
+    no `headers=`/`auth=` kwarg of its own; the documented way is a
     pre-configured client, which this builds (and owns/closes) with the same
     recommended timeouts the SDK's own default client uses (30s
     connect/write/pool, 300s read — a server may hold a response stream
@@ -114,10 +119,10 @@ async def mcp_http_tools(
 
     async with AsyncExitStack() as stack:
         http_client = None
-        if headers is not None:
+        if headers is not None or auth is not None:
             http_client = await stack.enter_async_context(
                 httpx2.AsyncClient(
-                    headers=headers, timeout=httpx2.Timeout(30.0, read=300.0)
+                    headers=headers, auth=auth, timeout=httpx2.Timeout(30.0, read=300.0)
                 )
             )
         read, write = await stack.enter_async_context(

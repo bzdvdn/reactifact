@@ -10,7 +10,12 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel
 from reactifact import Context
-from reactifact.mcp import create_mcp_server, mcp_http_tools, mcp_tools
+from reactifact.mcp import (
+    create_mcp_server,
+    mcp_http_tools,
+    mcp_tools,
+    oauth_client_credentials,
+)
 from reactifact.tools import Tool, ToolOutput, tool
 
 pytest.importorskip("mcp")
@@ -267,3 +272,77 @@ def test_mcp_http_tools_without_headers_uses_the_default_client(monkeypatch):
 
     run(scenario())
     assert captured["http_client"] is None
+
+
+def test_mcp_http_tools_passes_oauth_auth_to_the_transport(monkeypatch):
+    """`mcp_http_tools(url, auth=...)` must build an `httpx2.AsyncClient`
+    carrying the given auth (e.g. `oauth_client_credentials(...)`) and hand
+    it to the transport — regression guard for the OAuth client_credentials
+    gap (no way to reach a server that requires it) this parameter closes."""
+    import httpx2
+    import mcp.client.streamable_http as streamable_http_module
+    from mcp.client.auth.extensions.client_credentials import (
+        ClientCredentialsOAuthProvider,
+    )
+
+    import mcp as mcp_pkg
+
+    captured: dict[str, object] = {}
+
+    @asynccontextmanager
+    async def fake_streamable_http_client(
+        url: str, *, http_client=None, **_: object
+    ) -> AsyncGenerator[tuple[object, object], None]:
+        captured["http_client"] = http_client
+        yield (object(), object())
+
+    class FakeSession:
+        def __init__(self, read: object, write: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeSession":
+            return self
+
+        async def __aexit__(self, *exc: object) -> bool:
+            return False
+
+        async def initialize(self) -> None:
+            return None
+
+        async def list_tools(self) -> SimpleNamespace:
+            return SimpleNamespace(tools=[])
+
+    monkeypatch.setattr(
+        streamable_http_module, "streamable_http_client", fake_streamable_http_client
+    )
+    monkeypatch.setattr(mcp_pkg, "ClientSession", FakeSession)
+
+    auth = oauth_client_credentials(
+        "https://example.invalid/mcp",
+        client_id="cid",
+        client_secret="secret",
+        issuer="https://auth.example.invalid",
+    )
+
+    async def scenario() -> None:
+        async with mcp_http_tools("https://example.invalid/mcp", auth=auth) as tools:
+            assert tools == []
+
+    run(scenario())
+
+    http_client = captured["http_client"]
+    assert isinstance(http_client, httpx2.AsyncClient)
+    assert http_client.auth is auth
+    assert isinstance(auth, ClientCredentialsOAuthProvider)
+
+
+def test_oauth_client_credentials_defaults_to_in_memory_storage():
+    from reactifact.mcp import InMemoryTokenStorage
+
+    auth = oauth_client_credentials(
+        "https://example.invalid/mcp",
+        client_id="cid",
+        client_secret="secret",
+        issuer="https://auth.example.invalid",
+    )
+    assert isinstance(auth.context.storage, InMemoryTokenStorage)

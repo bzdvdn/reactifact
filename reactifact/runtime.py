@@ -90,8 +90,8 @@ class Runtime:
         # between its own internal steps — the runtime only enforces max_seconds
         # *between* agent runs, so a produce with its own internal loop would
         # otherwise never see it until the whole produce() returns).
-        self.context.resources.set("budget", self._active_budget)
-        self.context.resources.set("budget_deadline", self._deadline)
+        self.context.resources.budget = self._active_budget
+        self.context.resources.budget_deadline = self._deadline
         self._turn_started = True
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else ""

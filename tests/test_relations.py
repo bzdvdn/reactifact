@@ -150,6 +150,16 @@ def test_merge_from_unions_relations():
     assert any(isinstance(op, Link) for op in ops)
 
 
+def test_merge_from_preserves_id_of_artifact_absent_from_target():
+    left = Context()
+    right = Context()
+    right.create(Claim(statement="c"), id="claim-1")
+    left.merge_from(right)
+    merged = left.get("claim-1")
+    assert merged is not None
+    assert merged.data.statement == "c"
+
+
 def test_link_unlink_dict_roundtrip():
     link = Link(artifact_id="a", relation="r", target_id="b")
     unlink = Unlink(artifact_id="a", relation="r")

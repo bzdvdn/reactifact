@@ -21,17 +21,17 @@ class Trigger:
         self.artifact_type = artifact_type
         self.condition = condition
 
-    def matches(self, event: Event, workspace: Context | None = None) -> bool:
+    def matches(self, event: Event, context: Context | None = None) -> bool:
         """Checks whether the event matches this trigger.
-        If a condition is set, requires a workspace to fetch the artifact."""
+        If a condition is set, requires a context to fetch the artifact."""
         if event.type != self.event_type:
             return False
         if self.artifact_type is not None and event.artifact_type != self.artifact_type:
             return False
         if self.condition is not None:
-            if workspace is None:
-                raise ValueError("Workspace is required to evaluate condition")
-            artifact = workspace.get(event.artifact_id)
+            if context is None:
+                raise ValueError("Context is required to evaluate condition")
+            artifact = context.get(event.artifact_id)
             if artifact is None:
                 return False  # the artifact may have been deleted
             return self.condition(artifact)

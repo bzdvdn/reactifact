@@ -207,4 +207,5 @@
 | --- | --- |
 | `mcp_stdio_tools(command, args)`, `mcp_http_tools(url)` | подключение к MCP-серверу, отдаёт его инструменты как `list[Tool]` |
 | `mcp_tools(session)`, `MCPTool` | обернуть инструменты существующей `mcp.ClientSession` |
+| `oauth_client_credentials(server_url, client_id=, client_secret=, issuer=)`, `InMemoryTokenStorage` | значение `auth=` для `mcp_http_tools` — grant `client_credentials` OAuth (machine-to-machine, без браузера и согласия человека) |
 | `create_mcp_server(tools, context=...)` | отдать `Tool` (и, с `context=`, артефакты `Context`) как `mcp.server.mcpserver.MCPServer` |

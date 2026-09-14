@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .providers import EmbeddingProvider, LLMProvider
 from .sources import Source
+
+if TYPE_CHECKING:
+    from .budget import Budget
 
 
 class RuntimeResources:
@@ -18,6 +21,13 @@ class RuntimeResources:
         self.embedder = embedder
         self.sources = sources or {}
         self.additional = additional
+        # Set by Runtime per turn (not a constructor param — the runtime, not
+        # the caller, owns these): the active Budget and its wall-clock
+        # deadline, read back by ToolUse's own inner loop (§ tool_use.py) to
+        # enforce the tool-call/time budget between its own round-trips, not
+        # just at the top-level Runtime._budget_exhausted check.
+        self.budget: Budget | None = None
+        self.budget_deadline: float | None = None
 
     def get_source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)

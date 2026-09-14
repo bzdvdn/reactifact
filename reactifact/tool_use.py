@@ -162,14 +162,14 @@ class ToolUse(_ToolLoopBase):
 
     async def _loop(self, context: Context, goal: str) -> str:
         history: list[str] = []
-        budget = context.resources.get("budget")
+        budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
         # Runtime only enforces Budget.max_seconds *between* agent runs
         # (Runtime._budget_exhausted): this loop makes several LLM/tool
         # round-trips inside one produce(), so without its own check here a
         # slow provider could blow well past the time budget before the
         # runtime ever gets a chance to see it.
-        deadline = context.resources.get("budget_deadline")
+        deadline = context.resources.budget_deadline
         executed = 0
         context.announce("Deciding next action…", kind="agent", agent=self.name)
         for _ in range(self.max_steps):
@@ -401,7 +401,7 @@ class ToolUseHITL(_ToolLoopBase):
             return None
 
         tool_history = [o for o in history if o.source == "tool"]
-        budget = context.resources.get("budget")
+        budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
         if max_tool_calls is not None and len(tool_history) >= max_tool_calls:
             self.effects.create(

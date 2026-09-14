@@ -128,14 +128,24 @@ class Effects:
     def upsert(self, data: Any, *, id: str) -> Handle:
         """Explicit create-or-refresh: same effect as `create(data, id=id)`.
 
-        Prefer this over `create(..., id=...)` when the artifact may already
-        exist (e.g. a re-derived id like `f"answer:{qid}"`) — it says at the
-        call site that an update is an expected outcome, not a surprise.
+        Purely a call-site name: identical to `create(..., id=...)`, but says
+        at the call site that a refresh is an expected outcome, not a
+        surprise — reach for it when the artifact may already exist (e.g. a
+        re-derived id like `f"answer:{qid}"`).
         """
         return self.create(data, id=id)
 
     def update(self, artifact: Artifact[Any], **fields: Any) -> Effects:
-        """Bumps fields of an *existing* artifact (a new version)."""
+        """Bumps fields of an *existing* artifact (a new version).
+
+        Note the name means something different here than on `Patch.update`/
+        `Context.update`/`Artifact.update` (a full data replacement) — this is
+        the one intentional exception, matching `Patch.update_fields`
+        instead. `Effects` is the everyday authoring surface where "update
+        some fields" is the common case (§18 above), so it gets the short
+        name; the lower-level, less-used `Patch`/`Context`/`Artifact` surface
+        keeps `update` for the operation it's actually named after.
+        """
         new_data = artifact.data.model_copy(update=fields)
         self.operations.append(Update(artifact.id, new_data))
         return self

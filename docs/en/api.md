@@ -206,4 +206,5 @@ the stable contract, not a moving target.
 | --- | --- |
 | `mcp_stdio_tools(command, args)`, `mcp_http_tools(url)` | connect to an MCP server, yield its tools as `list[Tool]` |
 | `mcp_tools(session)`, `MCPTool` | wrap tools off an existing `mcp.ClientSession` |
+| `oauth_client_credentials(server_url, client_id=, client_secret=, issuer=)`, `InMemoryTokenStorage` | `auth=` value for `mcp_http_tools` — OAuth's `client_credentials` grant (machine-to-machine, no browser/human consent) |
 | `create_mcp_server(tools, context=...)` | expose `Tool`s (and, with `context=`, a `Context`'s artifacts) as an `mcp.server.mcpserver.MCPServer` |

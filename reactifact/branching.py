@@ -5,8 +5,12 @@
 git-like state operations `Context.clone()`/`.branch()`/`.merge_from()`/
 `.merge()` delegate to — moved here so the git-like algorithm lives next to
 the concept it implements, not folded into `Context`'s general CRUD/relations/
-HITL surface. `BranchStore` only *persists* named forks so they survive a
-restart:
+HITL surface. Application code should call the `Context` methods (see
+[docs/en/branching.md](../docs/en/branching.md)); these module-level
+functions are exported for building on `Context` without one already in
+hand (e.g. `BranchStore`'s own load/merge path below), not as an equally
+first-class alternative entry point. `BranchStore` only *persists* named
+forks so they survive a restart:
 
     store = BranchStore(SQLiteKVBackend("sessions.sqlite3"))
     await store.save_branch(ctx_branch, session_id="demo", name="hypothesis-a")
@@ -91,13 +95,8 @@ def merge_context_from(target: Context, other: Context) -> None:
                 operations.append(Update(other_id, new_data))
         else:
             new_data = other_artifact.data.model_copy(deep=True)
-            # NOTE: no `id=other_id` — matches the pre-extraction behavior of
-            # `Context.merge_from()` exactly (a merged-in artifact absent from
-            # `target` gets a freshly minted id, not `other_id`). Not fixed
-            # here — a real behavior change belongs in its own change, not a
-            # pure extraction.
-            target.create(new_data)
-            operations.append(Create(new_data))
+            target.create(new_data, id=other_id)
+            operations.append(Create(new_data, id=other_id))
     for rel in other.relations():
         if (rel.source_id, rel.relation, rel.target_id) not in target._relations:
             target.link(rel.source_id, rel.relation, rel.target_id)

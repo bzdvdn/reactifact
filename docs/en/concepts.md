@@ -110,6 +110,13 @@ class RepairFlow(Agent):
 - `produces` — `Produce` instances that may run when the agent is awake.
 - The runtime wakes agents on events, respecting budget and concurrency.
 
+`Agent` also has a lower-level `run(event, context) -> Patch | None` you can
+override directly instead of declaring `produces`. It's an escape hatch for
+assembling a `Patch` by hand (see [patterns.md](patterns.md) for when that's
+actually warranted) — not a third everyday style alongside `Produce`
+subclasses and `@produce` functions. Reach for it only when you've outgrown
+both.
+
 ## 5. Produce
 
 `Produce[M]` is where the work happens. Its **authoring surface is

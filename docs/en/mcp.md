@@ -36,10 +36,43 @@ async with mcp_stdio_tools(
 ```
 
 `mcp_http_tools(url, headers=...)` connects over streamable HTTP the same
-way — pass `headers` for a server that requires auth (e.g.
+way — pass `headers` for a server that requires a static credential (e.g.
 `{"Authorization": "Bearer ..."}`). Both are thin wrappers over
 `mcp.ClientSession` — use `mcp_tools(session)` directly if you're managing
-the session yourself (a custom transport, non-header auth, …).
+the session yourself (a custom transport, …).
+
+### OAuth (client_credentials)
+
+For a server that requires OAuth rather than a static header,
+`oauth_client_credentials` builds an `auth=` value for `mcp_http_tools` using
+the `client_credentials` grant — machine-to-machine, no browser or human
+consent involved:
+
+```python
+from reactifact.mcp import mcp_http_tools, oauth_client_credentials
+
+auth = oauth_client_credentials(
+    "https://mcp.example.com",
+    client_id="...",
+    client_secret="...",
+    issuer="https://auth.example.com",  # the authorization server that issued them
+)
+async with mcp_http_tools("https://mcp.example.com", auth=auth) as tools:
+    ...
+```
+
+`issuer` pins the token exchange to that specific authorization server's
+discovered metadata, so a compromised or misconfigured MCP server can't
+redirect the credential exchange elsewhere. Tokens are cached in memory for
+the life of the `auth` object (`InMemoryTokenStorage`); pass your own
+`storage=` to persist them across restarts.
+
+This covers `client_credentials` only — the flow where the agent itself
+holds the credential. The authorization-code flow (a person granting consent
+through a browser redirect) needs a `redirect_handler`/`callback_handler`
+wired to whatever hosts the app, which is host-specific plumbing outside
+this library's scope; use `mcp.client.auth.OAuthClientProvider` directly
+for that.
 
 ## Server: expose reactifact as MCP
 

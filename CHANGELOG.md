@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-14
+
 Pre-1.0 API-freeze cleanup.
 
 ### Breaking
@@ -15,8 +17,36 @@ Pre-1.0 API-freeze cleanup.
   decorator (same return-style signature, plus optional `effects`/`event`
   params) — see [docs/en/effects.md](docs/en/effects.md).
 
+### Fixed
+
+- `Context.merge_from` (and the underlying `merge_context_from`) now keeps
+  the original id of an artifact that exists in `other` but not in `target`
+  — it previously minted a fresh id for it, silently detaching the merged
+  artifact from any relation or reference that pointed at its original id.
+- `Trigger.matches`'s second parameter is renamed `workspace` → `context`
+  (pre-1.0 API-consistency pass — `Workspace` was the project's old name,
+  every other call site already says `context`). Positional-call code is
+  unaffected; nothing in the codebase called it by keyword.
+- `RuntimeResources.budget`/`.budget_deadline` are now typed fields, set by
+  `Runtime` each turn — internally replacing the untyped
+  `resources.set("budget", ...)`/`resources.get("budget_deadline")` pair
+  `ToolUse`'s inner loop used to read the active `Budget` through. The
+  general-purpose `resources.get`/`.set` bag (for your own app resources —
+  a catalog, a skills list, ...) is unaffected.
+
 ### Added
 
+- `reactifact.mcp.oauth_client_credentials(server_url, client_id=, client_secret=,
+  issuer=)`: builds an `auth=` value for `mcp_http_tools` using OAuth's
+  `client_credentials` grant (machine-to-machine, no browser/human consent) —
+  a thin wrapper over the MCP SDK's own `ClientCredentialsOAuthProvider`,
+  defaulting to a new `InMemoryTokenStorage` (pass your own `TokenStorage` to
+  persist tokens across restarts). `mcp_http_tools` gained the `auth=` kwarg
+  to carry it (alongside the existing `headers=`, for static credentials).
+  Scoped to `client_credentials` only — the authorization-code flow needs a
+  host-specific redirect/callback handler outside this library's scope; use
+  `mcp.client.auth.OAuthClientProvider` directly for that. See
+  [docs/en/mcp.md](docs/en/mcp.md#oauth-client_credentials).
 - `mcp_http_tools(url, headers=...)`: an optional `headers` kwarg for
   connecting to MCP servers that require auth (e.g. `Authorization: Bearer
   ...`). Previously there was no way to reach such a server at all over
@@ -33,6 +63,16 @@ Pre-1.0 API-freeze cleanup.
 
 ### Docs
 
+- `docs/{en,ru}/concepts.md` §4 (Agent): explicit paragraph on `Agent.run()`
+  as the low-level escape hatch — it was only documented in the class's own
+  docstring before, easy to miss from the newcomer-facing docs.
+- `reactifact/branching.py`'s module docstring now says explicitly that
+  application code should call the `Context.clone/branch/merge/merge_from`
+  methods, not the module-level `clone_context`/`fork_context`/
+  `merge_contexts`/`merge_context_from` functions they delegate to — the
+  functions stay exported for building on a `Context` you don't have in
+  hand yet (e.g. `BranchStore`'s own load/merge path), not as an equally
+  first-class alternative entry point.
 - New [docs/en/troubleshooting.md](docs/en/troubleshooting.md) /
   [docs/ru/troubleshooting.md](docs/ru/troubleshooting.md): symptom-first
   ("my agent didn't run" / "ran twice" / "the run stopped early" / "the

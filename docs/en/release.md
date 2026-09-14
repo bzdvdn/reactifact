@@ -25,6 +25,12 @@ There's no separate migration doc — `CHANGELOG.md` is the source of truth for
 what changed between versions, and breaking entries are marked per the rule
 above. Two changes worth knowing if you're crossing them:
 
+- **0.7.0** — `Context.merge_from` now preserves the `id` of an artifact
+  that exists in `other` but not in `target` (it previously minted a fresh
+  one). If you relied on the old id-regenerating behavior — unlikely, since
+  it silently detached the merged artifact from any relation pointing at
+  its original id — pass the artifact through `create(data, id=new_id())`
+  yourself before merging to keep the old effect.
 - **0.5.0** — `reactifact/__init__.py` re-exports only the core surface
   (~40 names, down from ~150); eval, tracing, checkpoint/branch backends,
   the chat/web layer, the adaptive scheduler, replay, structured-LLM

@@ -37,10 +37,43 @@ async with mcp_stdio_tools(
 ```
 
 `mcp_http_tools(url, headers=...)` подключается так же, но по streamable
-HTTP — передайте `headers` для сервера, требующего авторизацию (например,
-`{"Authorization": "Bearer ..."}`). Оба — тонкие обёртки над
+HTTP — передайте `headers` для сервера, требующего статический credential
+(например, `{"Authorization": "Bearer ..."}`). Оба — тонкие обёртки над
 `mcp.ClientSession`; используйте `mcp_tools(session)` напрямую, если сами
-управляете сессией (свой транспорт, авторизация не через заголовки, …).
+управляете сессией (свой транспорт, …).
+
+### OAuth (client_credentials)
+
+Для сервера, требующего OAuth вместо статического заголовка,
+`oauth_client_credentials` строит значение `auth=` для `mcp_http_tools` по
+grant'у `client_credentials` — machine-to-machine, без браузера и согласия
+человека:
+
+```python
+from reactifact.mcp import mcp_http_tools, oauth_client_credentials
+
+auth = oauth_client_credentials(
+    "https://mcp.example.com",
+    client_id="...",
+    client_secret="...",
+    issuer="https://auth.example.com",  # сервер авторизации, выдавший их
+)
+async with mcp_http_tools("https://mcp.example.com", auth=auth) as tools:
+    ...
+```
+
+`issuer` привязывает обмен токена к метаданным именно этого сервера
+авторизации — скомпрометированный или неправильно настроенный MCP-сервер не
+сможет перенаправить обмен credential'ов куда-то ещё. Токены кэшируются в
+памяти на время жизни объекта `auth` (`InMemoryTokenStorage`); передайте
+свой `storage=`, чтобы они переживали перезапуск.
+
+Это покрывает только `client_credentials` — сценарий, где credential
+держит сам агент. Authorization-code flow (человек даёт согласие через
+редирект в браузере) требует `redirect_handler`/`callback_handler`,
+привязанных к конкретному хосту приложения — это host-специфичная
+инфраструктура вне области этой библиотеки; используйте
+`mcp.client.auth.OAuthClientProvider` напрямую для этого случая.
 
 ## Сервер: отдать reactifact как MCP
 
