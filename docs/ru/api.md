@@ -58,9 +58,10 @@
 | `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)) |
 | `Trigger` | вторичное (не артефактное) условие входа produce |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
-| `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`) |
+| `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
 | `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения перед исполнением |
+| `DeferredToolGroup` (`reactifact.tool_use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput` | абстракция и регистрация инструментов |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `self.effects.resume(...)` |
@@ -198,7 +199,7 @@
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value чекпоинты под сессии (`pg` extra для Postgres) — async-native: файловый I/O уходит в отдельный поток, SQLite/Postgres держат одно постоянное соединение (WAL + busy_timeout у SQLite) под `asyncio.Lock` |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | чекпоинты всего контекста |
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`) |
-| `LangfuseTracer`, `PostgresStore` | внешние приёмники трейсов — Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
+| `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда |
 
 ## MCP (reactifact.mcp, extra `mcp`)

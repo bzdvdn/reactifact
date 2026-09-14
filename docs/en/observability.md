@@ -85,6 +85,30 @@ Both `TraceStore` and `PostgresStore` implement `TraceReader` (async
 dashboard at `PostgresStore(dsn)` to view traces written to Postgres without a
 local SQLite file.
 
+### `OTLPTracer`: any OTLP/HTTP collector
+
+`LangfuseTracer` is Langfuse-specific (its own `langfuse.*` attribute
+namespace). `OTLPTracer` exports the same run as vendor-neutral spans —
+GenAI semantic-convention attributes only (`gen_ai.*`, plus a
+`reactifact.*` namespace for reads/writes/provenance) — to any OTLP/HTTP
+collector: Jaeger, Tempo, Honeycomb, Datadog Agent, a local
+`otel-collector`, ...
+
+```python
+from reactifact.tracing import OTLPTracer
+
+runtime = Runtime(
+    ctx,
+    agents=[...],
+    tracer=OTLPTracer(endpoint="http://localhost:4318/v1/traces"),
+)
+```
+
+No `opentelemetry-sdk` dependency — like `LangfuseTracer`, it POSTs the
+OTLP/HTTP JSON payload directly over `httpx` (already a core dependency), so
+this needs no extra to install. Pass `headers=` for a collector that
+requires auth.
+
 ## Emission model
 
 - Only **state-changing** agents emit spans (a pure read/verify produce emits

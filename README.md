@@ -22,6 +22,11 @@ react to events — there is no graph, no node pipeline.
 
 ![Left: a hand-wired fetch → verify → answer pipeline. Right: reactifact — search_agent and answer_agent each declare only what they consume and produce, wired together by Context, never each other.](docs/img/wiring.svg)
 
+Two agents explore independently on their own forks and merge back automatically
+— and when they disagree, reactifact refuses to merge silently:
+
+![forklab demo: two strategies (depth/breadth) investigate on separate forks and merge cleanly; a second run edits the same artifact on both forks and reactifact raises MergeConflict instead of guessing, then re-merges under an explicit policy.](docs/img/forklab-demo.gif)
+
 ```bash
 pip install reactifact
 ```

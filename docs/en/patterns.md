@@ -81,6 +81,43 @@ class OpsAgent(HITLLMAgent):
 The `devops` example is the canonical `HITLLMAgent` demo (LLM tool router +
 approval for K8s/GitLab/Ansible mutations).
 
+### Deferred tool groups: many tools without the context cost
+
+Connecting several MCP servers (or any large tool sets) means every one of
+their schemas would otherwise land in the system prompt on every step, most
+of them never called. `DeferredToolGroup` keeps a group's tools out of the
+prompt — only its name, description, and bare tool names show up in a
+compact catalog — until the LLM asks for it by calling the built-in
+`load_tools` tool. `ToolUse`/`LLMAgent` support it; `ToolUseHITL`/
+`HITLLMAgent` don't yet (see the class docstring for why):
+
+```python
+from reactifact.tool_use import DeferredToolGroup, ToolUse
+from reactifact.mcp import mcp_stdio_tools
+
+async def load_github_tools():
+    async with mcp_stdio_tools("npx", ["-y", "@modelcontextprotocol/server-github"]) as tools:
+        return tools
+
+github_group = DeferredToolGroup(
+    group_id="mcp:github",
+    display_name="GitHub",
+    description="Issues, PRs, repos, code search",
+    tool_names=["create_issue", "search_repos", "create_pr"],
+    loader=load_github_tools,
+)
+
+ToolUse(
+    system="...",
+    tools=[...],                       # always-visible tools
+    deferred_tool_groups=[github_group],  # hidden until requested
+)
+```
+
+`loader` runs at most once per group per `ToolUse` run — the group's real
+tools (full schemas) join the regular tool list for the rest of that run
+once loaded.
+
 ## Structured output: never parse raw JSON yourself
 
 The runtime wraps a single LLM call into a `pydantic` schema with retries and

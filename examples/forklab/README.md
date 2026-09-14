@@ -13,6 +13,11 @@ over the merged state.
 
 ![A base context holding Question and Budget forks into a depth and a breadth strategy agent; the two forks merge back with a three-way merge, and the final Answer stays linked supported_by evidence from both branches.](../../docs/img/forklab-flow.svg)
 
+The top-level README's demo GIF (`docs/img/forklab-demo.gif`) is this example's
+`main.py`/`--conflict`/`--mermaid` output, recorded with
+[VHS](https://github.com/charmbracelet/vhs) — re-render it after a CLI output
+change with `vhs docs/img/forklab-demo.tape` (from the repo root).
+
 ## Run
 
 ```bash

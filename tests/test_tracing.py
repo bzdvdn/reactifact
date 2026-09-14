@@ -361,6 +361,85 @@ def test_langfuse_exports_trace_spans_and_llm():
     assert attr(llm_span, "gen_ai.request.model") == {"stringValue": "m"}
 
 
+def test_otlp_tracer_exports_vendor_neutral_spans():
+    from reactifact.tracing import OTLPTracer
+
+    client = FakeClient()
+    tracer = OTLPTracer(
+        endpoint="http://localhost:4318/v1/traces",
+        service_name="my-app",
+        client=client,
+    )
+    run(
+        tracer.on_turn_end(
+            RunTrace(
+                id="tr",
+                session_id="s1",
+                outcome="completed",
+                spans=[
+                    AgentSpan(
+                        agent="greeter",
+                        event_type="artifact_created",
+                        writes=[
+                            ArtifactRef(
+                                artifact_id="a1",
+                                version=0,
+                                op_type="create",
+                                data_type="Answer",
+                                data='{"t":"hi"}',
+                            )
+                        ],
+                        llm_calls=[
+                            LLMCall(
+                                agent="greeter",
+                                provider="fake",
+                                model="m",
+                                messages=[{"role": "user", "content": "hi"}],
+                                response="ok",
+                                prompt_tokens=3,
+                                completion_tokens=2,
+                            )
+                        ],
+                    )
+                ],
+            )
+        )
+    )
+
+    assert len(client.requests) == 1
+    url, body = client.requests[0]
+    assert url == "http://localhost:4318/v1/traces"
+
+    resource_spans = body["resourceSpans"][0]
+    spans = resource_spans["scopeSpans"][0]["spans"]
+    assert len(spans) == 3  # root run span + agent span + llm chat span
+
+    def attr(node: dict, key: str):
+        for a in node["attributes"]:
+            if a["key"] == key:
+                return a["value"]
+        raise KeyError(key)
+
+    assert attr(resource_spans["resource"], "service.name") == {"stringValue": "my-app"}
+    # no langfuse.* keys anywhere — vendor-neutral only
+    for span in spans:
+        assert not any(a["key"].startswith("langfuse.") for a in span["attributes"])
+
+    by_name = {s["name"]: s for s in spans}
+    root = by_name["reactifact run"]
+    assert attr(root, "reactifact.session.id") == {"stringValue": "s1"}
+
+    agent_span = by_name["invoke_agent greeter"]
+    assert agent_span["parentSpanId"] == root["spanId"]
+    assert attr(agent_span, "gen_ai.agent.name") == {"stringValue": "greeter"}
+
+    llm_span = by_name["chat m"]
+    assert llm_span["parentSpanId"] == agent_span["spanId"]
+    assert attr(llm_span, "gen_ai.usage.input_tokens") == {"intValue": "3"}
+    assert attr(llm_span, "gen_ai.usage.output_tokens") == {"intValue": "2"}
+    assert attr(llm_span, "gen_ai.request.model") == {"stringValue": "m"}
+
+
 def test_postgres_store_requires_pg_extra():
     """PostgresStore without psycopg installed fails honestly (pg extra)."""
     import importlib.util

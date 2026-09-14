@@ -25,7 +25,7 @@ from .events import Event
 from .interrupt import PendingQuestion
 from .produce import Produce
 from .structured import SYSTEM_STRUCTURED, structured_llm
-from .tool_use import Observation, ToolAnswer, ToolUse, ToolUseHITL
+from .tool_use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
 from .tools import Tool
 
 
@@ -98,6 +98,7 @@ class LLMAgent(Agent):
     max_steps: int = 8
     temperature: float | None = None
     max_tokens: int | None = None
+    deferred_tool_groups: Sequence[DeferredToolGroup] = ()
 
     def __init__(self, *, name: str | None = None, **kwargs: Any):
         llm_name = name or self.name or self.__class__.__name__.lower()
@@ -116,6 +117,7 @@ class LLMAgent(Agent):
                 max_steps=self.max_steps,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                deferred_tool_groups=self.deferred_tool_groups,
             ),
             Produce(ToolAnswer),
             *user_produces,

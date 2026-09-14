@@ -36,6 +36,27 @@ Pre-1.0 API-freeze cleanup.
 
 ### Added
 
+- `reactifact.tool_use.DeferredToolGroup` + `ToolUse(deferred_tool_groups=)`
+  (also `LLMAgent.deferred_tool_groups`): a named group of tools whose
+  schemas stay out of the system prompt — only a compact catalog (name,
+  description, bare tool names) — until the LLM asks for the group by name
+  via a built-in `load_tools` tool. `loader` (an async, zero-arg callable,
+  e.g. wrapping `mcp_stdio_tools(...)`) runs at most once per group per
+  run. Fixes real context bloat when several MCP servers/tool sources are
+  connected at once and most of their tools go unused in any given run.
+  `ToolUseHITL`/`HITLLMAgent` don't support it yet — its reactive, resumable
+  loop would need "which groups are loaded" as persisted state across
+  `produce()` calls, not a local variable; see the class docstring. See
+  [docs/en/patterns.md](docs/en/patterns.md#deferred-tool-groups-many-tools-without-the-context-cost).
+- `reactifact.tracing.OTLPTracer(endpoint=, headers=, service_name=)`: a
+  vendor-neutral tracer sink for any OTLP/HTTP collector (Jaeger, Tempo,
+  Honeycomb, Datadog Agent, a local `otel-collector`, ...) — GenAI
+  semantic-convention attributes (`gen_ai.*`) plus a `reactifact.*`
+  namespace for reads/writes/provenance, no `langfuse.*` keys. Built on the
+  same hand-rolled OTLP/HTTP JSON payload `LangfuseTracer` already posts
+  over plain `httpx` (factored into `reactifact.tracing._otlp`, shared by
+  both sinks) — no `opentelemetry-sdk` dependency, no new extra. See
+  [docs/en/observability.md](docs/en/observability.md#otlptracer-any-otlphttp-collector).
 - `reactifact.mcp.oauth_client_credentials(server_url, client_id=, client_secret=,
   issuer=)`: builds an `auth=` value for `mcp_http_tools` using OAuth's
   `client_credentials` grant (machine-to-machine, no browser/human consent) —

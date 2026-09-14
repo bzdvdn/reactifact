@@ -57,9 +57,10 @@ the stable contract, not a moving target.
 | `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)) |
 | `Trigger` | secondary (non-artifact) enter condition for a produce |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
-| `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`) |
+| `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
 | `ToolUse`, `ToolUseHITL` | the tool-loop produce; HITL variant waits for approval on execution |
+| `DeferredToolGroup` (`reactifact.tool_use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput` | tool abstraction and registration |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `self.effects.resume(...)` |
@@ -197,7 +198,7 @@ the stable contract, not a moving target.
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock` |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`) |
-| `LangfuseTracer`, `PostgresStore` | external trace sinks — Postgres supports async read+write; the dashboard (`create_trace_router`) accepts any `TraceReader` |
+| `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write; the dashboard (`create_trace_router`) accepts any `TraceReader` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI dashboard router |
 
 ## MCP (reactifact.mcp, `mcp` extra)

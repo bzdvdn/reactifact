@@ -18,49 +18,16 @@ Uses httpx (base dependency). For tests you can inject `client`.
 from __future__ import annotations
 
 import base64
-import hashlib
-import json
 from datetime import datetime, timedelta
 from typing import Any
 
+from ._otlp import attr as _attr
+from ._otlp import span_id as _span_id
+from ._otlp import trace_id as _trace_id
+from ._otlp import type_summary as _type_summary
+from ._otlp import unix_nanos as _unix_nanos
 from .models import AgentSpan, LLMCall, RunTrace
 from .tracer import Tracer
-
-
-def _unix_nanos(value: datetime) -> str:
-    return str(int(value.timestamp() * 1_000_000_000))
-
-
-def _trace_id(seed: str) -> str:
-    return hashlib.sha256(f"trace:{seed}".encode()).hexdigest()[:32]
-
-
-def _span_id(seed: str) -> str:
-    return hashlib.sha256(f"span:{seed}".encode()).hexdigest()[:16]
-
-
-def _attr(key: str, value: Any) -> dict[str, Any]:
-    if isinstance(value, bool):
-        otlp_value: dict[str, Any] = {"boolValue": value}
-    elif isinstance(value, int):
-        otlp_value = {"intValue": str(value)}
-    elif isinstance(value, float):
-        otlp_value = {"doubleValue": value}
-    else:
-        if value is None:
-            value = ""
-        elif not isinstance(value, str):
-            value = json.dumps(value, default=str)
-        otlp_value = {"stringValue": value}
-    return {"key": key, "value": otlp_value}
-
-
-def _type_summary(refs: list[Any]) -> dict[str, int]:
-    summary: dict[str, int] = {}
-    for ref in refs:
-        kind = getattr(ref, "data_type", None) or type(ref).__name__
-        summary[kind] = summary.get(kind, 0) + 1
-    return summary
 
 
 class LangfuseTracer(Tracer):

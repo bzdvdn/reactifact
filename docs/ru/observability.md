@@ -86,6 +86,30 @@ Postgres зеркалирует ту же схему `runs`/`spans`.
 `PostgresStore(dsn)` — и он покажет трейсы из Postgres без локального
 SQLite-файла.
 
+### `OTLPTracer`: любой OTLP/HTTP-коллектор
+
+`LangfuseTracer` привязан к Langfuse (собственное пространство атрибутов
+`langfuse.*`). `OTLPTracer` экспортирует тот же запуск как вендор-нейтральные
+спаны — только атрибуты GenAI semantic conventions (`gen_ai.*`, плюс
+пространство `reactifact.*` для reads/writes/provenance) — в любой
+OTLP/HTTP-коллектор: Jaeger, Tempo, Honeycomb, Datadog Agent, локальный
+`otel-collector`, ...
+
+```python
+from reactifact.tracing import OTLPTracer
+
+runtime = Runtime(
+    ctx,
+    agents=[...],
+    tracer=OTLPTracer(endpoint="http://localhost:4318/v1/traces"),
+)
+```
+
+Без зависимости от `opentelemetry-sdk` — как и `LangfuseTracer`, он
+отправляет OTLP/HTTP JSON-payload напрямую через `httpx` (уже core-зависимость),
+поэтому не требует установки дополнительного extra. Передайте `headers=` для
+коллектора, требующего авторизацию.
+
 ## Модель эмиссии
 
 - Спаны эмитят только **меняющие состояние** агенты (чистый read/verify-produce

@@ -14,7 +14,7 @@ from reactifact import (
 )
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.tool_use import ToolAnswer, ToolUse
+from reactifact.tool_use import DeferredToolGroup, ToolAnswer, ToolUse
 
 
 class K8sProblems(BaseModel):
@@ -115,6 +115,74 @@ def test_single_agent_loop_and_report():
     assert len(reports) == 1
     assert reports[0].data.text == "pods: все в порядке"
     assert calls["kubectl"] == [{"resource": "pods"}]
+
+
+def test_deferred_tool_group_loads_on_demand_once():
+    """`load_tools` reveals a group's real tool only after the LLM asks for
+    it, and the loader runs at most once per run even if asked twice."""
+    calls.clear()
+    loader_calls = 0
+
+    @tool
+    async def extra_tool(x: str) -> str:
+        """An extra tool, hidden behind a deferred group."""
+        calls.setdefault("extra_tool", []).append({"x": x})
+        return f"extra: {x}"
+
+    async def loader():
+        nonlocal loader_calls
+        loader_calls += 1
+        return [extra_tool]
+
+    group = DeferredToolGroup(
+        group_id="mcp:extra",
+        display_name="Extra",
+        description="Extra tools",
+        tool_names=["extra_tool"],
+        loader=loader,
+    )
+
+    llm = ScriptedLLM(
+        [
+            '{"type":"tool_call","tool":"load_tools","args":{"group_id":"mcp:extra"}}',
+            '{"type":"tool_call","tool":"load_tools","args":{"group_id":"mcp:extra"}}',
+            '{"type":"tool_call","tool":"extra_tool","args":{"x":"1"}}',
+            '{"type":"answer","text":"done"}',
+        ]
+    )
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    class BuildReport(Produce[K8sReport]):
+        artifact_type = K8sReport
+
+        async def produce(self, context, inputs, event=None):
+            a = context.get(event.artifact_id) if event is not None else None
+            if a is None or not isinstance(a.data, ToolAnswer):
+                return None
+            self.effects.create(K8sReport(text=a.data.text))
+
+    class DeferredAgent(Agent):
+        consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
+        produces = [
+            ToolUse(
+                name="deferred",
+                system="Use load_tools to discover extra tools before using them.",
+                tools=[],
+                deferred_tool_groups=[group],
+                max_steps=6,
+            ),
+            BuildReport(),
+        ]
+
+    runtime = Runtime(ctx, agents=[DeferredAgent()])
+    ctx.create(K8sProblems(text="go"))
+    asyncio.run(runtime.arun())
+
+    reports = ctx.list_artifacts(K8sReport)
+    assert len(reports) == 1
+    assert reports[0].data.text == "done"
+    assert calls["extra_tool"] == [{"x": "1"}]
+    assert loader_calls == 1  # cached after the first load_tools call
 
 
 def test_two_agents_do_not_crossfire():

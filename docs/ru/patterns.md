@@ -82,6 +82,43 @@ class OpsAgent(HITLLMAgent):
 Пример `devops` — каноническая демонстрация `HITLLMAgent` (LLM-роутер инструментов +
 одобрение мутаций K8s/GitLab/Ansible).
 
+### Отложенные группы инструментов: много инструментов без нагрузки на контекст
+
+Подключение нескольких MCP-серверов (или любого большого набора инструментов)
+означает, что каждая схема иначе попадёт в system prompt на каждом шаге, хотя
+большинство из них ни разу не вызовут. `DeferredToolGroup` держит инструменты
+группы вне промпта — в компактном каталоге видны только имя, описание и
+голые имена инструментов — пока LLM не запросит группу явно через встроенный
+инструмент `load_tools`. `ToolUse`/`LLMAgent` это поддерживают; `ToolUseHITL`/
+`HITLLMAgent` — пока нет (см. докстринг класса, почему):
+
+```python
+from reactifact.tool_use import DeferredToolGroup, ToolUse
+from reactifact.mcp import mcp_stdio_tools
+
+async def load_github_tools():
+    async with mcp_stdio_tools("npx", ["-y", "@modelcontextprotocol/server-github"]) as tools:
+        return tools
+
+github_group = DeferredToolGroup(
+    group_id="mcp:github",
+    display_name="GitHub",
+    description="Issues, PRs, repos, code search",
+    tool_names=["create_issue", "search_repos", "create_pr"],
+    loader=load_github_tools,
+)
+
+ToolUse(
+    system="...",
+    tools=[...],                          # всегда видимые инструменты
+    deferred_tool_groups=[github_group],  # скрыты до запроса
+)
+```
+
+`loader` выполняется не более одного раза на группу за один запуск `ToolUse`
+— реальные инструменты группы (с полными схемами) присоединяются к обычному
+списку инструментов на весь остаток этого запуска после загрузки.
+
 ## Структурный вывод: никогда не парсите сырой JSON сами
 
 Runtime оборачивает один вызов LLM в схему `pydantic` с ретраями и терпимым
