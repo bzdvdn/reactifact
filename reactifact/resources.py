@@ -7,6 +7,7 @@ from .sources import Source
 
 if TYPE_CHECKING:
     from .budget import Budget
+    from .context_builder import ContextBuilder
 
 
 class RuntimeResources:
@@ -15,11 +16,24 @@ class RuntimeResources:
         llm: LLMProvider | None = None,
         embedder: EmbeddingProvider | None = None,
         sources: dict[str, Source] | None = None,
+        context_builder: ContextBuilder | None = None,
+        verification_threshold: float | None = None,
         **additional: Any,
     ):
         self.llm = llm
         self.embedder = embedder
         self.sources = sources or {}
+        # Framework-wide pass/fail cutoff for `Verify` (verify.py): `None`
+        # means "use Verify's own DEFAULT_THRESHOLD". A `Verify` instance's
+        # own explicit `threshold=` still overrides this per agent.
+        self.verification_threshold = verification_threshold
+        # Runtime-level policy for what actually goes into an agent's inputs
+        # (ranking/truncation) — `None` reproduces the old, unranked
+        # behavior. See `context_builder.py`; applied inside
+        # `Agent._collect_inputs` (`agents.py`), so both the runtime's
+        # provenance (`Runtime._collect_reads`) and the agent's actual
+        # produce inputs go through the same builder call and stay in sync.
+        self.context_builder = context_builder
         self.additional = additional
         # Set by Runtime per turn (not a constructor param — the runtime, not
         # the caller, owns these): the active Budget and its wall-clock

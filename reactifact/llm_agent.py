@@ -137,6 +137,7 @@ class HITLLMAgent(Agent):
     tools: Sequence[Tool] | dict[str, Tool] = ()
     max_steps: int = 8
     max_asks: int = 2
+    max_approvals: int = 3
     resume_announce: Callable[[str], str] | None = None
     temperature: float | None = None
     max_tokens: int | None = None
@@ -162,6 +163,7 @@ class HITLLMAgent(Agent):
                 tools=self.tools,
                 max_steps=self.max_steps,
                 max_asks=self.max_asks,
+                max_approvals=self.max_approvals,
                 resume_announce=self.resume_announce,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,

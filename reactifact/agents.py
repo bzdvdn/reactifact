@@ -90,7 +90,14 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         return self._collect_inputs(context)
 
     def _collect_inputs(self, context: Context) -> list[Artifact[Any]]:
-        """Collects all artifacts matching consumes and conditions."""
+        """Collects all artifacts matching consumes and conditions.
+
+        Ranking/truncation, if any, is a `Runtime`-level policy
+        (`context.resources.context_builder`, see `context_builder.py`), not
+        this agent's — applied here so both this and `collect_inputs()`
+        (used by the runtime for provenance) see the identical, already
+        built list.
+        """
         if not self.consumes:
             return []
         inputs: list[Artifact[Any]] = []
@@ -99,6 +106,9 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             if c.condition:
                 artifacts = [a for a in artifacts if c.condition(a)]
             inputs.extend(artifacts)
+        builder = context.resources.context_builder
+        if builder is not None:
+            inputs = builder.build(context, self, inputs)
         return inputs
 
     async def run(self, event: Event, context: Context) -> Patch | None:

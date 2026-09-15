@@ -19,3 +19,17 @@ let the user answer.
 
 Demonstrates: `effects.ask`/`effects.resume` HITL, role-based produces, routing
 as structured output.
+
+## Recipe version
+
+`main_recipe.py` runs the identical scenario built on
+[`reactifact.recipes.Router`/`ApprovalGate`](../../docs/en/recipes.md#router--approvalgate)
+instead of hand-rolled `RouteTask`/`Supervisor` produces — the routing
+fallback and the approval-question bookkeeping (tracking a thread's *whole*
+question history, not just the unanswered ones) move into the recipe;
+`Specialist` (the actual routed work) stays exactly as hand-written, since
+there's nothing generic about it.
+
+```bash
+uv run python -m examples.supervisor.main_recipe
+```

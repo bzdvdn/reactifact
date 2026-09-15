@@ -13,6 +13,17 @@ keep reappearing across agent codebases and the bundled examples:
 - `StatusMachine` — a `Produce` that deterministically advances an artifact's
   `status` lifecycle driven by a pure `next_status(context, key)` (§67, §69) —
   see `recipes.status`;
+- `PlanExecute` — sequential plan → execute → finish: ordering, gating each
+  step on its predecessor's result, and completion detection owned by the
+  recipe; domain supplies `plan`/`execute_step`/`finish` (§24, §42, §69) —
+  see `recipes.plan_execute`;
+- `Router` / `ApprovalGate` — classify a request into a route with a
+  deterministic fallback, and ask a human to sign off on a report before
+  finalizing it (§60, §67) — see `recipes.supervisor`;
+- `ReflectionLoop` — generate → critique → regenerate: round-capping, the
+  accept threshold, and completion detection owned by the recipe; domain
+  supplies `draft`/`critique`/`rewrite`/`finish` (§24, §42, §69) — see
+  `recipes.reflection`;
 - `WindowSummarizer` / `WindowPruner` / `llm_summarizer` — bounded
   conversation memory: periodic summarization + pruning as two plain
   `Produce`s, domain owns the summarizer callback and the summary artifact
@@ -34,15 +45,22 @@ from __future__ import annotations
 
 from .inputs import find, find_all
 from .memory import WindowPruner, WindowSummarizer, llm_summarizer
+from .plan_execute import PlanExecute
+from .reflection import ReflectionLoop
 from .resolve import materialize_doc
 from .rollback import changed_fields, downstream_fields, earliest_stage
 from .search import fan_out_sources
 from .skills import Skill, load_skills, match_skills
 from .status import StatusMachine
+from .supervisor import ApprovalGate, Router
 from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 
 __all__ = [
+    "ApprovalGate",
     "EN_STOPWORDS",
+    "PlanExecute",
+    "ReflectionLoop",
+    "Router",
     "Skill",
     "StatusMachine",
     "WindowPruner",

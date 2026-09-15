@@ -68,6 +68,13 @@ async def gitlab_search(query: str) -> str:
     return f"нашлось по «{query}»: 2 MR"
 
 
+@tool(destructive=True)
+async def delete_pod(name: str) -> str:
+    """Delete a k8s pod."""
+    calls.setdefault("delete_pod", []).append({"name": name})
+    return f"deleted {name}"
+
+
 def test_tool_decorator_builds_schema():
     t = kubectl
     assert t.name == "kubectl"
@@ -551,3 +558,133 @@ def test_max_asks_caps_rephrased_clarifications():
     asyncio.run(runtime.arun())
     # after the answer the loop continued and gave the final answer
     assert ctx.list_artifacts(K8sReport)[0].data.text == "ок"
+
+
+def test_hitl_destructive_tool_requires_approval_then_runs():
+    """A destructive tool is offered but not run until a human approves it."""
+    calls.clear()
+    llm = ScriptedLLM(
+        [
+            '{"type":"tool_call","tool":"delete_pod","args":{"name":"web-1"}}',
+            '{"type":"answer","text":"Под web-1 удалён"}',
+        ]
+    )
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    class BuildReport(Produce[K8sReport]):
+        artifact_type = K8sReport
+
+        async def produce(self, context, inputs, event=None):
+            a = context.get(event.artifact_id) if event is not None else None
+            if a is None or not isinstance(a.data, ToolAnswer):
+                return None
+            self.effects.create(K8sReport(text=a.data.text))
+
+    class K8sAgent(HITLLMAgent):
+        system = "агент"
+        tools = [delete_pod]
+        consumes = [Consume(K8sProblems)]
+        produces = [BuildReport()]
+
+    runtime = Runtime(ctx, agents=[K8sAgent()])
+    ctx.create(K8sProblems(text="почисти под web-1"))
+    asyncio.run(runtime.arun())
+
+    # the tool call is gated behind approval, not executed yet
+    questions = ctx.list_artifacts(PendingQuestion)
+    assert len(questions) == 1
+    assert questions[0].data.kind == "approve"
+    assert questions[0].data.notes["tool_id"] == "delete_pod"
+    assert "delete_pod" not in calls
+
+    ctx.resume(questions[0].id, "yes")
+    asyncio.run(runtime.arun())
+
+    assert calls["delete_pod"] == [{"name": "web-1"}]
+    assert ctx.list_artifacts(K8sReport)[0].data.text == "Под web-1 удалён"
+
+
+def test_hitl_destructive_tool_denied_is_not_executed():
+    """A denied approval never runs the tool; the loop continues without it."""
+    calls.clear()
+    llm = ScriptedLLM(
+        [
+            '{"type":"tool_call","tool":"delete_pod","args":{"name":"web-1"}}',
+            '{"type":"answer","text":"Не стал удалять"}',
+        ]
+    )
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    class BuildReport(Produce[K8sReport]):
+        artifact_type = K8sReport
+
+        async def produce(self, context, inputs, event=None):
+            a = context.get(event.artifact_id) if event is not None else None
+            if a is None or not isinstance(a.data, ToolAnswer):
+                return None
+            self.effects.create(K8sReport(text=a.data.text))
+
+    class K8sAgent(HITLLMAgent):
+        system = "агент"
+        tools = [delete_pod]
+        consumes = [Consume(K8sProblems)]
+        produces = [BuildReport()]
+
+    runtime = Runtime(ctx, agents=[K8sAgent()])
+    ctx.create(K8sProblems(text="почисти под web-1"))
+    asyncio.run(runtime.arun())
+
+    questions = ctx.list_artifacts(PendingQuestion)
+    assert questions[0].data.kind == "approve"
+
+    ctx.resume(questions[0].id, "no")
+    asyncio.run(runtime.arun())
+
+    assert "delete_pod" not in calls
+    assert ctx.list_artifacts(K8sReport)[0].data.text == "Не стал удалять"
+
+
+def test_max_approvals_caps_repeated_destructive_calls():
+    """max_approvals=1 stops a second approval request for the same call."""
+    calls.clear()
+    llm = ScriptedLLM(
+        [
+            '{"type":"tool_call","tool":"delete_pod","args":{"name":"web-1"}}',
+            '{"type":"tool_call","tool":"delete_pod","args":{"name":"web-2"}}',
+            '{"type":"answer","text":"готово"}',
+        ]
+    )
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    class BuildReport(Produce[K8sReport]):
+        artifact_type = K8sReport
+
+        async def produce(self, context, inputs, event=None):
+            a = context.get(event.artifact_id) if event is not None else None
+            if a is None or not isinstance(a.data, ToolAnswer):
+                return None
+            self.effects.create(K8sReport(text=a.data.text))
+
+    class K8sAgent(HITLLMAgent):
+        system = "агент"
+        tools = [delete_pod]
+        consumes = [Consume(K8sProblems)]
+        produces = [BuildReport()]
+        max_approvals = 1
+
+    runtime = Runtime(ctx, agents=[K8sAgent()])
+    ctx.create(K8sProblems(text="почисти поды"))
+    asyncio.run(runtime.arun())
+
+    questions = ctx.list_artifacts(PendingQuestion)
+    assert len(questions) == 1
+    assert questions[0].data.notes["args"] == {"name": "web-1"}
+
+    ctx.resume(questions[0].id, "yes")
+    asyncio.run(runtime.arun())
+
+    # the first call ran, the second (different args) hit the approval cap
+    # instead of asking again, and the loop still reached a final answer
+    assert calls["delete_pod"] == [{"name": "web-1"}]
+    assert len(ctx.list_artifacts(PendingQuestion)) == 1
+    assert ctx.list_artifacts(K8sReport)[0].data.text == "готово"

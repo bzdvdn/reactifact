@@ -22,3 +22,15 @@ offline fallback.
 Layout (same split as `ledger`/`devops`): `models.py` (artifacts), `prompts.py`
 (templates + the offline fallback), `produce.py` (`Planner`/`Executor`/
 `Finisher`), `agents.py` (the single `Flow` agent), `main.py` (CLI entrypoint).
+
+## Recipe version
+
+`main_recipe.py` runs the identical scenario built on
+[`reactifact.recipes.PlanExecute`](../../docs/en/recipes.md#planexecute)
+instead of hand-rolled produces — compare it to `produce.py`+`agents.py` to
+see exactly what the recipe takes off your hands (ordering, gating, idempotent
+re-entry, completion detection) versus what stays yours (the three prompts).
+
+```bash
+uv run python -m examples.plan_execute.main_recipe
+```

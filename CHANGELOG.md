@@ -6,6 +6,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- **Destructive-tool approval gate** (`ToolUseHITL`, `tool_use.py`):
+  destructive tools are now offered to the LLM instead of excluded outright
+  — a `tool_call` targeting one creates a `PendingQuestion(kind="approve")`
+  instead of running immediately, and only executes once a human approves.
+  New `max_approvals` (also on `HITLLMAgent`) bounds how many times one
+  conversation can ask. `ToolUse` (the non-HITL loop) is unchanged —
+  destructive tools stay excluded there, there being no pause to gate on.
+- `reactifact.context_builder`: `ContextBuilder`/`DefaultContextBuilder`/
+  `TokenBudgetContextBuilder` + `TokenCounter`/`HeuristicTokenCounter` —
+  Runtime-level policy for ranking/truncating an agent's consumed artifacts
+  under a token budget, set via `RuntimeResources(context_builder=...)`.
+  Applied inside `Agent._collect_inputs`, so both the runtime's provenance
+  (`Runtime._collect_reads`) and an agent's actual produce inputs go through
+  the same builder call and stay in sync.
+- `reactifact.verify`: `Verify`/`VerificationResult`/`VerificationFailed` —
+  inline verification of a live `Answer` using `eval.py`'s ground-truth-free
+  `core_metrics`, instead of only after a pipeline finishes. On failure,
+  escalates via the same HITL approve flow (`on_fail="ask"`, default) or a
+  `VerificationFailed` marker for a regenerating agent (`on_fail="retry"`).
+  The pass/fail threshold is a framework-wide default
+  (`RuntimeResources.verification_threshold`) any `Verify` can still
+  override for itself.
+- `reactifact.agent_tool.AgentAsTool` — wraps a sub-agent as a `Tool`:
+  delegation runs an isolated, fresh nested `Context`/`Runtime` to
+  completion and returns the final answer as the tool result. HITL
+  sub-agents are rejected with an explanatory error (an unanswered
+  `PendingQuestion` inside the isolated context has no one to answer it),
+  not silently returned as empty text.
+- Three new `reactifact.recipes`, generalizing the corresponding
+  `examples/` demo (side-by-side `main_recipe.py` added to each, alongside
+  the original hand-rolled `main.py`):
+  - `PlanExecute` — sequential plan → execute → finish; the recipe owns
+    ordering, gating each step on its predecessor, idempotent re-entry, and
+    completion detection (now also supports several concurrent goals in one
+    `Context`, which the ported example did not).
+  - `Router` / `ApprovalGate` — classify a request into a route with a
+    deterministic fallback, and ask a human to sign off on a report before
+    finalizing it; uses `kind="approve"`, the same vocabulary the
+    destructive-tool gate and `Verify` use.
+  - `ReflectionLoop` — generate → critique → regenerate; the recipe owns
+    round-capping, the accept threshold, and completion detection.
+
 ## [0.7.0] — 2026-09-14
 
 Pre-1.0 API-freeze cleanup.

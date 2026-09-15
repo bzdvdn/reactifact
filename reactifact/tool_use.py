@@ -103,13 +103,18 @@ class _ToolLoopBase(Produce[ToolAnswer]):
         super().__init__()
 
     async def _run_tool(
-        self, tools: dict[str, Tool], tool_id: str, args: dict[str, Any]
+        self,
+        tools: dict[str, Tool],
+        tool_id: str,
+        args: dict[str, Any],
+        *,
+        allow_destructive: bool = False,
     ) -> str:
         tool = tools.get(tool_id)
         if tool is None:
             available = ", ".join(tools)
             return f"Unknown tool '{tool_id}'. Available: {available}"
-        if tool.destructive:
+        if tool.destructive and not allow_destructive:
             return f"Tool '{tool_id}' is destructive and not offered to the LLM."
         try:
             output = await tool.execute(args)
@@ -367,6 +372,12 @@ class ToolUseHITL(_ToolLoopBase):
     `Observation`), or ask a clarifying question (`ask` → `PendingQuestion`).
     The human answer comes back into the loop as `Observation(source="user")`.
 
+    Destructive tools are offered to the LLM (unlike `ToolUse`, which excludes
+    them entirely) but never executed straight away: a `tool_call` targeting a
+    destructive tool creates a `PendingQuestion(kind="approve")` instead, and
+    the call only runs once a human resolves it with an affirmative answer
+    (`max_approvals` bounds how many times one conversation can ask).
+
     `_history`/the `ask` dedup check filter `context.list_artifacts(Observation
     | PendingQuestion)` by `query_id` in Python — O(count of that type in the
     whole context), not indexed by `query_id`. Bounded per conversation
@@ -389,6 +400,7 @@ class ToolUseHITL(_ToolLoopBase):
         name: str = "llm",
         max_steps: int = 8,
         max_asks: int = 2,
+        max_approvals: int = 3,
         resume_announce: Callable[[str], str] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -398,6 +410,7 @@ class ToolUseHITL(_ToolLoopBase):
         )
         self.max_steps = max_steps
         self.max_asks = max_asks
+        self.max_approvals = max_approvals
         # App callback: human answer → status message (kind="status").
         self.resume_announce = resume_announce
 
@@ -427,6 +440,29 @@ class ToolUseHITL(_ToolLoopBase):
                     step=len(history) + 1,
                     text=extra,
                     source="user",
+                    agent=self.name,
+                )
+            )
+            return None
+
+        if kind == "resume_approve":
+            question = context.get(event.artifact_id) if event is not None else None
+            notes = question.data.notes if question is not None else {}
+            tool_id = notes.get("tool_id", "")
+            args = notes.get("args", {})
+            approved = extra.strip().lower() in ("yes", "y", "approve", "approved", "true")
+            if approved:
+                result = await self._run_tool(
+                    self.tools, tool_id, args, allow_destructive=True
+                )
+            else:
+                result = f"Tool '{tool_id}' call was not approved by the user."
+            self.effects.create(
+                Observation(
+                    query_id=qid,
+                    step=len(history) + 1,
+                    text=result,
+                    source="tool",
                     agent=self.name,
                 )
             )
@@ -514,6 +550,80 @@ class ToolUseHITL(_ToolLoopBase):
             self._answer(qid, "Tool not specified.")
             return None
 
+        target_tool = self.tools.get(decision.tool)
+        if target_tool is not None and target_tool.destructive:
+            step = len(history) + 1
+            prior = [
+                q
+                for q in context.list_artifacts(PendingQuestion)
+                if q.data.notes.get("query_id") == qid
+                and q.data.kind == "approve"
+                and q.data.notes.get("tool_id") == decision.tool
+                and q.data.notes.get("args") == decision.args
+            ]
+            if prior:
+                pending = [q for q in prior if not q.data.answered]
+                if pending:
+                    return None  # awaiting the human's decision
+                last_approved = (prior[-1].data.resolution or "").strip().lower() in (
+                    "yes",
+                    "y",
+                    "approve",
+                    "approved",
+                    "true",
+                )
+                text = (
+                    f"You already asked to run '{decision.tool}' with these args and "
+                    f"the user {'approved' if last_approved else 'denied'} it. "
+                ) + (
+                    "Use the result already recorded and proceed."
+                    if last_approved
+                    else "Do not ask again; proceed without it."
+                )
+                self.effects.create(
+                    Observation(
+                        query_id=qid,
+                        step=step,
+                        text=text,
+                        source="tool",
+                        agent=self.name,
+                    )
+                )
+                return None
+            approvals_asked = len(
+                [
+                    q
+                    for q in context.list_artifacts(PendingQuestion)
+                    if q.data.notes.get("query_id") == qid and q.data.kind == "approve"
+                ]
+            )
+            if approvals_asked >= self.max_approvals:
+                self.effects.create(
+                    Observation(
+                        query_id=qid,
+                        step=step,
+                        text=(
+                            f"Approval limit ({self.max_approvals}) reached; cannot "
+                            f"run destructive tool '{decision.tool}'. Proceed without it."
+                        ),
+                        source="tool",
+                        agent=self.name,
+                    )
+                )
+                return None
+            self.effects.ask(
+                f"Approve running destructive tool '{decision.tool}' with args "
+                f"{json.dumps(decision.args, ensure_ascii=False)}? (yes/no)",
+                kind="approve",
+                notes={
+                    "query_id": qid,
+                    "agent": self.name,
+                    "tool_id": decision.tool,
+                    "args": decision.args,
+                },
+            )
+            return None
+
         tool_history = [o for o in history if o.source == "tool"]
         budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
@@ -565,7 +675,8 @@ class ToolUseHITL(_ToolLoopBase):
             qid = data.notes.get("query_id")
             if not qid:
                 return None
-            return qid, "resume", data.resolution or ""
+            resume_kind = "resume_approve" if data.kind == "approve" else "resume"
+            return qid, resume_kind, data.resolution or ""
         if isinstance(data, ToolAnswer):
             return None  # final answer is handled by user produces
         return artifact.id, "start", ""
@@ -605,10 +716,16 @@ class ToolUseHITL(_ToolLoopBase):
         self._answer(qid, text)
 
     def _system_prompt(self) -> str:
-        usable = [t for t in self.tools.values() if not t.destructive]
         schemas = "\n".join(
-            f"- {t.name}: {t.description}\n  args: {json.dumps(t.schema, ensure_ascii=False)}"
-            for t in usable
+            f"- {t.name}: {t.description}"
+            + (
+                " (destructive — running it requires human approval; you may "
+                "still call it, the user will be asked to confirm first)"
+                if t.destructive
+                else ""
+            )
+            + f"\n  args: {json.dumps(t.schema, ensure_ascii=False)}"
+            for t in self.tools.values()
         )
         return (
             f"{self.system}\n\n"

@@ -242,6 +242,149 @@ not estimated — name the source and column it came from.
   need that, wire the script as a `Tool` yourself (§46) — reachable from a
   matched skill's `body` (name it in the instructions) or independent of it.
 
+## `PlanExecute` — sequential plan → execute → finish (§24, §42, §69)
+
+Plan-and-Execute (LangChain/AutoGPT-style): a plan is drafted once, its steps
+run **one at a time** — each gated on its predecessor's result — and a final
+answer is synthesized once every step has one. Ported from
+`examples/plan_execute`'s hand-rolled `Planner`/`Executor`/`Finisher`
+(141 + 14 lines), generalized: the recipe owns ordering, gating, idempotent
+re-entry, and completion detection; you only implement the three decisions
+that need judgement.
+
+```python
+from reactifact.recipes import PlanExecute
+
+
+class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
+    goal_type = Goal
+    step_type = PlanStep
+    result_type = StepResult
+    final_type = FinalAnswer
+
+    async def plan(self, context, goal) -> list[PlanStep]:
+        ...  # ordered steps — index/goal are stamped by the recipe
+
+    async def execute_step(self, context, step, history) -> StepResult:
+        ...  # history: every prior step's result, in order
+
+    async def finish(self, context, goal, results) -> FinalAnswer:
+        ...  # combine every step's result, in order
+
+
+class FlowAgent(Agent):
+    consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
+    produces = Flow().produces()
+```
+
+- `step_type`/`result_type` need `goal_field`/`index_field` (defaults:
+  `"goal"`/`"index"`) with defaults on the fields (e.g. `index: int = 0`) —
+  the recipe stamps the real values on every create, your hooks don't need
+  to fill them in.
+- Supports several goals concurrently in one `Context` — steps/results are
+  scoped by `goal_field`, not by "whatever's in the Context right now".
+- Provenance: the final artifact is linked `supported_by` → every step
+  result (§34).
+
+See `examples/plan_execute/main_recipe.py` for the full runnable demo
+(compare it to `produce.py`+`agents.py` in the same directory).
+
+## `Router` / `ApprovalGate` — classify, then ask before finalizing (§60, §67)
+
+Two independent pieces, ported from `examples/supervisor`'s hand-rolled
+`RouteTask`/`Supervisor` produces:
+
+- `Router` — classify a request into one of a fixed set of routes,
+  idempotently, with a deterministic fallback when the classifying call is
+  unavailable or returns something outside `routes` (§67).
+- `ApprovalGate` — ask a human to sign off on a report before finalizing it
+  (§60). Tracks a thread's *whole* history of approval questions, not just
+  the unanswered ones, so a rejection doesn't spawn a duplicate question
+  chain — the exact bookkeeping bug this recipe exists to not let you write
+  again. Uses `kind="approve"` — the same vocabulary the destructive-tool
+  gate (`tool_use.py`) and `Verify` (`verify.py`) already use, so one
+  control-plane UI built for "approve" requests handles all three.
+
+```python
+from reactifact.recipes import ApprovalGate, Router
+
+
+class MyRouter(Router[Request, Task]):
+    request_type = Request
+    task_type = Task
+    routes = ("budget", "timeline", "quality")
+
+    async def classify(self, context, request) -> str | None:
+        ...  # structured LLM decision, or None to fall back
+
+    def fallback_route(self, context, request) -> str:
+        ...  # deterministic keyword match, etc.
+
+
+class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
+    report_type = SpecialistReport
+    final_type = FinalReply
+
+    def approval_question(self, context, report) -> str: ...
+    async def on_approve(self, context, report) -> FinalReply: ...
+    async def on_reject(self, context, report, answer) -> FinalReply: ...
+
+
+class Flow(Agent):
+    consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
+                Consume(PendingQuestion)]
+    produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
+                Produce(PendingQuestion)]  # widens allowed Create types (§ verify.py)
+```
+
+`Specialist` — actually doing the routed work — stays fully your own
+`Produce`; there's nothing generic about "what a route does".
+
+See `examples/supervisor/main_recipe.py` for the full runnable demo.
+
+## `ReflectionLoop` — generate → critique → regenerate (§24, §42, §69)
+
+LangGraph's "Reflection" pattern, ported from `examples/reflection`'s
+hand-rolled `DraftIt`/`Critic`/`Rewrite`/`Finalize` produces. Unlike
+`PlanExecute` (immutable, indexed steps), the working state is *one mutable
+draft artifact per topic*, updated in place each round — matching the
+ported example's own `effects.update(draft, ...)` model.
+
+```python
+from reactifact.recipes import ReflectionLoop
+
+
+class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
+    topic_type = Topic
+    draft_type = Draft
+    review_type = Review
+    final_type = Final
+    accept_at = 0.8
+    max_rounds = 2
+
+    async def draft(self, context, topic) -> Draft: ...
+    async def critique(self, context, draft) -> tuple[float, str]: ...  # (score, feedback)
+    async def rewrite(self, context, draft, feedback) -> Draft: ...
+    async def finish(self, context, draft) -> Final: ...
+
+
+class Flow(Agent):
+    consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
+    produces = MyLoop().produces()
+```
+
+- `draft_type` needs `topic_field`/`round_field`/`status_field` (defaults:
+  `"topic"`/`"round"`/`"status"`); `review_type` needs `topic_field` too —
+  a `Review` is only ever reached by reacting to *its own* creation, so the
+  recipe must read the topic straight off it. Give these fields defaults;
+  the recipe stamps the real values on every create/update.
+- Round-capping (`max_rounds`) and the accept threshold (`accept_at`) are
+  the recipe's — not scattered `if round + 1 > MAX_ROUNDS` checks across
+  three produces.
+- Supports several topics concurrently in one `Context`.
+
+See `examples/reflection/main_recipe.py` for the full runnable demo.
+
 ## `changed_fields` / `earliest_stage` / `downstream_fields` — change → rebuild
 
 Long multi-stage flows occasionally have to *go back*: the user edits a fact,

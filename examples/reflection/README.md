@@ -19,3 +19,16 @@ the loop iterates to the `MAX_ROUNDS` cap and finalizes.
 Demonstrates: `self.effects` authoring (create + update across the loop),
 deterministic guards as eligibility, structured LLM + honest `None` fallbacks,
 artifact-state-driven termination (§69).
+
+## Recipe version
+
+`main_recipe.py` runs the identical scenario built on
+[`reactifact.recipes.ReflectionLoop`](../../docs/en/recipes.md#reflectionloop)
+instead of hand-rolled `DraftIt`/`Critic`/`Rewrite`/`Finalize` produces —
+round-capping, the accept threshold, and completion detection move into the
+recipe; `draft`/`critique`/`rewrite`/`finish` (the four actual judgement
+calls) stay yours.
+
+```bash
+uv run python -m examples.reflection.main_recipe [--topic "..."]
+```
