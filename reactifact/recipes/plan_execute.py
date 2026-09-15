@@ -98,9 +98,7 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     def _final_id(self, goal_id: str) -> str:
         return f"final:{goal_id}"
 
-    def _ordered_steps(
-        self, context: Context, goal_id: str
-    ) -> list[Artifact[StepT]]:
+    def _ordered_steps(self, context: Context, goal_id: str) -> list[Artifact[StepT]]:
         steps = [
             s
             for s in context.list_artifacts(self.step_type)

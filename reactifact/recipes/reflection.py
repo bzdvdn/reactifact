@@ -167,7 +167,10 @@ class _Critic(Produce[Any]):
         if topic_id is None:
             return None
         draft = context.get(owner._draft_id(topic_id))
-        if draft is None or getattr(draft.data, owner.status_field) != owner.draft_status:
+        if (
+            draft is None
+            or getattr(draft.data, owner.status_field) != owner.draft_status
+        ):
             return None
         round_ = getattr(draft.data, owner.round_field)
         review_id = owner._review_id(draft.id, round_)

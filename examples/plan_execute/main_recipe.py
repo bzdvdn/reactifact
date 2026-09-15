@@ -64,9 +64,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     result_type = StepResult
     final_type = FinalAnswer
 
-    async def plan(
-        self, context: Context, goal: Artifact[Goal]
-    ) -> list[PlanStep]:
+    async def plan(self, context: Context, goal: Artifact[Goal]) -> list[PlanStep]:
         body = await structured_llm(
             context,
             schema=PlanBody,
@@ -76,7 +74,10 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
         steps = (
             body.steps[:3]
             if body is not None and body.steps
-            else [f"Research: {goal.data.text}", f"Draft an answer for: {goal.data.text}"]
+            else [
+                f"Research: {goal.data.text}",
+                f"Draft an answer for: {goal.data.text}",
+            ]
         )
         return [PlanStep(instruction=s) for s in steps]
 

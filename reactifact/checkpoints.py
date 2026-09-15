@@ -112,11 +112,18 @@ class FileBackend(CheckpointBackend):
     """File backend: state is stored in a single JSON file."""
 
     def __init__(self, path: str):
-        self.path = path
+        self.path = Path(path)
 
     def _save_sync(self, data: dict[str, Any]) -> None:
-        with open(self.path, "w", encoding="utf-8") as f:
+        # Atomic write (tmp + rename), same reasoning as `FileKVBackend._set_sync`:
+        # a direct write left a truncated/corrupt file on a process kill mid-write
+        # (OOM, deploy, kill -9) — the next `load()` would raise JSONDecodeError
+        # and the session would be unrecoverable.
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+        tmp.replace(self.path)
 
     async def save(self, data: dict[str, Any]) -> None:
         await asyncio.to_thread(self._save_sync, data)

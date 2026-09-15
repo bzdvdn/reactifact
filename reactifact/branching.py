@@ -63,6 +63,7 @@ def clone_context(source: Context) -> Context:
     new_ws._log = source._log.copy()
     new_ws._relations = source._relations.copy()
     new_ws._recompute_stale()
+    new_ws._reindex_by_type()
     return new_ws
 
 
@@ -209,6 +210,7 @@ def merge_contexts(
         # `delete()` — resync `_stale` from scratch rather than risk it
         # drifting from the post-merge state.
         target._recompute_stale()
+        target._reindex_by_type()
 
 
 class BranchStore:

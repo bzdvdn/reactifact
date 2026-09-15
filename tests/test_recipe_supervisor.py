@@ -139,7 +139,9 @@ def test_approval_yes_produces_final_reply_with_report_text():
     assert len(replies) == 1
     assert replies[0].data.text == "(timeline) done"
     report = ctx.list_artifacts(SpecialistReport)[0]
-    assert {a.id for a in ctx.related(replies[0].id, relation="based_on")} == {report.id}
+    assert {a.id for a in ctx.related(replies[0].id, relation="based_on")} == {
+        report.id
+    }
 
 
 def test_approval_no_produces_rejection_without_asking_twice():

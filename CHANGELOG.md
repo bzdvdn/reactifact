@@ -49,6 +49,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
     destructive-tool gate and `Verify` use.
   - `ReflectionLoop` — generate → critique → regenerate; the recipe owns
     round-capping, the accept threshold, and completion detection.
+- CI now also runs the full suite (tests + mypy) on Python 3.13 and 3.14,
+  alongside the existing 3.11/3.12 — `requires-python` was already
+  unbounded above 3.11, this just confirms and enforces it.
+
+### Fixed
+
+- `Context.list_artifacts(T)` no longer calls `isinstance()` per artifact
+  in the `Context` — an incrementally maintained `type(data) -> ids` index
+  turns it into a union over the (usually small) set of distinct types ever
+  created, still walked in insertion order so ties in a caller's own sort
+  key (e.g. `updated_at`) break the same way as before. Was the hottest
+  path in the framework: `Runtime._collect_reads`/`Agent._collect_inputs`
+  call it for every agent on every matching event.
+- `checkpoints.FileBackend.save()` now writes atomically (tmp file +
+  rename), matching the neighboring `FileKVBackend`. Previously a process
+  killed mid-write (OOM, deploy, `kill -9`) left a truncated file that
+  `load()` would fail to parse — the exact failure mode the neighbor
+  already guarded against.
+- `Runtime.arun()`/`arun_once()` are no longer silently reentrant: a second
+  concurrent call on the same `Runtime` instance (e.g.
+  `asyncio.gather(runtime.arun(), runtime.arun())`) now raises `RuntimeError`
+  instead of racing on shared turn state (`budget`, `outcome`, the deadline
+  written into `context.resources`). Use a separate `Runtime` per concurrent
+  request (they can share `Context.resources`).
+- `Runtime._dispatch`'s parallel fan-out (`max_concurrency`/
+  `concurrency_limit`) no longer leaves sibling agent tasks running
+  unawaited in the background when one of them raises
+  (`isolate_errors=False`, the default): `gather(..., return_exceptions=True)`
+  now waits for every sibling to actually finish before the first exception
+  is re-raised (unwrapped, same type as before).
 
 ## [0.7.0] — 2026-09-14
 

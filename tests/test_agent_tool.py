@@ -141,9 +141,7 @@ def test_agent_as_tool_isolated_from_parent_history():
 
 
 def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text():
-    sub_llm = ScriptedLLM(
-        ['{"type":"ask","text":"Какой namespace?"}']
-    )
+    sub_llm = ScriptedLLM(['{"type":"ask","text":"Какой namespace?"}'])
 
     def hitl_sub_factory():
         class SubAgent(HITLLMAgent):
