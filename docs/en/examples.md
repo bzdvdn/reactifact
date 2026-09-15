@@ -141,7 +141,10 @@ uv run python -m examples.adaptive.main --tag x    # rule prunes b entirely
 
 Small, self-contained ports of the classic agent patterns — every one runs
 `uv run python -m examples.<name>.main` and is mapped in the
-[port matrix](port-matrix.md):
+[port matrix](port-matrix.md). `plan_execute`, `supervisor`, and `reflection`
+each also ship a `main_recipe.py` running the identical scenario on the
+corresponding `reactifact.recipes` class (`python -m examples.<name>.main_recipe`)
+— compare the two to see exactly what the recipe takes off your hands.
 
 - `reflection` — generate → critique → regenerate a draft until a guard passes.
 - `map_reduce` — chunk a document, per-chunk produces, then aggregate
@@ -157,7 +160,7 @@ Small, self-contained ports of the classic agent patterns — every one runs
 ## Running tests
 
 ```bash
-.venv/bin/python -m pytest      # 487 tests (2 skipped without TEST_PG_DSN)
+.venv/bin/python -m pytest      # 541 tests (2 skipped without TEST_PG_DSN)
 .venv/bin/mypy                  # strict typing across the repo
 .venv/bin/ruff check            # lint
 ```

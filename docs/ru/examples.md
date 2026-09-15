@@ -142,7 +142,11 @@ uv run python -m examples.adaptive.main --tag x    # правило отсека
 
 Компактные, самодостаточные порты классических паттернов агентов — каждый
 запускается `uv run python -m examples.<имя>.main` и сопоставлен в
-[port-матрице](port-matrix.md):
+[port-матрице](port-matrix.md). `plan_execute`, `supervisor` и `reflection`
+дополнительно несут `main_recipe.py`, который гоняет тот же сценарий на
+соответствующем классе из `reactifact.recipes`
+(`python -m examples.<имя>.main_recipe`) — сравните оба файла, чтобы увидеть,
+что именно берёт на себя рецепт.
 
 - `reflection` — генерация → критика → регенерация черновика до прохождения гарда.
 - `map_reduce` — разбить документ на куски, produce на каждом, затем агрегация
@@ -158,7 +162,7 @@ uv run python -m examples.adaptive.main --tag x    # правило отсека
 ## Тесты
 
 ```bash
-.venv/bin/python -m pytest      # 487 тестов (2 пропущены без TEST_PG_DSN)
+.venv/bin/python -m pytest      # 541 тест (2 пропущены без TEST_PG_DSN)
 .venv/bin/mypy                  # строгая типизация по всему репозиторию
 .venv/bin/ruff check            # линтер
 ```
