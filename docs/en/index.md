@@ -73,7 +73,7 @@ Every run is a commit. That gives you:
 
 ## Requires
 
-- Python 3.12+ (`.venv` is managed by `uv`).
+- Python 3.11–3.14 (`.venv` is managed by `uv`; CI runs the full suite on all four).
 - `pydantic` for artifact models; FastAPI/uvicorn only for the web demos.
 
 ## Quick start

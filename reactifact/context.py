@@ -81,6 +81,16 @@ class Context:
         # version. Kept up to date by `update()`/`log_commit()` so
         # `stale_artifacts()`/`has_stale()` never rescan the whole context.
         self._stale: set[str] = set()
+        # Incrementally maintained: exact `type(data)` -> ids of that exact
+        # type. Kept up to date by `create()`/`update()`/`delete()` so
+        # `list_artifacts(T)` doesn't call `isinstance()` per artifact — it
+        # unions the ids of every *distinct type ever created* that is an
+        # `issubclass` of `T` (a small set — bounded by distinct types, not
+        # artifact count) into an O(1) membership test, still walked in
+        # insertion order to preserve tie-break order in callers' own sorts.
+        # Any bulk rewrite that bypasses create/update/delete must call
+        # `_reindex_by_type()` (mirrors `_recompute_stale()`, same reasoning).
+        self._by_type: dict[type, set[str]] = {}
 
     # ---- announce: agent progress events streamed out ----
 
@@ -116,6 +126,7 @@ class Context:
             return self._artifacts[id]
         artifact = Artifact(data=data, id=id)
         self._artifacts[artifact.id] = artifact
+        self._by_type.setdefault(type(data), set()).add(artifact.id)
         self._events.append(
             Event(
                 type=EventType.ARTIFACT_CREATED,
@@ -140,7 +151,12 @@ class Context:
             return None
         if artifact.data == new_data:
             return artifact
+        old_type = type(artifact.data)
         artifact.update(new_data)
+        new_type = type(new_data)
+        if new_type is not old_type:
+            self._by_type.get(old_type, set()).discard(artifact_id)
+            self._by_type.setdefault(new_type, set()).add(artifact_id)
         self._events.append(
             Event(
                 type=EventType.ARTIFACT_UPDATED,
@@ -165,6 +181,7 @@ class Context:
         if artifact is None:
             return False
         self._stale.discard(artifact_id)
+        self._by_type.get(type(artifact.data), set()).discard(artifact_id)
         self._events.append(
             Event(
                 type=EventType.ARTIFACT_DELETED,
@@ -185,13 +202,22 @@ class Context:
     def list_artifacts(
         self, artifact_type: type[TArtifact] | None = None
     ) -> list[Artifact[Any]]:
-        """Returns a list of artifacts, optionally filtered by data type."""
+        """Returns a list of artifacts, optionally filtered by data type.
+
+        Preserves insertion order (matters: ties in a caller's own sort key,
+        e.g. `updated_at`, break in creation order, same as before this
+        method stopped `isinstance`-scanning every artifact).
+        """
         if artifact_type is None:
             return list(self._artifacts.values())
+        matching_ids: set[str] = set()
+        for t, ids in self._by_type.items():
+            if issubclass(t, artifact_type):
+                matching_ids |= ids
         return [
             cast(Artifact[TArtifact], a)
-            for a in self._artifacts.values()
-            if isinstance(a.data, artifact_type)
+            for aid, a in self._artifacts.items()
+            if aid in matching_ids
         ]
 
     def latest(self, artifact_type: type[TArtifact]) -> Artifact[TArtifact] | None:
@@ -493,6 +519,18 @@ class Context:
                     break
         self._stale = stale
 
+    def _reindex_by_type(self) -> None:
+        """Full rebuild of `_by_type` from current artifacts.
+
+        Same reasoning as `_recompute_stale()`: only needed after a bulk
+        rewrite that bypasses `create`/`update`/`delete` — call it alongside
+        `_recompute_stale()` at every such site, never on its own.
+        """
+        by_type: dict[type, set[str]] = {}
+        for aid, artifact in self._artifacts.items():
+            by_type.setdefault(type(artifact.data), set()).add(aid)
+        self._by_type = by_type
+
     def _rebuild_artifacts_from_commits(
         self, upto_version: int
     ) -> dict[str, Artifact[Any]]:
@@ -534,6 +572,7 @@ class Context:
         self._events = []
         self._log.truncate(version)
         self._recompute_stale()
+        self._reindex_by_type()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -559,6 +598,7 @@ class Context:
         ws._fork_name = d.get("fork_name", "")
         ws._base = Context.from_dict(d["base"]) if d.get("base") is not None else None
         ws._recompute_stale()
+        ws._reindex_by_type()
         return ws
 
     async def save_checkpoint(self, backend_or_path: str | CheckpointBackend) -> None:

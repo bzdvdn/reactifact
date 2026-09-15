@@ -111,7 +111,9 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
     max_rounds = MAX_ROUNDS
 
     async def draft(self, context: Context, topic: Artifact[Topic]) -> Draft:
-        text = await _call(context, system=_DRAFT.render(topic=topic.data.text), user=topic.data.text)
+        text = await _call(
+            context, system=_DRAFT.render(topic=topic.data.text), user=topic.data.text
+        )
         return Draft(text=text)
 
     async def critique(
@@ -147,7 +149,9 @@ class Flow(Agent):
     produces = MyLoop().produces()
 
 
-def run(*, topic: str = "Hydropower: pros and cons", llm: LLMProvider | None = None) -> Context:
+def run(
+    *, topic: str = "Hydropower: pros and cons", llm: LLMProvider | None = None
+) -> Context:
     ctx = Context(resources=RuntimeResources(llm=llm))
     ctx.create(Topic(text=topic))
     asyncio.run(Runtime(ctx, agents=[Flow()]).arun())

@@ -4,6 +4,7 @@ import tempfile
 
 import pytest
 from pydantic import BaseModel
+from reactifact.checkpoints import FileBackend
 from reactifact.commit import Commit
 from reactifact.context import Context
 from reactifact.patches import Update
@@ -55,6 +56,27 @@ async def _test_checkpoint_roundtrip():
     assert isinstance(op, Update)
     assert op.artifact_id == doc.id
     assert op.new_data.content == "Updated"
+
+
+def test_file_backend_write_is_atomic_no_leftover_tmp():
+    asyncio.run(_test_file_backend_write_is_atomic_no_leftover_tmp())
+
+
+async def _test_file_backend_write_is_atomic_no_leftover_tmp():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "sub", "checkpoint.json")
+        backend = FileBackend(path)
+        await backend.save({"hello": "world"})
+
+        assert os.path.exists(path)
+        assert not os.path.exists(path + ".tmp")
+        assert await backend.load() == {"hello": "world"}
+
+        # a second save (overwrite) also leaves no .tmp behind and the
+        # final file is never a half-written truncation of the old content
+        await backend.save({"hello": "again"})
+        assert not os.path.exists(path + ".tmp")
+        assert await backend.load() == {"hello": "again"}
 
 
 def test_postgres_kv_requires_dsn_and_lazy_driver():

@@ -1,6 +1,7 @@
 import asyncio
 import time
 
+import pytest
 from pydantic import BaseModel
 from reactifact import Agent, Budget, Consume, Context, Patch, Runtime
 
@@ -118,6 +119,61 @@ def test_parallel_snapshot_and_provenance():
     # reads relationships are recorded independently for each run
     for commit in ctx.history():
         assert any(r.artifact_id == source.id and r.version == 0 for r in commit.reads)
+
+
+def test_concurrent_arun_on_same_runtime_raises():
+    """Two concurrent arun() calls on one Runtime would race on shared turn
+    state (budget/outcome) — the second call is rejected instead."""
+
+    class Slow(Agent):
+        consumes = [Consume(Number)]
+
+        async def run(self, event, context):
+            await asyncio.sleep(0.05)
+            return None
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[Slow()])
+    ctx.create(Number(value=1))
+
+    async def go() -> None:
+        first = asyncio.create_task(runtime.arun())
+        await asyncio.sleep(0.01)  # let the first call actually start a turn
+        with pytest.raises(RuntimeError, match="not reentrant"):
+            await runtime.arun()
+        await first
+
+    asyncio.run(go())
+
+
+def test_dispatch_waits_for_slow_siblings_before_raising_on_error():
+    """A failing agent in a concurrent generation must not leave its still-
+    running siblings orphaned in the background — dispatch waits for all of
+    them before the exception propagates."""
+    finished: list[str] = []
+
+    class Failing(Agent):
+        consumes = [Consume(Number)]
+
+        async def run(self, event, context):
+            raise ValueError("boom")
+
+    class Slow(Agent):
+        consumes = [Consume(Number)]
+
+        async def run(self, event, context):
+            await asyncio.sleep(0.05)
+            finished.append("slow")
+            return None
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[Failing(), Slow(), Slow()], max_concurrency=3)
+    ctx.create(Number(value=1))
+
+    with pytest.raises(ValueError, match="boom"):
+        asyncio.run(runtime.arun())
+
+    assert finished == ["slow", "slow"]
 
 
 def test_agent_concurrency_limit_capped():

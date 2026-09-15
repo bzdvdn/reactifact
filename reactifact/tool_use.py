@@ -450,7 +450,13 @@ class ToolUseHITL(_ToolLoopBase):
             notes = question.data.notes if question is not None else {}
             tool_id = notes.get("tool_id", "")
             args = notes.get("args", {})
-            approved = extra.strip().lower() in ("yes", "y", "approve", "approved", "true")
+            approved = extra.strip().lower() in (
+                "yes",
+                "y",
+                "approve",
+                "approved",
+                "true",
+            )
             if approved:
                 result = await self._run_tool(
                     self.tools, tool_id, args, allow_destructive=True

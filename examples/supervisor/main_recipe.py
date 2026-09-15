@@ -93,7 +93,9 @@ class _Text(BaseModel):
     text: str
 
 
-_ROUTE = PromptTemplate("""You classify a request. Reply with a single route: {routes}.""")
+_ROUTE = PromptTemplate(
+    """You classify a request. Reply with a single route: {routes}."""
+)
 _SPECIALIST = PromptTemplate(
     """You are the '{route}' specialist. Answer the request briefly and
 actionably, strictly in scope of your specialty."""
@@ -146,7 +148,11 @@ class Specialist(Produce[SpecialistReport]):
         )
         request = context.get(task.data.thread)
         user_text = request.data.text if request is not None else task.data.thread
-        text = body.text if body is not None else f"(offline {task.data.route}) «{user_text[:80]}»"
+        text = (
+            body.text
+            if body is not None
+            else f"(offline {task.data.route}) «{user_text[:80]}»"
+        )
         report = self.effects.create(
             SpecialistReport(thread=task.data.thread, route=task.data.route, text=text),
             id=f"report:{task.data.thread}",

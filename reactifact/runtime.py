@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator, Callable
+from typing import cast
 
 from .agents import Agent
 from .budget import Budget, RunOutcome, RunStats
@@ -69,6 +70,31 @@ class Runtime:
         self._turn_started_at = 0.0
         self._no_runs_warned = False
         self._errors_used = 0
+        # Not reentrant: `arun`/`arun_once`/`astream` all mutate shared,
+        # instance-level turn state (`_runs_used`, `outcome`, `_deadline`,
+        # and `context.resources.budget`/`budget_deadline` — a resource
+        # *shared* by the Context). Two concurrent calls on the *same*
+        # Runtime (e.g. `asyncio.gather(runtime.arun(), runtime.arun())`)
+        # would race on that state — one call's budget/deadline silently
+        # clobbers the other's mid-flight. Guarded in `_enter_turn`/
+        # `_exit_turn`, checked only at the public entry points; `arun`'s own
+        # internal loop calls `_arun_once_impl` directly (unguarded — it is
+        # already inside the guarded region, not a second concurrent call).
+        self._in_turn = False
+
+    def _enter_turn(self) -> None:
+        if self._in_turn:
+            raise RuntimeError(
+                "Runtime.arun()/arun_once()/astream() is not reentrant: this "
+                "Runtime is already processing a turn (a concurrent call on "
+                "the same instance, e.g. via asyncio.gather). Use a separate "
+                "Runtime per concurrent request — they can share "
+                "Context.resources — or await the in-flight call first."
+            )
+        self._in_turn = True
+
+    def _exit_turn(self) -> None:
+        self._in_turn = False
 
     def register(self, agent: Agent) -> None:
         self.agents.append(agent)
@@ -127,6 +153,13 @@ class Runtime:
                 )
 
     async def arun_once(self, budget: Budget | None = None) -> int:
+        self._enter_turn()
+        try:
+            return await self._arun_once_impl(budget)
+        finally:
+            self._exit_turn()
+
+    async def _arun_once_impl(self, budget: Budget | None = None) -> int:
         if not self._turn_started:
             self._begin_turn(budget)
         events = self.context.drain_events()
@@ -214,7 +247,23 @@ class Runtime:
                 for semaphore in reversed(acquired):
                     semaphore.release()
 
-        return await asyncio.gather(*(_worker(item) for item in work))
+        # return_exceptions=True: without it, the first sibling to raise makes
+        # `gather` propagate immediately while the other already-scheduled
+        # tasks keep running unawaited in the background (a classic asyncio
+        # gotcha) — with concurrent LLM-bound agents that means real,
+        # in-flight API calls nobody is waiting on anymore, and whose result
+        # (if it lands after this generation's effects slot is gone) has
+        # nowhere safe to go. Collecting exceptions instead means `gather`
+        # always waits for every sibling to actually finish before this
+        # method returns; the first exception (if `isolate_errors=False`) is
+        # then re-raised here, unwrapped — same type callers see today.
+        results = await asyncio.gather(
+            *(_worker(item) for item in work), return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        return cast("list[AgentResult]", results)
 
     def _get_patches_to_apply(
         self, results: list[AgentResult]
@@ -349,6 +398,13 @@ class Runtime:
         max_iterations: int = 100,
         budget: Budget | None = None,
     ) -> int:
+        self._enter_turn()
+        try:
+            return await self._arun_impl(max_iterations, budget)
+        finally:
+            self._exit_turn()
+
+    async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
         self._begin_turn(budget)
         active = self._active_budget
         limit = (
@@ -360,7 +416,7 @@ class Runtime:
         for _ in range(limit):
             if self._budget_exhausted():
                 break
-            runs = await self.arun_once()
+            runs = await self._arun_once_impl()
             total_runs += runs
             if runs == 0:
                 break
