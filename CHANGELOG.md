@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Docs
+
+- `docs/roadmap.md` now spells out three explicit API-stability tiers for
+  1.0 (Core / "In the box" / Recipes) instead of one flat "the public
+  surface" — clarifies where `context_builder`/`verify` (core, since they
+  extend `RuntimeResources`), `agent_tool.AgentAsTool` and the
+  destructive-tool approval gate ("in the box", same tier as `Tool`/MCP),
+  and this release's three new recipes (recipes tier, already covered by
+  the existing "freeze the recipes" commitment) each sit.
+- A real docs site (`mkdocs.yml`, Material theme) built from the existing
+  `docs/en/` tree, deployed to GitHub Pages on every push to `master` that
+  touches `docs/**`/`mkdocs.yml` (`.github/workflows/docs.yml`,
+  `mkdocs gh-deploy`). EN-only for now; `docs/ru/` already mirrors the
+  structure 1:1 and is a locale-switcher follow-up (`mkdocs-static-i18n`),
+  not wired into the nav yet. New `docs` optional-dependency group
+  (`mkdocs`, `mkdocs-material`); `project.urls.Documentation` now points
+  at the site instead of the GitHub file tree.
+- `docs/reference.md` — auto-generated API reference (`mkdocstrings[python]`):
+  signatures, type hints, and full docstring text rendered straight from
+  source for every Core/"in the box" primitive, instead of hand-copied.
+  `docs/en/api.md` and `docs/ru/api.md` now link to it.
+
 ### Added
 
 - `examples/incident_commander` — a full harness composed in one scenario:

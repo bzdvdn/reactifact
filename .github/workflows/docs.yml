@@ -1,0 +1,32 @@
+name: docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.x"
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --extra docs
+      - name: Build
+        # Not --strict: a few pages intentionally link one level above
+        # docs_dir (../README.md, ../CHANGELOG.md, ../../examples/*/README.md)
+        # for GitHub readers — mkdocs can't verify those, see mkdocs.yml.
+        run: uv run mkdocs build
+      - name: Deploy to GitHub Pages
+        run: uv run mkdocs gh-deploy --force --no-history

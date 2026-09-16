@@ -26,6 +26,15 @@ Run the same gates CI and the release process run:
 - Docs live in `docs/en/` and `docs/ru/` as a 1:1 mirror; update both if you
   touch a documented symbol or behavior. `docs/en/api.md` / `docs/ru/api.md`
   should stay in sync with `reactifact/__init__.py`'s public exports.
+- The docs site (<https://bzdvdn.github.io/reactifact/>, `mkdocs.yml`,
+  EN-only for now — `docs/ru/` isn't wired into the nav yet) deploys
+  automatically from `master` (`.github/workflows/docs.yml`) on any
+  `docs/**`/`mkdocs.yml` change. Preview locally before relying on the
+  nav placement of a new page:
+  ```bash
+  uv sync --extra docs
+  uv run mkdocs serve
+  ```
 
 ## Design principles
 

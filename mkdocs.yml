@@ -1,0 +1,119 @@
+site_name: reactifact
+site_description: "Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context"
+site_url: https://bzdvdn.github.io/reactifact/
+repo_name: bzdvdn/reactifact
+repo_url: https://github.com/bzdvdn/reactifact
+edit_uri: edit/master/docs/
+
+docs_dir: docs
+
+# English-only for now — docs/ru/ mirrors this structure 1:1 and is ready
+# for a locale switcher (mkdocs-static-i18n, docs_structure: folder) as a
+# follow-up; shipping the EN site first keeps this change reviewable and
+# lets nav/link issues surface against one tree before doubling the surface.
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  logo: img/reactifact-hero.svg
+  favicon: img/reactifact-hero.svg
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            # reactifact's docstrings are free-form prose (rationale, §
+            # references to constitution.md) rather than Google/NumPy
+            # sections — docstring_style: null renders them as plain
+            # markdown instead of trying to parse Args:/Returns: blocks
+            # that mostly aren't there.
+            docstring_style: null
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            members_order: source
+
+# Rooted at docs_dir (docs/); links inside each page stay exactly as
+# written for GitHub (relative to the file), which is also what mkdocs
+# resolves — no path rewriting needed. A few pages (roadmap.md,
+# constitution.md) link one level up to ../README.md / ../CHANGELOG.md,
+# outside docs_dir: those render as normal links but mkdocs' link-checker
+# can't verify them (not --strict here on purpose, for that reason).
+nav:
+  - Home: en/index.md
+  - Why reactifact: en/why-reactifact.md
+  - Quickstart: en/quickstart.md
+  - Comparison: en/comparison.md
+  - Concepts: en/concepts.md
+  - Core:
+      - Effects: en/effects.md
+      - Sources: en/sources.md
+      - Providers: en/providers.md
+      - Recipes: en/recipes.md
+      - Patterns: en/patterns.md
+      - Evaluation: en/eval.md
+      - Branching & merge: en/branching.md
+      - Replay: en/replay.md
+      - Visualization: en/viz.md
+      - MCP: en/mcp.md
+      - Observability: en/observability.md
+  - Reference:
+      - API: en/api.md
+      - Auto-generated reference: reference.md
+      - Port matrix: en/port-matrix.md
+      - Examples: en/examples.md
+      - Troubleshooting: en/troubleshooting.md
+  - Design notes:
+      - Adaptive scheduler: en/design-notes/adaptive.md
+      - Patch model: en/design-notes/patches.md
+  - Project:
+      - Roadmap: roadmap.md
+      - Constitution: constitution.md
+      - Release process: en/release.md

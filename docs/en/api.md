@@ -2,7 +2,9 @@
 
 Top-level symbols exported by `reactifact` (see `reactifact/__init__.py`). The format
 for each group: name — one-line role. Details live in the doc-strings of the
-modules.
+modules — see [the auto-generated reference](../reference.md) for those
+rendered directly from source (signatures, types, full docstring text) on
+the docs site, rather than copied here by hand.
 
 ## Stability
 

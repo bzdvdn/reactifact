@@ -10,6 +10,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/reactifact)](https://pypi.org/project/reactifact/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bzdvdn/reactifact)
+[![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
 Most agent frameworks make you **draw the graph**: connect nodes, wire memory,
 declare control flow. But a knowledge question — *"why did infra costs jump in
