@@ -64,6 +64,20 @@ def test_tight_context_budget_still_grounds_the_answer():
     assert results[0].data.metrics["provenance_grounded"] == 1.0
 
 
+def test_extreme_context_budget_still_reaches_one_real_evidence_item():
+    """`context_builder.py`'s `exempt_types` guarantee, exercised
+    end-to-end: `InvestigationComplete` (the synthesis's guaranteed
+    post-merge wake-up) ranks first (newest) but is exempt, so it can never
+    consume the "at least one real content item" slot — even at a budget
+    too tight for a single word."""
+    CALLS.clear()
+    ctx = asyncio.run(run(context_max_tokens=1))
+
+    hypotheses = ctx.list_artifacts(RootCauseHypothesis)
+    assert hypotheses[0].data.evidence_seen == 1
+    assert hypotheses[0].data.text  # not empty — a real Evidence item got through
+
+
 def test_classify_targets_is_deterministic_and_never_dead_ends():
     assert classify_targets("pods CrashLoopBackOff after the deploy") == {"k8s"}
     assert classify_targets("database query timeout, connection pool exhausted") == {

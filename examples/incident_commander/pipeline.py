@@ -14,7 +14,7 @@ from reactifact.providers import LLMProvider
 
 from .agents import build_ask_dba, build_commander, build_verifier
 from .fake_llm import COMMANDER_SCRIPT, DBA_SCRIPT, ScriptedLLM
-from .models import Evidence, IncidentReport, InvestigationComplete, InvestigationTask
+from .models import IncidentReport, InvestigationComplete, InvestigationTask
 from .produce import (
     AnswerAgent,
     K8sInvestigatorAgent,
@@ -56,14 +56,12 @@ def build_resources(llm: LLMProvider, context_max_tokens: int) -> RuntimeResourc
             # `SynthesizerAgent` also consumes `InvestigationComplete` (its
             # guaranteed post-merge wake-up — `Context.merge()`, unlike
             # `merge_from()`, doesn't emit events for merged-in artifacts,
-            # see `InvestigationComplete`'s docstring). `_collect_inputs`
-            # unions every `Consume`d type into one ranked/budgeted list
-            # (context_builder.py's documented limitation), so without this
-            # the freshly-created marker — newest, ranks first — would
-            # itself eat the whole budget and starve out every `Evidence`.
-            # Rendering it as empty makes it free: it still wakes the
-            # agent, but never competes with `Evidence` for tokens.
-            render=lambda a: a.data.text if isinstance(a.data, Evidence) else "",
+            # see `InvestigationComplete`'s docstring). `exempt_types` keeps
+            # that marker free: it still wakes the agent, but never
+            # competes with `Evidence` for the token budget (or, ranked
+            # first as the newest artifact, blocks `Evidence` out
+            # entirely — see `exempt_types`'s docstring).
+            exempt_types=(InvestigationComplete,),
         ),
         verification_threshold=0.75,
     )

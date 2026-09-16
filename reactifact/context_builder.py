@@ -21,6 +21,11 @@ A high-volume type (e.g. many `Evidence`) can starve out a low-volume one
 low-volume artifact ranks lower (e.g. it's older). If that bites, pass a
 `rank_key` that accounts for it, or budget per `Consume` with several
 smaller agents instead of one broad one.
+
+One specific case of that limitation *is* solved: an agent often consumes
+one real content type (`Evidence`) plus a marker type it only needs for
+triggering (a completion/wake-up artifact with little or no meaningful
+text) — see `TokenBudgetContextBuilder`'s `exempt_types`.
 """
 
 from __future__ import annotations
@@ -100,9 +105,20 @@ class TokenBudgetContextBuilder(ContextBuilder):
     """Ranks candidates (newest-first by default) and keeps a prefix that
     fits `max_tokens`, estimated via `token_counter`.
 
-    At least one artifact is always kept, even if it alone exceeds the
-    budget — an agent silently getting zero inputs is worse than one that
-    gets an oversized one; `max_tokens` is a soft cap, not a hard clip.
+    At least one *costed* (non-exempt) artifact is always kept, even if it
+    alone exceeds the budget — an agent silently getting zero real content
+    is worse than one that gets an oversized item; `max_tokens` is a soft
+    cap, not a hard clip.
+
+    `exempt_types`: artifact types that cost nothing and never trigger that
+    clip — for a marker/trigger type an agent only consumes to wake up
+    (little or no meaningful text), not to reason over. Without this, a
+    freshly created marker can rank first (newest) and either eat the whole
+    budget itself or — worse — silently consume the "at least one" slot,
+    leaving zero real content if the budget is then too tight for the next
+    (real) candidate. Exempt artifacts are still ranked and still kept
+    (still wake the agent up); they just never count toward `max_tokens` or
+    toward what counts as "at least one" content item.
     """
 
     def __init__(
@@ -112,11 +128,13 @@ class TokenBudgetContextBuilder(ContextBuilder):
         token_counter: TokenCounter | None = None,
         rank_key: Callable[[Artifact[Any]], Any] | None = None,
         render: Callable[[Artifact[Any]], str] | None = None,
+        exempt_types: tuple[type, ...] = (),
     ):
         self.max_tokens = max_tokens
         self.token_counter = token_counter or HeuristicTokenCounter()
         self.rank_key = rank_key or (lambda a: a.updated_at)
         self.render = render or _default_render
+        self.exempt_types = exempt_types
 
     def build(
         self, context: Context, agent: Agent, candidates: list[Artifact[Any]]
@@ -126,10 +144,14 @@ class TokenBudgetContextBuilder(ContextBuilder):
             return ranked
         kept: list[Artifact[Any]] = []
         used = 0
+        kept_content = False
         for artifact in ranked:
-            cost = self.token_counter.count(self.render(artifact))
-            if kept and used + cost > self.max_tokens:
+            exempt = type(artifact.data) in self.exempt_types
+            cost = 0 if exempt else self.token_counter.count(self.render(artifact))
+            if kept_content and used + cost > self.max_tokens:
                 break
             kept.append(artifact)
             used += cost
+            if not exempt:
+                kept_content = True
         return kept

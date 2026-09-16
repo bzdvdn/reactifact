@@ -99,18 +99,20 @@ IncidentReport
 ```
 [approve gate] 'Approve running destructive tool ...' -> yes
 [evidence] ...                                              <- one per finding, from either fork
-[hypothesis, context budget 50 tokens -> 2/3 evidence items reached the synthesis] ...
+[hypothesis, context budget 50 tokens -> 1/3 evidence items reached the synthesis] ...
 [answer] ...
 [verification: PASSED] overall=1.00 threshold=0.75 metrics={...}
 ```
 
-The `2/3` in the hypothesis line is the context builder visibly truncating —
-lower `--context-max-tokens` to see it bound harder (at `30`, only the
-single newest piece of evidence reaches the synthesis). The final `Answer`
-stays fully grounded regardless: it's built from *all* matching `Evidence`
-directly (`BuildAnswer`, `produce.py`), not from the (deliberately) bounded
-synthesis — the budget shapes what a bystander agent free-associates over,
-not the provenance chain `Verify` checks.
+The `1/3` in the hypothesis line is the context builder visibly truncating —
+at least one piece of evidence always reaches the synthesis
+(`TokenBudgetContextBuilder`'s guarantee), even at an absurdly tight budget
+(try `--context-max-tokens 1`); raise `--context-max-tokens` to let more
+through. The final `Answer` stays fully grounded regardless: it's built
+from *all* matching `Evidence` directly (`BuildAnswer`, `produce.py`), not
+from the (deliberately) bounded synthesis — the budget shapes what a
+bystander agent free-associates over, not the provenance chain `Verify`
+checks.
 
 ## Tests
 

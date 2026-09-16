@@ -25,6 +25,25 @@ class Collector(Agent):
     produces = [RecordSeen()]
 
 
+class Marker(BaseModel):
+    """A trigger-only artifact with no meaningful text — the kind
+    `exempt_types` is for."""
+
+
+class RecordItemsOnly(Produce[Seen]):
+    artifact_type = Seen
+
+    async def produce(self, context, inputs, event=None):
+        self.effects.create(
+            Seen(texts=[i.data.text for i in inputs if isinstance(i.data, Item)])
+        )
+
+
+class MarkerAwareCollector(Agent):
+    consumes = [Consume(Item), Consume(Marker)]
+    produces = [RecordItemsOnly()]
+
+
 def test_heuristic_counter_overestimates_and_is_never_zero_for_nonempty_text():
     counter = HeuristicTokenCounter()
     assert counter.count("") == 0
@@ -110,3 +129,37 @@ def test_custom_rank_key_overrides_recency():
 
     seen = ctx.list_artifacts(Seen)[-1]
     assert seen.data.texts == ["short"]
+
+
+def test_exempt_types_never_cost_budget():
+    builder = TokenBudgetContextBuilder(max_tokens=5, exempt_types=(Marker,))
+    ctx = Context(resources=RuntimeResources(context_builder=builder))
+    runtime = Runtime(ctx, agents=[MarkerAwareCollector()])
+
+    ctx.create(Item(text="x" * 50))
+    asyncio.run(runtime.arun())
+    ctx.create(Marker())  # newest by recency — would otherwise starve Item out
+    asyncio.run(runtime.arun())
+
+    seen = ctx.list_artifacts(Seen)[-1]
+    assert seen.data.texts == ["x" * 50]
+
+
+def test_exempt_marker_does_not_consume_the_at_least_one_guarantee():
+    """Before `exempt_types`, a marker ranked first (cost 0) still filled
+    the "kept" list, so the *next* check compared against a non-empty
+    `kept` and could reject the only real content — silently zeroing the
+    agent's actual input even though "at least one artifact" was
+    technically kept. `exempt_types` fixes this: the guarantee now applies
+    to the first non-exempt (real) candidate specifically."""
+    builder = TokenBudgetContextBuilder(max_tokens=1, exempt_types=(Marker,))
+    ctx = Context(resources=RuntimeResources(context_builder=builder))
+    runtime = Runtime(ctx, agents=[MarkerAwareCollector()])
+
+    ctx.create(Item(text="a single item way over budget on its own"))
+    asyncio.run(runtime.arun())
+    ctx.create(Marker())
+    asyncio.run(runtime.arun())
+
+    seen = ctx.list_artifacts(Seen)[-1]
+    assert len(seen.data.texts) == 1
