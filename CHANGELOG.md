@@ -6,6 +6,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- `reactifact.native_tool_use` — OpenAI-style native tool-calling
+  (`message.tool_calls`), as three composable functions, not a parallel
+  loop class: `tools_payload()` (builds the OpenAI `tools=[...]` array
+  from `Tool`s), `parse_tool_calls()` (extracts `message.tool_calls` from
+  a raw provider response), `native_complete()` (one native turn — sends
+  raw OpenAI-format messages via `LLMRequest.extra`, the existing
+  escape hatch for provider-specific wire shapes, *and* as a best-effort
+  typed rendering via `LLMRequest.messages` — `tool_calls`/`tool_call_id`
+  dropped, since `Message` has no field for either — so a provider that
+  doesn't know this module's `extra` convention still sees a real
+  conversation instead of an empty list; honest `None` on no
+  provider/a failed call, matching `structured_llm`). A reactive,
+  `ToolUseHITL`-shaped loop around these (persisted round history, a
+  destructive-tool approval gate) was built and then deliberately cut —
+  see the module docstring for why: no concrete use case has needed it
+  yet, only the plain request/response step these functions cover.
+- `reactifact.structured.json_schema_llm` — structured output against your
+  own JSON Schema (`dict` or JSON string) instead of one derived from a
+  pydantic model, for a schema that must match specific text verbatim or
+  express something pydantic can't. Sends the stricter native
+  `{"type": "json_schema", ...}` response-format mode (vs.
+  `structured_llm`'s weaker `{"type": "json_object"}`); same
+  retry/backoff/honest-`None` contract. Returns a plain `dict`, not a
+  validated model.
+- `reactifact.structured.chat_complete` — a raw multi-turn chat completion:
+  `messages` (your own history, `Message` or plain role/content dicts) in,
+  `response.text` exactly as returned out, or `None` on an honest failure.
+  No envelope, no schema, no retry — for callers that already build their
+  own message arrays from domain artifacts and just want the wire call.
+- `reactifact.recipes.memory.RollingDigestSummarizer` (+
+  `llm_digest_summarizer`) — the other bounded-memory shape: found missing
+  while porting a langgraph app whose `SummarizeNode` kept one growing
+  digest of everything older than a raw tail, rather than `WindowSummarizer`'s
+  per-round checkpoints. Once the conversation passes `trigger` messages, it
+  folds everything older than `window` into a single digest artifact —
+  rewriting it from the previous digest text plus the newly stale messages —
+  and deletes the folded messages itself; `WindowPruner` alone can't stand
+  in for this, since it deletes without folding first and loses the content
+  instead of condensing it. Two things that same porting turned up before
+  release, both fixed here rather than shipped and patched later:
+  `message_type` accepts a type *or* a sequence of types (a conversation
+  built from more than one artifact model, e.g. `Question`/`FinalResponse`,
+  not just one `Msg`); and `summarize`/`fallback` receive the stale
+  artifacts as a raw list, never a string the recipe rendered for you — a
+  caller with its own role/content prompt builder writes its own rendering
+  instead of round-tripping through a format the recipe would otherwise
+  impose. `llm_digest_summarizer` is the opt-in text-flattening default for
+  callers who don't need that.
+
 ## [0.8.0] — 2026-09-16
 
 Harness building blocks (approval gate, context budget, inline

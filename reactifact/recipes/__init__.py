@@ -28,6 +28,10 @@ keep reappearing across agent codebases and the bundled examples:
   conversation memory: periodic summarization + pruning as two plain
   `Produce`s, domain owns the summarizer callback and the summary artifact
   shape (§27, §37) — see `recipes.memory`;
+- `RollingDigestSummarizer` / `llm_digest_summarizer` — the other bounded-
+  memory shape: one growing digest that folds in whatever falls out of the
+  raw window (instead of `WindowSummarizer`'s per-round checkpoints), and
+  prunes the folded messages itself (§27, §37) — see `recipes.memory`;
 - `keyword_score` / `stem_words` — deterministic text scoring without
   embedders (English and Russian) — see `recipes.text`;
 - `changed_fields` / `earliest_stage` / `downstream_fields` — the
@@ -44,7 +48,13 @@ Extend by adding a module here (the package stays import-surface-flat).
 from __future__ import annotations
 
 from .inputs import find, find_all
-from .memory import WindowPruner, WindowSummarizer, llm_summarizer
+from .memory import (
+    RollingDigestSummarizer,
+    WindowPruner,
+    WindowSummarizer,
+    llm_digest_summarizer,
+    llm_summarizer,
+)
 from .plan_execute import PlanExecute
 from .reflection import ReflectionLoop
 from .resolve import materialize_doc
@@ -60,6 +70,7 @@ __all__ = [
     "EN_STOPWORDS",
     "PlanExecute",
     "ReflectionLoop",
+    "RollingDigestSummarizer",
     "Router",
     "Skill",
     "StatusMachine",
@@ -72,6 +83,7 @@ __all__ = [
     "find",
     "find_all",
     "keyword_score",
+    "llm_digest_summarizer",
     "llm_summarizer",
     "load_skills",
     "match_skills",

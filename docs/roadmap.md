@@ -31,6 +31,9 @@ for what's already shipped, release by release.
     `RuntimeResources` itself.
   - **"In the box"** (stable, evolves faster than core): `Tool`/`ToolUse`/
     `ToolUseHITL` (including the destructive-tool approval gate),
+    `native_tool_use` (OpenAI-native `tools`/`tool_calls` as composable
+    functions — deliberately *not* a parallel reactive loop, see its module
+    docstring for why that was cut back after being built once),
     `agent_tool.AgentAsTool`, `verify.Verify`'s metric surface (`core_metrics`
     may grow), MCP, tracing/observability, providers. Same semver
     discipline, but a lower bar for adding (not breaking) new capability

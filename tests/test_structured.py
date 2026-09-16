@@ -1,10 +1,16 @@
 import asyncio
+import json
 
 from pydantic import BaseModel
 from reactifact import Consume, Context, Runtime, RuntimeResources
 from reactifact.llm_agent import StructuredGenerateAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.structured import parse_structured, structured_llm
+from reactifact.structured import (
+    chat_complete,
+    json_schema_llm,
+    parse_structured,
+    structured_llm,
+)
 
 
 class Summary(BaseModel):
@@ -233,3 +239,118 @@ def test_prompt_binds_system_and_schema():
     assert result.text == "роль"
     assert seen["system"] == "You are a strict analyst."
     assert "сделай итог по тексту" in seen["user"]
+
+
+RAW_SCHEMA = {
+    "type": "object",
+    "required": ["answer"],
+    "properties": {"answer": {"type": "string"}},
+}
+
+
+def test_json_schema_llm_parses_raw_dict_no_model_needed():
+    llm = ScriptedLLM(['{"answer": "42"}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    result = asyncio.run(
+        json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="what is the answer?")
+    )
+    assert result == {"answer": "42"}
+
+
+def test_json_schema_llm_accepts_a_json_string_too():
+    llm = ScriptedLLM(['{"answer": "ok"}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    result = asyncio.run(
+        json_schema_llm(ctx, json_schema=json.dumps(RAW_SCHEMA), user="q")
+    )
+    assert result == {"answer": "ok"}
+
+
+def test_json_schema_llm_sends_strict_native_response_format():
+    seen = {}
+
+    class CapturingLLM(LLMProvider):
+        async def complete(self, request: LLMRequest) -> LLMResponse:
+            seen["response_format"] = request.response_format
+            return LLMResponse(text='{"answer": "x"}')
+
+        async def stream(self, request):
+            yield LLMResponse(text="")  # pragma: no cover
+
+    ctx = Context(resources=RuntimeResources(llm=CapturingLLM()))
+    asyncio.run(
+        json_schema_llm(ctx, json_schema=RAW_SCHEMA, schema_name="my_schema", user="q")
+    )
+    assert seen["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "my_schema", "schema": RAW_SCHEMA, "strict": True},
+    }
+
+
+def test_json_schema_llm_retries_and_gives_up_honestly():
+    llm = ScriptedLLM(["not json", "still not json"])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    result = asyncio.run(
+        json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="q", attempts=2)
+    )
+    assert result is None
+
+
+def test_json_schema_llm_returns_none_without_a_provider():
+    ctx = Context(resources=RuntimeResources())
+    result = asyncio.run(json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="q"))
+    assert result is None
+
+
+def test_chat_complete_sends_messages_as_is_and_returns_raw_text():
+    seen = {}
+
+    class CapturingLLM(LLMProvider):
+        async def complete(self, request: LLMRequest) -> LLMResponse:
+            seen["messages"] = [(m.role, m.content) for m in request.messages]
+            return LLMResponse(text="raw reply, no envelope")
+
+        async def stream(self, request):
+            yield LLMResponse(text="")  # pragma: no cover
+
+    ctx = Context(resources=RuntimeResources(llm=CapturingLLM()))
+    messages = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "u"},
+        {"role": "assistant", "content": "a"},
+    ]
+    result = asyncio.run(chat_complete(ctx, messages))
+
+    assert result == "raw reply, no envelope"
+    assert seen["messages"] == [("system", "s"), ("user", "u"), ("assistant", "a")]
+
+
+def test_chat_complete_accepts_message_objects_too():
+    from reactifact.providers import Message
+
+    llm = ScriptedLLM(["ok"])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    result = asyncio.run(chat_complete(ctx, [Message.user("hi")]))
+    assert result == "ok"
+
+
+def test_chat_complete_returns_none_without_a_provider():
+    ctx = Context(resources=RuntimeResources())
+    result = asyncio.run(chat_complete(ctx, [{"role": "user", "content": "hi"}]))
+    assert result is None
+
+
+def test_chat_complete_returns_none_on_provider_error():
+    class FailingLLM(LLMProvider):
+        async def complete(self, request: LLMRequest) -> LLMResponse:
+            raise RuntimeError("boom")
+
+        async def stream(self, request):
+            yield LLMResponse(text="")  # pragma: no cover
+
+    ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
+    result = asyncio.run(chat_complete(ctx, [{"role": "user", "content": "hi"}]))
+    assert result is None

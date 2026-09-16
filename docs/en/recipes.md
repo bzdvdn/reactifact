@@ -169,6 +169,67 @@ class Flow(Agent):
 
 See `examples/summarize/main.py` for the full runnable demo.
 
+## `RollingDigestSummarizer` — one growing memory instead of per-round checkpoints (§27, §37)
+
+`WindowSummarizer` keeps every round's snapshot around; some apps instead
+want a single memory note that keeps accumulating, with only a small raw
+tail kept verbatim. `RollingDigestSummarizer` is that other shape: once the
+conversation passes `trigger` messages, it folds everything older than
+`window` into one digest artifact — each fold rewrites the digest from the
+*previous* digest text plus the newly stale messages — and deletes the
+folded messages itself:
+
+```python
+from reactifact.recipes import RollingDigestSummarizer, llm_digest_summarizer
+
+
+class Digest(BaseModel):
+    text: str
+
+
+def build_digest(text: str) -> Digest:
+    return Digest(text=text)
+
+
+class Flow(Agent):
+    name = "chat"
+    consumes = [Consume(Msg)]
+    produces = [
+        RollingDigestSummarizer(
+            Msg, Digest,
+            summarize=llm_digest_summarizer("Fold the new messages into the running memory note."),
+            build=build_digest,
+            window=8,    # messages kept raw
+            trigger=12,  # fold once the conversation passes this length
+        ),
+    ]
+```
+
+- `message_type` takes a single type or a sequence of types — e.g.
+  `[Question, FinalResponse]` when a conversation is two artifact types
+  interleaved rather than one `Msg` model. They're merged and ordered by
+  `order_key` before the window/trigger math runs.
+- `summarize(context, previous_digest_text, stale_artifacts) -> str | None`
+  gets the stale artifacts as a raw list, *not* a pre-rendered string — the
+  recipe never flattens messages into text for you. That matters when you
+  already have a role/content prompt builder, or the message types don't
+  reduce to one `role`/`text` shape: write your own rendering inside
+  `summarize` and there's no round-trip through this recipe's string format
+  to worry about. `llm_digest_summarizer(system=...)` is the opt-in default
+  for callers who *do* want a plain text-in/text-out prompt — it renders with
+  `role: text` lines (override via its own `render=`) and labels the previous
+  digest and the new history as two sections of one user turn. `None` from
+  either path triggers `fallback`, which defaults to appending a
+  truncated-history line to the previous digest rather than dropping it.
+- `build(text) -> Digest` — you own the digest artifact's shape; `digest_text`
+  is the matching reader (default: `artifact.data.text`) if your shape
+  doesn't use a `text` field.
+- The digest lives at one stable id (`digest` by default, via `digest_id`) —
+  each fold refreshes it in place rather than creating a new artifact.
+- Don't pair this with `WindowPruner`: pruning deletes without folding first,
+  which loses the content this recipe means to condense. It manages its own
+  raw window and needs nothing else.
+
 ## `keyword_score` / `stem_words` — deterministic text scoring (§67)
 
 Where embeddings are optional, keyword coverage is the neutral fallback (the

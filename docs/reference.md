@@ -70,6 +70,14 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.tool_use.ToolUseHITL
 
+### native_tool_use
+
+::: reactifact.native_tool_use.tools_payload
+
+::: reactifact.native_tool_use.native_complete
+
+::: reactifact.native_tool_use.parse_tool_calls
+
 ### AgentAsTool
 
 ::: reactifact.agent_tool.AgentAsTool
