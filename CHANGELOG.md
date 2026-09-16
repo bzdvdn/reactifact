@@ -6,16 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-### Fixed
+## [0.8.0] — 2026-09-16
 
-- CI/release/docs workflows were pinned to `setup-uv`'s `version: "0.5.x"` —
-  stale enough that its bundled Python-version index still resolved
-  "3.14" to an unstable `3.14.0a5` alpha build instead of the real 3.14
-  stable release, which segfaulted importing `pydantic` (an alpha
-  interpreter's ABI is not what compiled extensions like `pydantic-core`
-  were built against). Bumped to `"0.10.x"` in all four workflow steps
-  (`ci.yml` ×2, `docs.yml`, `release.yml`) — not a reactifact bug, a stale
-  CI tool pin.
+Harness building blocks (approval gate, context budget, inline
+verification, sub-agent delegation), three new recipes, a full worked
+example composing all of them, Python 3.11–3.14 support, a real docs site,
+and a round of concurrency/persistence correctness fixes. No breaking
+changes — see [docs/roadmap.md](docs/roadmap.md#next) for why this isn't
+`1.0` yet: the new surface (`context_builder`/`verify`/`agent_tool`) needs
+a hardening period before it's worth a semver promise, and 1.0's own
+stated bar (MCP hardening, more `Source` integrations) isn't met yet.
 
 ### Docs
 
@@ -54,7 +54,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   considered resolved. Orchestration lives in `pipeline.py` (same split as
   `examples/forklab`); runs fully offline via a scripted provider
   (`ToolUseHITL`'s own decision loop has no offline fallback).
-
 - **Destructive-tool approval gate** (`ToolUseHITL`, `tool_use.py`):
   destructive tools are now offered to the LLM instead of excluded outright
   — a `tool_call` targeting one creates a `PendingQuestion(kind="approve")`
@@ -102,6 +101,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Fixed
 
+- CI/release/docs workflows were pinned to `setup-uv`'s `version: "0.5.x"` —
+  stale enough that its bundled Python-version index still resolved
+  "3.14" to an unstable `3.14.0a5` alpha build instead of the real 3.14
+  stable release, which segfaulted importing `pydantic` (an alpha
+  interpreter's ABI is not what compiled extensions like `pydantic-core`
+  were built against). Bumped to `"0.10.x"` in all four workflow steps
+  (`ci.yml` ×2, `docs.yml`, `release.yml`) — not a reactifact bug, a stale
+  CI tool pin.
 - `Context.list_artifacts(T)` no longer calls `isinstance()` per artifact
   in the `Context` — an incrementally maintained `type(data) -> ids` index
   turns it into a union over the (usually small) set of distinct types ever
