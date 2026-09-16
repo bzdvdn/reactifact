@@ -1,6 +1,6 @@
 # Examples
 
-Fifteen working applications ship in `examples/` (in-repo, not packaged). They
+Sixteen working applications ship in `examples/` (in-repo, not packaged). They
 are the reference implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
 examples are split into a `produce/` package (stages) + thin
@@ -73,6 +73,27 @@ own); trace dashboard with the `create_trace_router` UI.
 
 ```bash
 uv run python ./examples/devops/web.py
+```
+
+## `incident_commander` — a full harness, composed
+
+**What it shows:** every harness-level building block wired together in one
+scenario instead of five separate toy demos — branch & merge
+(`Context.branch()`/`merge()`, §39-§40), each relevant place investigated
+independently on its own fork — *relevant* decided by a deterministic
+keyword classifier, not "always fork everything" — sub-agent delegation
+(`agent_tool.AgentAsTool`, a DBA specialist consulted on the database fork),
+a token-bounded rolling synthesis
+(`context_builder.TokenBudgetContextBuilder`), a destructive-tool approval
+gate (`tool_use.ToolUseHITL`, the actual fix pauses for a yes/no), and
+inline verification before the incident is considered resolved
+(`verify.Verify`, `provenance_grounded` required). Runs fully offline via a
+scripted provider (`ToolUseHITL`'s decision loop has no offline fallback of
+its own) or with a real key.
+
+```bash
+uv run python -m examples.incident_commander.main
+uv run python -m examples.incident_commander.main --context-max-tokens 30
 ```
 
 ## `repair` — budget-aware replanning (Russian by design)
@@ -160,7 +181,7 @@ corresponding `reactifact.recipes` class (`python -m examples.<name>.main_recipe
 ## Running tests
 
 ```bash
-.venv/bin/python -m pytest      # 541 tests (2 skipped without TEST_PG_DSN)
+.venv/bin/python -m pytest      # 543 tests (2 skipped without TEST_PG_DSN)
 .venv/bin/mypy                  # strict typing across the repo
 .venv/bin/ruff check            # lint
 ```

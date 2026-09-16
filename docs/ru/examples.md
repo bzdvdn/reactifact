@@ -1,6 +1,6 @@
 # Примеры
 
-В `examples/` живут пятнадцать работающих приложений (в репозитории, не в
+В `examples/` живут шестнадцать работающих приложений (в репозитории, не в
 пайплайне сборки). Это эталонные реализации [рецептов](recipes.md),
 [паттернов](patterns.md) и [port-матрицы](port-matrix.md) — канонические примеры
 разбиты на пакет `produce/` (стадии) + тонкие `web.py`/`chat.py`/`main.py`.
@@ -73,6 +73,27 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 
 ```bash
 uv run python ./examples/devops/web.py
+```
+
+## `incident_commander` — полный харнесс, собранный воедино
+
+**Что показывает:** все харнесс-уровневые блоки, собранные в одном сценарии
+вместо пяти разрозненных демо — ветвление и слияние (`Context.branch()`/
+`merge()`, §39-§40), каждое релевантное место расследуется независимо на
+своём форке — *релевантное* решает детерминированный keyword-классификатор,
+а не «форкать всегда всё», — делегирование саб-агенту
+(`agent_tool.AgentAsTool`, DBA-специалист на форке базы данных),
+ограниченный по токенам rolling-синтез
+(`context_builder.TokenBudgetContextBuilder`), approval gate для
+деструктивного инструмента (`tool_use.ToolUseHITL`, реальный фикс ждёт
+подтверждения да/нет), и инлайн-верификация перед закрытием инцидента
+(`verify.Verify`, `provenance_grounded` обязателен). Работает полностью
+офлайн через скриптованный провайдер (у `ToolUseHITL`'s decision loop нет
+собственного офлайн-фолбэка) или с реальным ключом.
+
+```bash
+uv run python -m examples.incident_commander.main
+uv run python -m examples.incident_commander.main --context-max-tokens 30
 ```
 
 ## `repair` — перепланирование под бюджет (русский по замыслу)
@@ -162,7 +183,7 @@ uv run python -m examples.adaptive.main --tag x    # правило отсека
 ## Тесты
 
 ```bash
-.venv/bin/python -m pytest      # 541 тест (2 пропущены без TEST_PG_DSN)
+.venv/bin/python -m pytest      # 543 тест (2 пропущены без TEST_PG_DSN)
 .venv/bin/mypy                  # строгая типизация по всему репозиторию
 .venv/bin/ruff check            # линтер
 ```

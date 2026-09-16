@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- `examples/incident_commander` — a full harness composed in one scenario:
+  deterministic keyword classification (`classify_targets`) decides which
+  places (k8s, the database) an incident actually touches — not "always
+  fork everything" — then each relevant place is investigated
+  independently on its own fork and merged back (`Context.branch()`/
+  `merge()`, §39-§40), sub-agent delegation (`agent_tool.AgentAsTool`, a
+  DBA specialist on the database fork), a token-bounded rolling synthesis
+  (`context_builder.TokenBudgetContextBuilder`), a destructive-tool
+  approval gate (`tool_use.ToolUseHITL`), and inline verification
+  (`verify.Verify`, `provenance_grounded` required) before an incident is
+  considered resolved. Orchestration lives in `pipeline.py` (same split as
+  `examples/forklab`); runs fully offline via a scripted provider
+  (`ToolUseHITL`'s own decision loop has no offline fallback).
+
 - **Destructive-tool approval gate** (`ToolUseHITL`, `tool_use.py`):
   destructive tools are now offered to the LLM instead of excluded outright
   — a `tool_call` targeting one creates a `PendingQuestion(kind="approve")`
