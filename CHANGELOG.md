@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Fixed
+
+- CI/release/docs workflows were pinned to `setup-uv`'s `version: "0.5.x"` —
+  stale enough that its bundled Python-version index still resolved
+  "3.14" to an unstable `3.14.0a5` alpha build instead of the real 3.14
+  stable release, which segfaulted importing `pydantic` (an alpha
+  interpreter's ABI is not what compiled extensions like `pydantic-core`
+  were built against). Bumped to `"0.10.x"` in all four workflow steps
+  (`ci.yml` ×2, `docs.yml`, `release.yml`) — not a reactifact bug, a stale
+  CI tool pin.
+
 ### Docs
 
 - `docs/roadmap.md` now spells out three explicit API-stability tiers for
