@@ -2,16 +2,20 @@
 
 Each assertion group is a thin, chainable wrapper over data reactifact already
 computes — `Context.list_artifacts()` for artifacts, `RunTrace` for the agent
-path and LLM calls, and (for tools) the harness's own `ToolCallRecorder`
+path and LLM calls, (for tools) the harness's own `ToolCallRecorder`
 (`reactifact.testing.fault`), since `AgentSpan` has no field for raw tool
-invocations. Every failure raises `AssertionFailure` with the actually
-observed data inlined, so a failing scenario test is debuggable straight from
-the pytest output.
+invocations, and (for progress/status events) the harness's own subscription
+to `context.announce()` for the run's duration. Every failure raises
+`AssertionFailure` with the actually observed data inlined, so a failing
+scenario test is debuggable straight from the pytest output.
 
-Dropped from v1 (no faithful reactifact analog): a LangGraph-style "node status"
-assertion. reactifact's closest concept, `ProgressEvent` from `Runtime.astream()`,
-is a live-streaming concept, not a post-hoc trace field; a `result.events`
-assertion group may be added later if `ScenarioLab` grows a streaming mode.
+`EventAssertions` closes what v1 dropped for lack of a faithful reactifact
+analog — a LangGraph-style "node status" assertion. `ProgressEvent` used to be
+a live-streaming-only concept (`Runtime.astream()`), with nothing capturing it
+in a post-hoc `ScenarioResult`; `ScenarioLab`/`Scenario` now subscribe to
+`context.announce()` for the duration of each run and hand the captured
+events to `result.events`, so this works without the caller wiring up its own
+`astream()` consumer.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from .exceptions import AssertionFailure
 if TYPE_CHECKING:
     from reactifact.budget import RunStats
     from reactifact.context import Context
+    from reactifact.streaming import ProgressEvent
     from reactifact.tracing.models import AgentSpan, LLMCall, RunTrace
 
     from .fault import ToolCallRecord
@@ -324,3 +329,48 @@ class ErrorAssertions:
             f"expected agent {agent_name!r} to have errored, but no error span "
             f"for it was found (errored agents: {[s.agent for s in self._errored_spans()]})"
         )
+
+
+class EventAssertions:
+    """Assertions over `context.announce()` progress events captured while
+    the scenario ran (`ProgressEvent.kind`/`.message` — `kind` is the app's
+    own category, e.g. `"status"` for domain-facing progress text, `"agent"`
+    for framework-internal producers like `ToolUse`; see `Context.announce`'s
+    own docstring). `kind=None` (the default on every method below) matches
+    any kind.
+    """
+
+    def __init__(self, events: list[ProgressEvent]) -> None:
+        self._events = events
+
+    def all(self) -> list[ProgressEvent]:
+        return list(self._events)
+
+    def messages(self, *, kind: str | None = None) -> list[str]:
+        return [e.message for e in self._events if kind is None or e.kind == kind]
+
+    def contains(self, pattern: str, *, kind: str | None = None) -> None:
+        if not any(re.search(pattern, m) for m in self.messages(kind=kind)):
+            raise AssertionFailure(
+                f"expected a {kind or 'any'}-kind progress message matching "
+                f"{pattern!r}, got: {self.messages(kind=kind)}"
+            )
+
+    def not_contains(self, pattern: str, *, kind: str | None = None) -> None:
+        matches = [m for m in self.messages(kind=kind) if re.search(pattern, m)]
+        if matches:
+            raise AssertionFailure(
+                f"expected no {kind or 'any'}-kind progress message matching "
+                f"{pattern!r}, found: {matches}"
+            )
+
+    def count(self, *, kind: str | None = None) -> int:
+        return len(self.messages(kind=kind))
+
+    def min_count(self, n: int, *, kind: str | None = None) -> None:
+        actual = self.count(kind=kind)
+        if actual < n:
+            raise AssertionFailure(
+                f"expected at least {n} {kind or 'any'}-kind progress event(s), "
+                f"got {actual}: {self.messages(kind=kind)}"
+            )

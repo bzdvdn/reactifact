@@ -10,7 +10,7 @@ from typing import Any, Generic, Literal, TypeVar, cast
 from pydantic import BaseModel, ValidationError
 
 from .context import Context
-from .providers import LLMRequest, Message, Role
+from .providers import LLMRequest, LLMResponse, Message, Role
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +314,41 @@ async def llm_reply(
     return body.text if body is not None else None
 
 
+async def chat_complete_full(
+    context: Context,
+    messages: Sequence[Message | dict[str, str]],
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    response_format: dict[str, Any] | None = None,
+) -> LLMResponse | None:
+    """Like `chat_complete`, but returns the whole `LLMResponse` instead of
+    just `.text` — reach for this when a caller needs `.finish_reason`
+    (e.g. to tell a token-cap truncation apart from every other reason a
+    reply ended, and retry only that case) or `.usage`, both of which
+    `chat_complete` discards. `None` on the same honest-failure contract
+    (no provider configured, or the call raised)."""
+    llm = context.resources.llm
+    if llm is None:
+        return None
+    request = LLMRequest(
+        messages=[
+            m
+            if isinstance(m, Message)
+            else Message(role=cast(Role, m["role"]), content=str(m["content"]))
+            for m in messages
+        ],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format=response_format,
+    )
+    try:
+        return await llm.complete(request)
+    except Exception as exc:
+        logger.warning("chat_complete: provider call failed: %r", exc)
+        return None
+
+
 async def chat_complete(
     context: Context,
     messages: Sequence[Message | dict[str, str]],
@@ -338,27 +373,18 @@ async def chat_complete(
     `messages` entries may be `Message` or a plain
     `{"role": ..., "content": ...}` dict — the shape your own
     message-building code has most likely already produced.
+
+    Discards everything on `LLMResponse` but `.text` — use
+    `chat_complete_full` instead when you need `.finish_reason`/`.usage` too.
     """
-    llm = context.resources.llm
-    if llm is None:
-        return None
-    request = LLMRequest(
-        messages=[
-            m
-            if isinstance(m, Message)
-            else Message(role=cast(Role, m["role"]), content=str(m["content"]))
-            for m in messages
-        ],
+    response = await chat_complete_full(
+        context,
+        messages,
         temperature=temperature,
         max_tokens=max_tokens,
         response_format=response_format,
     )
-    try:
-        response = await llm.complete(request)
-    except Exception as exc:
-        logger.warning("chat_complete: provider call failed: %r", exc)
-        return None
-    return response.text
+    return response.text if response is not None else None
 
 
 class _ReplyBody(BaseModel):

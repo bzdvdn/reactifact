@@ -3,7 +3,7 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator, Callable
-from typing import cast
+from typing import Literal, cast
 
 from .agents import Agent
 from .budget import Budget, RunOutcome, RunStats
@@ -40,6 +40,7 @@ class Runtime:
         scheduler: Scheduler | None = None,
         isolate_errors: bool = False,
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
+        session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
     ):
         self.context = context
         self.agents = agents or []
@@ -47,6 +48,18 @@ class Runtime:
         self.session = session
         self.budget = budget
         self.scheduler = scheduler
+        # "per_commit" (default): git-like persist after every single commit
+        # — the session survives a crash at the boundary of any agent
+        # generation, not just a whole turn. "per_turn": save once, after
+        # `arun()`/`astream()` (the whole run, every generation) fully
+        # completes — trades that finer crash-resilience granularity for one
+        # write per turn instead of one per commit (a multi-stage pipeline
+        # easily produces 5-10 commits per turn, each a full Context
+        # serialization through `session.save()`). Not read by `arun_once()`
+        # on its own (a single generation has no well-defined "turn"
+        # boundary) — only `arun()`/`astream()`'s own completion triggers the
+        # deferred save.
+        self.session_save_policy = session_save_policy
         # §69 "make illegal states visible" default: an agent's exception still
         # propagates out of arun()/astream() unless isolate_errors=True — opt in
         # to resilience explicitly rather than silently swallowing bugs.
@@ -137,12 +150,21 @@ class Runtime:
         return False
 
     def _validate_patch_types(self, patch: Patch, agent: Agent) -> None:
-        """Checks that all Create operations match the agent's produces."""
+        """Checks that all Create operations match the agent's produces.
+
+        A produce's allowed types are its own `artifact_type` plus whatever
+        it declares via `also_creates` — a produce whose body legitimately
+        writes more than one artifact type names all of them there instead of
+        needing a second, inert `Produce(OtherType)` placeholder in this
+        agent's `produces` list just to widen this set.
+        """
         if agent.produces is None:
             return  # no restrictions
-        allowed_types = {
-            p.artifact_type for p in agent.produces if p.artifact_type is not None
-        }
+        allowed_types: set[type] = set()
+        for p in agent.produces:
+            if p.artifact_type is not None:
+                allowed_types.add(p.artifact_type)
+            allowed_types.update(p.also_creates)
         if not allowed_types:
             return
         for op in patch.operations:
@@ -306,11 +328,13 @@ class Runtime:
                 span.writes = self._trace.write_refs(patch, commit.writes)
                 span.relations = self._trace.relation_refs(patch)
             self.context.log_commit(commit)
-            if self.session is not None:
+            if self.session is not None and self.session_save_policy == "per_commit":
                 # git-like persist after each commit: the session survives a crash
                 # at the boundary of any agent generation. Session backends are
                 # async-native (checkpoints.py) — a slow file/SQLite write yields
                 # to other concurrent agent runs instead of blocking a thread.
+                # (session_save_policy="per_turn" defers this to `_arun_impl`'s
+                # own single save after the whole run completes instead.)
                 await self.session.save()
 
     def _collect_reads(self, agent: Agent, event: Event) -> list[Read]:
@@ -437,6 +461,8 @@ class Runtime:
             duration_ms=time.monotonic() - self._turn_started_at,
             outcome=self.outcome.value,
         )
+        if self.session is not None and self.session_save_policy == "per_turn":
+            await self.session.save()
         return total_runs
 
     def run_once(self) -> int:

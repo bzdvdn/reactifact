@@ -151,3 +151,79 @@ async def _test_delete_session(tmp_path):
     await session.delete()
     assert not await store.has_session("alice")
     assert await store.list_sessions() == []
+
+
+class Echoed(BaseModel):
+    text: str
+
+
+class Echo(Agent):
+    """Reacts to `Answer` — chains a second commit within the same `arun()`
+    turn, so per_commit vs. per_turn save counts actually differ."""
+
+    consumes = [Consume(Answer)]
+    produces = []
+
+    async def run(self, event, context):
+        a = context.get(event.artifact_id)
+        if a is None:
+            return None
+        return Patch().create(Echoed(text=a.data.text))
+
+
+async def _make_counting_session(tmp_path, session_id, backend_name):
+    from reactifact.resources import RuntimeResources
+
+    backend = SQLiteKVBackend(str(tmp_path / f"{backend_name}.db"))
+    store = SessionStore(backend)
+    session = await store.open(session_id, resources=RuntimeResources())
+    calls = 0
+    original_save = session.save
+
+    async def counting_save():
+        nonlocal calls
+        calls += 1
+        await original_save()
+
+    session.save = counting_save
+    return session, store, (lambda: calls)
+
+
+def test_session_save_policy_per_commit_is_the_default(tmp_path):
+    asyncio.run(_test_session_save_policy_per_commit_is_the_default(tmp_path))
+
+
+async def _test_session_save_policy_per_commit_is_the_default(tmp_path):
+    session, _store, calls = await _make_counting_session(tmp_path, "erin", "per_commit")
+    runtime = Runtime(session.context, agents=[SimpleAnswerer(), Echo()], session=session)
+
+    session.context.create(Question(text="hi"))
+    await runtime.arun()
+
+    # Answer's commit, then Echoed's — one save each, the pre-existing behavior.
+    assert calls() == 2
+
+
+def test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path):
+    asyncio.run(_test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path))
+
+
+async def _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path):
+    session, store, calls = await _make_counting_session(tmp_path, "dave", "per_turn")
+    runtime = Runtime(
+        session.context,
+        agents=[SimpleAnswerer(), Echo()],
+        session=session,
+        session_save_policy="per_turn",
+    )
+
+    session.context.create(Question(text="hi"))
+    await runtime.arun()
+
+    assert len(session.context.list_artifacts(Answer)) == 1
+    assert len(session.context.list_artifacts(Echoed)) == 1
+    assert calls() == 1  # one save for the whole multi-commit turn, not one per commit
+
+    # still durably persisted — deferring is not skipping.
+    restored = await store.load_session("dave")
+    assert restored.list_artifacts(Echoed)[0].data.text == "HI"

@@ -6,7 +6,12 @@ from pathlib import Path
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, Produce, Runtime, RuntimeResources
 from reactifact.artifacts import Artifact
-from reactifact.recipes import StatusMachine, fan_out_sources, materialize_doc
+from reactifact.recipes import (
+    PrefixedEphemeralCleanup,
+    StatusMachine,
+    fan_out_sources,
+    materialize_doc,
+)
 from reactifact.sources import FileSystemSource, SourceRef
 
 
@@ -142,6 +147,208 @@ def test_status_machine_advances_lifecycle():
     asyncio.run(runtime.arun())
     job = ctx.list_artifacts(Job)[0]
     assert job.data.status == "done"
+
+
+# --------------------------------------------------------------------------- #
+# recipes.cleanup — delete scratch artifacts once a terminal one exists (§24, §42)
+# --------------------------------------------------------------------------- #
+
+
+class Question(BaseModel):
+    text: str
+
+
+class Scratch(BaseModel):
+    query_id: str
+    text: str = ""
+
+
+class Final(BaseModel):
+    text: str = ""
+
+
+class MakeScratch(Produce[Scratch]):
+    artifact_type = Scratch
+
+    async def produce(self, context, inputs, event=None):
+        question = context.get(event.artifact_id) if event is not None else None
+        if question is None or not isinstance(question.data, Question):
+            return None
+        self.effects.create_once(
+            Scratch(query_id=question.id, text=question.data.text),
+            id=f"scratch:{question.id}",
+        )
+
+
+class MakeFinal(Produce[Final]):
+    artifact_type = Final
+
+    async def produce(self, context, inputs, event=None):
+        if event is None:
+            return None
+        scratch = context.get(event.artifact_id)
+        if scratch is None or not isinstance(scratch.data, Scratch):
+            return None
+        self.effects.create_once(
+            Final(text=scratch.data.text.upper()), id=f"final:{scratch.data.query_id}"
+        )
+
+
+class Cleanup(PrefixedEphemeralCleanup[Final]):
+    artifact_type = Final
+    scratch_prefixes = ("scratch",)
+
+    def correlation_of(self, terminal_artifact_id):
+        if not terminal_artifact_id.startswith("final:"):
+            return None
+        return terminal_artifact_id[len("final:") :]
+
+
+class CleanupEngine(Agent):
+    consumes = [Consume(Question), Consume(Scratch), Consume(Final)]
+    produces = [MakeScratch(), MakeFinal(), Cleanup()]
+
+
+def test_ephemeral_cleanup_deletes_scratch_once_terminal_exists():
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[CleanupEngine()])
+    question = ctx.create(Question(text="hello"))
+    asyncio.run(runtime.arun())
+
+    assert ctx.get(f"scratch:{question.id}") is None
+    final = ctx.list_artifacts(Final)
+    assert len(final) == 1
+    assert final[0].data.text == "HELLO"
+
+
+def test_ephemeral_cleanup_is_idempotent_when_scratch_already_gone():
+    """Deleting an already-absent scratch id must not raise — the terminal
+    artifact created directly (skipping the scratch stage) is the simplest
+    way to exercise that path."""
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[CleanupEngine()])
+    ctx.create(Final(text="DIRECT"), id="final:missing")
+    asyncio.run(runtime.arun())
+
+    assert ctx.get("scratch:missing") is None
+    assert ctx.list_artifacts(Final)[0].data.text == "DIRECT"
+
+
+# --------------------------------------------------------------------------- #
+# recipes.identity — per-request data into a turn via a contextvar (§24, §42)
+# --------------------------------------------------------------------------- #
+
+
+class UserContext(BaseModel):
+    uid: str
+
+
+class RequestIdentity(BaseModel):
+    """A richer per-request envelope — the shape `extract=` exists for."""
+
+    session_id: str
+    user: UserContext
+
+
+def test_seed_identity_writes_the_contextvar_value_as_an_artifact():
+    from contextvars import ContextVar
+
+    from reactifact.recipes import SeedIdentity
+
+    identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
+
+    class IdentityAgent(Agent):
+        consumes = [Consume(Question)]
+        produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    token = identity_var.set(UserContext(uid="alice"))
+    try:
+        ctx.create(Question(text="hi"))
+        asyncio.run(runtime.arun())
+    finally:
+        identity_var.reset(token)
+
+    seeded = ctx.get("user_context")
+    assert seeded is not None
+    assert seeded.data.uid == "alice"
+
+
+def test_seed_identity_extracts_from_a_richer_envelope():
+    from contextvars import ContextVar
+
+    from reactifact.recipes import SeedIdentity
+
+    identity_var: ContextVar[RequestIdentity | None] = ContextVar("identity", default=None)
+
+    class IdentityAgent(Agent):
+        consumes = [Consume(Question)]
+        produces = [
+            SeedIdentity(
+                UserContext,
+                identity_var,
+                identity_id="user_context",
+                extract=lambda ri: ri.user,
+            )
+        ]
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    token = identity_var.set(RequestIdentity(session_id="s1", user=UserContext(uid="bob")))
+    try:
+        ctx.create(Question(text="hi"))
+        asyncio.run(runtime.arun())
+    finally:
+        identity_var.reset(token)
+
+    assert ctx.get("user_context").data.uid == "bob"
+
+
+def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
+    from contextvars import ContextVar
+
+    from reactifact.recipes import SeedIdentity
+
+    identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
+
+    class IdentityAgent(Agent):
+        consumes = [Consume(Question)]
+        produces = [
+            SeedIdentity(
+                UserContext,
+                identity_var,
+                identity_id="user_context",
+                fallback=lambda: UserContext(uid="unknown"),
+            )
+        ]
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    # No identity_var.set(...) — the contextvar keeps its default (None).
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    assert ctx.get("user_context").data.uid == "unknown"
+
+
+def test_seed_identity_skips_the_write_when_unset_and_no_fallback():
+    from contextvars import ContextVar
+
+    from reactifact.recipes import SeedIdentity
+
+    identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
+
+    class IdentityAgent(Agent):
+        consumes = [Consume(Question)]
+        produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    assert ctx.get("user_context") is None
 
 
 # --------------------------------------------------------------------------- #

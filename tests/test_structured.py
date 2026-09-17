@@ -7,6 +7,7 @@ from reactifact.llm_agent import StructuredGenerateAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.structured import (
     chat_complete,
+    chat_complete_full,
     json_schema_llm,
     parse_structured,
     structured_llm,
@@ -353,4 +354,45 @@ def test_chat_complete_returns_none_on_provider_error():
 
     ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
     result = asyncio.run(chat_complete(ctx, [{"role": "user", "content": "hi"}]))
+    assert result is None
+
+
+def test_chat_complete_full_exposes_finish_reason_that_chat_complete_discards():
+    """`chat_complete` collapses to `.text` alone — a caller that needs to
+    tell a token-cap truncation apart from every other reason a reply ended
+    (to retry only that case) has to reach for `chat_complete_full` instead."""
+
+    class TruncatingLLM(LLMProvider):
+        async def complete(self, request: LLMRequest) -> LLMResponse:
+            return LLMResponse(text="cut off mid-sen", finish_reason="length")
+
+        async def stream(self, request):
+            yield LLMResponse(text="")  # pragma: no cover
+
+    ctx = Context(resources=RuntimeResources(llm=TruncatingLLM()))
+    response = asyncio.run(
+        chat_complete_full(ctx, [{"role": "user", "content": "hi"}])
+    )
+
+    assert response is not None
+    assert response.text == "cut off mid-sen"
+    assert response.finish_reason == "length"
+
+
+def test_chat_complete_full_returns_none_without_a_provider():
+    ctx = Context(resources=RuntimeResources())
+    result = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
+    assert result is None
+
+
+def test_chat_complete_full_returns_none_on_provider_error():
+    class FailingLLM(LLMProvider):
+        async def complete(self, request: LLMRequest) -> LLMResponse:
+            raise RuntimeError("boom")
+
+        async def stream(self, request):
+            yield LLMResponse(text="")  # pragma: no cover
+
+    ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
+    result = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
     assert result is None

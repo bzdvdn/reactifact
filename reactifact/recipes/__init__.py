@@ -6,6 +6,14 @@ keep reappearing across agent codebases and the bundled examples:
 
 - `find` / `find_all` — pick the typed artifact(s) out of a produce's
   `inputs` without repeating `next(... isinstance ...)` — see `recipes.inputs`;
+- `EphemeralCleanup` / `PrefixedEphemeralCleanup` — delete a turn's/thread's
+  "scratch" artifacts once a terminal artifact exists for their shared
+  correlation key, instead of every app hand-rolling the same
+  `Produce[Terminal]` subclass (§24, §42) — see `recipes.cleanup`;
+  `SeedIdentity` — per-request data (an authenticated user, a tenant id, ...)
+  into a turn via a `contextvars.ContextVar` set right before
+  `ChatAssistant.stream()`/`.invoke()`, written as an ordinary artifact
+  instead of a `resources`-side dict (§24, §42) — see `recipes.identity`;
 - `fan_out_sources` — query all configured sources, emit ranked, idempotent
   `SourceRef`s tagged with an owner (§8, §24, §42) — see `recipes.search`;
 - `materialize_doc` — lazily resolve a `SourceRef` into a document with a
@@ -47,6 +55,8 @@ Extend by adding a module here (the package stays import-surface-flat).
 
 from __future__ import annotations
 
+from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup
+from .identity import SeedIdentity
 from .inputs import find, find_all
 from .memory import (
     RollingDigestSummarizer,
@@ -68,10 +78,13 @@ from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 __all__ = [
     "ApprovalGate",
     "EN_STOPWORDS",
+    "EphemeralCleanup",
     "PlanExecute",
+    "PrefixedEphemeralCleanup",
     "ReflectionLoop",
     "RollingDigestSummarizer",
     "Router",
+    "SeedIdentity",
     "Skill",
     "StatusMachine",
     "WindowPruner",

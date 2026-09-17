@@ -12,6 +12,7 @@ happened" call:
     result = await lab.run(Question(text="..."))
     result.artifacts(Answer).exists()
     result.tools.called("search")
+    result.events.contains("Searching")
     result.errors.none()
 
 A fresh `Context`/`Runtime` is built on every `run()` — scenarios never share
@@ -21,6 +22,7 @@ into the next.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,12 +35,14 @@ from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
 from reactifact.resources import RuntimeResources
 from reactifact.runtime import Runtime
+from reactifact.streaming import ProgressEvent, QueueEvent
 from reactifact.tracing.models import RunTrace
 from reactifact.tracing.tracer import Tracer
 
 from .assertions import (
     ArtifactAssertions,
     ErrorAssertions,
+    EventAssertions,
     LLMAssertions,
     PathAssertions,
     ToolAssertions,
@@ -48,6 +52,22 @@ from .mock import ResourceFault, ResourceFaultInstaller
 from .record import Mode, wrap_llm
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _drain_events(queue: QueueEvent) -> list[ProgressEvent]:
+    """Empties a `context.subscribe()` queue synchronously.
+
+    Safe without an `await`: `Context.announce()` publishes via
+    `queue.put_nowait(...)` (never blocks, unbounded queue), and this is only
+    ever called after the `runtime.arun()` that produced those events has
+    already completed — no concurrent producer to race.
+    """
+    events: list[ProgressEvent] = []
+    while True:
+        try:
+            events.append(queue.get_nowait())
+        except asyncio.QueueEmpty:
+            return events
 
 
 class _CapturingTracer(Tracer):
@@ -73,6 +93,7 @@ class ScenarioResult:
     stats: RunStats | None
     trace: RunTrace | None
     calls: list[ToolCallRecord]
+    progress_events: list[ProgressEvent]
 
     def artifacts(self, artifact_type: type[T]) -> ArtifactAssertions[T]:
         return ArtifactAssertions(self.context, artifact_type)
@@ -80,6 +101,10 @@ class ScenarioResult:
     @property
     def tools(self) -> ToolAssertions:
         return ToolAssertions(self.calls)
+
+    @property
+    def events(self) -> EventAssertions:
+        return EventAssertions(self.progress_events)
 
     @property
     def path(self) -> PathAssertions:
@@ -257,17 +282,23 @@ async def _execute_turn(
         tracer=tracer,
         isolate_errors=isolate_errors,
     )
-    with (
-        FaultInstaller(agents, faults, recorder),
-        ResourceFaultInstaller(context.resources, resource_faults),
-    ):
-        await runtime.arun(max_iterations=max_iterations)
+    progress_queue = context.subscribe()
+    try:
+        with (
+            FaultInstaller(agents, faults, recorder, resources=context.resources),
+            ResourceFaultInstaller(context.resources, resource_faults),
+        ):
+            await runtime.arun(max_iterations=max_iterations)
+    finally:
+        progress_events = _drain_events(progress_queue)
+        context.unsubscribe(progress_queue)
 
     return ScenarioResult(
         context=context,
         stats=runtime.last_stats,
         trace=tracer.trace,
         calls=recorder.calls,
+        progress_events=progress_events,
     )
 
 
@@ -285,9 +316,9 @@ class Scenario:
     turn sees everything an earlier one produced), runs the agents to
     completion, and returns that turn's own `ScenarioResult` — faults queued
     via `lab.fail(...)` are still one-shot, consumed by the next `.turn()`
-    only. `.path`/`.tools`/`.llm`/`.errors` mirror `ScenarioResult`'s, but
-    aggregated over every turn run so far, for conversation-wide assertions
-    (e.g. "the model was never called across the whole exchange").
+    only. `.path`/`.tools`/`.events`/`.llm`/`.errors` mirror `ScenarioResult`'s,
+    but aggregated over every turn run so far, for conversation-wide
+    assertions (e.g. "the model was never called across the whole exchange").
     """
 
     def __init__(
@@ -310,6 +341,7 @@ class Scenario:
         self.context = context
         self.all_traces: list[RunTrace] = []
         self.all_calls: list[ToolCallRecord] = []
+        self.all_progress_events: list[ProgressEvent] = []
 
     async def turn(self, *seed: Any, max_iterations: int = 100) -> ScenarioResult:
         for data in seed:
@@ -327,6 +359,7 @@ class Scenario:
         if result.trace is not None:
             self.all_traces.append(result.trace)
         self.all_calls.extend(result.calls)
+        self.all_progress_events.extend(result.progress_events)
         return result
 
     @property
@@ -338,6 +371,11 @@ class Scenario:
     def tools(self) -> ToolAssertions:
         """Tool calls across every turn run so far."""
         return ToolAssertions(self.all_calls)
+
+    @property
+    def events(self) -> EventAssertions:
+        """Progress events across every turn run so far."""
+        return EventAssertions(self.all_progress_events)
 
     @property
     def llm(self) -> LLMAssertions:

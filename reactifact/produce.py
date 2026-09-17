@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Generic, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel
@@ -50,6 +50,22 @@ class Produce(Generic[TOut]):
     `artifact_type` is auto-derived from the generic when a subclass is written
     as `class X(Produce[Foo])` — write it explicitly only to override or when
     the class has no generic (e.g. programmatic `Produce(Foo)`).
+
+    A produce whose `produce()` body legitimately creates more than one
+    artifact type declares the extra ones in `also_creates` — either as a
+    class attribute (`also_creates = (Bar, Baz)`) or a constructor argument
+    (`Produce(Foo, also_creates=[Bar])`). `Runtime._validate_patch_types`
+    checks every `Create` op an agent's generation produces against the union
+    of `artifact_type`/`also_creates` across that agent's `produces` list —
+    without declaring `Bar` here, a `self.effects.create(Bar(...))` inside
+    `artifact_type = Foo`'s own `produce()` raises "not declared in produces"
+    at commit time, since nothing recorded that this produce is allowed to
+    write it. Before `also_creates` existed, the only way to widen that set
+    was an inert second `Produce(Bar)` placeholder added to the agent's
+    `produces` list purely so its unused `artifact_type` got unioned in —
+    correct, but nothing at the call site said why that placeholder was
+    there; `also_creates` puts the declaration on the produce that actually
+    does the writing.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -64,13 +80,22 @@ class Produce(Generic[TOut]):
                     return
 
     artifact_type: ArtifactType | None = None
+    also_creates: tuple[ArtifactType, ...] = ()
 
-    def __init__(self, artifact_type: ArtifactType | None = None):
+    def __init__(
+        self,
+        artifact_type: ArtifactType | None = None,
+        *,
+        also_creates: Sequence[ArtifactType] | None = None,
+    ):
         self.artifact_type = artifact_type or self.__class__.artifact_type
         if self.artifact_type is None:
             raise ValueError(
                 "artifact_type must be provided either as class attribute or constructor argument"
             )
+        self.also_creates = (
+            tuple(also_creates) if also_creates is not None else self.__class__.also_creates
+        )
 
     @property
     def effects(self) -> Effects:

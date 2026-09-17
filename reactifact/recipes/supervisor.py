@@ -43,6 +43,14 @@ to fill them in — the recipe stamps the real values on every create.
                     Consume(PendingQuestion)]
         produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
                     Produce(PendingQuestion)]  # widens allowed Create types, see verify.py
+
+Kept as an inert placeholder (not `also_creates=`, see `produce.py`) because
+none of the three real produces above is uniquely "the one that creates
+`PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
+own HITL machinery calls `effects.ask(...)` at runtime. `also_creates` is the
+better fit when a *single* produce's own body is the one writing the extra
+type (`self.effects.create(Bar(...))` inside an `artifact_type = Foo`
+produce) — declare it there directly instead of adding a placeholder here.
 """
 
 from __future__ import annotations

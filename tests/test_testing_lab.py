@@ -96,6 +96,23 @@ def test_run_happy_path_reports_artifacts_path_llm_and_tools():
     result.llm.max_calls(2)
     result.tools.called("kubectl")
     assert tool_calls["kubectl"] == [{"resource": "pods"}]
+    # ToolUse announces its own progress (`context.announce(..., kind="agent")`)
+    # — captured without the caller wiring up its own astream() consumer.
+    result.events.contains("Deciding next action", kind="agent")
+    result.events.min_count(1, kind="agent")
+
+
+def test_events_not_contains_and_kind_filtering():
+    tool_calls.clear()
+    lab = ScenarioLab([K8sAgent()], resources=_resources)
+
+    result = run(lab.run(Problem(text="check pods")))
+
+    result.events.not_contains("this never happens")
+    result.events.not_contains("Deciding next action", kind="status")  # wrong kind
+    assert result.events.count(kind="agent") >= 1
+    assert result.events.count(kind="nonexistent-kind") == 0
+    assert all(e.kind == "agent" for e in result.events.all() if "Deciding" in e.message)
 
 
 def test_fresh_context_per_run_does_not_leak_state():
@@ -183,3 +200,4 @@ def test_scenario_turn_shares_context_and_aggregates_across_turns():
     convo.tools.called_times("kubectl", 2)
     convo.llm.max_calls(4)
     convo.errors.none()
+    convo.events.min_count(2, kind="agent")  # "Deciding next action…" x2 turns

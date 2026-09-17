@@ -16,10 +16,11 @@ Two levels of use:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -64,7 +65,7 @@ async def run_message(
     user_message: type[BaseModel],
     reply: Callable[[Context, str], dict[str, Any]],
     session_id: str = "",
-    create_message: Callable[[Context, str], str] | None = None,
+    create_message: Callable[..., str] | None = None,
     status_kinds: Sequence[str] = ("status",),
     fallback_reply: str = "No reply assembled.",
 ) -> AsyncIterator[ChatEvent]:
@@ -78,7 +79,11 @@ async def run_message(
     `create_message(ctx, text) -> msg_id` overrides how the turn enters the
     context (default: create a `user_message` artifact) — HITL apps where a
     new turn resumes a pending question instead of appending a message
-    (devops-style clarify) pass their own.
+    (devops-style clarify) pass their own. Also accepts the 3-arg shape
+    `create_message(ctx, text, session_id) -> msg_id` for a hook that needs
+    the current turn's `session_id` (e.g. to stamp it onto the created
+    artifact) — detected from the callable's own arity, so the 2-arg shape
+    keeps working unchanged.
 
     `status_kinds` selects which progress event kinds are forwarded as `status`
     frames (default: only `status`; e.g. tool-announcing demos also forward
@@ -92,7 +97,7 @@ async def run_message(
     ctx = runtime.context
     try:
         if create_message is not None:
-            msg_id = create_message(ctx, text)
+            msg_id = _call_create_message(create_message, ctx, text, session_id)
         else:
             msg_id = ctx.create(user_message(text=text, session_id=session_id)).id
     except Exception:
@@ -164,6 +169,45 @@ def _resolve(value: Any) -> Any:
     return value() if callable(value) else value
 
 
+def _accepts_arg(func: Callable[..., Any], count: int) -> bool:
+    """Whether `func` (already known callable) declares at least `count`
+    positional-or-keyword parameters — used to detect the opt-in, per-request
+    call shapes below without breaking the plain zero/two-arg factories that
+    predate them. A callable whose signature can't be inspected (a builtin, a
+    C extension) is assumed to be the old, arg-less shape."""
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+    return len(params) >= count
+
+
+def _resolve_with_session(value: Any, session_id: str) -> Any:
+    """Like `_resolve`, but passes `session_id` to `value` when it declares a
+    parameter for it — the per-request factory shape
+    (`resources=lambda session_id: build_resources(session_id)`) alongside
+    the pre-existing zero-arg one (`resources=lambda: build_resources()`),
+    which keeps working unchanged. `ChatAssistant` already knows `session_id`
+    at the point it resolves `resources=`; this just lets a factory opt into
+    reading it instead of reaching for a contextvar/side-channel to get
+    per-request data (e.g. an authenticated user) into `RuntimeResources`.
+    """
+    if not callable(value):
+        return value
+    return value(session_id) if _accepts_arg(value, 1) else value()
+
+
+def _call_create_message(
+    create_message: Callable[..., str], ctx: Context, text: str, session_id: str
+) -> str:
+    """Calls `create_message` with `session_id` appended when it declares a
+    third parameter for it (`(ctx, text, session_id) -> msg_id`), alongside
+    the pre-existing two-arg shape (`(ctx, text) -> msg_id`)."""
+    if _accepts_arg(create_message, 3):
+        return create_message(ctx, text, session_id)
+    return create_message(ctx, text)
+
+
 # --- the canonical chat assistant ----------------------------------------- #
 
 
@@ -181,6 +225,23 @@ class ChatAssistant:
     instance instead when you want one shared, long-lived provider across
     turns/sessions — that instance is never closed automatically; close it
     yourself at real shutdown.
+
+    `session_save_policy=` passes straight through to `Runtime` — `"per_turn"`
+    trades finer crash-resilience granularity (a save at every commit, the
+    default) for one `session.save()` per turn instead of one per commit,
+    worthwhile once a multi-stage pipeline routinely produces several commits
+    per turn (see `Runtime.__init__`'s own docstring for the trade-off).
+
+    `resources=`/`create_message=` may optionally take the current turn's
+    `session_id` — `resources=lambda session_id: build_resources(session_id)`
+    (e.g. to attach an authenticated user looked up from the session) and
+    `create_message=lambda ctx, text, session_id: ...` — detected from each
+    callable's own arity, so the pre-existing zero/two-arg shapes keep
+    working unchanged. Without this, per-request data (who's asking, not
+    just what they asked) has no way into a turn short of a contextvar/
+    side-channel set by the caller before `stream()`/`invoke()` — `resources=`
+    and `create_message=` were otherwise the only two hooks in this class
+    that never saw it.
 
     Base usage:
 
@@ -203,15 +264,16 @@ class ChatAssistant:
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]],
         session_state: Callable[[Context], dict[str, Any]] | None = None,
-        resources: RuntimeResources | Callable[[], RuntimeResources] | None = None,
+        resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
         budget: Budget | None = None,
         max_concurrency: int | None = None,
         tracer: Any = None,
-        create_message: Callable[[Context, str], str] | None = None,
+        create_message: Callable[..., str] | None = None,
         status_kinds: Sequence[str] = ("status",),
         fallback_reply: str = "No reply assembled.",
         isolate_errors: bool = False,
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
+        session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
     ):
         self.store = store
         self._agents = agents
@@ -227,6 +289,7 @@ class ChatAssistant:
         self._fallback_reply = fallback_reply
         self._isolate_errors = isolate_errors
         self._on_agent_error = on_agent_error
+        self._session_save_policy = session_save_policy
         # Serializes concurrent turns on the *same* session_id (a double
         # submit, a client retry): without this, two overlapping stream()
         # calls both load the same starting state and the later save() wins,
@@ -262,7 +325,9 @@ class ChatAssistant:
                         self._session_locks.pop(session_id, None)
 
     async def _open(self, session_id: str) -> Session:
-        return await self.store.open(session_id, resources=_resolve(self._resources))
+        return await self.store.open(
+            session_id, resources=_resolve_with_session(self._resources, session_id)
+        )
 
     def _build_runtime(self, session: Session) -> Runtime:
         return Runtime(
@@ -274,6 +339,7 @@ class ChatAssistant:
             tracer=_resolve(self._tracer),
             isolate_errors=self._isolate_errors,
             on_agent_error=self._on_agent_error,
+            session_save_policy=self._session_save_policy,
         )
 
     async def stream(self, text: str, session_id: str = "") -> AsyncIterator[ChatEvent]:
