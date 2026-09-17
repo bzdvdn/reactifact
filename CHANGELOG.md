@@ -56,6 +56,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   instead of round-tripping through a format the recipe would otherwise
   impose. `llm_digest_summarizer` is the opt-in text-flattening default for
   callers who don't need that.
+- `reactifact.recipes.cleanup.EphemeralCleanup` (+ `PrefixedEphemeralCleanup`)
+  — deletes a turn's/thread's "scratch" artifacts once a terminal artifact
+  exists for their shared correlation key, replacing the same hand-rolled
+  `Produce[Terminal]` subclass every multi-stage app had been writing to
+  keep `Context` (and anything that checkpoints it, e.g. `SessionStore`)
+  from growing unbounded. `PrefixedEphemeralCleanup` pre-builds the common
+  `f"{prefix}:{correlation_id}"` id shape.
+- `reactifact.recipes.identity.SeedIdentity` — writes per-request data (an
+  authenticated user, a tenant id, ...) from a `contextvars.ContextVar` set
+  right before `ChatAssistant.stream()`/`.invoke()` into an ordinary,
+  create-or-refresh artifact each turn, instead of a `resources`-side dict
+  keyed by `session_id` that never gets checkpointed. `ChatAssistant`'s
+  `resources=`/`create_message=` now optionally accept the turn's
+  `session_id` (`resources=lambda session_id: ...`,
+  `create_message=lambda ctx, text, session_id: ...`), detected from each
+  callable's own arity so the pre-existing zero/two-arg shapes keep working
+  unchanged.
+- `Produce.also_creates` — declares extra artifact types a single produce's
+  own body writes (`self.effects.create(Bar(...))` inside an
+  `artifact_type = Foo` produce), so `Runtime._validate_patch_types` allows
+  it without an inert second `Produce(Bar)` placeholder added to the
+  agent's `produces` list purely to widen that set.
+- `Runtime`/`ChatAssistant` `session_save_policy="per_turn"` — one
+  `session.save()` after the whole turn completes instead of the default
+  one-per-commit, for pipelines that routinely produce several commits per
+  turn and don't need crash-resilience at every single one.
+- `reactifact.structured.chat_complete_full` — like `chat_complete`, but
+  returns the whole `LLMResponse` instead of just `.text`, for a caller that
+  needs `.finish_reason` (e.g. to retry only a token-cap truncation) or
+  `.usage`; same honest-`None` failure contract. `chat_complete` is now
+  built on top of it.
+- `reactifact.testing.EventAssertions` (`result.events`/`scenario.events`)
+  — asserts on `context.announce()` progress events captured for the
+  duration of a scenario run via `context.subscribe()`. Closes the
+  "node status" assertion gap the testing harness's own docstring had
+  noted as dropped from v1 for lack of a faithful reactifact analog.
+  `FaultInstaller` also now wraps dynamically-resolved `list[Tool]` values
+  in `RuntimeResources.additional` (a produce's own tool-calling loop, e.g.
+  via `reactifact.native_tool_use`), not just the static per-`Produce`
+  tool dicts it already covered.
 
 ## [0.8.0] — 2026-09-16
 
