@@ -1,6 +1,6 @@
 # Roadmap
 
-reactifact is pre-1.0 (`0.8.x`), one maintainer. This page is the honest
+reactifact is pre-1.0 (`0.9.x`), one maintainer. This page is the honest
 current state of "what's next" — not a wishlist. See [CHANGELOG.md](../CHANGELOG.md)
 for what's already shipped, release by release.
 
@@ -32,7 +32,7 @@ for what's already shipped, release by release.
   - **"In the box"** (stable, evolves faster than core): `Tool`/`ToolUse`/
     `ToolUseHITL` (including the destructive-tool approval gate),
     `native_tool_use` (OpenAI-native `tools`/`tool_calls` as composable
-    functions — deliberately *not* a parallel reactive loop, see its module
+    functions — deliberately _not_ a parallel reactive loop, see its module
     docstring for why that was cut back after being built once),
     `agent_tool.AgentAsTool`, `verify.Verify`'s metric surface (`core_metrics`
     may grow), MCP, tracing/observability, providers. Same semver

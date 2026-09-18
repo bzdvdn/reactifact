@@ -4,7 +4,7 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [Unreleased]
+## [0.9.0] — 2026-09-18
 
 ### Added
 
@@ -14,7 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   from `Tool`s), `parse_tool_calls()` (extracts `message.tool_calls` from
   a raw provider response), `native_complete()` (one native turn — sends
   raw OpenAI-format messages via `LLMRequest.extra`, the existing
-  escape hatch for provider-specific wire shapes, *and* as a best-effort
+  escape hatch for provider-specific wire shapes, _and_ as a best-effort
   typed rendering via `LLMRequest.messages` — `tool_calls`/`tool_call_id`
   dropped, since `Message` has no field for either — so a provider that
   doesn't know this module's `extra` convention still sees a real
@@ -48,7 +48,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   in for this, since it deletes without folding first and loses the content
   instead of condensing it. Two things that same porting turned up before
   release, both fixed here rather than shipped and patched later:
-  `message_type` accepts a type *or* a sequence of types (a conversation
+  `message_type` accepts a type _or_ a sequence of types (a conversation
   built from more than one artifact model, e.g. `Question`/`FinalResponse`,
   not just one `Msg`); and `summarize`/`fallback` receive the stale
   artifacts as a raw list, never a string the recipe rendered for you — a
@@ -112,12 +112,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   is exactly that style, and finding it is what stopped an earlier, wider
   draft of this change that removed `triggers=` outright.
 - `TokenBudgetContextBuilder(min_keep={type: count})` — reserves a costed
-  type's top-`count`-ranked instances a slice of the budget *before* the
+  type's top-`count`-ranked instances a slice of the budget _before_ the
   shared greedy fill runs over everything else, so a high-volume type
   sharing the same budget (many `Evidence`) can't crowd out a low-volume
   one that still has real content (the single triggering `Question`,
   older than a pile of freshly-ranked `Evidence`). Complements
-  `exempt_types` (for a type with *no* real content, e.g. a pure
+  `exempt_types` (for a type with _no_ real content, e.g. a pure
   wake-up marker) rather than replacing it — `min_keep` items still count
   toward `max_tokens`, they're just guaranteed a reserved slot instead of
   being left to rank order. Closes the one specific case the module's own
@@ -127,18 +127,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   in `forbid` is absent, e.g. an approval gate waiting on a `Report` and its
   answered `PendingQuestion`, correlated by `thread_id`. Without it, that
   condition had nowhere declarative to live: `Consume.condition` only ever
-  sees the single artifact matched by its own type, never a *different*
+  sees the single artifact matched by its own type, never a _different_
   type's instance to correlate against — the real cases seen so far (that
   approval gate; a plan step waiting on its prerequisite `StepResult`; not
   re-filing a `HelpdeskTicket` a thread already has) all hand-rolled the
-  correlation *inside* `produce()`, exactly the logic `consumes` exists to
+  correlation _inside_ `produce()`, exactly the logic `consumes` exists to
   keep out of there. `JoinConsume(*parts, key=...)` and
   `AbsentConsume(artifact_type, absent_type=..., key=...)` are thin
   factories over it for the two common single-purpose shapes (`require`-only
   and one-`require`-one-`forbid`) — started as two separate classes, unified
   into one mechanism once both turned out to be the same "group by key,
   check who's in the group" scan with a different pass/fail rule; unifying
-  also unlocked combining both at once ("required present *and* forbidden
+  also unlocked combining both at once ("required present _and_ forbidden
   absent" together), which neither original class could express without
   nesting one inside the other. Listens to every `require` type's own
   CREATED/UPDATED events (not `forbid` types'), so the agent wakes up
@@ -147,7 +147,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   three-type join. Required two small, backward-compatible core extensions
   to get there: `Trigger.context_condition(artifact, context)`, alongside
   the existing per-artifact-only `condition`, since a correlation condition
-  fundamentally needs to look at *other* artifacts, not just the one the
+  fundamentally needs to look at _other_ artifacts, not just the one the
   event is about — and `Consume.collect(context)`, replacing the per-type
   loop that used to be inlined in `Agent._collect_inputs()`, so
   `CorrelatedConsume` (and any future non-single-type `Consume`) can
@@ -159,7 +159,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   commit, five separate `ARTIFACT_CREATED` events), collapses them into a
   single run instead of five. Unlike `JoinConsume`/`AbsentConsume`, this
   couldn't be built as a `Consume` subclass alone: collapsing needs to
-  compare *other* events in the same drained batch, which is state only
+  compare _other_ events in the same drained batch, which is state only
   `Runtime` has — `Consume`/`Trigger` (new `Trigger.debounce` flag) just
   carry the setting, `Runtime._arun_once_impl` does the actual collapsing
   (last matching event in the batch wins) before the `max_runs` budget
@@ -168,16 +168,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   triggers for the same event is treated as non-debounced for that event —
   debouncing only kicks in when nothing about the match demands immediacy.
   New `Agent.matching_triggers()` (`matches()` is now `bool(...)` of it)
-  is what lets `Runtime` see *which* triggers matched, not just whether
+  is what lets `Runtime` see _which_ triggers matched, not just whether
   any did, to check the flag.
 
 - `Produce(reacts_to=...)` — the input-side mirror of `also_creates`: an
-  agent with several `consumes` and several `produces` runs *every* produce
-  on *every* matching event by default, since `Agent.execute()` has no idea
+  agent with several `consumes` and several `produces` runs _every_ produce
+  on _every_ matching event by default, since `Agent.execute()` has no idea
   which of an agent's several `Consume`s a given produce actually cares
   about — every produce ends up guarding itself by hand at the top of its
   own body (`if event is None or not isinstance(context.get(event.
-  artifact_id).data, TheOneTypeICareAbout): return None`). Declaring
+artifact_id).data, TheOneTypeICareAbout): return None`). Declaring
   `reacts_to = (TheType,)` moves that guard to the class declaration
   instead; `Agent.execute()` now skips calling `produce()` at all for an
   event none of `reacts_to` matches (exact type equality against
@@ -187,7 +187,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   behavior, unchanged, so this is purely additive. Considered
   `Produce[ReactType, CreateType]` (a second generic parameter) instead —
   rejected: `Generic[A, B]` enforces exactly two type arguments at class
-  *definition* time, so every existing single-argument `Produce[Foo]`
+  _definition_ time, so every existing single-argument `Produce[Foo]`
   subclass across this repo's own examples/tests, and any downstream
   product, would fail to import, not just fail a type check. Two produces
   sharing one `artifact_type` (the same output) but different `reacts_to`
@@ -195,6 +195,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   for both directions — the case that motivated this in the first place was
   exactly that shape, a `FinalizeWithDocuments`/`DirectFinalize`-like pair
   both producing the same result type from two different upstream events.
+
 ### Breaking
 
 - `produce()` now takes exactly one argument, `call: ProduceCall`, instead
@@ -204,7 +205,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `.inputs`/`.event`/`.effects` (identical to the old parameters/
   `self.effects`) plus a new `.trigger` field: the already-resolved artifact
   behind `.event` (what `context.get(event.artifact_id) if event is not
-  None else None` used to compute by hand in nearly every produce body).
+None else None` used to compute by hand in nearly every produce body).
   One object, not a growing list of individually-recognized parameter
   names, was chosen deliberately over extending the by-name signature
   sniffing further (which already covered `event`/`effects`, and would next
@@ -227,7 +228,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   when such a produce actually runs, and the body needs no guard at all. A
   DELETED event on the produce's own `reacts_to` type is exempt from that
   liveness requirement — there, `context.get(...)` correctly returning
-  `None` *is* the event, not a race, so the produce still runs with
+  `None` _is_ the event, not a race, so the produce still runs with
   `call.trigger` set to `None`, and deletion-reacting code is expected to
   handle that itself (`call.event` still carries `artifact_id`/
   `artifact_type` there, which `call.trigger` necessarily can't once the
@@ -431,7 +432,7 @@ Pre-1.0 API-freeze cleanup.
   both sinks) — no `opentelemetry-sdk` dependency, no new extra. See
   [docs/en/observability.md](docs/en/observability.md#otlptracer-any-otlphttp-collector).
 - `reactifact.mcp.oauth_client_credentials(server_url, client_id=, client_secret=,
-  issuer=)`: builds an `auth=` value for `mcp_http_tools` using OAuth's
+issuer=)`: builds an `auth=` value for `mcp_http_tools` using OAuth's
   `client_credentials` grant (machine-to-machine, no browser/human consent) —
   a thin wrapper over the MCP SDK's own `ClientCredentialsOAuthProvider`,
   defaulting to a new `InMemoryTokenStorage` (pass your own `TokenStorage` to
@@ -443,7 +444,7 @@ Pre-1.0 API-freeze cleanup.
   [docs/en/mcp.md](docs/en/mcp.md#oauth-client_credentials).
 - `mcp_http_tools(url, headers=...)`: an optional `headers` kwarg for
   connecting to MCP servers that require auth (e.g. `Authorization: Bearer
-  ...`). Previously there was no way to reach such a server at all over
+...`). Previously there was no way to reach such a server at all over
   streamable HTTP.
 - `reactifact.scheduler.relation_balance_metric`: the built-in
   uncertainty-driven `Metric` for `uncertainty_policy`/`Scheduler` (§26).
@@ -627,7 +628,7 @@ tracing and `Context`'s fork/merge logic into their own modules, and the new
 
 - **`ToolUse`'s blocking tool-call loop now respects `Budget.max_seconds`
   between its own internal steps.** `Runtime._budget_exhausted()` only
-  checks the deadline *between* agent runs; `ToolUse._loop` makes up to
+  checks the deadline _between_ agent runs; `ToolUse._loop` makes up to
   `max_steps` sequential LLM/tool round-trips inside one `produce()`, and
   previously only checked `Budget.max_tool_calls` there — a slow provider
   could blow well past `max_seconds` before the runtime ever got a chance
@@ -669,7 +670,7 @@ tracing and `Context`'s fork/merge logic into their own modules, and the new
 - `ToolUseHITL`'s history/duplicate-question lookups
   (`context.list_artifacts(Observation | PendingQuestion)` filtered by
   `query_id` in Python) scale with the total count of that artifact type
-  across *every* conversation sharing one `Context`, not just the current
+  across _every_ conversation sharing one `Context`, not just the current
   one — `RelationGraph` isn't indexed by `source_id` either, so routing
   through `context.related()` instead wouldn't actually help without also
   indexing that. Only matters if you share one long-lived `Context` across
@@ -677,7 +678,7 @@ tracing and `Context`'s fork/merge logic into their own modules, and the new
   one-`Context`-per-session pattern (`SessionStore`, every example here) —
   left as a documented trade-off (see the `ToolUseHITL` class docstring)
   rather than done as a drive-by alongside the fixes above.
-- `chat.default_session_state` sorts *every* artifact in the context
+- `chat.default_session_state` sorts _every_ artifact in the context
   (`ctx.list_artifacts()`, no type filter) on each call — a view-endpoint
   cost (`ChatAssistant.history()` / `GET /api/runs/{id}`), not a per-commit
   one, so left as-is rather than optimized alongside the session-save fixes.
@@ -706,7 +707,7 @@ tracing and `Context`'s fork/merge logic into their own modules, and the new
   `clone_context`/`fork_context`/`merge_context_from`/`merge_contexts` in
   `reactifact/branching.py`, next to `BranchStore` (which already persisted
   forks, just didn't own their semantics). `Context.clone()/.branch()/
-  .merge_from()/.merge()` are now one-line delegations — same signatures,
+.merge_from()/.merge()` are now one-line delegations — same signatures,
   same behavior, including the pre-existing quirk where `merge_from()`
   mints a fresh id for an artifact absent from the target (not "fixed" as
   part of this move — a real behavior change belongs in its own change).
@@ -729,7 +730,7 @@ tracing and `Context`'s fork/merge logic into their own modules, and the new
   several rounds to reach the state under test.
 - Tool fault injection (`lab.fail(tool_name, error, times=None)`) and
   generic resource fault injection (`lab.fail_resource(name, error,
-  method=None, times=None)`) — the latter fails the LLM, the embedder, a
+method=None, times=None)`) — the latter fails the LLM, the embedder, a
   named source, or any `resources.set(...)` value via a duck-typed
   reflection proxy (`reactifact/testing/mock.py`) that correctly handles sync,
   async, and async-generator methods.
@@ -749,14 +750,14 @@ checkpoint/session/branch layer. First stable (non-rc) release.
 
 - `Produce(Model, factory=fn)` is deprecated (`DeprecationWarning` on
   construction): it predates `@produce`, only supports `(context, inputs[,
-  event]) -> Model | list | Patch | None`, and cannot see the effects slot.
+event]) -> Model | list | Patch | None`, and cannot see the effects slot.
   Still works for existing code; the canonical styles going forward are the
   `Produce` subclass and the `@produce` function.
 - Sessions, branches and checkpoints are now **async**: `Session.save`/
   `.delete`, `SessionStore.{save_session,load_session,has_session,
-  list_sessions,delete_session,open}`, `BranchStore.{save_branch,load_branch,
-  list_branches,delete_branch}`, `Context.{save_checkpoint,load_checkpoint,
-  to_kv,from_kv}`, and `replay_context` are all `async def` — call them with
+list_sessions,delete_session,open}`, `BranchStore.{save_branch,load_branch,
+list_branches,delete_branch}`, `Context.{save_checkpoint,load_checkpoint,
+to_kv,from_kv}`, and `replay_context` are all `async def` — call them with
   `await`. `KVBackend`/`CheckpointBackend` and every implementation
   (`File*`, `SQLite*`, `PostgreSQLKVBackend`) follow the same interface
   change; a new `aclose()` releases held connections.
@@ -876,7 +877,7 @@ checkpoint/session/branch layer. First stable (non-rc) release.
   `CollectStage`.
 - `SQLiteKVBackend`'s bootstrap (`journal_mode=WAL` + `busy_timeout` pragmas
   on first connect) could itself raise `sqlite3.OperationalError: database is
-  locked` when several backends opened the same brand-new file at once —
+locked` when several backends opened the same brand-new file at once —
   changing journal mode is an exclusive operation SQLite does not always
   retry through the busy handler. The one-time bootstrap now retries with
   backoff; the hot-path `execute()` was already correctly serialized.
@@ -974,7 +975,7 @@ about the ergonomics around it.
   building blocks (`run_message`, `default_session_state`).
 - **Web router** — `reactifact.web.create_chat_router(assistant)` mounts the
   canonical SSE chat contract (`/api/chat/stream`, `/api/runs/{id}`, `health`,
-  delete) on *your* FastAPI app. FastAPI is imported lazily with a readable
+  delete) on _your_ FastAPI app. FastAPI is imported lazily with a readable
   `pip install "reactifact[web]"` error when the extra is missing.
 - **Error resilience** — the chat layer never leaks a 500: runtime crashes,
   failing reply hooks and session-open errors degrade to a fallback `message`
@@ -1030,7 +1031,7 @@ LLM via `.env`.
 ### Added — core
 
 - **Effects authoring (§24)**: `Produce` writes `self.effects.create/update/
-  link/ask/resume` and returns `None`; the runtime compiles the effect set into
+link/ask/resume` and returns `None`; the runtime compiles the effect set into
   one atomic `Patch` (commit, events, validation, trace). `Patch` is the
   runtime's transport; `Operation` types moved to `reactifact.operations`.
 - **HITL (§60)**: `effects.ask(...)` → `PendingQuestion`, answered with
