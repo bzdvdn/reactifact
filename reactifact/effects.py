@@ -5,8 +5,8 @@ every turn, a produce writes what should change into its effect slot, and the
 runtime compiles the slot into one atomic patch (commit + events + trace):
 
     class Scout(Produce[SourceRef]):
-        async def produce(self, context, inputs, event=None) -> None:
-            refs = await fan_out_sources(context, query, owner_id=...)
+        async def produce(self, call: ProduceCall) -> None:
+            refs = await fan_out_sources(call.context, query, owner_id=...)
             self.effects.create(SearchDone(...), id=f"scouted:{qid}")
             return None
 
