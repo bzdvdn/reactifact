@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -61,13 +61,9 @@ class Generator(Produce[Hypothesis]):
     )
     MAX_HYPOTHESES = 4
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Question]],
-        event: Event | None = None,
-    ) -> None:
-        question_id = question_id_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question_id = question_id_of(context, call.event)
         if question_id is None:
             return None
         if context.list_artifacts(Hypothesis):
@@ -121,13 +117,9 @@ class Investigator(Produce[SourceRef]):
 
     artifact_type = SourceRef
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Hypothesis]],
-        event: Event | None = None,
-    ) -> None:
-        hyp_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        hyp_art = call.trigger
         if hyp_art is None or not isinstance(hyp_art.data, Hypothesis):
             return None
         hyp = hyp_art.data
@@ -184,13 +176,9 @@ class Resolver(Produce[TypedDoc]):
 
     artifact_type = TypedDoc
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[SourceRef]],
-        event: Event | None = None,
-    ) -> None:
-        ref_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        ref_art = call.trigger
         if ref_art is None or not isinstance(ref_art.data, SourceRef):
             return None
         ref = ref_art.data
@@ -224,13 +212,9 @@ class ExtractEvidence(Produce[Evidence]):
 
     artifact_type = Evidence
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[TypedDoc]],
-        event: Event | None = None,
-    ) -> None:
-        doc_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        doc_art = call.trigger
         if doc_art is None or not isinstance(doc_art.data, TypedDoc):
             return None
         doc = doc_art.data
@@ -262,13 +246,9 @@ class ClaimBuilder(Produce[Claim]):
 
     artifact_type = Claim
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Evidence]],
-        event: Event | None = None,
-    ) -> None:
-        ev_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        ev_art = call.trigger
         if ev_art is None or not isinstance(ev_art.data, Evidence):
             return None
         evidence = ev_art.data
@@ -302,13 +282,9 @@ class CrossChecker(Produce[Claim]):
 
     artifact_type = Claim
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Claim]],
-        event: Event | None = None,
-    ) -> None:
-        claim_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        claim_art = call.trigger
         if claim_art is None or not isinstance(claim_art.data, Claim):
             return None
         claim = claim_art.data

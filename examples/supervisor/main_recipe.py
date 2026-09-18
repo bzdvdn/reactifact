@@ -23,17 +23,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
-
 from pydantic import BaseModel
 from reactifact import (
     Agent,
     Artifact,
     Consume,
     Context,
-    Event,
     PendingQuestion,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -131,13 +129,9 @@ class Specialist(Produce[SpecialistReport]):
 
     artifact_type = SpecialistReport
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        task = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        task = call.trigger
         if task is None or not isinstance(task.data, Task):
             return None
         body = await structured_llm(

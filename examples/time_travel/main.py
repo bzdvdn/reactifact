@@ -14,16 +14,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
-
 from pydantic import BaseModel
 from reactifact import (
     Agent,
-    Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -91,13 +88,9 @@ _CANDIDATE = PromptTemplate(
 class Stage(Produce[Milestone]):
     artifact_type = Milestone
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        request = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        request = call.trigger
         if request is None or not isinstance(request.data, Request):
             return None
         if context.list_artifacts(Milestone):
@@ -109,17 +102,17 @@ class Stage(Produce[Milestone]):
 
 
 class Experiment(Produce[Candidate]):
+    # ExperimentAgent also consumes Request (to read it, not to re-run on
+    # its own arrival) — reacts_to keeps this produce to Trigger events only;
+    # `trigger` (the parameter) gets the resolved Trigger (the model)
+    # directly, guaranteed non-None.
     artifact_type = Candidate
+    reacts_to = (Trigger,)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        trigger = context.get(event.artifact_id) if event is not None else None
-        if trigger is None or not isinstance(trigger.data, Trigger):
-            return None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        trigger = call.trigger
+        assert trigger is not None
         request = next((r for r in context.list_artifacts(Request)), None)
         if request is None:
             return None
@@ -151,12 +144,8 @@ def _score_of(name: str) -> float:
 class Pick(Produce[Decision]):
     artifact_type = Decision
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         if context.list_artifacts(Decision):
             return None
         candidates = sorted(

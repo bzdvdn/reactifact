@@ -1,7 +1,15 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime, RuntimeResources
+from reactifact import (
+    Agent,
+    Consume,
+    Context,
+    Produce,
+    ProduceCall,
+    Runtime,
+    RuntimeResources,
+)
 from reactifact.agent_tool import AgentAsTool, SubTask
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -57,8 +65,8 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
     class BuildReport(Produce[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(MainReport(text=a.data.text))
@@ -118,8 +126,8 @@ def test_agent_as_tool_isolated_from_parent_history():
     class BuildReport(Produce[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(MainReport(text=a.data.text))
@@ -169,8 +177,8 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
     class BuildReport(Produce[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(MainReport(text=a.data.text))

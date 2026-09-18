@@ -5,9 +5,7 @@ The lexicons decide the numbers, the model never does (§67, §68).
 
 from __future__ import annotations
 
-from typing import Any
-
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.sources import SourceRef
 
 from ..models import (
@@ -120,13 +118,9 @@ class Evaluator(Produce[Hypothesis]):
 
     artifact_type = Hypothesis
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question_id = question_id_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question_id = question_id_of(context, call.event)
         if question_id is None:
             return None
         question = context.get(question_id)

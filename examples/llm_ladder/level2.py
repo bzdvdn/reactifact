@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
@@ -32,8 +31,8 @@ from reactifact import (
     Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -117,14 +116,10 @@ class AnswerFromDoc(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question = find(inputs, Question)
-        doc = find(inputs, Doc)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question = find(call.inputs, Question)
+        doc = find(call.inputs, Doc)
         if question is None or doc is None:
             return None
         qid = question.id

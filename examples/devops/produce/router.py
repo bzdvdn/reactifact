@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 
 from ..models import (
     AnsibleProblem,
@@ -25,13 +23,9 @@ class RouteProblem(Produce[K8sProblem]):
 
     artifact_type = K8sProblem
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        msg = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        msg = call.trigger
         if msg is None or not isinstance(msg.data, UserMsg):
             return None
         context.announce("Parsing the question…", kind="status")

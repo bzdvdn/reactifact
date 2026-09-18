@@ -193,6 +193,17 @@ class Runtime:
         # Collect work (event, agent), accounting for priority: agents with lower
         # values run earlier, "finishers" last.
         work: list[tuple[Agent, Event, list[Read]]] = []
+        # An agent whose *every* matching trigger for a given event asks for
+        # `debounce` gets collapsed to at most one run per generation here —
+        # the last matching event in this batch wins, replacing any earlier
+        # one already staged for the same agent (see `Consume.debounce`'s
+        # docstring for why this lives here and not on `Consume`/`Trigger`
+        # themselves: collapsing needs to compare *other* events in the same
+        # drained batch, which is state only `Runtime` has). An agent with a
+        # mix of debounced and non-debounced matching triggers for the same
+        # event is treated as non-debounced for that event — debouncing only
+        # kicks in when nothing about the match demands immediacy.
+        debounced: dict[Agent, tuple[Event, list[Read]]] = {}
         ordered_agents = sorted(self.agents, key=lambda a: a.priority)
         for event in events:
             if self._budget_exhausted():
@@ -200,9 +211,24 @@ class Runtime:
             for agent in ordered_agents:
                 if self._budget_exhausted():
                     break
-                if agent.matches(event, self.context):
-                    reads = self._collect_reads(agent, event)
+                triggers = agent.matching_triggers(event, self.context)
+                if not triggers:
+                    continue
+                reads = self._collect_reads(agent, event)
+                if all(trigger.debounce for trigger in triggers):
+                    debounced[agent] = (event, reads)
+                else:
                     work.append((agent, event, reads))
+        if debounced:
+            work.extend(
+                (agent, event, reads) for agent, (event, reads) in debounced.items()
+            )
+            # `dict` insertion order is unrelated to agent priority once
+            # debounced entries are appended after the loop — restore the
+            # same "lower priority value runs earlier" invariant the loop
+            # above already gave the non-debounced entries (stable sort
+            # keeps relative order among equal priorities).
+            work.sort(key=lambda item: item[0].priority)
 
         # Limit the number of runs by the max_runs budget. Set the budget_runs_exceeded
         # outcome only when the limit is actually reached, not when the event simply

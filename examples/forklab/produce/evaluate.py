@@ -8,10 +8,10 @@ the top findings are printed verbatim (honest fallback, §59).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.structured import structured_llm
 
-from ..models import Answer, AnswerBody, Evidence, Question, Review
+from ..models import Answer, AnswerBody, Evidence, Question
 from ..prompts import synthesis_system
 
 TOPN = 3
@@ -22,12 +22,8 @@ class Evaluate(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Review]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         evidences = context.list_artifacts(Evidence)
         if not evidences:
             return None

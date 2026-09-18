@@ -16,8 +16,8 @@ class Seen(BaseModel):
 class RecordSeen(Produce[Seen]):
     artifact_type = Seen
 
-    async def produce(self, context, inputs, event=None):
-        self.effects.create(Seen(texts=[i.data.text for i in inputs]))
+    async def produce(self, call):
+        self.effects.create(Seen(texts=[i.data.text for i in call.inputs]))
 
 
 class Collector(Agent):
@@ -33,9 +33,9 @@ class Marker(BaseModel):
 class RecordItemsOnly(Produce[Seen]):
     artifact_type = Seen
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call):
         self.effects.create(
-            Seen(texts=[i.data.text for i in inputs if isinstance(i.data, Item)])
+            Seen(texts=[i.data.text for i in call.inputs if isinstance(i.data, Item)])
         )
 
 
@@ -143,6 +143,53 @@ def test_exempt_types_never_cost_budget():
 
     seen = ctx.list_artifacts(Seen)[-1]
     assert seen.data.texts == ["x" * 50]
+
+
+class Pinned(BaseModel):
+    """A low-volume type with real content (unlike `Marker`) that must
+    still survive the budget regardless of rank — the kind `min_keep` is
+    for."""
+
+    text: str
+
+
+class MinKeepCollector(Agent):
+    consumes = [Consume(Item), Consume(Pinned)]
+    produces = [RecordSeen()]
+
+
+def test_min_keep_reserves_a_slot_for_a_low_volume_type():
+    """Without `min_keep`, the single older `Pinned` fact would be crowded
+    out entirely by newer, higher-ranked `Item`s sharing the same budget —
+    unlike `exempt_types`, `Pinned` still counts toward `max_tokens`; it's
+    just guaranteed a reserved slot before the shared greedy fill runs."""
+    builder = TokenBudgetContextBuilder(max_tokens=15, min_keep={Pinned: 1})
+    ctx = Context(resources=RuntimeResources(context_builder=builder))
+    runtime = Runtime(ctx, agents=[MinKeepCollector()])
+
+    ctx.create(Pinned(text="pin"))
+    asyncio.run(runtime.arun())
+    ctx.create(Item(text="a" * 50))
+    asyncio.run(runtime.arun())
+
+    seen = ctx.list_artifacts(Seen)[-1]
+    assert "pin" in seen.data.texts
+
+
+def test_without_min_keep_the_same_scenario_starves_the_low_volume_type():
+    """Baseline for the test above with the same setup, no `min_keep` — proves
+    the reservation is what saved `Pinned`, not just budget headroom."""
+    builder = TokenBudgetContextBuilder(max_tokens=15)
+    ctx = Context(resources=RuntimeResources(context_builder=builder))
+    runtime = Runtime(ctx, agents=[MinKeepCollector()])
+
+    ctx.create(Pinned(text="pin"))
+    asyncio.run(runtime.arun())
+    ctx.create(Item(text="a" * 50))
+    asyncio.run(runtime.arun())
+
+    seen = ctx.list_artifacts(Seen)[-1]
+    assert "pin" not in seen.data.texts
 
 
 def test_exempt_marker_does_not_consume_the_at_least_one_guarantee():

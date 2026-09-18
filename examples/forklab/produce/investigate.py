@@ -9,7 +9,7 @@ fallback, §59) — the pipeline still runs fully offline.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.structured import structured_llm
 
 from ..models import Evidence, EvidenceBody, Question, Strategy
@@ -65,12 +65,8 @@ class DepthInvestigate(Produce[Evidence]):
 
     artifact_type = Evidence
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Strategy]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "depth":
             return None
@@ -93,12 +89,8 @@ class BreadthInvestigate(Produce[Evidence]):
 
     artifact_type = Evidence
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Strategy]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "breadth":
             return None

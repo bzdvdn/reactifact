@@ -43,8 +43,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 GoalT = TypeVar("GoalT", bound=BaseModel)
 StepT = TypeVar("StepT", bound=BaseModel)
@@ -116,11 +115,10 @@ class _Planner(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.step_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        goal = context.get(event.artifact_id) if event is not None else None
+        goal = call.trigger
         if goal is None or not isinstance(goal.data, owner.goal_type):
             return None
         if owner._ordered_steps(context, goal.id):
@@ -140,11 +138,10 @@ class _Executor(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.result_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         goal_id = owner._goal_id_of(artifact)
@@ -176,11 +173,10 @@ class _Finisher(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         goal_id = owner._goal_id_of(artifact)

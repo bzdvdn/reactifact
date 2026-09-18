@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -67,13 +67,9 @@ class CalculateAggregate(Produce[Calculation]):
 
     artifact_type = Calculation
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Spreadsheet]],
-        event: Event | None = None,
-    ) -> None:
-        sheet_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        sheet_art = call.trigger
         if sheet_art is None or not isinstance(sheet_art.data, Spreadsheet):
             return None
         sheet = sheet_art.data

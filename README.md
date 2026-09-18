@@ -62,21 +62,21 @@ DOCS = {
 
 
 @produce(Evidence)
-async def find_evidence(context, inputs, event, effects):
-    question = next((a for a in inputs if isinstance(a.data, Question)), None)
+async def find_evidence(call):
+    question = next((a for a in call.inputs if isinstance(a.data, Question)), None)
     if question is None:
         return None
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
     if hit is not None:
-        effects.create(Evidence(text=hit))
+        call.effects.create(Evidence(text=hit))
 
 
 @produce(Answer)
-async def answer_from_evidence(context, inputs, event, effects):
-    evidence = next((a for a in inputs if isinstance(a.data, Evidence)), None)
+async def answer_from_evidence(call):
+    evidence = next((a for a in call.inputs if isinstance(a.data, Evidence)), None)
     if evidence is None:
         return None
-    effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
+    call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
 search_agent = create_agent("search", consumes=[Consume(Question)], produces=[find_evidence])

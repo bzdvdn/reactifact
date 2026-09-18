@@ -22,14 +22,11 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..artifacts import Artifact
-from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
@@ -65,22 +62,15 @@ class EphemeralCleanup(Produce[TerminalT], Generic[TerminalT]):
         a fixed list of stage prefixes (see `PrefixedEphemeralCleanup` for
         that exact shape pre-built)."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        if event is None:
-            return None
-        terminal = context.get(event.artifact_id)
+    async def produce(self, call: ProduceCall) -> None:
+        terminal = call.trigger
         if terminal is None:
             return None
         correlation_id = self.correlation_of(terminal.id)
         if not correlation_id:
             return None
         for artifact_id in self.scratch_ids(correlation_id):
-            if context.get(artifact_id) is not None:
+            if call.context.get(artifact_id) is not None:
                 self.effects.delete(artifact_id)
         return None
 

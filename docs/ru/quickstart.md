@@ -101,28 +101,28 @@ class Answer(BaseModel):
 
 
 @produce(SourceRef)
-async def search(context, inputs, effects):
-    question = find(inputs, Question)
+async def search(call):
+    question = find(call.inputs, Question)
     if question is None:
         return None
-    await fan_out_sources(context, question.data.text, owner_id=question.id, limit=3)
+    await fan_out_sources(call.context, question.data.text, owner_id=question.id, limit=3)
 
 
 @produce(Doc)
-async def resolve(context, inputs, effects):
-    ref = find(inputs, SourceRef)
+async def resolve(call):
+    ref = find(call.inputs, SourceRef)
     if ref is None:
         return None
-    await materialize_doc(context, ref, lambda ctx, ref, content: Doc(text=content))
+    await materialize_doc(call.context, ref, lambda ctx, ref, content: Doc(text=content))
 
 
 @produce(Answer)
-async def answer(context, inputs):
-    docs = [a for a in inputs if isinstance(a.data, Doc)]
+async def answer(call):
+    docs = [a for a in call.inputs if isinstance(a.data, Doc)]
     if not docs:
         return None
     d = docs[0]
-    sources = context.related(d.id, "materialized_from")
+    sources = call.context.related(d.id, "materialized_from")
     return Answer(text=d.data.text.strip(), sources=[s.data.locator for s in sources])
 
 
@@ -189,9 +189,9 @@ class Reply(BaseModel):
 
 
 @produce(Reply)
-async def echo(context, inputs, event):
-    msg = context.get(event.artifact_id) if event is not None else None
-    if msg is None or not isinstance(msg.data, UserMsg):
+async def echo(call):
+    msg = call.trigger
+    if msg is None:
         return None
     return Reply(query_id=msg.id, text=f"you said: {msg.data.text}")
 

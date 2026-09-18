@@ -19,10 +19,10 @@ class Output(BaseModel):
 
 
 @produce(Output)
-async def echo(context, inputs, event, effects):
-    if not inputs:
+async def echo(call):
+    if not call.inputs:
         return None
-    effects.create(Output(text=inputs[-1].data.text))
+    call.effects.create(Output(text=call.inputs[-1].data.text))
     return None
 
 

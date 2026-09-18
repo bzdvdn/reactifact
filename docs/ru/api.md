@@ -58,9 +58,12 @@
 | --- | --- |
 | `Agent` | тонкий контейнер: `name`, `consumes`, `produces`, `concurrency_limit` |
 | `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров |
-| `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий |
-| `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)) |
-| `Trigger` | вторичное (не артефактное) условие входа produce |
+| `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
+| `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
+| `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
+| `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
+| `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to` |
+| `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |

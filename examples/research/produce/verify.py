@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 
 from ..models import Claim, Evidence
 from .common import split_sentences, token_support
@@ -12,13 +12,9 @@ class VerifyClaims(Produce[Claim]):
     """Deterministic verification (§67): a sentence becomes a claim with
     confidence = how much of it the source page supports (§35, §68)."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Evidence]],
-        event: Event | None = None,
-    ) -> None:
-        evidence_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        evidence_art = call.trigger
         if evidence_art is None or not isinstance(evidence_art.data, Evidence):
             return None
         evidence = evidence_art.data

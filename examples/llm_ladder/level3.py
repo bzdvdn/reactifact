@@ -25,16 +25,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
     Agent,
-    Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -112,13 +110,9 @@ class StartTurn(Produce[Turn]):
 
     artifact_type = Turn
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question = find(inputs, Question)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question = find(call.inputs, Question)
         if question is None:
             return None
         qid = question.id
@@ -133,14 +127,10 @@ class Claimer(Produce[Claim]):
 
     artifact_type = Claim
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question = find(inputs, Question)
-        turn = find(inputs, Turn)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question = find(call.inputs, Question)
+        turn = find(call.inputs, Turn)
         if question is None or turn is None:
             return None
         qid = question.id
@@ -183,15 +173,11 @@ class Finisher(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question = find(inputs, Question)
-        turn = find(inputs, Turn)
-        claim = find(inputs, Claim)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question = find(call.inputs, Question)
+        turn = find(call.inputs, Turn)
+        claim = find(call.inputs, Claim)
         if question is None or turn is None or claim is None:
             return None
         qid = question.id

@@ -9,59 +9,57 @@ invoked, not merely "invoked but decides not to recompute." No router, no
 
 from __future__ import annotations
 
-from typing import Any
-
-from reactifact import Artifact, Context, produce
-from reactifact.effects import Effects
+from reactifact import ProduceCall, produce
 
 from .models import Discount, DiscountRate, Hours, LaborCost, Rate, Tax, TaxRate, Total
 
 
 @produce(LaborCost)
-async def compute_labor_cost(
-    context: Context, inputs: list[Artifact[Any]], effects: Effects
-) -> None:
+async def compute_labor_cost(call: ProduceCall) -> None:
+    context = call.context
     hours = context.latest(Hours)
     rate = context.latest(Rate)
     if hours is None or rate is None:
         return None
-    effects.upsert(LaborCost(value=hours.data.value * rate.data.value), id="labor_cost")
+    call.effects.upsert(
+        LaborCost(value=hours.data.value * rate.data.value), id="labor_cost"
+    )
 
 
 @produce(Tax)
-async def compute_tax(
-    context: Context, inputs: list[Artifact[Any]], effects: Effects
-) -> None:
+async def compute_tax(call: ProduceCall) -> None:
+    context = call.context
     labor_cost = context.latest(LaborCost)
     tax_rate = context.latest(TaxRate)
     if labor_cost is None or tax_rate is None:
         return None
-    effects.upsert(Tax(value=labor_cost.data.value * tax_rate.data.value), id="tax")
+    call.effects.upsert(
+        Tax(value=labor_cost.data.value * tax_rate.data.value), id="tax"
+    )
 
 
 @produce(Discount)
-async def compute_discount(
-    context: Context, inputs: list[Artifact[Any]], effects: Effects
-) -> None:
+async def compute_discount(call: ProduceCall) -> None:
+    context = call.context
     labor_cost = context.latest(LaborCost)
     discount_rate = context.latest(DiscountRate)
     if labor_cost is None or discount_rate is None:
         return None
-    effects.upsert(
-        Discount(value=labor_cost.data.value * discount_rate.data.value), id="discount"
+    call.effects.upsert(
+        Discount(value=labor_cost.data.value * discount_rate.data.value),
+        id="discount",
     )
 
 
 @produce(Total)
-async def compute_total(
-    context: Context, inputs: list[Artifact[Any]], effects: Effects
-) -> None:
+async def compute_total(call: ProduceCall) -> None:
+    context = call.context
     labor_cost = context.latest(LaborCost)
     tax = context.latest(Tax)
     discount = context.latest(Discount)
     if labor_cost is None or tax is None or discount is None:
         return None
-    effects.upsert(
+    call.effects.upsert(
         Total(value=labor_cost.data.value + tax.data.value - discount.data.value),
         id="total",
     )

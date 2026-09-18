@@ -4,7 +4,15 @@ import asyncio
 from pathlib import Path
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime, RuntimeResources
+from reactifact import (
+    Agent,
+    Consume,
+    Context,
+    Produce,
+    ProduceCall,
+    Runtime,
+    RuntimeResources,
+)
 from reactifact.artifacts import Artifact
 from reactifact.recipes import (
     PrefixedEphemeralCleanup,
@@ -43,9 +51,9 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
     class Scout(Produce[SourceRef]):
         artifact_type = SourceRef
 
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call: ProduceCall):
             await fan_out_sources(
-                context,
+                call.context,
                 "vitamin D nutritional supplementation",
                 owner_id="job1",
                 limit=2,
@@ -77,15 +85,15 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
     class Scout(Produce[SourceRef]):
         artifact_type = SourceRef
 
-        async def produce(self, context, inputs, event=None):
-            await fan_out_sources(context, "prevents colds", owner_id="q1", limit=1)
+        async def produce(self, call: ProduceCall):
+            await fan_out_sources(call.context, "prevents colds", owner_id="q1", limit=1)
             return None
 
     class Resolver(Produce[Doc]):
         artifact_type = Doc
 
-        async def produce(self, context, inputs, event=None):
-            ref_art = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            ref_art = call.trigger
             if ref_art is None or not isinstance(ref_art.data, SourceRef):
                 return None
 
@@ -96,7 +104,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
                     content=content,
                 )
 
-            await materialize_doc(context, ref_art, factory, relation="resolved_from")
+            await materialize_doc(call.context, ref_art, factory, relation="resolved_from")
             return None
 
     class Engine(Agent):
@@ -118,8 +126,8 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
 class Fill(Produce[Job]):
     artifact_type = Job
 
-    async def produce(self, context, inputs, event=None):
-        target = context.get(event.artifact_id)
+    async def produce(self, call: ProduceCall):
+        target = call.trigger
         if target is None:
             return None
         self.effects.update(target, text="filled")
@@ -170,8 +178,8 @@ class Final(BaseModel):
 class MakeScratch(Produce[Scratch]):
     artifact_type = Scratch
 
-    async def produce(self, context, inputs, event=None):
-        question = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall):
+        question = call.trigger
         if question is None or not isinstance(question.data, Question):
             return None
         self.effects.create_once(
@@ -183,10 +191,10 @@ class MakeScratch(Produce[Scratch]):
 class MakeFinal(Produce[Final]):
     artifact_type = Final
 
-    async def produce(self, context, inputs, event=None):
-        if event is None:
+    async def produce(self, call: ProduceCall):
+        if call.event is None:
             return None
-        scratch = context.get(event.artifact_id)
+        scratch = call.trigger
         if scratch is None or not isinstance(scratch.data, Scratch):
             return None
         self.effects.create_once(

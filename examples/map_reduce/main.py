@@ -14,16 +14,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
-
 from pydantic import BaseModel
 from reactifact import (
     Agent,
-    Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -97,12 +94,8 @@ def _split(text: str, n: int = CHUNKS) -> list[str]:
 class Split(Produce[Chunk]):
     artifact_type = Chunk
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         doc = next((d for d in context.list_artifacts(Doc)), None)
         if doc is None or context.list_artifacts(Chunk):
             return None  # already split (§42)
@@ -116,16 +109,16 @@ class Split(Produce[Chunk]):
 
 class Summarize(Produce[ChunkSummary]):
     artifact_type = ChunkSummary
+    # Flow also consumes Doc and ChunkSummary — reacts_to keeps this produce
+    # from re-running on those events too, moving the old
+    # `isinstance(chunk.data, Chunk)` guard to the declaration; declaring
+    # `trigger` below gets the resolved Chunk directly, guaranteed non-None.
+    reacts_to = (Chunk,)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        chunk = context.get(event.artifact_id) if event is not None else None
-        if chunk is None or not isinstance(chunk.data, Chunk):
-            return None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        chunk = call.trigger
+        assert chunk is not None
         if context.get(f"summary:{chunk.id}") is not None:
             return None
         body = await structured_llm(
@@ -150,12 +143,8 @@ class Summarize(Produce[ChunkSummary]):
 class Combine(Produce[FinalSummary]):
     artifact_type = FinalSummary
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         if context.list_artifacts(FinalSummary):
             return None
         doc = next((d for d in context.list_artifacts(Doc)), None)

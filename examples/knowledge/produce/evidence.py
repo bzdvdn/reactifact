@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -21,13 +21,9 @@ class ExtractEvidence(Produce[Evidence]):
 
     artifact_type = Evidence
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[TypedDoc]],
-        event: Event | None = None,
-    ) -> None:
-        doc_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        doc_artifact = call.trigger
         if doc_artifact is None or not isinstance(doc_artifact.data, TypedDoc):
             return None
         doc = doc_artifact.data
@@ -79,13 +75,9 @@ class VerifyClaims(Produce[Claim]):
             return 0.0
         return len(ta & tb) / min(len(ta), len(tb))
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Evidence]],
-        event: Event | None = None,
-    ) -> None:
-        evidence_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        evidence_art = call.trigger
         if evidence_art is None or not isinstance(evidence_art.data, Evidence):
             return None
         evidence = evidence_art.data

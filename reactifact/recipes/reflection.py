@@ -47,8 +47,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 TopicT = TypeVar("TopicT", bound=BaseModel)
 DraftT = TypeVar("DraftT", bound=BaseModel)
@@ -122,11 +121,10 @@ class _Draft(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -156,11 +154,10 @@ class _Critic(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.review_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -198,11 +195,10 @@ class _Rewrite(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -233,11 +229,10 @@ class _Finalize(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)

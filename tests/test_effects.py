@@ -8,6 +8,7 @@ from reactifact import (
     Consume,
     Context,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -107,7 +108,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
     class Refresh(Produce[Note]):
         artifact_type = Note
 
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call: ProduceCall):
             self.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
@@ -168,8 +169,8 @@ def test_effects_resume_answers_pending_question():
 class Greeting(Produce[Note]):
     artifact_type = Note
 
-    async def produce(self, context, inputs, event=None):
-        trigger = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall):
+        trigger = call.trigger
         note = self.effects.create(Note(text="hi"), id="note:1")
         note.link("supported_by", trigger)  # trigger: Doc artifact
         return None

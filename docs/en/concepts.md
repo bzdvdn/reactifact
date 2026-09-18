@@ -66,7 +66,7 @@ The authoring surface is **`self.effects`** (see
 set into one atomic **`Patch`** — its compiled transport.
 
 ```python
-async def produce(self, context, inputs, event=None):
+async def produce(self, call: ProduceCall) -> None:
     answer = self.effects.create(Answer(query_id=qid, text=text), id="answer:q1")
     answer.link("supported_by", evidence_id)
     self.effects.update(some_artifact, status="answered")
@@ -106,8 +106,19 @@ class RepairFlow(Agent):
     ]
 ```
 
-- `consumes` — artifact types that wake this agent.
+- `consumes` — artifact types that wake this agent (and feed its inputs —
+  `Consume(..., wakes=False)` reads a type as input without waking on it;
+  `Consume(..., debounce=True)` collapses several same-generation events
+  into one run). `reactifact.consume.JoinConsume`/`AbsentConsume` correlate
+  across two artifact types by a shared key instead of one type alone —
+  see [patterns](patterns.md).
 - `produces` — `Produce` instances that may run when the agent is awake.
+  `Produce(reacts_to=(Type, …))` restricts a produce to only the triggering
+  events it actually cares about, when an agent's several produces don't all
+  want the same one; a produce that also declares an optional `trigger`
+  parameter gets the resolved artifact directly instead of raw `event`,
+  guaranteed non-`None` for a CREATED/UPDATED/STALE event — see
+  [patterns](patterns.md).
 - The runtime wakes agents on events, respecting budget and concurrency.
 
 `Agent` also has a lower-level `run(event, context) -> Patch | None` you can
@@ -130,11 +141,16 @@ runtime's transport).
 class EstimateStage(Produce[Project]):
     artifact_type = Project
 
-    async def produce(self, context, inputs, event=None) -> None:
+    async def produce(self, call: ProduceCall) -> None:
         ...
         self.effects.update(project_art, stage="estimate")
         return None
 ```
+
+`produce()` always takes exactly one argument, `call` — a `ProduceCall` with
+`.context`/`.inputs`/`.event`/`.trigger`/`.effects`. See
+[patterns](patterns.md) for `.trigger` (the resolved artifact behind
+`.event`, guaranteed non-`None` alongside `reacts_to`).
 
 `fan_out_sources` / `materialize_doc` (recipes) also write into the current
 effect slot, and HITL is an `effects.ask(...)` (a `PendingQuestion` artifact,
@@ -177,6 +193,8 @@ Why this matters:
   when an artifact's recorded dependency (§43-44) gets a newer version — opt
   in with `Consume(Type, event_types=[EventType.ARTIFACT_STALE])`.
 - **`Trigger`** — secondary enter conditions for a produce (e.g. a periodic or
-  timer-based wake), independent of the artifact consums.
+  timer-based wake), independent of the artifact consums. `context_condition`
+  is the two-artifact form (needed for joins/correlation); `debounce` is the
+  hint `Runtime` reads to collapse repeat events into one run.
 - **`Session` / `SessionStore`** — durable, per-chat working memory across
   requests, backed by a KV checkpoint (file or SQLite).

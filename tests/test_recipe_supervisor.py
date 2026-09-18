@@ -1,7 +1,15 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, PendingQuestion, Produce, Runtime
+from reactifact import (
+    Agent,
+    Consume,
+    Context,
+    PendingQuestion,
+    Produce,
+    ProduceCall,
+    Runtime,
+)
 from reactifact.recipes import ApprovalGate, Router
 
 ROUTES = ("budget", "timeline", "quality")
@@ -46,8 +54,8 @@ class MyRouter(Router[Request, Task]):
 class Specialist(Produce[SpecialistReport]):
     artifact_type = SpecialistReport
 
-    async def produce(self, context, inputs, event=None):
-        task = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall):
+        task = call.trigger
         if task is None or not isinstance(task.data, Task):
             return None
         report = self.effects.create(

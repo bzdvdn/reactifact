@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Patch, Produce, RuntimeResources, tool
+from reactifact import Agent, Consume, Patch, Produce, ProduceCall, RuntimeResources, tool
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioLab
 from reactifact.tool_use import ToolAnswer, ToolUse
@@ -56,8 +56,8 @@ class ScriptedLLM(LLMProvider):
 class BuildReport(Produce[Report]):
     artifact_type = Report
 
-    async def produce(self, context, inputs, event=None) -> Patch | None:
-        a = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> Patch | None:
+        a = call.trigger
         if a is None or not isinstance(a.data, ToolAnswer):
             return None
         self.effects.create(Report(text=a.data.text))

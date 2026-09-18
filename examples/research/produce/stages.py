@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -21,12 +21,9 @@ from .common import SCOUT_LIMIT, turn_of, user_query
 class Router(Produce[ResearchTurn]):
     """Every non-empty question becomes a research turn."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[UserQuery]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        event = call.event
         user = user_query(context, event)
         if user is None or event is None:
             return None
@@ -43,13 +40,9 @@ class Router(Produce[ResearchTurn]):
 class WebScout(Produce[SourceRef]):
     """Fans out to `WebSource.asearch`; stable refs + SearchDone (idempotent)."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[ResearchTurn]],
-        event: Event | None = None,
-    ) -> None:
-        turn = turn_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        turn = turn_of(context, call.event)
         if turn is None:
             return None
         # Idempotency (§42): a repeated run must not restart the cascade.
@@ -84,13 +77,9 @@ class WebScout(Produce[SourceRef]):
 class ResolveRef(Produce[TypedDoc]):
     """Lazy materialization: a URL → page text (Reference → Artifact, §6)."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[SourceRef]],
-        event: Event | None = None,
-    ) -> None:
-        ref_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        ref_artifact = call.trigger
         if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
             return None
         ref = ref_artifact.data
@@ -131,13 +120,9 @@ _extract_prompt = StructuredLLM(_Digest)
 class ExtractEvidence(Produce[Evidence]):
     """Key facts from a page; provenance: Evidence —extracted_from→ Doc."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[TypedDoc]],
-        event: Event | None = None,
-    ) -> None:
-        doc_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        doc_artifact = call.trigger
         if doc_artifact is None or not isinstance(doc_artifact.data, TypedDoc):
             return None
         doc = doc_artifact.data

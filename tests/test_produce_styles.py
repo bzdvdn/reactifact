@@ -7,6 +7,7 @@ from reactifact import (
     Consume,
     Context,
     Produce,
+    ProduceCall,
     Runtime,
     produce,
 )
@@ -26,8 +27,8 @@ class Marker(BaseModel):
 class MarkerProduce(Produce):
     artifact_type = Marker
 
-    async def produce(self, context, inputs, event=None) -> None:
-        artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        artifact = call.trigger
         if artifact is None or not isinstance(artifact.data, Input):
             return None
         self.effects.create(Marker(value=artifact.data.text.upper()))
@@ -54,8 +55,8 @@ def test_produce_subclass_style():
 
 
 @produce(Marker)
-async def decorator_factory(context, inputs, event):
-    artifact = context.get(event.artifact_id) if event is not None else None
+async def decorator_factory(call):
+    artifact = call.trigger
     if artifact is None or not isinstance(artifact.data, Input):
         return None
     return Marker(value=artifact.data.text.capitalize())
@@ -81,12 +82,12 @@ def test_produce_decorator_style():
 
 
 @produce(Marker)
-async def decorator_effects(context, inputs, event, effects):
-    artifact = context.get(event.artifact_id) if event is not None else None
+async def decorator_effects(call):
+    artifact = call.trigger
     if artifact is None or not isinstance(artifact.data, Input):
         return None
-    handle = effects.create(Marker(value=artifact.data.text.upper()))
-    effects.link(handle, "derived_from", artifact)
+    handle = call.effects.create(Marker(value=artifact.data.text.upper()))
+    call.effects.link(handle, "derived_from", artifact)
     return None
 
 
@@ -118,10 +119,10 @@ class Task(BaseModel):
 
 
 @produce(Task)
-async def decorator_update(context, inputs, event, effects):
-    existing = next((a for a in inputs if isinstance(a.data, Task)), None)
+async def decorator_update(call):
+    existing = next((a for a in call.inputs if isinstance(a.data, Task)), None)
     if existing is not None:
-        effects.update(existing, status="done")
+        call.effects.update(existing, status="done")
         return None
     return None
 
@@ -161,7 +162,7 @@ def test_produce_decorator_does_not_warn(recwarn):
     locks in that the canonical style stays warning-free."""
 
     @produce(Marker)
-    async def _f(context, inputs, effects):
+    async def _f(call):
         return None
 
     assert len(recwarn) == 0
@@ -175,8 +176,8 @@ received = {}
 class RecordProduce(Produce):
     artifact_type = Marker
 
-    async def produce(self, context, inputs, event=None):
-        received["id"] = event.artifact_id if event is not None else None
+    async def produce(self, call: ProduceCall):
+        received["id"] = call.event.artifact_id if call.event is not None else None
         self.effects.create(Marker(value="recorded"))
         return None
 
@@ -198,7 +199,7 @@ def test_event_reaches_produce():
 
 def test_artifact_type_auto_derived_from_generic():
     class Auto(Produce[Marker]):
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call: ProduceCall):
             return None
 
     assert Auto.artifact_type is Marker

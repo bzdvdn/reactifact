@@ -35,8 +35,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 from ..structured import OnStructuredError, llm_reply
 
 MsgT = TypeVar("MsgT", bound=BaseModel)
@@ -99,12 +98,8 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.id_of = id_of
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         messages = context.list_artifacts(self.message_type)
         count = len(messages)
         if count == 0 or count % self.every != 0:
@@ -141,12 +136,8 @@ class WindowPruner(Produce[MsgT], Generic[MsgT]):
         self.keep = keep
         self.order_key = order_key
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         messages = sorted(context.list_artifacts(self.message_type), key=self.order_key)
         # `max(0, ...)`: a plain negative slice bound wraps from the end in
         # Python (`messages[:-1]` means "all but the last"), which would prune
@@ -213,12 +204,8 @@ class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.digest_id = digest_id
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         messages = sorted(
             (a for t in self.message_types for a in context.list_artifacts(t)),
             key=self.order_key,

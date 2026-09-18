@@ -96,6 +96,160 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   in `RuntimeResources.additional` (a produce's own tool-calling loop, e.g.
   via `reactifact.native_tool_use`), not just the static per-`Produce`
   tool dicts it already covered.
+- `Consume(wakes=bool)` (default `True`) — a `Consume` with `wakes=False`
+  still feeds `Agent._collect_inputs()` but never contributes to
+  `Agent.triggers`, i.e. "read this as input, don't wake up on it" (an
+  agent that should run when a `Question` arrives but also wants
+  `ConversationHistory` as input, without re-running once per history
+  artifact). Found while reviewing the framework's own core design end to
+  end: this is the one real, recurring reason a declarative
+  (`consumes`/`produces`) agent used to reach for `Agent`'s separate
+  `triggers=` override, which otherwise has to be kept in sync with
+  `consumes` by hand. `triggers=` itself is unchanged and not deprecated —
+  the imperative style (an `Agent` subclass overriding `run()` directly,
+  with no `consumes` at all) still needs it, since there's no `Consume` to
+  attach a condition to there; the framework's own `tests/test_runtime.py`
+  is exactly that style, and finding it is what stopped an earlier, wider
+  draft of this change that removed `triggers=` outright.
+- `TokenBudgetContextBuilder(min_keep={type: count})` — reserves a costed
+  type's top-`count`-ranked instances a slice of the budget *before* the
+  shared greedy fill runs over everything else, so a high-volume type
+  sharing the same budget (many `Evidence`) can't crowd out a low-volume
+  one that still has real content (the single triggering `Question`,
+  older than a pile of freshly-ranked `Evidence`). Complements
+  `exempt_types` (for a type with *no* real content, e.g. a pure
+  wake-up marker) rather than replacing it — `min_keep` items still count
+  toward `max_tokens`, they're just guaranteed a reserved slot instead of
+  being left to rank order. Closes the one specific case the module's own
+  "known limitation" docstring had flagged as unsolved.
+- `reactifact.consume.CorrelatedConsume` — fires (and feeds inputs) only for
+  a correlation key where every type in `require` is present and every type
+  in `forbid` is absent, e.g. an approval gate waiting on a `Report` and its
+  answered `PendingQuestion`, correlated by `thread_id`. Without it, that
+  condition had nowhere declarative to live: `Consume.condition` only ever
+  sees the single artifact matched by its own type, never a *different*
+  type's instance to correlate against — the real cases seen so far (that
+  approval gate; a plan step waiting on its prerequisite `StepResult`; not
+  re-filing a `HelpdeskTicket` a thread already has) all hand-rolled the
+  correlation *inside* `produce()`, exactly the logic `consumes` exists to
+  keep out of there. `JoinConsume(*parts, key=...)` and
+  `AbsentConsume(artifact_type, absent_type=..., key=...)` are thin
+  factories over it for the two common single-purpose shapes (`require`-only
+  and one-`require`-one-`forbid`) — started as two separate classes, unified
+  into one mechanism once both turned out to be the same "group by key,
+  check who's in the group" scan with a different pass/fail rule; unifying
+  also unlocked combining both at once ("required present *and* forbidden
+  absent" together), which neither original class could express without
+  nesting one inside the other. Listens to every `require` type's own
+  CREATED/UPDATED events (not `forbid` types'), so the agent wakes up
+  regardless of which required type completes the group last — takes any
+  number of `require` types (`>= 1`), not just two, verified live against a
+  three-type join. Required two small, backward-compatible core extensions
+  to get there: `Trigger.context_condition(artifact, context)`, alongside
+  the existing per-artifact-only `condition`, since a correlation condition
+  fundamentally needs to look at *other* artifacts, not just the one the
+  event is about — and `Consume.collect(context)`, replacing the per-type
+  loop that used to be inlined in `Agent._collect_inputs()`, so
+  `CorrelatedConsume` (and any future non-single-type `Consume`) can
+  override how it contributes to an agent's inputs, not just how it
+  triggers.
+- `Consume(debounce=bool)` (default `False`) — when several events in the
+  same generation would each independently wake an agent via this
+  `Consume` (a fan-out step creating five `Evidence` artifacts in one
+  commit, five separate `ARTIFACT_CREATED` events), collapses them into a
+  single run instead of five. Unlike `JoinConsume`/`AbsentConsume`, this
+  couldn't be built as a `Consume` subclass alone: collapsing needs to
+  compare *other* events in the same drained batch, which is state only
+  `Runtime` has — `Consume`/`Trigger` (new `Trigger.debounce` flag) just
+  carry the setting, `Runtime._arun_once_impl` does the actual collapsing
+  (last matching event in the batch wins) before the `max_runs` budget
+  check, so a debounced run correctly costs one against the budget, not
+  five. An agent with a mix of debounced and non-debounced matching
+  triggers for the same event is treated as non-debounced for that event —
+  debouncing only kicks in when nothing about the match demands immediacy.
+  New `Agent.matching_triggers()` (`matches()` is now `bool(...)` of it)
+  is what lets `Runtime` see *which* triggers matched, not just whether
+  any did, to check the flag.
+
+- `Produce(reacts_to=...)` — the input-side mirror of `also_creates`: an
+  agent with several `consumes` and several `produces` runs *every* produce
+  on *every* matching event by default, since `Agent.execute()` has no idea
+  which of an agent's several `Consume`s a given produce actually cares
+  about — every produce ends up guarding itself by hand at the top of its
+  own body (`if event is None or not isinstance(context.get(event.
+  artifact_id).data, TheOneTypeICareAbout): return None`). Declaring
+  `reacts_to = (TheType,)` moves that guard to the class declaration
+  instead; `Agent.execute()` now skips calling `produce()` at all for an
+  event none of `reacts_to` matches (exact type equality against
+  `event.artifact_type`, same convention as `Trigger.artifact_type` — not
+  `issubclass`, that's a `Context.list_artifacts()` convention for a
+  different purpose). `None` (the default) is unrestricted — today's
+  behavior, unchanged, so this is purely additive. Considered
+  `Produce[ReactType, CreateType]` (a second generic parameter) instead —
+  rejected: `Generic[A, B]` enforces exactly two type arguments at class
+  *definition* time, so every existing single-argument `Produce[Foo]`
+  subclass across this repo's own examples/tests, and any downstream
+  product, would fail to import, not just fail a type check. Two produces
+  sharing one `artifact_type` (the same output) but different `reacts_to`
+  (different triggers) is also why this can't just reuse `artifact_type`
+  for both directions — the case that motivated this in the first place was
+  exactly that shape, a `FinalizeWithDocuments`/`DirectFinalize`-like pair
+  both producing the same result type from two different upstream events.
+### Breaking
+
+- `produce()` now takes exactly one argument, `call: ProduceCall`, instead
+  of the individually-recognized `(context, inputs, event=None)` parameters
+  (class-style) or by-name-sniffed `(context, inputs, event, effects)`
+  (`@produce`-decorated functions). `ProduceCall` carries `.context`/
+  `.inputs`/`.event`/`.effects` (identical to the old parameters/
+  `self.effects`) plus a new `.trigger` field: the already-resolved artifact
+  behind `.event` (what `context.get(event.artifact_id) if event is not
+  None else None` used to compute by hand in nearly every produce body).
+  One object, not a growing list of individually-recognized parameter
+  names, was chosen deliberately over extending the by-name signature
+  sniffing further (which already covered `event`/`effects`, and would next
+  have needed to cover `trigger` too): every field is now visible from an
+  editor's autocomplete on `call.` without cross-referencing which
+  parameter-name combination does what, and the shape no longer changes
+  every time a new capability is added — a real design cost, weighed
+  against breaking every existing `Produce` subclass and `@produce`
+  function in this repo (updated across `reactifact/`, all of `examples/`,
+  and all of `tests/` in this same release) and any downstream user's code.
+  `self.effects` is unchanged on class-style `Produce` (kept for produces
+  that don't want to thread `call` through helper methods) — only the
+  `produce()` signature itself changed.
+- `.trigger` is a real guarantee, not best-effort convenience, whenever the
+  produce also declares `reacts_to`: for a CREATED/UPDATED/STALE event,
+  `Agent.execute()` now skips calling `produce()` entirely if
+  `context.get(event.artifact_id)` no longer resolves (the artifact was
+  deleted by another agent earlier in the same generation — the same race
+  `Trigger.matches()` already documented), so `call.trigger` is never `None`
+  when such a produce actually runs, and the body needs no guard at all. A
+  DELETED event on the produce's own `reacts_to` type is exempt from that
+  liveness requirement — there, `context.get(...)` correctly returning
+  `None` *is* the event, not a race, so the produce still runs with
+  `call.trigger` set to `None`, and deletion-reacting code is expected to
+  handle that itself (`call.event` still carries `artifact_id`/
+  `artifact_type` there, which `call.trigger` necessarily can't once the
+  data is gone). Without `reacts_to` (`None`, unrestricted), `call.trigger`
+  is still resolved and passed whenever `call.event` is not `None`, purely
+  as a convenience — there's no per-type contract for the framework to
+  enforce, so it's never a reason to skip the call.
+  Considered making `reacts_to` mandatory (so every produce reads as
+  explicit about what it reacts to, and `call.event` could be dropped in
+  favor of an always-non-`None` `call.trigger`) — rejected: several of this
+  repo's own examples (`Combine`/`Finisher`/`Supervisor`-shaped aggregators)
+  genuinely react uniformly to more than one type by design, and `call.event`
+  carries information after a DELETED event that `call.trigger` structurally
+  cannot — dropping it would lose real information for deletion-reacting
+  produces, not just remove ceremony.
+
+### Fixed
+
+- `Consume(wakes=False, debounce=True)` now raises at construction instead
+  of silently doing nothing — `debounce` only collapses repeat wake-ups, and
+  `wakes=False` means this `Consume` never wakes the agent in the first
+  place, so the combination had no meaning to begin with.
 
 ## [0.8.0] — 2026-09-16
 

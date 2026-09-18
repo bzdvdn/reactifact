@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, ChatReply, ResearchTurn, UserQuery
@@ -14,12 +14,9 @@ class PlannerReply(Produce[ChatReply]):
 
     artifact_type = ChatReply
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[UserQuery]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        event = call.event
         user = user_query(context, event)
         if user is None or event is None:
             return None
@@ -60,12 +57,9 @@ class PlannerTurn(Produce[ResearchTurn]):
 
     artifact_type = ResearchTurn
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[UserQuery]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        event = call.event
         user = user_query(context, event)
         if user is None or event is None:
             return None

@@ -7,9 +7,9 @@ from typing import Any
 from .artifacts import Artifact
 from .consume import Consume
 from .context import Context
-from .events import Event
+from .events import Event, EventType
 from .patches import Patch
-from .produce import Produce
+from .produce import Produce, ProduceCall
 from .triggers import Trigger
 
 
@@ -25,6 +25,15 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     produces: Sequence[Produce[Any]] | None = None
     #: Declarative capability labels (§25), consumed by the adaptive policy.
     capabilities: tuple[str, ...] = ()
+    #: Explicit trigger override — for the *imperative* style (`Agent`
+    #: subclass overriding `run()` directly, no `consumes`/`produces` at
+    #: all, see `run()`'s own docstring). That style never calls
+    #: `_collect_inputs()`, so `Consume` has nothing to attach to; `triggers`
+    #: is the only way such an agent says when to wake up. For the
+    #: declarative style (`consumes`/`produces`, the common case), leave this
+    #: unset — `triggers` auto-derives from `consumes` instead, and a
+    #: `Consume` that should feed inputs without also waking the agent uses
+    #: `Consume(..., wakes=False)` rather than a second, hand-maintained list.
     triggers: list[Trigger] = []
     # Run priority within a single generation: lower value runs earlier.
     # Useful for "finishers"/evaluators that logically run last (§24).
@@ -80,7 +89,17 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                     )
 
     def matches(self, event: Event, context: Context | None = None) -> bool:
-        return any(trigger.matches(event, context) for trigger in self.triggers)
+        return bool(self.matching_triggers(event, context))
+
+    def matching_triggers(
+        self, event: Event, context: Context | None = None
+    ) -> list[Trigger]:
+        """Every trigger that matches `event` — `matches()` is just
+        `bool(...)` of this. `Runtime._arun_once_impl` uses the full list
+        (not just the bool) to decide whether *every* matching trigger asks
+        for debouncing (`Trigger.debounce`) before collapsing repeat events
+        into one run."""
+        return [trigger for trigger in self.triggers if trigger.matches(event, context)]
 
     def collect_inputs(self, context: Context) -> list[Artifact[Any]]:
         """Public access to the consumed artifacts.
@@ -102,10 +121,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             return []
         inputs: list[Artifact[Any]] = []
         for c in self.consumes:
-            artifacts = context.list_artifacts(c.artifact_type)
-            if c.condition:
-                artifacts = [a for a in artifacts if c.condition(a)]
-            inputs.extend(artifacts)
+            inputs.extend(c.collect(context))
         builder = context.resources.context_builder
         if builder is not None:
             inputs = builder.build(context, self, inputs)
@@ -128,8 +144,9 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     async def execute(self, context: Context, event: Event | None = None) -> None:
         """Runs the agent's produces (usually on an event).
 
-        Effects-first (§24): produces write `self.effects.*` and return None;
-        the *runtime* compiles the effect slot into one atomic patch. This method
+        Effects-first (§24): produces write `self.effects.*`/`call.effects.*`
+        and return None; the *runtime* compiles the effect slot into one
+        atomic patch. This method
         only *runs* the produces — it does not build a patch. (`run` remains the
         agent-level escape hatch for custom Agent subclasses that assemble a
         change-set by hand; the runtime merges its result after the effects.)
@@ -138,8 +155,53 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             return None
         inputs = self._collect_inputs(context)
         for p in self.produces:
-            await p.produce(context, inputs, event)
+            runs, trigger = self._resolve_produce_call(p, event, context)
+            if not runs:
+                continue
+            call = ProduceCall(context=context, inputs=inputs, event=event, trigger=trigger)
+            await p.produce(call)
         return None
+
+    @staticmethod
+    def _resolve_produce_call(
+        p: Produce[Any], event: Event | None, context: Context
+    ) -> tuple[bool, Artifact[Any] | None]:
+        """Whether to call `p.produce()` for `event`, and the triggering
+        artifact to put on the `ProduceCall.trigger` field (see `Produce`'s
+        docstring, and `ProduceCall`'s, for the full contract).
+
+        `p.reacts_to is None` (the default): unrestricted, matching the
+        pre-`reacts_to` behavior where every produce ran on every event this
+        agent got — `trigger` is still resolved on a best-effort basis (for
+        a produce that wants it without narrowing `reacts_to`), but never a
+        reason to skip the call, since there's no per-type contract to hold
+        it to.
+
+        `p.reacts_to` set: exact type equality against `event.artifact_type`
+        (same convention as `Trigger.artifact_type`, not `issubclass` — that
+        one's a `Context.list_artifacts()` convention for querying by base
+        type). For a CREATED/UPDATED/STALE event, also requires
+        `context.get(event.artifact_id)` to still resolve — the artifact may
+        have been deleted by another agent earlier in the same generation
+        (the same race `Trigger.matches()` documents) — so `reacts_to`, once
+        set, guarantees `call.trigger` is always a live, correctly-typed
+        artifact. A DELETED event is exempt from that liveness requirement:
+        `context.get(...)` correctly returning `None` *is* the event there,
+        not a race, so the produce still runs with `trigger=None` —
+        deletion-reacting code is expected to handle that itself.
+        """
+        if event is None:
+            return (p.reacts_to is None), None
+        if p.reacts_to is not None and event.artifact_type not in p.reacts_to:
+            return False, None
+        trigger = context.get(event.artifact_id)
+        if (
+            p.reacts_to is not None
+            and trigger is None
+            and event.type is not EventType.ARTIFACT_DELETED
+        ):
+            return False, None
+        return True, trigger
 
 
 def create_agent(
@@ -166,7 +228,10 @@ def create_agent(
     )
     ```
 
-    Falls back to `name` defaults the same way as `Agent.__init__`.
+    Falls back to `name` defaults the same way as `Agent.__init__`. Pass
+    `triggers` only for the rare imperative style with no `consumes` at all
+    (see `Agent.triggers`'s own docstring) — the ordinary declarative case
+    should leave it unset and use `Consume(..., wakes=False)` instead.
     """
     agent = Agent(
         name=name, triggers=triggers if triggers is not None else [], priority=priority

@@ -62,9 +62,8 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..events import Event
 from ..interrupt import PendingQuestion
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 TaskT = TypeVar("TaskT", bound=BaseModel)
@@ -160,11 +159,10 @@ class _RouteProduce(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.task_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        request = context.get(event.artifact_id) if event is not None else None
+        request = call.trigger
         if request is None or not isinstance(request.data, owner.request_type):
             return None
         task_id = f"task:{request.id}"
@@ -186,11 +184,10 @@ class _ApprovalProduce(Produce[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(
-        self, context: Context, inputs: list[Artifact[Any]], event: Event | None = None
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         owner = self.owner
-        artifact = context.get(event.artifact_id) if event is not None else None
+        artifact = call.trigger
         if artifact is None:
             return None
         thread_id = owner._thread_id_of(artifact)

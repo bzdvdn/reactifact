@@ -8,6 +8,7 @@ from reactifact import (
     Context,
     PendingQuestion,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
     tool,
@@ -97,8 +98,8 @@ def test_single_agent_loop_and_report():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -162,8 +163,8 @@ def test_deferred_tool_group_loads_on_demand_once():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -209,9 +210,9 @@ def test_two_agents_do_not_crossfire():
     class BuildK8sReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call: ProduceCall):
             invoked["k8s_report"] += 1
-            a = context.get(event.artifact_id) if event is not None else None
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -219,9 +220,9 @@ def test_two_agents_do_not_crossfire():
     class BuildGitlabReport(Produce[GitlabReport]):
         artifact_type = GitlabReport
 
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call: ProduceCall):
             invoked["gitlab_report"] += 1
-            a = context.get(event.artifact_id) if event is not None else None
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(GitlabReport(text=a.data.text))
@@ -291,8 +292,8 @@ def test_tool_failure_is_returned_to_llm():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -322,8 +323,8 @@ def test_budget_max_tool_calls_stops_loop():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -352,8 +353,8 @@ def test_unknown_tool_reported_to_llm():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -407,8 +408,8 @@ def test_llm_agent_tools_only_no_produces():
     class RenderFromBaseChat(Produce[ChatReply]):
         artifact_type = ChatReply
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if (
                 a is None
                 or not isinstance(a.data, ToolAnswer)
@@ -445,8 +446,8 @@ def test_forced_answer_when_loop_hits_step_limit():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -476,8 +477,8 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -532,8 +533,8 @@ def test_max_asks_caps_rephrased_clarifications():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -574,8 +575,8 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -618,8 +619,8 @@ def test_hitl_destructive_tool_denied_is_not_executed():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))
@@ -659,8 +660,8 @@ def test_max_approvals_caps_repeated_destructive_calls():
     class BuildReport(Produce[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, context, inputs, event=None):
-            a = context.get(event.artifact_id) if event is not None else None
+        async def produce(self, call: ProduceCall):
+            a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             self.effects.create(K8sReport(text=a.data.text))

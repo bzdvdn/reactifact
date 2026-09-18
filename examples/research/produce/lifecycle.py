@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Context, Produce, ProduceCall
 from reactifact.recipes import StatusMachine
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -59,13 +59,9 @@ class BuildAnswer(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[ResearchTurn]],
-        event: Event | None = None,
-    ) -> None:
-        turn = turn_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        turn = turn_of(context, call.event)
         if turn is None or turn.status != "answerable":
             return None
         query_id = turn.query_id

@@ -31,7 +31,7 @@ from .effects import Effects, Handle
 from .events import Event, EventType
 from .interrupt import PendingQuestion
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
-from .produce import Produce, produce
+from .produce import Produce, ProduceCall, produce
 from .providers import (
     EmbeddingProvider,
     FakeEmbedder,
@@ -72,6 +72,7 @@ __all__ = [
     "Patch",
     "PendingQuestion",
     "Produce",
+    "ProduceCall",
     "Relation",
     "RunOutcome",
     "RunStats",

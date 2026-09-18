@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 from reactifact.tool_use import ToolAnswer
 
 from ..models import AnsibleReport, GitlabReport, K8sReport
@@ -22,16 +20,11 @@ class _ReportBuilder(Produce[BaseModel]):
 
     report_type: type[BaseModel] = BaseModel
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        a = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        a = call.trigger
         if a is None or not isinstance(a.data, ToolAnswer):
             return None
-        problem = context.get(a.data.query_id)
+        problem = call.context.get(a.data.query_id)
         qid = getattr(problem.data, "query_id", "") if problem else ""
         self.effects.create(self.report_type(query_id=qid, text=a.data.text))
         return None

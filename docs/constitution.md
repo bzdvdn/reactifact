@@ -185,7 +185,7 @@ Example:
 
 ```python
 class Researcher(Produce[Evidence]):
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
         self.effects.create(Evidence(...))
         self.effects.update(task_id, status="researching")
         return None   # nothing applied until the runtime compiles the effects
@@ -579,7 +579,7 @@ Minimal conceptual interface:
 
 ```python
 class Agent:
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
         ...
 ```
 
@@ -2520,21 +2520,21 @@ contracts that drive the scheduler:
 class Researcher(Produce[Evidence]):
     artifact_type = Evidence
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
         ...  # writes self.effects.create/update/link/ask, returns None
 
 
 class Verifier(Produce[VerifiedClaim]):
     artifact_type = VerifiedClaim
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
         ...
 
 
 class Answerer(Produce[Answer]):
     artifact_type = Answer
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
         ...
 
 
@@ -3081,16 +3081,16 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 # Appendix — Implementation Status
 
 State of the public `reactifact` codebase, aligned with this constitution (ver 0.3).
-Verification: 494 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ruff clean.
+Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
 | Context / Artifact / Patch / Revision (git-like) | §4, §12, §14 | implemented (create/update/delete/link, history, diff, checkout, snapshot); `Context` composes a `RelationGraph` and a `CommitLog` internally (extracted for testability, no API change) |
 | Relations & provenance edges | §15, §33-§34, §36 | implemented (`Link`, `derived_from`, `supported_by`, `contradicted_by`) |
-| Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`) |
+| Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
 | Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
 | GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
-| Agent contract (Produce / Consume containers) | §10-§13, §63 | implemented |
+| Agent contract (Produce / Consume containers) | §10-§13, §63 | implemented; `Consume(wakes=False)` reads a type as input without waking on it (the declarative alternative to a hand-synced `Agent.triggers=` override); `Consume(debounce=True)` collapses several same-generation events into one run, costing one against `Budget(max_runs=...)`; `reactifact.consume.CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across two artifact types by a shared key (join / absence-gate) instead of one type's own matching instances alone |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
@@ -3100,7 +3100,7 @@ Verification: 494 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
 | Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
-| Produce authoring — Effects (§24) | §12, §24 | implemented — `self.effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function) — `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
+| Produce authoring — Effects (§24) | §12, §24 | implemented — `self.effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function), both taking exactly one argument, `call: ProduceCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects` — replaced the earlier individually-recognized `(context, inputs, event=None)`/by-name-sniffed parameters, one discoverable object instead of a growing parameter list); `.trigger` (the artifact behind `.event`) is a guaranteed non-`None` live artifact when the produce also declares `reacts_to=(Type, …)` — which itself restricts *which* triggering event a produce runs on, for an agent whose several produces don't all care about the same one; `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |

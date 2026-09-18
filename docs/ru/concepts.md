@@ -67,7 +67,7 @@ class Evidence(BaseModel):
 транспорт.
 
 ```python
-async def produce(self, context, inputs, event=None):
+async def produce(self, call: ProduceCall) -> None:
     answer = self.effects.create(Answer(query_id=qid, text=text), id="answer:q1")
     answer.link("supported_by", evidence_id)
     self.effects.update(some_artifact, status="answered")
@@ -107,9 +107,19 @@ class RepairFlow(Agent):
     ]
 ```
 
-- `consumes` — типы артефактов, которые будят агента.
+- `consumes` — типы артефактов, которые будят агента (и питают его входы —
+  `Consume(..., wakes=False)` читает тип как вход, не будя на нём агента;
+  `Consume(..., debounce=True)` схлопывает несколько событий одного
+  поколения в один запуск). `reactifact.consume.JoinConsume`/`AbsentConsume`
+  коррелируют по общему ключу сразу два типа артефактов, а не только один —
+  см. [patterns](patterns.md).
 - `produces` — экземпляры `Produce`, которые могут выполниться, когда агент
-  проснулся.
+  проснулся. `Produce(reacts_to=(Type, …))` ограничивает produce только теми
+  триггерящими событиями, которые ему реально важны, когда несколько produce
+  одного агента хотят не одного и того же события; produce, объявивший ещё
+  и необязательный параметр `trigger`, получает резолвленный артефакт
+  напрямую вместо сырого `event` — гарантированно не `None` для
+  CREATED/UPDATED/STALE события — см. [patterns](patterns.md).
 - Runtime будит агентов по событиям, соблюдая бюджет и параллельность.
 
 У `Agent` есть и низкоуровневый `run(event, context) -> Patch | None`,
@@ -131,11 +141,16 @@ class RepairFlow(Agent):
 class EstimateStage(Produce[Project]):
     artifact_type = Project
 
-    async def produce(self, context, inputs, event=None) -> None:
+    async def produce(self, call: ProduceCall) -> None:
         ...
         self.effects.update(project_art, stage="estimate")
         return None
 ```
+
+`produce()` всегда принимает ровно один аргумент, `call` — `ProduceCall` с
+`.context`/`.inputs`/`.event`/`.trigger`/`.effects`. Про `.trigger`
+(резолвленный артефакт за `.event`, гарантированно не `None` вместе с
+`reacts_to`) — см. [patterns](patterns.md).
 
 `fan_out_sources` / `materialize_doc` (рецепты) тоже пишут в текущий слот
 эффектов, а HITL — это `effects.ask(...)` (артефакт `PendingQuestion`, §60).
@@ -176,6 +191,8 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
   артефакта (§43-44) получает новую версию — подписка явная:
   `Consume(Type, event_types=[EventType.ARTIFACT_STALE])`.
 - **`Trigger`** — вторичное условие входа для produce (периодический или таймерый
-  запуск), независимое от потребляемых артефактов.
+  запуск), независимое от потребляемых артефактов. `context_condition` —
+  форма с двумя артефактами (нужна для join/корреляции); `debounce` — флаг,
+  который читает `Runtime`, чтобы схлопнуть повторные события в один запуск.
 - **`Session` / `SessionStore`** — долговременная рабочая память чата между
   запросами, поверх KV-чекпойнта (файл или SQLite).

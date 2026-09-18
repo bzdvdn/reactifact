@@ -28,7 +28,7 @@ In many frameworks a unit of work *returns* its change (a tool call, a message,
 a dict) and some orchestrator applies it. reactifact inverts authoring (§24):
 
 ```python
-async def produce(self, context, inputs, event=None) -> None:
+async def produce(self, call: ProduceCall) -> None:
     evidence = self.effects.create(Evidence(...), id="evidence:q1")
     answer = self.effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)

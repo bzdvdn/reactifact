@@ -19,11 +19,10 @@ from typing import Any
 from pydantic import BaseModel
 from reactifact import (
     Agent,
-    Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -102,12 +101,8 @@ Rewrite the draft addressing the feedback; keep it concise."""
 class DraftIt(Produce[Draft]):
     artifact_type = Draft
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         topic = next((t for t in context.list_artifacts(Topic)), None)
         if topic is None:
             return None
@@ -128,12 +123,8 @@ class DraftIt(Produce[Draft]):
 class Critic(Produce[Review]):
     artifact_type = Review
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         topic = next((t for t in context.list_artifacts(Topic)), None)
         draft = next((d for d in context.list_artifacts(Draft)), None)
         if topic is None or draft is None or draft.data.status != "draft":
@@ -162,12 +153,8 @@ class Critic(Produce[Review]):
 class Rewrite(Produce[Draft]):
     artifact_type = Draft
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         draft = next((d for d in context.list_artifacts(Draft)), None)
         review = next((r for r in context.list_artifacts(Review)), None)
         topic = next((t for t in context.list_artifacts(Topic)), None)
@@ -194,12 +181,8 @@ class Rewrite(Produce[Draft]):
 class Finalize(Produce[Final]):
     artifact_type = Final
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         draft = next((d for d in context.list_artifacts(Draft)), None)
         if draft is None:
             return None

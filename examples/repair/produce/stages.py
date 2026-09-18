@@ -14,9 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from reactifact import Context, Produce
+from reactifact import Context, Produce, ProduceCall
 from reactifact.artifacts import Artifact
-from reactifact.events import Event
 from reactifact.recipes import changed_fields
 from reactifact.structured import llm_reply
 
@@ -58,12 +57,8 @@ def _reply(
 class CollectStage(Produce[Project]):
     """Extracts facts; once all the required ones are present — designs and design_choice."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if project_art is None:
             self.effects.create(Project())
@@ -135,12 +130,8 @@ class CollectStage(Produce[Project]):
 class PickStage(Produce[Project]):
     """Parses the user's choice → plan."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "design_choice":
             return None
@@ -176,12 +167,8 @@ class PickStage(Produce[Project]):
 class PlanStage(Produce[Project]):
     """Plan (LLM + geometry) → estimate."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if (
             project_art is None
@@ -198,12 +185,8 @@ class PlanStage(Produce[Project]):
 class EstimateStage(Produce[Project]):
     """Estimate — deterministically, via the catalog (no LLM) → final_approval."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "estimate":
             return None
@@ -223,12 +206,8 @@ class EstimateStage(Produce[Project]):
 class ApprovalStage(Produce[Project]):
     """HITL gate (§60): immediately asks the approval question; the answer → assistant or a rebuild."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "final_approval":
             return None
@@ -301,12 +280,8 @@ class AssistantStage(Produce[Project]):
 
     artifact_type = Project
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "assistant":
             return None

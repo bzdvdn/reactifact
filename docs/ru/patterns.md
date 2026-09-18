@@ -170,8 +170,9 @@ body = await structured_llm(context, schema=AnswerBody, user=text, on_error=aler
 class Planner(Produce[PlanStep]):
     artifact_type = PlanStep
 
-    async def produce(self, context, inputs, event=None):
-        goal = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        goal = call.trigger
         if goal is None or context.list_artifacts(PlanStep):
             return None  # не Goal, либо план уже построен (§42)
         steps = await plan_steps(goal.data.text)  # structured LLM или фолбэк
@@ -182,7 +183,8 @@ class Planner(Produce[PlanStep]):
 class Executor(Produce[StepResult]):
     artifact_type = StepResult
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
         for step in steps:
             if context.get(f"result:{step.id}") is not None:
@@ -205,6 +207,167 @@ None` — это и есть весь механизм упорядочиван�
 
 Полный порт — в `examples/plan_execute` (структурированное планирование с
 детерминированным однотаговым фолбэком и финишером).
+
+## Корреляция между типами артефактов
+
+`Consume.condition` видит только один артефакт своего же типа — заглянуть в
+экземпляр *другого* типа, чтобы решить, срабатывать ли, он не может. Реальные
+случаи, которым это нужно («существуют `Report` и отвеченный `PendingQuestion`
+для одного треда», «для этого треда ещё не заведён `HelpdeskTicket`»), раньше
+приходилось ручками зашивать *внутрь* `produce()` — ровно ту логику, которую
+`consumes` и придуман убирать оттуда. `reactifact.consume.CorrelatedConsume`
+(и две его фабрики под частные случаи) возвращает это на объявление класса:
+
+```python
+from reactifact.consume import AbsentConsume, JoinConsume
+
+class ApprovalGate(Agent):
+    consumes = [
+        JoinConsume(
+            Report, PendingQuestion,
+            key=lambda d: d.thread_id,
+            part_conditions={PendingQuestion: lambda d: d.answered},
+        ),
+    ]
+    produces = [RecordApproval()]
+
+class TicketGate(Agent):
+    consumes = [
+        AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
+    ]
+    produces = [FileTicket()]
+```
+
+`JoinConsume(*parts, key=...)` срабатывает, когда для одного ключа существуют
+все перечисленные типы; `AbsentConsume(type, absent_type=..., key=...)`
+срабатывает для `type`, только если для того же ключа ещё нет
+`absent_type`. Обе — тонкие фабрики над `CorrelatedConsume(require=...,
+forbid=...)` — берите `CorrelatedConsume` напрямую, когда нужно и то, и
+другое сразу (требуемое присутствует **и** запрещённое отсутствует), что ни
+одна из фабрик по отдельности не выразит без вложения одной в другую.
+`produce()` читает `inputs` так же, как читал бы смешанный список от
+нескольких обычных `Consume` — без `isinstance`-сканирования внутри тела.
+
+## Реакция только на одно из нескольких событий
+
+Агент с несколькими `consumes` и несколькими `produces` по умолчанию
+запускает *каждый* produce на *каждое* подходящее событие —
+`Agent.execute()` не знает, какой из `Consume` агента волнует конкретный
+produce. Без `reacts_to` каждый produce вынужден сам себя гардить:
+
+```python
+async def produce(self, call: ProduceCall) -> None:
+    if call.event is None or not isinstance(call.trigger.data, ResolvedDocuments):
+        return None
+    ...
+```
+
+Вместо этого объявите `reacts_to = (TheType,)` на `Produce`, и
+`Agent.execute()` вообще не вызовет `produce()` для события, которое не
+подходит ни под один тип из `reacts_to`:
+
+```python
+class FinalizeWithDocuments(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (ResolvedDocuments,)
+    ...
+
+class DirectFinalize(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (DecisionReply,)
+    ...
+
+class FinalAgent(Agent):
+    consumes = [Consume(ResolvedDocuments), Consume.by_field(DecisionReply, "route_action", "final")]
+    produces = [FinalizeWithDocuments(), DirectFinalize()]
+```
+
+Это ровно тот случай, который не даёт переиспользовать `artifact_type` для
+обоих направлений: два produce здесь делят один тип результата
+(`DraftAnswer`), но реагируют на два разных входящих события. `None` (по
+умолчанию) остаётся неограниченным — любой существующий `Produce` без
+`reacts_to` работает как прежде.
+
+Раз `reacts_to` уже ограничивает, на какое событие запускается produce,
+резолв артефакта этого события (`call.trigger`) — настоящая гарантия, а не
+удобство "на удачу", и именно она убирает гард целиком, а не только
+проверку типа:
+
+```python
+class FinalizeWithDocuments(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (ResolvedDocuments,)
+
+    async def produce(self, call: ProduceCall) -> None:
+        self.effects.create(
+            DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
+        )
+```
+
+Для CREATED/UPDATED/STALE события `Agent.execute()` вообще не вызывает
+`produce()`, если `context.get(event.artifact_id)` больше не резолвится —
+артефакт был удалён другим агентом раньше в том же поколении (та самая
+гонка, которую уже документирует `Trigger.matches()`) — так что
+`call.trigger` никогда не будет `None`, когда этот produce реально
+запустился, и телу не нужен вообще никакой гард. Единственное исключение —
+DELETED-событие для собственного типа `reacts_to` produce: там
+`context.get(...)` корректно возвращает `None` — это и есть событие, а не
+гонка, — так что produce всё равно запускается, но с `call.trigger`, равным
+`None`; такое стоит обработать самостоятельно, если реагируете на удаления.
+Без `reacts_to` `call.trigger` по-прежнему резолвится и передаётся, когда
+`call.event` не `None`, но чисто как удобство — тут нет типового контракта,
+который нужно соблюдать, поэтому это никогда не гейтит вызов.
+
+Но это не повод делать `reacts_to` обязательным: некоторые паттерны выше
+(`Combine`, `Finisher`, `Executor` из plan-execute) намеренно реагируют
+единообразно сразу на несколько потребляемых типов — заставлять их
+объявлять `reacts_to` было бы ритуалом, а не явностью. `call.event` также
+по-прежнему несёт `artifact_id`/`artifact_type` после DELETED-события, когда
+`call.trigger` неизбежно не может (данных уже нет) — оставляйте `call.event`,
+если вам нужно знать, *что именно* удалено, а не просто факт удаления.
+
+## Чтение входа без пробуждения на нём
+
+`Consume(..., wakes=False)` по-прежнему питает `_collect_inputs()`, но
+никогда не попадает в `Agent.triggers` — «читай это как вход, но не буди
+меня на этом». Повторяющийся случай: агент, который должен запускаться при
+поступлении `Question`, но которому также нужна `ConversationHistory` как
+вход — без перезапуска на каждый артефакт истории:
+
+```python
+consumes = [
+    Consume(Question),
+    Consume(ConversationHistory, wakes=False),
+]
+```
+
+До `wakes` единственным способом отделить «что меня будит» от «что я читаю»
+был отдельный оверрайд `triggers=` у `Agent`, который приходилось вручную
+синхронизировать с `consumes`. `triggers=` по-прежнему нужен для
+*императивного* стиля (подкласс `Agent`, переопределяющий `run()` напрямую,
+вообще без `consumes`) — там просто нет `Consume`, к которому можно было бы
+привязать условие.
+
+## Дебаунс fan-out
+
+Шаг fan-out, создающий несколько артефактов одного типа в одном коммите
+(пять `Evidence` из одного шага поиска), порождает по одному событию на
+каждый. Агент, подписанный на этот тип, по умолчанию запускается на каждое
+событие — пять раз на один батч. `Consume(..., debounce=True)` схлопывает
+события одного поколения для этого `Consume` в один запуск:
+
+```python
+consumes = [Consume(Evidence, debounce=True)]
+```
+
+Единственный запуск читает `inputs` (собранные заново из `Context`), а не
+`event` — это как раз та информация «что именно изменилось», которую
+дебаунс отбрасывает, так что дебаунсящий produce не должен опираться на
+`event` ни для чего, кроме факта «что-то изменилось». Дебаунс завязан на
+конкретный `Consume`, а не на весь агент: агент со смесью дебаунсящих и
+обычных `Consume` схлопывает события только для дебаунсящего типа.
+Схлопнутый запуск также корректно стоит **один** пункт бюджета
+`Budget(max_runs=...)`, а не по одному на каждое схлопнутое событие.
 
 ## Фолбэки: честная деградация
 

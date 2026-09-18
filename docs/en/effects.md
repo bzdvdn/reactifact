@@ -8,7 +8,7 @@ produce:
 > almost never build a `Patch` yourself — it is the runtime's transport.**
 
 ```python
-async def produce(self, context, inputs, event=None) -> None:
+async def produce(self, call: ProduceCall) -> None:
     if <guard>:                     # eligibility is a decision of the state
         return None
     # effects: the produce's "diff, expressed"
@@ -20,6 +20,11 @@ async def produce(self, context, inputs, event=None) -> None:
     self.effects.ask("Approve the estimate?", kind="approval")   # HITL (§60)
     return None
 ```
+
+`call` (a `ProduceCall`) is the one argument every produce receives —
+`.context`/`.inputs`/`.event`/`.trigger`/`.effects` (the last one identical to
+`self.effects` above; useful for the function form below, which has no
+`self`).
 
 ## Idempotency sugar: `create_once` and `upsert`
 
@@ -83,27 +88,28 @@ If you find yourself writing `Patch()` inside a produce — stop and use
 
 ## The function form (`@produce`) — same authoring surface
 
-A decorator produce receives the same effects slot — name a parameter `effects`
-and the runtime passes it in, exactly like `self.effects` in a class produce:
+A decorator produce receives the same `call.effects` — one argument, `call`,
+exactly like the class form above:
 
 ```python
 from reactifact import produce
 
 @produce(Answer)
-async def answer_turn(context, inputs, event, effects):
-    if not inputs:
+async def answer_turn(call):
+    if not call.inputs:
         return None
-    qid = inputs[0].id
-    ans = effects.create(Answer(text=...), id=f"answer:{qid}")
-    effects.link(ans, "derived_from", inputs[0])
-    effects.update(turn, status="answered")
+    qid = call.inputs[0].id
+    ans = call.effects.create(Answer(text=...), id=f"answer:{qid}")
+    call.effects.link(ans, "derived_from", call.inputs[0])
+    call.effects.update(turn, status="answered")
     return None
 ```
 
-Declared parameters are recognized **by name** after `(context, inputs)`: an
-`event` and/or `effects` parameter is filled automatically. The return-based
-contract still works: returning a model / list of models / `Patch` / `None`
-is compiled by the runtime, so short produces stay one-liners.
+The return-based contract still works: returning a model / list of models /
+`Patch` / `None` is compiled by the runtime, so short produces stay
+one-liners — `def f(call): return Answer(...)` reads `call.context`/
+`call.inputs`/`call.trigger` for whatever it needs and returns the result
+instead of writing `call.effects.create(...)` itself.
 
 ## Which style to reach for
 

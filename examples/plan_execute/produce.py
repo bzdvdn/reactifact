@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Produce, ProduceCall
 from reactifact.structured import structured_llm
 
 from .models import FinalAnswer, Goal, PlanBody, PlanStep, StepResult, _Text
@@ -12,17 +10,16 @@ from .prompts import EXECUTE, FINISH, MAX_STEPS, PLAN, fallback_plan
 
 
 class Planner(Produce[PlanStep]):
+    # Flow also consumes PlanStep/StepResult — reacts_to keeps Planner from
+    # re-running on those, instead of an `isinstance(goal.data, Goal)` guard;
+    # `trigger` gets the resolved Goal directly, guaranteed non-None.
     artifact_type = PlanStep
+    reacts_to = (Goal,)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        goal = context.get(event.artifact_id) if event is not None else None
-        if goal is None or not isinstance(goal.data, Goal):
-            return None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        goal = call.trigger
+        assert goal is not None
         if context.list_artifacts(PlanStep):
             return None  # already planned (§42)
         body = await structured_llm(
@@ -52,12 +49,8 @@ class Executor(Produce[StepResult]):
 
     artifact_type = StepResult
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
         for step in steps:
             if context.get(f"result:{step.id}") is not None:
@@ -104,12 +97,8 @@ class Executor(Produce[StepResult]):
 class Finisher(Produce[FinalAnswer]):
     artifact_type = FinalAnswer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         if context.list_artifacts(FinalAnswer):
             return None
         steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)

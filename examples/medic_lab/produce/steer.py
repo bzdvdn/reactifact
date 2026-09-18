@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Context, Produce, ProduceCall
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -72,13 +72,9 @@ class Steer(Produce[PendingQuestion]):
 
     artifact_type = PendingQuestion
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question_id = question_id_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question_id = question_id_of(context, call.event)
         if question_id is None:
             return None
         question = context.get(question_id)
@@ -112,13 +108,9 @@ class Deepen(Produce[PendingQuestion]):
 
     artifact_type = PendingQuestion
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[PendingQuestion]],
-        event: Event | None = None,
-    ) -> None:
-        q_art = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        q_art = call.trigger
         if q_art is None or not isinstance(q_art.data, PendingQuestion):
             return None
         q = q_art.data
@@ -186,13 +178,9 @@ class Reporter(Produce[ResearchReport]):
 
     artifact_type = ResearchReport
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        question_id = question_id_of(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question_id = question_id_of(context, call.event)
         if question_id is None:
             return None
         if context.list_artifacts(ResearchReport):

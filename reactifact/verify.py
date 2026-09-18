@@ -25,13 +25,13 @@ override for itself — set once, applies to every `Verify` in a `Runtime`:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from .context import Context
 from .eval import MetricFn, core_metrics
-from .produce import Produce
+from .produce import Produce, ProduceCall
 
 #: Used when neither the agent nor `RuntimeResources.verification_threshold` sets one.
 DEFAULT_THRESHOLD = 0.7
@@ -108,13 +108,9 @@ class Verify(Produce[VerificationResult]):
         configured = context.resources.verification_threshold
         return configured if configured is not None else DEFAULT_THRESHOLD
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Any],
-        event: Any = None,
-    ) -> None:
-        answer = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        answer = call.trigger
         if answer is None or type(answer.data).__name__ != self.answer_type:
             return None
 

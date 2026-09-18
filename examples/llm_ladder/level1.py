@@ -26,8 +26,8 @@ from reactifact import (
     Artifact,
     Consume,
     Context,
-    Event,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -81,13 +81,9 @@ class Answerer(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Question]],
-        event: Event | None = None,
-    ) -> None:
-        question = find(inputs, Question)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        question = find(call.inputs, Question)
         if question is None:
             return None
         qid = question.id

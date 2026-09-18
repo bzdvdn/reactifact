@@ -20,11 +20,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from .artifacts import Artifact
 from .context import Context
 from .events import Event
 from .interrupt import PendingQuestion
-from .produce import Produce
+from .produce import Produce, ProduceCall
 from .structured import structured_llm
 from .tools import Tool
 
@@ -187,13 +186,9 @@ class ToolUse(_ToolLoopBase):
         self.max_steps = max_steps
         self.deferred_tool_groups = list(deferred_tool_groups)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        artifact = call.trigger
         if artifact is None or isinstance(artifact.data, ToolAnswer):
             return None  # final answer is handled by user produces
         goal = getattr(artifact.data, "text", "") or ""
@@ -414,12 +409,9 @@ class ToolUseHITL(_ToolLoopBase):
         # App callback: human answer → status message (kind="status").
         self.resume_announce = resume_announce
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        event = call.event
         resolved = self._resolve(context, event)
         if resolved is None:
             return None
@@ -446,7 +438,7 @@ class ToolUseHITL(_ToolLoopBase):
             return None
 
         if kind == "resume_approve":
-            question = context.get(event.artifact_id) if event is not None else None
+            question = call.trigger
             notes = question.data.notes if question is not None else {}
             tool_id = notes.get("tool_id", "")
             args = notes.get("args", {})

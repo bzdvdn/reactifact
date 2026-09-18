@@ -14,18 +14,23 @@ Two implementations ship here: `DefaultContextBuilder` (no-op — today's
 "every matching artifact, unranked" behavior) and `TokenBudgetContextBuilder`
 (rank candidates, keep a prefix that fits a token budget).
 
-Known limitation (not solved here): `build()` sees the *combined* candidate
-list across every `Consume` an agent declares, not each `Consume` separately.
-A high-volume type (e.g. many `Evidence`) can starve out a low-volume one
-(e.g. the single triggering `Question`) under a tight budget if the
-low-volume artifact ranks lower (e.g. it's older). If that bites, pass a
-`rank_key` that accounts for it, or budget per `Consume` with several
-smaller agents instead of one broad one.
+Known limitation: `build()` sees the *combined* candidate list across every
+`Consume` an agent declares, not each `Consume` separately. A high-volume
+type (e.g. many `Evidence`) can starve out a low-volume one (e.g. the single
+triggering `Question`) under a tight budget if the low-volume artifact ranks
+lower (e.g. it's older). Two cases of that are solved directly:
 
-One specific case of that limitation *is* solved: an agent often consumes
-one real content type (`Evidence`) plus a marker type it only needs for
-triggering (a completion/wake-up artifact with little or no meaningful
-text) — see `TokenBudgetContextBuilder`'s `exempt_types`.
+- A marker type with no real content (a completion/wake-up artifact an
+  agent only consumes to trigger, not to reason over) — `exempt_types`
+  costs it nothing and never lets it eat the "at least one" content slot.
+- A real-content type that must survive the budget regardless of rank (the
+  triggering `Question` itself, a pinned system fact) — `min_keep` reserves
+  its top-ranked instances *before* the shared greedy fill runs, so a
+  high-volume type sharing the same budget can't crowd it out.
+
+Not solved: two *costed* types competing for the same budget with neither
+guaranteed — that's still a `rank_key` tuning problem, or a case for
+splitting into several smaller agents each with their own budget.
 """
 
 from __future__ import annotations
@@ -119,6 +124,18 @@ class TokenBudgetContextBuilder(ContextBuilder):
     (real) candidate. Exempt artifacts are still ranked and still kept
     (still wake the agent up); they just never count toward `max_tokens` or
     toward what counts as "at least one" content item.
+
+    `min_keep`: `{type: count}` — for a type with real content that must
+    still survive the budget regardless of rank (unlike `exempt_types`, it
+    *does* count toward `max_tokens`), guarantees its top-`count`-ranked
+    instances a reserved slice of the budget, filled before the shared
+    greedy pass runs over everything else. Without this, a low-volume type
+    that happens to rank lower than a high-volume one sharing the same
+    budget (e.g. the single triggering `Question`, if older than a pile of
+    freshly-ranked `Evidence`) can be crowded out entirely — `min_keep`
+    reserves its slot first instead of leaving it to rank order. The final
+    list is still returned in overall rank order, not with reserved items
+    forced to the front.
     """
 
     def __init__(
@@ -129,12 +146,14 @@ class TokenBudgetContextBuilder(ContextBuilder):
         rank_key: Callable[[Artifact[Any]], Any] | None = None,
         render: Callable[[Artifact[Any]], str] | None = None,
         exempt_types: tuple[type, ...] = (),
+        min_keep: dict[type, int] | None = None,
     ):
         self.max_tokens = max_tokens
         self.token_counter = token_counter or HeuristicTokenCounter()
         self.rank_key = rank_key or (lambda a: a.updated_at)
         self.render = render or _default_render
         self.exempt_types = exempt_types
+        self.min_keep = dict(min_keep or {})
 
     def build(
         self, context: Context, agent: Agent, candidates: list[Artifact[Any]]
@@ -142,16 +161,42 @@ class TokenBudgetContextBuilder(ContextBuilder):
         ranked = sorted(candidates, key=self.rank_key, reverse=True)
         if self.max_tokens is None:
             return ranked
-        kept: list[Artifact[Any]] = []
+
+        quota = dict(self.min_keep)
+        reserved_ids: set[str] = set()
+        for artifact in ranked:
+            remaining = quota.get(type(artifact.data), 0)
+            if remaining > 0:
+                reserved_ids.add(artifact.id)
+                quota[type(artifact.data)] = remaining - 1
+
+        kept_ids: set[str] = set()
         used = 0
         kept_content = False
+
+        # Reserved candidates are costed and kept first, in rank order,
+        # before the shared greedy fill sees anything else — that's what
+        # keeps a high-volume type from crowding them out.
         for artifact in ranked:
+            if artifact.id not in reserved_ids:
+                continue
+            exempt = type(artifact.data) in self.exempt_types
+            cost = 0 if exempt else self.token_counter.count(self.render(artifact))
+            kept_ids.add(artifact.id)
+            used += cost
+            if not exempt:
+                kept_content = True
+
+        for artifact in ranked:
+            if artifact.id in kept_ids:
+                continue
             exempt = type(artifact.data) in self.exempt_types
             cost = 0 if exempt else self.token_counter.count(self.render(artifact))
             if kept_content and used + cost > self.max_tokens:
                 break
-            kept.append(artifact)
+            kept_ids.add(artifact.id)
             used += cost
             if not exempt:
                 kept_content = True
-        return kept
+
+        return [a for a in ranked if a.id in kept_ids]

@@ -20,8 +20,8 @@ class A(BaseModel):
     text: str
 
 
-async def make_answer(context, inputs, event, effects):
-    effects.create(A(text="answer"))
+async def make_answer(call):
+    call.effects.create(A(text="answer"))
     return None
 
 
@@ -127,7 +127,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
         text: str
         session_id: str = ""
 
-    async def _m(ctx, inputs, event, effects):
+    async def _m(call):
         return None
 
     agent = create_agent("a", consumes=[Consume(_Q)], produces=[produce(_Q)(_m)])
@@ -148,7 +148,7 @@ def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     from reactifact import Agent, Produce
 
     class Boom(Produce[A]):
-        async def produce(self, context, inputs, event=None):
+        async def produce(self, call):
             raise RuntimeError("boom inside the agent")
 
     class BoomAgent(Agent):

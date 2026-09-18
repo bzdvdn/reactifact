@@ -43,10 +43,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..artifacts import Artifact
-from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 IdentityT = TypeVar("IdentityT", bound=BaseModel)
 
@@ -79,12 +76,7 @@ class SeedIdentity(Produce[IdentityT], Generic[IdentityT]):
         self._extract = extract
         self._fallback = fallback
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
         raw = self._identity_var.get()
         identity: IdentityT | None
         if raw is not None and self._extract is not None:

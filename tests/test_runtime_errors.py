@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Produce, Runtime
+from reactifact import Agent, Consume, Context, Patch, Produce, ProduceCall, Runtime
 
 
 class Trigger(BaseModel):
@@ -13,7 +13,7 @@ class Trigger(BaseModel):
 class Explode(Produce[Trigger]):
     artifact_type = Trigger
 
-    async def produce(self, context, inputs, event=None) -> Patch | None:
+    async def produce(self, call: ProduceCall) -> Patch | None:
         raise RuntimeError("boom inside the agent")
 
 
@@ -58,8 +58,8 @@ class Ok(BaseModel):
 class Survive(Produce[Ok]):
     artifact_type = Ok
 
-    async def produce(self, context, inputs, event=None):
-        if context.get("ok") is not None:
+    async def produce(self, call: ProduceCall):
+        if call.context.get("ok") is not None:
             return None
         self.effects.create(Ok(), id="ok")
         return None

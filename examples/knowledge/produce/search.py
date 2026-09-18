@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Event, Produce
+from reactifact import Artifact, Context, Produce, ProduceCall
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 
@@ -19,13 +19,9 @@ class ScoutSources(Produce[SourceRef]):
 
     artifact_type = SourceRef
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[ResearchTurn]],
-        event: Event | None = None,
-    ) -> None:
-        turn_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        turn_artifact = call.trigger
         if turn_artifact is None or not isinstance(turn_artifact.data, ResearchTurn):
             return None
         turn = turn_artifact.data
@@ -62,13 +58,9 @@ class ResolveRef(Produce[TypedDoc]):
 
     artifact_type = TypedDoc
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[SourceRef]],
-        event: Event | None = None,
-    ) -> None:
-        ref_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        ref_artifact = call.trigger
         if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
             return None
         ref = ref_artifact.data
@@ -105,13 +97,9 @@ class ResolveTable(Produce[Spreadsheet]):
 
     artifact_type = Spreadsheet
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[SourceRef]],
-        event: Event | None = None,
-    ) -> None:
-        ref_artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        ref_artifact = call.trigger
         if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
             return None
         ref = ref_artifact.data

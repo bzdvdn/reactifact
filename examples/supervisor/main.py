@@ -14,17 +14,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
-
 from pydantic import BaseModel
 from reactifact import (
     Agent,
-    Artifact,
     Consume,
     Context,
-    Event,
     PendingQuestion,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -101,17 +98,17 @@ def _route_of(text: str) -> str:
 
 
 class RouteTask(Produce[Task]):
+    # Flow also consumes Task/SpecialistReport/PendingQuestion — reacts_to
+    # keeps this produce to just the Request event it cares about, instead
+    # of an `isinstance(request.data, Request)` guard in the body; `trigger`
+    # gets the resolved Request directly, guaranteed non-None.
     artifact_type = Task
+    reacts_to = (Request,)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        request = context.get(event.artifact_id) if event is not None else None
-        if request is None or not isinstance(request.data, Request):
-            return None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        request = call.trigger
+        assert request is not None
         if context.get(f"task:{request.id}") is not None:
             return None
         body = await structured_llm(
@@ -134,16 +131,12 @@ class RouteTask(Produce[Task]):
 
 class Specialist(Produce[SpecialistReport]):
     artifact_type = SpecialistReport
+    reacts_to = (Task,)
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        task = context.get(event.artifact_id) if event is not None else None
-        if task is None or not isinstance(task.data, Task):
-            return None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        task = call.trigger
+        assert task is not None
         request = context.get(task.data.thread)
         user_text = request.data.text if request is not None else task.data.thread
         body = await structured_llm(
@@ -170,12 +163,8 @@ class Supervisor(Produce[FinalReply]):
 
     artifact_type = FinalReply
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         report = next((r for r in context.list_artifacts(SpecialistReport)), None)
         if report is None or context.list_artifacts(FinalReply):
             return None

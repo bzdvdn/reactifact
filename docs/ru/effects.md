@@ -8,7 +8,7 @@ produce:
 > никогда не нужно собирать `Patch` самому — это транспорт рантайма.**
 
 ```python
-async def produce(self, context, inputs, event=None) -> None:
+async def produce(self, call: ProduceCall) -> None:
     if <guard>:                     # право на запуск — решение состояния
         return None
     # эффекты: «дифф, выраженный как намерение»
@@ -20,6 +20,11 @@ async def produce(self, context, inputs, event=None) -> None:
     self.effects.ask("Утвердить смету?", kind="approval")   # HITL (§60)
     return None
 ```
+
+`call` (`ProduceCall`) — единственный аргумент, который получает любой
+produce: `.context`/`.inputs`/`.event`/`.trigger`/`.effects` (последнее — то
+же самое, что `self.effects` выше; пригодится для функциональной формы ниже,
+у которой нет `self`).
 
 ## Идемпотентность: `create_once` и `upsert`
 
@@ -82,28 +87,28 @@ guard → решить → описать (self.effects) → return None
 
 ## Функция-форма `@produce` — тот же авторский слой
 
-Декоратор-производящая получает тот же слот эффектов: назовите параметр
-`effects` — рантайм передаст его в функцию, ровно как `self.effects` в
-класс-форме:
+Декоратор-produce получает тот же `call.effects` — один аргумент, `call`,
+ровно как в класс-форме выше:
 
 ```python
 from reactifact import produce
 
 @produce(Answer)
-async def answer_turn(context, inputs, event, effects):
-    if not inputs:
+async def answer_turn(call):
+    if not call.inputs:
         return None
-    qid = inputs[0].id
-    ans = effects.create(Answer(text=...), id=f"answer:{qid}")
-    effects.link(ans, "derived_from", inputs[0])
-    effects.update(turn, status="answered")
+    qid = call.inputs[0].id
+    ans = call.effects.create(Answer(text=...), id=f"answer:{qid}")
+    call.effects.link(ans, "derived_from", call.inputs[0])
+    call.effects.update(turn, status="answered")
     return None
 ```
 
-Параметры после `(context, inputs)` распознаются **по имени**: `event` и/или
-`effects` заполняются автоматически. Return-контракт сохраняется: возврат
-модели / списка моделей / `Patch` / `None` компилируется рантаймом, так что
-короткие produce остаются однострочными.
+Return-контракт сохраняется: возврат модели / списка моделей / `Patch` /
+`None` компилируется рантаймом, так что короткие produce остаются
+однострочными — `def f(call): return Answer(...)` читает
+`call.context`/`call.inputs`/`call.trigger`, что нужно, и возвращает
+результат вместо явного `call.effects.create(...)`.
 
 ## Какой стиль выбрать
 

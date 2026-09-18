@@ -9,8 +9,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..events import Event
-from ..produce import Produce
+from ..produce import Produce, ProduceCall
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 
@@ -48,13 +47,9 @@ class StatusMachine(Produce[StatusT], Generic[StatusT]):
     ) -> None:
         """Hook called right before a transition (progress announces, §53)."""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        artifact = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        artifact = call.trigger
         if artifact is None:
             return None
         key = self.owner_key(artifact)

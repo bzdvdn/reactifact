@@ -3,9 +3,7 @@ budget), and the final grounded Answer."""
 
 from __future__ import annotations
 
-from typing import Any
-
-from reactifact import Agent, Artifact, Consume, Context, Event, Produce
+from reactifact import Agent, Consume, Produce, ProduceCall
 from reactifact.agent_tool import AgentAsTool
 from reactifact.tool_use import ToolAnswer
 from reactifact.tools import Tool
@@ -26,13 +24,8 @@ class K8sInvestigator(Produce[Evidence]):
 
     artifact_type = Evidence
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        task = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        task = call.trigger
         if task is None or not isinstance(task.data, InvestigationTask):
             return None
         if task.data.target != "k8s":
@@ -60,13 +53,8 @@ class DBInvestigator(Produce[Evidence]):
         self.ask_dba = ask_dba
         super().__init__()
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        task = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        task = call.trigger
         if task is None or not isinstance(task.data, InvestigationTask):
             return None
         if task.data.target != "db":
@@ -103,13 +91,8 @@ class SynthesizeRootCause(Produce[RootCauseHypothesis]):
 
     artifact_type = RootCauseHypothesis
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        evidence = [i for i in inputs if isinstance(i.data, Evidence)]
+    async def produce(self, call: ProduceCall) -> None:
+        evidence = [i for i in call.inputs if isinstance(i.data, Evidence)]
         if not evidence:
             return None
         query_id = evidence[0].data.query_id
@@ -130,23 +113,19 @@ class BuildAnswer(Produce[Answer]):
 
     artifact_type = Answer
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        tool_answer = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        tool_answer = call.trigger
         if tool_answer is None or not isinstance(tool_answer.data, ToolAnswer):
             return None
         # Commander's `qid` (`tool_answer.data.query_id`) is the id of
         # whatever triggered it — `InvestigationComplete`, not the incident
         # itself; resolve back to the shared `incident_id` Evidence is
         # actually tagged with (§ InvestigationComplete docstring).
-        trigger = context.get(tool_answer.data.query_id)
+        source = context.get(tool_answer.data.query_id)
         incident_id = (
-            trigger.data.incident_id
-            if trigger is not None and isinstance(trigger.data, InvestigationComplete)
+            source.data.incident_id
+            if source is not None and isinstance(source.data, InvestigationComplete)
             else tool_answer.data.query_id
         )
         evidence = [

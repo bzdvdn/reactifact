@@ -169,8 +169,9 @@ execution into two produces instead of one big tool loop:
 class Planner(Produce[PlanStep]):
     artifact_type = PlanStep
 
-    async def produce(self, context, inputs, event=None):
-        goal = context.get(event.artifact_id) if event is not None else None
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        goal = call.trigger
         if goal is None or context.list_artifacts(PlanStep):
             return None  # not a Goal, or already planned (§42)
         steps = await plan_steps(goal.data.text)  # structured LLM, or a fallback
@@ -181,7 +182,8 @@ class Planner(Produce[PlanStep]):
 class Executor(Produce[StepResult]):
     artifact_type = StepResult
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
         for step in steps:
             if context.get(f"result:{step.id}") is not None:
@@ -203,6 +205,166 @@ until every step has a result, then synthesize the final answer.
 
 See `examples/plan_execute` for the full port (structured planning with a
 deterministic single-step fallback, and the finisher).
+
+## Correlating across artifact types
+
+`Consume.condition` only ever sees the single artifact matched by its own
+type — it can't look at a *different* type's instance to decide whether to
+fire. The real cases that need that ("a `Report` and its answered
+`PendingQuestion` exist for the same thread", "no `HelpdeskTicket` has been
+filed for this thread yet") used to get hand-rolled *inside* `produce()`,
+exactly the guard logic `consumes` exists to keep out of there.
+`reactifact.consume.CorrelatedConsume` (and its two single-purpose factories)
+puts that back where it belongs — on the class declaration:
+
+```python
+from reactifact.consume import AbsentConsume, JoinConsume
+
+class ApprovalGate(Agent):
+    consumes = [
+        JoinConsume(
+            Report, PendingQuestion,
+            key=lambda d: d.thread_id,
+            part_conditions={PendingQuestion: lambda d: d.answered},
+        ),
+    ]
+    produces = [RecordApproval()]
+
+class TicketGate(Agent):
+    consumes = [
+        AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
+    ]
+    produces = [FileTicket()]
+```
+
+`JoinConsume(*parts, key=...)` fires once every listed type exists for the
+same key; `AbsentConsume(type, absent_type=..., key=...)` fires for `type`
+only where no matching `absent_type` exists yet for the same key. Both are
+thin factories over `CorrelatedConsume(require=..., forbid=...)` — reach for
+`CorrelatedConsume` directly when a case needs *both* at once (required
+present **and** forbidden absent), which neither factory alone can express
+without nesting one inside the other. `produce()` reads `inputs` the same
+way it would read a mixed list from several ordinary `Consume`s — no
+`isinstance`/scan guard needed inside the body.
+
+## Reacting to only one of several triggers
+
+An agent with several `consumes` and several `produces` runs *every*
+produce on *every* matching event by default — `Agent.execute()` has no idea
+which of an agent's `Consume`s a given produce actually cares about. Without
+`reacts_to`, every produce ends up guarding itself by hand:
+
+```python
+async def produce(self, call: ProduceCall) -> None:
+    if call.event is None or not isinstance(call.trigger.data, ResolvedDocuments):
+        return None
+    ...
+```
+
+Declare `reacts_to = (TheType,)` on the `Produce` instead and
+`Agent.execute()` skips calling `produce()` at all for an event none of
+`reacts_to` matches:
+
+```python
+class FinalizeWithDocuments(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (ResolvedDocuments,)
+    ...
+
+class DirectFinalize(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (DecisionReply,)
+    ...
+
+class FinalAgent(Agent):
+    consumes = [Consume(ResolvedDocuments), Consume.by_field(DecisionReply, "route_action", "final")]
+    produces = [FinalizeWithDocuments(), DirectFinalize()]
+```
+
+This is exactly the shape that rules out reusing `artifact_type` for both
+directions: two produces here share one output type (`DraftAnswer`) but
+react to two different upstream events. `None` (the default) stays
+unrestricted — every existing `Produce` without `reacts_to` is unaffected.
+
+Once `reacts_to` narrows *which* event runs a produce, resolving that event's
+own artifact (`call.trigger`) is a real guarantee, not best-effort
+convenience — this is what actually removes the guard body entirely, not
+just the type check:
+
+```python
+class FinalizeWithDocuments(Produce[DraftAnswer]):
+    artifact_type = DraftAnswer
+    reacts_to = (ResolvedDocuments,)
+
+    async def produce(self, call: ProduceCall) -> None:
+        self.effects.create(
+            DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
+        )
+```
+
+For a CREATED/UPDATED/STALE event, `Agent.execute()` skips calling
+`produce()` at all if `context.get(event.artifact_id)` no longer resolves —
+the artifact was deleted by another agent earlier in the same generation
+(the race `Trigger.matches()` already documents) — so `call.trigger` is
+never `None` when this produce actually runs, and the body needs no guard at
+all. A DELETED event on the produce's own `reacts_to` type is the one
+exception: `context.get(...)` correctly returning `None` *is* the event
+there, not a race, so the produce still runs, with `call.trigger` set to
+`None` — handle that yourself if you're reacting to deletions. Without
+`reacts_to`, `call.trigger` is still resolved and passed whenever
+`call.event` isn't `None`, but purely as a convenience — there's no per-type
+contract to enforce, so it never gates the call.
+
+Not a reason to make `reacts_to` mandatory, though: several patterns above
+(`Combine`, `Finisher`, the plan-execute `Executor`) genuinely react
+uniformly across several consumed types by design — forcing a `reacts_to`
+declaration on them would be ceremony, not explicitness. `call.event` also
+still carries `artifact_id`/`artifact_type` after a DELETED event, when
+`call.trigger` necessarily can't (the data is gone) — keep `call.event`
+around for anything that needs to know *what* was deleted, not just that
+something was.
+
+## Reading input without waking up on it
+
+`Consume(..., wakes=False)` still feeds `_collect_inputs()` but never
+contributes to `Agent.triggers` — "read this as input, don't wake up on
+it." The recurring case: an agent that should run when a `Question` arrives
+but also wants `ConversationHistory` as input, without re-running once per
+history artifact:
+
+```python
+consumes = [
+    Consume(Question),
+    Consume(ConversationHistory, wakes=False),
+]
+```
+
+Before `wakes`, the only way to decouple "what wakes me" from "what I read"
+was `Agent`'s separate `triggers=` override, kept in sync with `consumes` by
+hand. `triggers=` is still the right tool for the *imperative* style (an
+`Agent` subclass overriding `run()` directly, with no `consumes` at all) —
+there's no `Consume` there to attach a condition to.
+
+## Debouncing fan-out
+
+A fan-out step that creates several artifacts of one type in a single commit
+(five `Evidence` from one search step) fires one event per artifact. An
+agent consuming that type by default runs once per event — five times for
+one batch. `Consume(..., debounce=True)` collapses same-generation events
+for that `Consume` into a single run:
+
+```python
+consumes = [Consume(Evidence, debounce=True)]
+```
+
+The single run reads `inputs` (collected fresh from `Context`), not
+`event` — that's exactly the "which one changed" information debouncing
+discards, so a debounced produce should never key off `event` for anything
+beyond "something changed." Debouncing is scoped to the `Consume` it's set
+on, not the whole agent: an agent with a mix of debounced and
+non-debounced `Consume`s only collapses the debounced type's events. A
+debounced run also correctly costs **one** against `Budget(max_runs=...)`,
+not one per collapsed event.
 
 ## Fallbacks: honest degradation
 

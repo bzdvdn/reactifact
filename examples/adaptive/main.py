@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
@@ -37,6 +36,7 @@ from reactifact import (
     Event,
     PendingQuestion,
     Produce,
+    ProduceCall,
     Runtime,
     RuntimeResources,
 )
@@ -122,13 +122,9 @@ def _metric(context: Context, agent: Agent, event: Event) -> float:
 class _MakeSummary(Produce[Summary]):
     by = ""
 
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
-        task_art = _task_art(context, event)
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
+        task_art = _task_art(context, call.event)
         if task_art is None:
             return None
         task_id = task_art.id
@@ -187,12 +183,8 @@ def _pick_best(context: Context) -> str:
 
 
 class Decide(Produce[Final]):
-    async def produce(
-        self,
-        context: Context,
-        inputs: list[Artifact[Any]],
-        event: Event | None = None,
-    ) -> None:
+    async def produce(self, call: ProduceCall) -> None:
+        context = call.context
         summaries = context.list_artifacts(Summary)
         if len(summaries) < 1 or context.list_artifacts(Final):
             return None

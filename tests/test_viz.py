@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Produce, RuntimeResources
+from reactifact import Agent, Consume, Context, Patch, Produce, ProduceCall, RuntimeResources
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
     AgentSpan,
@@ -35,7 +35,7 @@ class Turn(BaseModel):
 class Echo(Produce[Answer]):
     artifact_type = Answer
 
-    async def produce(self, context, inputs, event=None):
+    async def produce(self, call: ProduceCall):
         return Patch().create(Answer(text="echo"))
 
 

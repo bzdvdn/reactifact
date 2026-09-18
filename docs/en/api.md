@@ -55,9 +55,12 @@ the stable contract, not a moving target.
 | --- | --- |
 | `Agent` | thin container: `name`, `consumes`, `produces`, `concurrency_limit` |
 | `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
-| `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events |
-| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)) |
-| `Trigger` | secondary (non-artifact) enter condition for a produce |
+| `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
+| `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
+| `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
+| `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
+| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set |
+| `Trigger` | secondary (non-artifact) enter condition for a produce; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
