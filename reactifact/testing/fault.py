@@ -119,7 +119,11 @@ def _iter_tool_lists(resources: RuntimeResources | None) -> Iterator[list[Tool]]
     if resources is None:
         return
     for value in resources.additional.values():
-        if isinstance(value, list) and value and all(hasattr(t, "execute") for t in value):
+        if (
+            isinstance(value, list)
+            and value
+            and all(hasattr(t, "execute") for t in value)
+        ):
             yield value
 
 
@@ -197,7 +201,9 @@ class FaultInstaller:
             seen.add(id(tools_list))
             for index, tool in enumerate(list(tools_list)):
                 self._originals.append((tools_list, index, tool))
-                tools_list[index] = _wrap(tool, self._faults.get(tool.name), self._recorder)
+                tools_list[index] = _wrap(
+                    tool, self._faults.get(tool.name), self._recorder
+                )
         return self
 
     def __exit__(self, *exc: object) -> None:

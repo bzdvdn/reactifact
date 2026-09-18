@@ -5,7 +5,7 @@ from __future__ import annotations
 from reactifact import Produce, ProduceCall
 from reactifact.structured import structured_llm
 
-from ..models import AnswerBody, ChatReply, ResearchTurn, UserQuery
+from ..models import AnswerBody, ChatReply, ResearchTurn
 from .common import GREETING_RE, GREETING_TEXT, RESEARCH_RE, user_query
 
 

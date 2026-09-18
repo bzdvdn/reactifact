@@ -13,7 +13,6 @@ from ..models import (
     ResearchTurn,
     SearchDone,
     TypedDoc,
-    UserQuery,
 )
 from .common import SCOUT_LIMIT, turn_of, user_query
 

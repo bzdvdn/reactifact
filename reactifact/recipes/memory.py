@@ -182,7 +182,9 @@ class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         message_type: type[MsgT] | Sequence[type[MsgT]],
         artifact_type: type[SummaryT],
         *,
-        summarize: Callable[[Context, str, list[Artifact[MsgT]]], Awaitable[str | None]],
+        summarize: Callable[
+            [Context, str, list[Artifact[MsgT]]], Awaitable[str | None]
+        ],
         build: Callable[[str], SummaryT],
         window: int = 8,
         trigger: int = 12,

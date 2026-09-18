@@ -86,7 +86,9 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
         artifact_type = SourceRef
 
         async def produce(self, call: ProduceCall):
-            await fan_out_sources(call.context, "prevents colds", owner_id="q1", limit=1)
+            await fan_out_sources(
+                call.context, "prevents colds", owner_id="q1", limit=1
+            )
             return None
 
     class Resolver(Produce[Doc]):
@@ -104,7 +106,9 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
                     content=content,
                 )
 
-            await materialize_doc(call.context, ref_art, factory, relation="resolved_from")
+            await materialize_doc(
+                call.context, ref_art, factory, relation="resolved_from"
+            )
             return None
 
     class Engine(Agent):
@@ -288,7 +292,9 @@ def test_seed_identity_extracts_from_a_richer_envelope():
 
     from reactifact.recipes import SeedIdentity
 
-    identity_var: ContextVar[RequestIdentity | None] = ContextVar("identity", default=None)
+    identity_var: ContextVar[RequestIdentity | None] = ContextVar(
+        "identity", default=None
+    )
 
     class IdentityAgent(Agent):
         consumes = [Consume(Question)]
@@ -303,7 +309,9 @@ def test_seed_identity_extracts_from_a_richer_envelope():
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[IdentityAgent()])
-    token = identity_var.set(RequestIdentity(session_id="s1", user=UserContext(uid="bob")))
+    token = identity_var.set(
+        RequestIdentity(session_id="s1", user=UserContext(uid="bob"))
+    )
     try:
         ctx.create(Question(text="hi"))
         asyncio.run(runtime.arun())

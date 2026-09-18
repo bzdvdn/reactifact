@@ -158,7 +158,9 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             runs, trigger = self._resolve_produce_call(p, event, context)
             if not runs:
                 continue
-            call = ProduceCall(context=context, inputs=inputs, event=event, trigger=trigger)
+            call = ProduceCall(
+                context=context, inputs=inputs, event=event, trigger=trigger
+            )
             await p.produce(call)
         return None
 

@@ -11,7 +11,15 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Patch, Produce, ProduceCall, RuntimeResources, tool
+from reactifact import (
+    Agent,
+    Consume,
+    Patch,
+    Produce,
+    ProduceCall,
+    RuntimeResources,
+    tool,
+)
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioLab
 from reactifact.tool_use import ToolAnswer, ToolUse
@@ -112,7 +120,9 @@ def test_events_not_contains_and_kind_filtering():
     result.events.not_contains("Deciding next action", kind="status")  # wrong kind
     assert result.events.count(kind="agent") >= 1
     assert result.events.count(kind="nonexistent-kind") == 0
-    assert all(e.kind == "agent" for e in result.events.all() if "Deciding" in e.message)
+    assert all(
+        e.kind == "agent" for e in result.events.all() if "Deciding" in e.message
+    )
 
 
 def test_fresh_context_per_run_does_not_leak_state():

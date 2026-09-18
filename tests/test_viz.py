@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Produce, ProduceCall, RuntimeResources
+from reactifact import (
+    Agent,
+    Consume,
+    Context,
+    Patch,
+    Produce,
+    ProduceCall,
+    RuntimeResources,
+)
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
     AgentSpan,

@@ -194,8 +194,12 @@ def test_session_save_policy_per_commit_is_the_default(tmp_path):
 
 
 async def _test_session_save_policy_per_commit_is_the_default(tmp_path):
-    session, _store, calls = await _make_counting_session(tmp_path, "erin", "per_commit")
-    runtime = Runtime(session.context, agents=[SimpleAnswerer(), Echo()], session=session)
+    session, _store, calls = await _make_counting_session(
+        tmp_path, "erin", "per_commit"
+    )
+    runtime = Runtime(
+        session.context, agents=[SimpleAnswerer(), Echo()], session=session
+    )
 
     session.context.create(Question(text="hi"))
     await runtime.arun()
@@ -205,10 +209,14 @@ async def _test_session_save_policy_per_commit_is_the_default(tmp_path):
 
 
 def test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path):
-    asyncio.run(_test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path))
+    asyncio.run(
+        _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path)
+    )
 
 
-async def _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path):
+async def _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(
+    tmp_path,
+):
     session, store, calls = await _make_counting_session(tmp_path, "dave", "per_turn")
     runtime = Runtime(
         session.context,

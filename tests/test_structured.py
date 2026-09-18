@@ -370,9 +370,7 @@ def test_chat_complete_full_exposes_finish_reason_that_chat_complete_discards():
             yield LLMResponse(text="")  # pragma: no cover
 
     ctx = Context(resources=RuntimeResources(llm=TruncatingLLM()))
-    response = asyncio.run(
-        chat_complete_full(ctx, [{"role": "user", "content": "hi"}])
-    )
+    response = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
 
     assert response is not None
     assert response.text == "cut off mid-sen"

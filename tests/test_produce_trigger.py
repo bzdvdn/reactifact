@@ -34,7 +34,9 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
     async def produce(self, call):
         trigger = call.trigger
         assert trigger is not None
-        self.effects.create(DraftAnswer(query_id=trigger.data.query_id, source="documents"))
+        self.effects.create(
+            DraftAnswer(query_id=trigger.data.query_id, source="documents")
+        )
 
 
 class TwoTypeReactor(Produce[DraftAnswer]):
