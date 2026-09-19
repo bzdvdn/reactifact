@@ -42,7 +42,8 @@ from .providers import (
     LLMResponseChunk,
     Message,
 )
-from .resources import RuntimeResources
+from .request import current_request
+from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import Runtime
 from .session import Session, SessionStore
 from .tools import FunctionTool, Tool, ToolOutput, tool
@@ -74,6 +75,8 @@ __all__ = [
     "Produce",
     "ProduceCall",
     "Relation",
+    "ResourceKey",
+    "ResourceScope",
     "RunOutcome",
     "RunStats",
     "Runtime",
@@ -92,6 +95,7 @@ __all__ = [
     "View",
     "consume",
     "create_agent",
+    "current_request",
     "produce",
     "tool",
 ]

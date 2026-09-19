@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import inspect
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, overload
 
 from .providers import EmbeddingProvider, LLMProvider
 from .sources import Source
@@ -9,6 +12,30 @@ if TYPE_CHECKING:
     from .budget import Budget
     from .context_builder import ContextBuilder
     from .redaction import Redactor
+
+T = TypeVar("T")
+
+
+class ResourceKey(Generic[T]):
+    """A typed key for registering a resource when the *type* isn't a good key.
+
+    `register(MyStore, store)` keys by `MyStore`, which is all most apps need.
+    Use a `ResourceKey` when you have two of the same type (two `Store`s, a
+    primary and a replica) or want an app-specific handle:
+
+        PRIMARY = ResourceKey[Store]("primary")
+        resources.register(PRIMARY, store)
+        ...
+        store = resources.require(PRIMARY)
+    """
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"ResourceKey({self.name!r})"
 
 
 class RuntimeResources:
@@ -41,6 +68,12 @@ class RuntimeResources:
         # provenance (`Runtime._collect_reads`) and the agent's actual
         # produce inputs go through the same builder call and stay in sync.
         self.context_builder = context_builder
+        # Typed resources: app collaborators (a knowledge store, decision
+        # tools, a settings object) registered against their type or a
+        # `ResourceKey`, so a produce reads `resources.require(Store)` and gets
+        # `Store` — no `or None`, no duck-typing, no error surfacing three calls
+        # later. `additional` stays as the string-keyed escape hatch.
+        self._typed: dict[Any, Any] = {}
         self.additional = additional
         # Set by Runtime per turn (not a constructor param — the runtime, not
         # the caller, owns these): the active Budget and its wall-clock
@@ -53,11 +86,55 @@ class RuntimeResources:
     def get_source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)
 
+    # ---- typed resources (#2) --------------------------------------------- #
+
+    def register(self, key: type[T] | ResourceKey[T], instance: T) -> T:
+        """Attaches `instance` under `key` (its type, or a `ResourceKey`).
+
+        Returns the instance, so `store = resources.register(Store, Store(...))`
+        reads as a one-liner. Re-registering a key overwrites it.
+        """
+        self._typed[key] = instance
+        return instance
+
+    @overload
+    def get(self, key: str) -> Any: ...
+    @overload
+    def get(self, key: type[T]) -> T | None: ...
+    @overload
+    def get(self, key: ResourceKey[T]) -> T | None: ...
+    def get(self, key: str | type[T] | ResourceKey[T]) -> Any:
+        """A string key reads `additional`; a type/`ResourceKey` reads typed."""
+        if isinstance(key, str):
+            return self.additional.get(key)
+        return self._typed.get(key)
+
+    def require(self, key: type[T] | ResourceKey[T]) -> T:
+        """Like `get`, but a missing resource is a loud, early `LookupError`.
+
+        Reach for this inside a produce/agent for a resource the app *must*
+        have configured — the failure names the missing type instead of being a
+        `None` that blows up later.
+        """
+        value = self._typed.get(key)
+        if value is None:
+            raise LookupError(
+                f"resource {key!r} is not registered on RuntimeResources; "
+                f"call resources.register({key!r}, ...) when building them"
+            )
+        return cast("T", value)
+
+    def has(self, key: type[T] | ResourceKey[T]) -> bool:
+        """Whether a typed resource is registered (`is_configured`, explicitly)."""
+        return key in self._typed
+
+    @property
+    def registered(self) -> frozenset[Any]:
+        """The keys of every registered typed resource (for diagnostics)."""
+        return frozenset(self._typed)
+
     def set(self, name: str, value: Any) -> None:
         self.additional[name] = value
-
-    def get(self, name: str) -> Any:
-        return self.additional.get(name)
 
     async def aclose(self) -> None:
         """Closes the llm/embedder clients if they support it.
@@ -74,3 +151,44 @@ class RuntimeResources:
             aclose = getattr(provider, "aclose", None)
             if aclose is not None:
                 await aclose()
+
+    @classmethod
+    def scope(
+        cls, factory: Callable[[], RuntimeResources | Awaitable[RuntimeResources]]
+    ) -> ResourceScope:
+        """`async with RuntimeResources.scope(build) as resources:` — see `ResourceScope`."""
+        return ResourceScope(factory)
+
+
+class ResourceScope(AbstractAsyncContextManager["RuntimeResources"]):
+    """Builds `RuntimeResources` on entry and closes them on exit — loop-safe.
+
+    Providers (httpx, a vector DB, …) bind their clients to the event loop they
+    were created on. A resource built once per process and reused across loops
+    — a CLI, or pytest giving each test its own loop — eventually raises
+    `RuntimeError: Event loop is closed`. Build resources *inside* the scope so
+    they live and die with one loop:
+
+        async with RuntimeResources.scope(build_resources) as resources:
+            runtime = Runtime(Context(resources=resources), agents=[...])
+            await runtime.arun(request={"user": "bob"})
+
+    The factory may be sync or async. `resources.aclose()` runs on exit (and on
+    an exception inside the block), so the HTTP clients don't leak.
+    """
+
+    def __init__(
+        self,
+        factory: Callable[[], RuntimeResources | Awaitable[RuntimeResources]],
+    ):
+        self._factory = factory
+        self.resources: RuntimeResources | None = None
+
+    async def __aenter__(self) -> RuntimeResources:
+        built = self._factory()
+        self.resources = await built if inspect.isawaitable(built) else built
+        return self.resources
+
+    async def __aexit__(self, *exc: object) -> None:
+        if self.resources is not None:
+            await self.resources.aclose()

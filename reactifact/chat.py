@@ -18,7 +18,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Callable,
+    Mapping,
+    Sequence,
+)
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -77,6 +83,7 @@ async def run_message(
     create_message: Callable[..., str] | None = None,
     status_kinds: Sequence[str] = ("status",),
     fallback_reply: str = "No reply assembled.",
+    request: Mapping[str, Any] | None = None,
 ) -> AsyncIterator[ChatEvent]:
     """Run one user turn: create the input artifact, stream status events,
     emit the terminal reply.
@@ -120,7 +127,7 @@ async def run_message(
 
     last: str | None = None
     try:
-        async for event in runtime.astream():
+        async for event in runtime.astream(request=request):
             if event.kind not in forwarded:
                 continue
             if event.message == last:
@@ -351,7 +358,13 @@ class ChatAssistant:
             session_save_policy=self._session_save_policy,
         )
 
-    async def stream(self, text: str, session_id: str = "") -> AsyncIterator[ChatEvent]:
+    async def stream(
+        self,
+        text: str,
+        session_id: str = "",
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> AsyncIterator[ChatEvent]:
         """Stream one turn: ``session`` → ``status``… → ``message``.
 
         Never raises for app-level failures: session open / runtime crash /
@@ -398,6 +411,7 @@ class ChatAssistant:
                     status_kinds=self._status_kinds,
                     fallback_reply=self._fallback_reply,
                     session_id=session_id,
+                    request=request,
                 ):
                     yield event
             finally:
@@ -421,10 +435,16 @@ class ChatAssistant:
                             session_id,
                         )
 
-    async def invoke(self, text: str, session_id: str = "") -> dict[str, Any]:
+    async def invoke(
+        self,
+        text: str,
+        session_id: str = "",
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Run one turn and return the terminal reply (aggregated stream)."""
         message: dict[str, Any] = {}
-        async for event in self.stream(text, session_id=session_id):
+        async for event in self.stream(text, session_id=session_id, request=request):
             if event.kind == "message":
                 message = dict(event.payload) or {"reply": self._fallback_reply}
         return message

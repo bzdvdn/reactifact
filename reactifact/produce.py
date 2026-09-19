@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast, get_args, get_origin
 
@@ -101,6 +101,18 @@ class ProduceCall:
                 "not before it."
             )
         return slot
+
+    @property
+    def request(self) -> Mapping[str, Any]:
+        """The active turn's request mapping (`Runtime.arun(request=...)`).
+
+        Empty when no request was passed. Read-only; use it for per-request
+        data (an authenticated user, a tenant id, a correlation id) instead of
+        a hand-rolled `ContextVar` or a `resources`-side dict (§52).
+        """
+        from .request import current_request
+
+        return current_request()
 
 
 class Produce(Generic[TOut]):

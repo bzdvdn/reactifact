@@ -2,8 +2,8 @@ import asyncio
 import logging
 import sys
 import time
-from collections.abc import AsyncIterator, Callable
-from typing import Literal, cast
+from collections.abc import AsyncIterator, Callable, Mapping
+from typing import Any, Literal, cast
 
 from .agents import Agent
 from .budget import Budget, RunOutcome, RunStats
@@ -12,6 +12,7 @@ from .context import Context
 from .effects import Effects, current_effects, reset_effects, set_effects
 from .events import Event
 from .patches import Create, Delete, Link, Patch, Unlink, Update
+from .request import reset_request, set_request
 from .scheduler import Scheduler
 from .session import Session
 from .streaming import ProgressEvent
@@ -174,11 +175,19 @@ class Runtime:
                     f"which is not declared in produces: {[t.__name__ for t in allowed_types]}"
                 )
 
-    async def arun_once(self, budget: Budget | None = None) -> int:
+    async def arun_once(
+        self,
+        budget: Budget | None = None,
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> int:
         self._enter_turn()
+        token = set_request(request) if request is not None else None
         try:
             return await self._arun_once_impl(budget)
         finally:
+            if token is not None:
+                reset_request(token)
             self._exit_turn()
 
     async def _arun_once_impl(self, budget: Budget | None = None) -> int:
@@ -447,11 +456,16 @@ class Runtime:
         self,
         max_iterations: int = 100,
         budget: Budget | None = None,
+        *,
+        request: Mapping[str, Any] | None = None,
     ) -> int:
         self._enter_turn()
+        token = set_request(request) if request is not None else None
         try:
             return await self._arun_impl(max_iterations, budget)
         finally:
+            if token is not None:
+                reset_request(token)
             self._exit_turn()
 
     async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
@@ -491,11 +505,17 @@ class Runtime:
             await self.session.save()
         return total_runs
 
-    def run_once(self) -> int:
-        return asyncio.run(self.arun_once())
+    def run_once(self, *, request: Mapping[str, Any] | None = None) -> int:
+        return asyncio.run(self.arun_once(request=request))
 
-    def run(self, max_iterations: int = 100, budget: Budget | None = None) -> int:
-        return asyncio.run(self.arun(max_iterations, budget))
+    def run(
+        self,
+        max_iterations: int = 100,
+        budget: Budget | None = None,
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> int:
+        return asyncio.run(self.arun(max_iterations, budget, request=request))
 
     def _warn_no_runs(self) -> None:
         if self._no_runs_warned:
@@ -524,6 +544,8 @@ class Runtime:
         self,
         budget: Budget | None = None,
         max_iterations: int = 1000,
+        *,
+        request: Mapping[str, Any] | None = None,
     ) -> AsyncIterator[ProgressEvent]:
         """Stream of a run: run_start → status (agent announces) → run_end.
 
@@ -536,7 +558,11 @@ class Runtime:
 
         async def _runner() -> None:
             try:
-                await self.arun(max_iterations=max_iterations, budget=budget)
+                # request is installed on this task's context; the generation's
+                # child tasks inherit it, so `call.request` works there too.
+                await self.arun(
+                    max_iterations=max_iterations, budget=budget, request=request
+                )
             finally:
                 done.set()
 
