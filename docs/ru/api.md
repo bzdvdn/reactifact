@@ -104,10 +104,10 @@
 | Символ | Роль |
 | --- | --- |
 | `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state` |
-| `ChatEvent` | один транспорт-нейтральный фрейм (`session`/`status`/`message`) |
+| `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
-| `create_chat_router(assistant)` | FastAPI `APIRouter` канонического SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`) — нужен extra `web` |
+| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); схема событий публикуется в OpenAPI `responses` маршрута |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
 
 ## Визуализация (reactifact.viz + python -m reactifact)
@@ -161,8 +161,8 @@
 
 | Символ | Роль |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`), литералы `{{`/`}}` |
-| `MessagesPrompt([(role, template), …])` | рендерит чат-последовательность в `list[Message]` |
+| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`); подставляются **только placeholder'ы-идентификаторы** — литеральный JSON `{"name": …}` / `{}` в промпте остаётся как есть, без экранирования; `.hash` — стабильный sha256 шаблона |
+| `MessagesPrompt([(role, template), …])` | рендерит чат-последовательность в `list[Message]`; `.hash` покрывает все строки |
 
 ## Источники (reactifact.sources)
 

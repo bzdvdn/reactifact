@@ -101,10 +101,10 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state` |
-| `ChatEvent` | one transport-neutral frame (`session`/`status`/`message`) |
+| `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |
-| `create_chat_router(assistant)` | FastAPI `APIRouter` for the canonical SSE contract (`/api/chat/stream`, `/api/runs/{id}`) — needs the `web` extra |
+| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); the event schema is published in the route's OpenAPI `responses` |
 | `reactifact.web.sse(event, data)` | one SSE frame |
 
 ## Visualization (reactifact.viz + python -m reactifact)
@@ -158,8 +158,8 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`), `{{`/`}}` literals |
-| `MessagesPrompt([(role, template), …])` | renders a chat sequence to `list[Message]` |
+| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`); **identifier-shaped placeholders only** — a literal JSON `{"name": …}` / `{}` in the prompt is left verbatim, no escaping; `.hash` is a stable sha256 of the template |
+| `MessagesPrompt([(role, template), …])` | renders a chat sequence to `list[Message]`; `.hash` covers all rows |
 
 ## Sources (reactifact.sources)
 

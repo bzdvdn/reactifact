@@ -91,6 +91,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - `@tool(...)` now has proper overloads, so decorated functions stay typed under
   a strict type checker (`@tool(destructive=True)` no longer reads as an untyped
   decorator).
+- Typed, configurable chat SSE contract. `reactifact.chat.ChatEvent.kind` is now
+  a closed `Literal["session","status","message"]` (the frame schema is
+  introspectable via `ChatEvent.model_json_schema()`), and
+  `create_chat_router` accepts `event_names` (rename kinds on the wire),
+  `forward_kinds` (emit a subset), `payload_shaper` (reshape a frame) and
+  `done_event` (one terminal frame) — so a client with its own vocabulary
+  (`status`/`content`/`done`) is configuration, not a forked router. The event
+  schema and effective names are published in the route's OpenAPI `responses`;
+  defaults are unchanged.
+- `PromptTemplate` now only substitutes **identifier-shaped** `{field}`
+  placeholders and leaves any other brace run verbatim, so a literal JSON
+  example in a prompt (`'Reply with {"name": "..."} for {question}.'`) needs no
+  `{{`/`}}` escaping; typos (`{questoin}`) are still missing-variable
+  `KeyError`s. `PromptTemplate.hash` / `MessagesPrompt.hash` expose a stable
+  sha256 of the template, and `LLMRequest.prompt_hash` is copied onto
+  `LLMCall.prompt_hash` by the tracing `RecordingLLM` (set it via
+  `structured_llm`/`llm_reply`/`chat_complete*`'s `prompt_hash=`), so prompt
+  drift is visible in a trace instead of surfacing as a flaky run.
+- Documented and pinned the chat **cancellation contract**: closing the
+  `ChatAssistant.stream()` generator (a dropped SSE client) cancels the
+  in-flight turn — the `CancelledError` unwinds to `Runtime.astream`'s `finally`
+  and stops the runner task, so abandoned turns don't keep burning tokens. A
+  regression test now covers it.
 
 ## [0.9.1] — 2026-09-18
 
