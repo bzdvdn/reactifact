@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from ..context import Context
     from ..events import Event
     from ..patches import Patch
+    from ..redaction import Redactor
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,21 @@ def _swallow_tracing_error(where: str, exc: BaseException) -> None:
     )
 
 
+def _redact(value: str, redactor: Redactor | None) -> str:
+    """Applies `redactor` to trace text, best-effort.
+
+    Same contract as sinks: a redactor that raises must not abort the run it
+    was only supposed to sanitize — the original text is kept instead.
+    """
+    if redactor is None or not value:
+        return value
+    try:
+        return redactor.redact(value)
+    except Exception as exc:  # noqa: BLE001 — best-effort observability
+        _swallow_tracing_error("redactor.redact", exc)
+        return value
+
+
 def _clip(value: str, limit: int = TRACE_TRUNCATE) -> str:
     if len(value) <= limit:
         return value
@@ -75,11 +91,14 @@ def _message_fields(message: Any) -> tuple[str, Any]:
     return str(getattr(message, "role", "")), getattr(message, "content", None)
 
 
-def _clip_messages(messages: Iterable[Any]) -> list[dict[str, Any]]:
+def _clip_messages(
+    messages: Iterable[Any], redactor: Redactor | None = None
+) -> list[dict[str, Any]]:
     clipped: list[dict[str, Any]] = []
     for message in messages:
         role, content = _message_fields(message)
-        clipped.append({"role": role, "content": _clip(str(content or ""))})
+        text = _clip(str(content or ""))
+        clipped.append({"role": role, "content": _redact(text, redactor)})
     return clipped
 
 
@@ -131,11 +150,13 @@ class RecordingLLM(LLMProvider):
         on_call: Callable[[LLMCall], None],
         agent_of: Callable[[], str],
         provider: str = "",
+        redactor: Redactor | None = None,
     ):
         self._inner = inner
         self._on_call = on_call
         self._agent_of = agent_of
         self._provider = provider or type(inner).__name__
+        self._redactor = redactor
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
         started = time.monotonic()
@@ -181,14 +202,18 @@ class RecordingLLM(LLMProvider):
             agent=self._agent_of(),
             provider=self._provider,
             model=str(getattr(self._inner, "model", "") or ""),
-            messages=_clip_messages(request.messages),
-            response=_clip(response.text) if response is not None else "",
+            messages=_clip_messages(request.messages, self._redactor),
+            response=(
+                _redact(_clip(response.text), self._redactor)
+                if response is not None
+                else ""
+            ),
             prompt_tokens=int(usage.get("prompt_tokens") or usage.get("prompt") or 0),
             completion_tokens=int(
                 usage.get("completion_tokens") or usage.get("completion") or 0
             ),
             latency_ms=round(latency_ms, 1),
-            error=error,
+            error=_redact(error, self._redactor) if error else error,
         )
         self._on_call(call)
 
@@ -249,6 +274,7 @@ class RunTracer:
         self._agent_by_task: dict[asyncio.Task[Any], str] = {}
         self._pending_llm: dict[str, list[LLMCall]] = {}
         self._trace_data_cache: dict[tuple[str, int], str] = {}
+        self._redactor = getattr(context.resources, "redactor", None)
         self.run_id = ""
         self.spans: list[AgentSpan] = []
         if self.tracer is not None and context.resources.llm is not None:
@@ -256,6 +282,7 @@ class RunTracer:
                 context.resources.llm,
                 on_call=self._record_llm,
                 agent_of=self._current_agent_name,
+                redactor=self._redactor,
             )
 
     @property
@@ -299,8 +326,11 @@ class RunTracer:
             key = (artifact_id, version)
             data = self._trace_data_cache.get(key)
             if data is None:
-                data = _clip(
-                    json.dumps(model.model_dump(mode="json"), ensure_ascii=False)
+                data = _redact(
+                    _clip(
+                        json.dumps(model.model_dump(mode="json"), ensure_ascii=False)
+                    ),
+                    self._redactor,
                 )
                 self._trace_data_cache[key] = data
         return ArtifactRef(
@@ -415,7 +445,11 @@ class RunTracer:
                 reads=self.read_refs(reads),
                 latency_ms=latency_ms,
                 llm_calls=self._pending_llm.pop(agent.name, []),
-                error=f"{type(error).__name__}: {error}" if error is not None else None,
+                error=(
+                    _redact(f"{type(error).__name__}: {error}", self._redactor)
+                    if error is not None
+                    else None
+                ),
                 started_at=datetime.now(UTC),
             )
             self.spans.append(span)

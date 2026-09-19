@@ -8,6 +8,7 @@ from .sources import Source
 if TYPE_CHECKING:
     from .budget import Budget
     from .context_builder import ContextBuilder
+    from .redaction import Redactor
 
 
 class RuntimeResources:
@@ -18,11 +19,17 @@ class RuntimeResources:
         sources: dict[str, Source] | None = None,
         context_builder: ContextBuilder | None = None,
         verification_threshold: float | None = None,
+        redactor: Redactor | None = None,
         **additional: Any,
     ):
         self.llm = llm
         self.embedder = embedder
         self.sources = sources or {}
+        # Applied to trace text only (artifact `data`, LLM messages/responses,
+        # errors) before it reaches a sink — never to the live `Context` or a
+        # persisted session. `None` (default) reproduces the pre-hook behavior.
+        # See `reactifact.redaction`.
+        self.redactor = redactor
         # Framework-wide pass/fail cutoff for `Verify` (verify.py): `None`
         # means "use Verify's own DEFAULT_THRESHOLD". A `Verify` instance's
         # own explicit `threshold=` still overrides this per agent.

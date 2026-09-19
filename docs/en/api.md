@@ -13,7 +13,7 @@ the stable contract, not a moving target.
 
 - **Public API = every name in `reactifact.__all__`** (and each submodule's own
   `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`, `reactifact.eval`,
-  `reactifact.quick`, …), which is exactly the set of symbols documented on this page. If it's
+  `reactifact.quick`, `reactifact.redaction`, …), which is exactly the set of symbols documented on this page. If it's
   importable from `reactifact` but not in `__all__`, it's an internal detail with
   no compatibility guarantee — e.g. `reactifact.relations.RelationGraph` and
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
@@ -52,7 +52,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Context` | versioned working state; resources; queries; `latest(Model)`; announce; diff/rollback |
 | `View` | result of a typed join query (`context.view(...)`) |
-| `RuntimeResources` | providers + sources + arbitrary app resources; `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown, nothing does it automatically except `ChatAssistant` for a per-turn callable `resources=` |
+| `RuntimeResources` | providers + sources + arbitrary app resources; `redactor=` scrubs trace text (see `reactifact.redaction`); `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown, nothing does it automatically except `ChatAssistant` for a per-turn callable `resources=` |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
 
 ## Artifacts & changes

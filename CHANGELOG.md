@@ -51,6 +51,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - `keyword_score(fold_plurals=True)` — folds English plurals (`refunds` →
   `refund`, `policies` → `policy`), so a singular query term matches a plural
   in the text. `reactifact.quick.rag` uses it for plain-path sources by default.
+- `reactifact.redaction` — an opt-in `Redactor` hook (`RuntimeResources(
+  redactor=…)`) that scrubs trace text before it reaches a sink: artifact
+  `data`, LLM `messages`/`response`, and span/LLM `error`. It never touches the
+  live `Context` or persisted sessions (masking the working copy would break
+  resume). Ships `RegexRedactor` with conservative defaults (email, US SSN,
+  IBAN, `Bearer` tokens, `sk-…` API keys) plus custom `patterns=`; any object
+  with `redact(text) -> text` satisfies the protocol. `None` (default) is a
+  no-op, so this is non-breaking. A raising redactor is swallowed like a failing
+  sink — it can never abort the run.
 
 ## [0.9.1] — 2026-09-18
 

@@ -127,6 +127,30 @@ usual. When several sinks or tracers are configured, a failing one never
 prevents the others from receiving the trace. Losing observability should never
 mean losing the run it was only supposed to observe.
 
+## Redacting sensitive data
+
+Traces leave the process (SQLite, Postgres, Langfuse, a dashboard, a log
+line); the working `Context` — and, when a session is saved, the resumable
+conversation — does not. Set `redactor=` on `RuntimeResources` to scrub the
+text that *leaves*: artifact `data`, LLM `messages`/`response`, and span/LLM
+`error`. The live state and persisted sessions are deliberately **not**
+redacted — masking the working copy would corrupt a conversation that is
+supposed to resume.
+
+```python
+from reactifact import RuntimeResources
+from reactifact.redaction import RegexRedactor
+
+resources = RuntimeResources(llm=from_env(), redactor=RegexRedactor())
+```
+
+The built-in `RegexRedactor` is conservative on purpose — email, US SSN, IBAN,
+`Bearer` tokens and `sk-…`-style API keys — so it never masks a legitimate
+financial figure; pass `patterns=[(name, regex), …]` for a project's own
+formats (cards, phones, …). Any object with a `redact(text: str) -> str` method
+satisfies the hook, so a PII service drops in without subclassing. `None` (the
+default) leaves traces byte-for-byte as before.
+
 ## Progress events (UI reactivity)
 
 For the animated "Думаю… / Составляю план… / Считаю смету…" lines, `Produce`s

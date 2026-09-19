@@ -14,7 +14,7 @@
 
 - **Публичный API = каждое имя в `reactifact.__all__`** (и в `__all__` каждого
   подмодуля — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
-  `reactifact.eval`, `reactifact.quick`, …) — это ровно тот набор символов, что задокументирован на
+  `reactifact.eval`, `reactifact.quick`, `reactifact.redaction`, …) — это ровно тот набор символов, что задокументирован на
   этой странице. Если что-то импортируется из `reactifact`, но не входит в
   `__all__` — это внутренняя деталь без гарантий совместимости. Например,
   `reactifact.relations.RelationGraph` и `reactifact.commit_log.CommitLog`
@@ -55,7 +55,7 @@
 | --- | --- |
 | `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback |
 | `View` | результат типа-запроса (`context.view(...)`) |
-| `RuntimeResources` | провайдеры + источники + произвольные ресурсы приложения; `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при реальном завершении работы, автоматически это делает только `ChatAssistant` для callable `resources=` на каждый ход |
+| `RuntimeResources` | провайдеры + источники + произвольные ресурсы приложения; `redactor=` вычищает текст трейсов (см. `reactifact.redaction`); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при реальном завершении работы, автоматически это делает только `ChatAssistant` для callable `resources=` на каждый ход |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
 
 ## Артефакты и изменения
