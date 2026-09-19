@@ -37,6 +37,17 @@ async def _cmd_replay(args: argparse.Namespace) -> int:
     )
     for tname, count in sorted(summary["by_type"].items()):
         print(f"  {tname}: {count}")
+    if args.verify is not None or args.hash:
+        from ..audit import context_hash
+
+        digest = context_hash(context)
+        print(f"context sha256: {digest}")
+        if args.verify is not None:
+            if digest == args.verify:
+                print("verified: state matches the expected hash")
+            else:
+                print(f"MISMATCH: expected {args.verify}")
+                return 1
     if args.diagram:
         from ..viz import context_to_mermaid
 
@@ -63,6 +74,15 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "--version", type=int, default=None, help="replay to this commit"
     )
     p_replay.add_argument("--backend", choices=["file", "sqlite"], default="auto")
+    p_replay.add_argument(
+        "--hash", action="store_true", help="print the context's content hash"
+    )
+    p_replay.add_argument(
+        "--verify",
+        default=None,
+        metavar="HASH",
+        help="exit non-zero unless the context hash equals HASH (reproducibility check)",
+    )
     p_replay.add_argument(
         "--diagram", action="store_true", help="also print the provenance graph"
     )
