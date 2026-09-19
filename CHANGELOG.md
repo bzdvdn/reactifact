@@ -4,6 +4,43 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [Unreleased]
+
+### Added
+
+- `reactifact.quick` — a thin on-ramp for the common first tasks, as *sugar
+  over the same primitives* (not a second framework): `agent(system, schema)`
+  (one structured call), `rag(sources)` (retrieval → materialize → answer, with
+  `supported_by`/`materialized_from` provenance), `tools_agent(system, tools)`
+  (blocking `LLMAgent` or, with `human=True`, reactive `HITLLMAgent`), and
+  `chat_agent(agents)` (a configured `ChatAssistant`). Every object exposes the
+  real `.agent`/`.agents` and the run's `.context`, so you graduate to
+  hand-written produces without rewriting anything. Split into a package
+  (`quick.agent`/`quick.rag`/`quick.tools_agent`/`quick.chat` + shared
+  `models`/`_shared`), all re-exported from `reactifact.quick`. Every entry
+  point takes `llm=<LLMProvider>` (default `from_env()`): `agent`/`rag`/
+  `tools_agent` from the start, `chat_agent` now too (it previously only
+  accepted a full `resources=`).
+- `reactifact.quick` accepts your own artifact models. `rag(...)` takes
+  `question_type`/`doc_type`/`answer_type` (defaults `Question`/`Doc`/`Answer`),
+  with `doc_factory(context, ref, content)` / `answer_factory(text, docs)` for
+  models that don't follow the default fields and `doc_text`/`doc_locator` so
+  the prompt and citations know how to read a custom document. `agent(...)` and
+  `tools_agent(...)` take `question_type` too. `QuickRAG` is generic in the
+  answer type, so `await r.ask(...)` returns `TAnswer | None` (e.g.
+  `QuickRAG[MyAnswer]`) with the concrete model preserved statically.
+  Provenance (`supported_by`/`materialized_from`) is unaffected by the model
+  shape.
+- `Effects.create_once_from(source, data)` — idempotent create whose id is
+  derived from another artifact (`f"answer:{question.id}"`), folding the
+  guard+create ritual into one call; `prefix` overrides the default
+  (lowercased model name).
+- `reactifact.checkpoints.InMemoryKVBackend` — dict-backed `KVBackend`, the
+  zero-config session store (tests/notebooks/short-lived scripts).
+- `keyword_score(fold_plurals=True)` — folds English plurals (`refunds` →
+  `refund`, `policies` → `policy`), so a singular query term matches a plural
+  in the text. `reactifact.quick.rag` uses it for plain-path sources by default.
+
 ## [0.9.0] — 2026-09-18
 
 ### Added

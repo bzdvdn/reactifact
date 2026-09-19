@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import sqlite3
 import time
@@ -44,6 +45,34 @@ class KVBackend(ABC):
 
     async def aclose(self) -> None:  # noqa: B027
         """Releases held resources (a pooled connection, ...). No-op by default."""
+
+
+class InMemoryKVBackend(KVBackend):
+    """Dict-backed KV store — no files, no external service.
+
+    The zero-config backend: ideal for tests, notebooks, and short-lived
+    scripts where a session only needs to survive within one process. State
+    is lost on exit (use `FileKVBackend`/`SQLiteKVBackend` to persist). Values
+    are deep-copied on the way in and out so callers can never alias the
+    stored state, matching the serialization boundary the file/SQL backends
+    impose.
+    """
+
+    def __init__(self) -> None:
+        self._data: dict[str, dict[str, Any]] = {}
+
+    async def set(self, key: str, data: dict[str, Any]) -> None:
+        self._data[key] = copy.deepcopy(data)
+
+    async def get(self, key: str) -> dict[str, Any] | None:
+        data = self._data.get(key)
+        return copy.deepcopy(data) if data is not None else None
+
+    async def delete(self, key: str) -> None:
+        self._data.pop(key, None)
+
+    async def keys(self) -> list[str]:
+        return list(self._data)
 
 
 class FileKVBackend(KVBackend):

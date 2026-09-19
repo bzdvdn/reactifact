@@ -147,6 +147,20 @@ _RU_SUFFIXES = (
 )
 
 
+def _fold_plural(term: str) -> str:
+    """Crude English plural fold: `refunds` → `refund`, `policies` → `policy`.
+
+    Deliberately conservative (`status`/`analysis`/`class` are left alone) — it
+    exists only so a plain-English query matches a plural in the text without an
+    embedder or a real stemmer.
+    """
+    if len(term) > 3 and term.endswith("ies"):
+        return term[:-3] + "y"
+    if len(term) > 3 and term.endswith("s") and not term.endswith(("ss", "us", "is")):
+        return term[:-1]
+    return term
+
+
 def stem(word: str) -> str:
     """Truncates common inflectional suffixes of a Russian word.
 
@@ -182,12 +196,16 @@ def keyword_score(
     *,
     stopwords: frozenset[str] = EN_STOPWORDS,
     use_stems: bool = False,
+    fold_plurals: bool = False,
 ) -> float:
     """Coverage of the query terms by the text (0..1), without embedders.
 
     `stopwords` are removed from both sides (English function words by default);
     with `use_stems=True` both sides are stemmed (Russian morphology), so
-    «аутентификация» matches «аутентификацию». Returns 0.0 for an empty query.
+    «аутентификация» matches «аутентификацию». `fold_plurals=True` additionally
+    folds English plurals (`refunds` → `refund`, `policies` → `policy`), so a
+    singular query term matches a plural in the text. Returns 0.0 for an empty
+    query.
     """
     text_terms = set(_tokens(text)) - set(stopwords)
     query_terms = set(_tokens(query)) - set(stopwords)
@@ -196,6 +214,9 @@ def keyword_score(
     if use_stems:
         text_terms = {stem(t) for t in text_terms}
         query_terms = {stem(t) for t in query_terms}
+    if fold_plurals:
+        text_terms = {_fold_plural(t) for t in text_terms}
+        query_terms = {_fold_plural(t) for t in query_terms}
     return sum(1 for term in query_terms if term in text_terms) / len(query_terms)
 
 

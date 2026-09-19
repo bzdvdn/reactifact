@@ -382,6 +382,18 @@ def test_keyword_score_english_ignores_stopwords():
     assert keyword_score(text, "") == 0.0  # empty query → no score
 
 
+def test_keyword_score_folds_english_plurals():
+    from reactifact.recipes import keyword_score
+
+    text = "Refunds are available within 14 days."
+    # without folding, a singular query misses the plural in the text
+    assert keyword_score(text, "refund") == 0.0
+    assert keyword_score(text, "refund", fold_plurals=True) == 1.0
+    # conservative: "status"/"class" are not naively de-pluralized
+    assert keyword_score("status page", "status", fold_plurals=True) == 1.0
+    assert keyword_score("policies apply", "policy", fold_plurals=True) == 1.0
+
+
 def test_keyword_score_russian_stems_match_inflections():
     from reactifact.recipes import keyword_score
 

@@ -125,6 +125,33 @@ class Effects:
             return None
         return self.create(data, id=id)
 
+    def create_once_from(
+        self,
+        source: Artifact[Any] | Handle | str,
+        data: Any,
+        *,
+        prefix: str | None = None,
+    ) -> Handle | None:
+        """Idempotent create whose id is derived from another artifact (§42).
+
+        Folds the single most common way a re-derivable id is built by hand —
+        `f"answer:{question.id}"`, `f"review:{pr.id}"` — into the call, so a
+        produce doesn't have to invent the id string (nor get it subtly wrong
+        between its guard and its `create`):
+
+            answer = self.effects.create_once_from(question, Answer(...))
+            if answer is None:
+                return None  # already answered this question
+
+        `prefix` defaults to the created model's class name, lowercased
+        (`Answer` → `answer:{source_id}`). `source` may be an `Artifact`, an
+        effects `Handle`, or a plain id string. `None` back means an artifact
+        with the derived id already exists — skip, exactly like `create_once`.
+        """
+        source_id = _id_of(source)
+        artifact_id = f"{prefix or type(data).__name__.lower()}:{source_id}"
+        return self.create_once(data, id=artifact_id)
+
     def upsert(self, data: Any, *, id: str) -> Handle:
         """Explicit create-or-refresh: same effect as `create(data, id=id)`.
 
