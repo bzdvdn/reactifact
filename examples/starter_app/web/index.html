@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>reactifact starter app</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+      h1 { font-size: 1.3rem; }
+      .row { display: flex; gap: .5rem; margin: .5rem 0; flex-wrap: wrap; }
+      input, textarea, button { font: inherit; padding: .5rem .6rem; border-radius: 8px; border: 1px solid #8884; }
+      input, textarea { flex: 1; min-width: 12rem; }
+      button { cursor: pointer; }
+      #out, #chatlog { white-space: pre-wrap; background: #8881; border-radius: 8px; padding: .75rem; margin-top: .5rem; min-height: 2.5rem; }
+      .muted { opacity: .7; font-size: .9rem; }
+      .mode { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>reactifact starter app</h1>
+    <p class="muted">
+      Provider: <span id="provider">…</span> ·
+      <a href="/traces">trace dashboard</a>
+    </p>
+
+    <h2>Ask (quick cases)</h2>
+    <div class="row">
+      <input id="question" placeholder="How do refunds work?" value="How do refunds work?" />
+    </div>
+    <div class="row">
+      <button data-mode="rag">rag · retrieval + citations</button>
+      <button data-mode="agent">agent · one structured call</button>
+      <button data-mode="tools">tools · LLM + add()</button>
+    </div>
+    <div id="out" class="muted">Pick a mode.</div>
+
+    <h2>Chat (sessions)</h2>
+    <div class="row">
+      <input id="chatmsg" placeholder="Say something…" />
+      <button id="send">Send</button>
+    </div>
+    <div id="chatlog" class="muted">No messages yet.</div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      fetch("/api/provider").then((r) => r.json()).then((p) => {
+        $("provider").textContent = p.provider || "offline (no key)";
+      });
+
+      async function ask(mode) {
+        $("out").textContent = "…";
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode, question: $("question").value }),
+        });
+        const data = await res.json();
+        const sources = (data.sources || []).length
+          ? "\n\nsources: " + data.sources.join(", ")
+          : "";
+        $("out").textContent = `[${data.mode}] ${data.text}${sources}`;
+      }
+      document.querySelectorAll("button[data-mode]").forEach((b) =>
+        b.addEventListener("click", () => ask(b.dataset.mode))
+      );
+
+      $("send").addEventListener("click", async () => {
+        const message = $("chatmsg").value.trim();
+        if (!message) return;
+        $("chatlog").textContent = "…";
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, session_id: "web" }),
+        });
+        const data = await res.json();
+        $("chatlog").textContent = data.reply;
+      });
+    </script>
+  </body>
+</html>
