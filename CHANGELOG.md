@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Docs
+
+- `docs/en/scheduler-semantics.md` (+ `docs/ru/` mirror) — the execution
+  contract of `Runtime`: the generation loop step by step (drain → match →
+  debounce → order → schedule → budget slice → dispatch → collect → validate →
+  commit), termination/quiescence, ordering and concurrency guarantees, budget
+  and failure semantics, and an explicit list of what is/isn't deterministic and
+  what is deliberately *not* guaranteed. `tests/test_scheduler_semantics.py`
+  pins the load-bearing claims so the doc cannot silently drift from the code.
+  Added to the docs nav as "Execution model".
+
 ### Added
 
 - `reactifact.quick` — a thin on-ramp for the common first tasks, as *sugar

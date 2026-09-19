@@ -92,6 +92,7 @@ nav:
   - Quickstart: en/quickstart.md
   - Comparison: en/comparison.md
   - Concepts: en/concepts.md
+  - Execution model: en/scheduler-semantics.md
   - Core:
       - Effects: en/effects.md
       - Sources: en/sources.md
