@@ -114,6 +114,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   in-flight turn — the `CancelledError` unwinds to `Runtime.astream`'s `finally`
   and stops the runner task, so abandoned turns don't keep burning tokens. A
   regression test now covers it.
+- Typed resources: `RuntimeResources.register(Type, instance)` /
+  `get(Type)` / `require(Type)` / `has(Type)` read a collaborator back by its
+  type instead of a string key + `or None` + duck-typing; `ResourceKey[T]` keys
+  two instances of one type (primary/replica, per-tenant), and `require` raises
+  a loud early `LookupError` instead of a `None` that fails later. String
+  `get`/`set` stay as the `additional` escape hatch.
+- Per-run request context: `Runtime.arun`/`arun_once`/`astream` (and
+  `ChatAssistant.stream`/`invoke`) take `request=Mapping`, installed for the
+  turn and read in produces as `call.request` (or `reactifact.current_request()`)
+  — the first-class replacement for a hand-rolled `ContextVar` or a
+  `resources`-side dict. It propagates to the generation's child tasks and is
+  isolated between concurrent turns.
+- `ResourceScope` / `RuntimeResources.scope(factory)` — an `async with` builder
+  that creates resources on the current event loop and closes them on exit, so
+  loop-bound provider clients (httpx, vector DBs) don't survive into the next
+  loop a CLI or pytest uses (`RuntimeError: Event loop is closed`).
 
 ## [0.9.1] — 2026-09-18
 

@@ -55,7 +55,10 @@
 | --- | --- |
 | `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback |
 | `View` | результат типа-запроса (`context.view(...)`) |
-| `RuntimeResources` | провайдеры + источники + произвольные ресурсы приложения; `redactor=` вычищает текст трейсов (см. `reactifact.redaction`); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при реальном завершении работы, автоматически это делает только `ChatAssistant` для callable `resources=` на каждый ход |
+| `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении |
+| `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
+| `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
+| `current_request()` | request-маппинг активного хода (то же, что `ProduceCall.request`) |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
 
 ## Артефакты и изменения
@@ -92,7 +95,8 @@
 
 | Символ | Роль |
 | --- | --- |
-| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream`; бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69) |
+| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69) |
+| `ProduceCall.request` | request-маппинг хода внутри produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
 | `Budget`, `RunOutcome`, `RunStats` | лимиты запуска и итог/статистика |
 | `Event`, `EventType` | проводной формат «что-то изменилось» — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | канал прогресса/announce, который потребляют web-UI |

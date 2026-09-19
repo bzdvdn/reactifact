@@ -52,7 +52,10 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Context` | versioned working state; resources; queries; `latest(Model)`; announce; diff/rollback |
 | `View` | result of a typed join query (`context.view(...)`) |
-| `RuntimeResources` | providers + sources + arbitrary app resources; `redactor=` scrubs trace text (see `reactifact.redaction`); `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown, nothing does it automatically except `ChatAssistant` for a per-turn callable `resources=` |
+| `RuntimeResources` | providers + sources + app resources; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` for typed collaborators (`ResourceKey[T]` when two of one type); string `get`/`set` stay as the `additional` escape hatch; `redactor=` scrubs trace text; `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown |
+| `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
+| `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
+| `current_request()` | the active turn's request mapping (same as `ProduceCall.request`) |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
 
 ## Artifacts & changes
@@ -89,7 +92,8 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Runtime` | wakes agents on events; `run` / `arun` / `astream`; budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69) |
+| `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69) |
+| `ProduceCall.request` | the turn's request mapping inside a produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
 | `Budget`, `RunOutcome`, `RunStats` | run limits and the final outcome/stats |
 | `Event`, `EventType` | the wire format of "something changed" — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | progress/announce channel consumed by web UIs |
