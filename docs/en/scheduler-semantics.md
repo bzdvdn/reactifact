@@ -172,7 +172,8 @@ bounds a slow one.
   request; they may share `Context.resources`.
 - **Observability** is delegated to `reactifact.tracing.RunTracer`: spans are
   built per generation and the turn's `RunTrace` is delivered once at turn end
-  (`on_turn_end`) — see [Observability](observability.md).
+  (`on_turn_end`). A failing sink or tracer never aborts the run — see
+  [Tracing never fails the run](observability.md#tracing-never-fails-the-run).
 
 ## 8. Determinism: what is and is not guaranteed
 

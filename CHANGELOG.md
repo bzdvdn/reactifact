@@ -4,7 +4,6 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-<<<<<<< HEAD
 ## [Unreleased]
 
 ### Docs
@@ -52,7 +51,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - `keyword_score(fold_plurals=True)` — folds English plurals (`refunds` →
   `refund`, `policies` → `policy`), so a singular query term matches a plural
   in the text. `reactifact.quick.rag` uses it for plain-path sources by default.
-=======
+
 ## [0.9.1] — 2026-09-18
 
 ### Fixed
@@ -65,7 +64,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   and logs the failure, then continues — the business run completes normally.
   `CompositeTracer` and `Tracer` isolate per member/sink, so one failing
   observer never blocks the others from receiving the trace.
->>>>>>> master
 
 ## [0.9.0] — 2026-09-18
 
