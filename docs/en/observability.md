@@ -117,6 +117,16 @@ requires auth.
 - `on_turn_end` is the single delivery point: a new `astream`/`arun` advances the
   run id (a re-run counts as a new run), and each turn's trace is finalized once.
 
+## Tracing never fails the run
+
+Observability is **best-effort by contract**. A sink that is unreachable
+(Langfuse down, Postgres refusing connections), a custom `Tracer` callback that
+raises, or a malformed trace payload is caught, logged as a warning, and
+skipped — the business run completes normally and the next turn is traced as
+usual. When several sinks or tracers are configured, a failing one never
+prevents the others from receiving the trace. Losing observability should never
+mean losing the run it was only supposed to observe.
+
 ## Progress events (UI reactivity)
 
 For the animated "Думаю… / Составляю план… / Считаю смету…" lines, `Produce`s
