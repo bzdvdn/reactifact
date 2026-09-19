@@ -13,7 +13,7 @@ from __future__ import annotations
 import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import Any, overload
 
 from pydantic import BaseModel, Field, create_model
 
@@ -92,6 +92,26 @@ class FunctionTool(Tool):
         if isinstance(result, dict):
             return ToolOutput(data=result)
         return ToolOutput(text=str(result))
+
+
+@overload
+def tool(
+    fn: Callable[..., Any],
+    *,
+    name: str | None = None,
+    destructive: bool = False,
+    description: str | None = None,
+) -> FunctionTool: ...
+
+
+@overload
+def tool(
+    fn: None = None,
+    *,
+    name: str | None = None,
+    destructive: bool = False,
+    description: str | None = None,
+) -> Callable[[Callable[..., Any]], FunctionTool]: ...
 
 
 def tool(
