@@ -39,6 +39,9 @@ class LLMCall(BaseModel):
     model: str = ""
     messages: list[dict[str, Any]] = Field(default_factory=list)
     response: str = ""
+    #: Fingerprint of the prompt template behind this call, if the caller set
+    #: `LLMRequest.prompt_hash` (`PromptTemplate.hash`). Empty when unset.
+    prompt_hash: str = ""
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_ms: float = 0.0

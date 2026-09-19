@@ -109,6 +109,7 @@ async def structured_llm(
     attempts: int = 2,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    prompt_hash: str = "",
     on_error: OnStructuredError | None = None,
 ) -> TModel | None:
     """Single LLM call against a schema: JSON + tolerant parse + retry.
@@ -140,6 +141,7 @@ async def structured_llm(
             temperature=temperature,
             response_format={"type": "json_object"},
             max_tokens=max_tokens,
+            prompt_hash=prompt_hash,
         )
 
     request = _request(f"{instruction}\n\n{user}")
@@ -192,6 +194,7 @@ async def json_schema_llm(
     attempts: int = 2,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    prompt_hash: str = "",
     on_error: OnStructuredError | None = None,
 ) -> dict[str, Any] | None:
     """Structured output against *your own* JSON Schema, not one derived
@@ -238,6 +241,7 @@ async def json_schema_llm(
             temperature=temperature,
             response_format=response_format,
             max_tokens=max_tokens,
+            prompt_hash=prompt_hash,
         )
 
     request = _request(f"{instruction}\n\n{user}")
@@ -288,6 +292,7 @@ async def llm_reply(
     attempts: int = 2,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    prompt_hash: str = "",
     on_error: OnStructuredError | None = None,
 ) -> str | None:
     """A *plain-text* chat completion → `str`, or `None` on an honest failure.
@@ -309,6 +314,7 @@ async def llm_reply(
         attempts=attempts,
         temperature=temperature,
         max_tokens=max_tokens,
+        prompt_hash=prompt_hash,
         on_error=on_error,
     )
     return body.text if body is not None else None
@@ -321,6 +327,7 @@ async def chat_complete_full(
     temperature: float | None = None,
     max_tokens: int | None = None,
     response_format: dict[str, Any] | None = None,
+    prompt_hash: str = "",
 ) -> LLMResponse | None:
     """Like `chat_complete`, but returns the whole `LLMResponse` instead of
     just `.text` — reach for this when a caller needs `.finish_reason`
@@ -341,6 +348,7 @@ async def chat_complete_full(
         temperature=temperature,
         max_tokens=max_tokens,
         response_format=response_format,
+        prompt_hash=prompt_hash,
     )
     try:
         return await llm.complete(request)
@@ -356,6 +364,7 @@ async def chat_complete(
     temperature: float | None = None,
     max_tokens: int | None = None,
     response_format: dict[str, Any] | None = None,
+    prompt_hash: str = "",
 ) -> str | None:
     """A raw multi-turn chat completion → text exactly as the model
     returned it, or `None` on an honest failure (§67 — the same no-provider
@@ -383,6 +392,7 @@ async def chat_complete(
         temperature=temperature,
         max_tokens=max_tokens,
         response_format=response_format,
+        prompt_hash=prompt_hash,
     )
     return response.text if response is not None else None
 

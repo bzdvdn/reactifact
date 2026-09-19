@@ -38,6 +38,42 @@ def test_literal_braces_and_defaults():
     assert tpl.render(topic="u") == "Literal {brace} and u"
 
 
+def test_literal_json_braces_are_preserved():
+    """A JSON example in a prompt needs no escaping; placeholders still fill."""
+    tpl = PromptTemplate('Reply with {"name": "...", "age": 0} for {question}.')
+    assert tpl.render(question="why") == 'Reply with {"name": "...", "age": 0} for why.'
+    assert tpl.variables == frozenset({"question"})
+
+
+def test_empty_braces_are_preserved():
+    tpl = PromptTemplate("Use {} then fill {topic}.")
+    assert tpl.render(topic="t") == "Use {} then fill t."
+
+
+def test_typo_in_an_identifier_is_still_a_missing_variable():
+    tpl = PromptTemplate("Answer {questoin}.")
+    try:
+        tpl.render(question="why")
+    except KeyError as exc:
+        assert "questoin" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected KeyError for the typo'd variable")
+
+
+def test_template_hash_is_stable_and_sensitive():
+    assert PromptTemplate("hi {x}").hash == PromptTemplate("hi {x}").hash
+    assert PromptTemplate("hi {x}").hash != PromptTemplate("hi {y}").hash
+    assert len(PromptTemplate("hi {x}").hash) == 64
+
+
+def test_messages_prompt_hash_covers_rows():
+    a = MessagesPrompt([("system", "s"), ("user", "{q}")])
+    b = MessagesPrompt([("system", "s"), ("user", "{q}")])
+    c = MessagesPrompt([("system", "s2"), ("user", "{q}")])
+    assert a.hash == b.hash
+    assert a.hash != c.hash
+
+
 def test_nonempty_requirement():
     try:
         PromptTemplate("   ")

@@ -61,6 +61,10 @@ class LLMRequest:
     response_format: dict[str, Any] | None = None
     headers: dict[str, str] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
+    #: Optional fingerprint of the *template* behind this call (e.g.
+    #: `PromptTemplate.hash`). Providers ignore it; the tracing `RecordingLLM`
+    #: copies it onto the `LLMCall` so prompt drift is visible in a trace.
+    prompt_hash: str = ""
 
 
 @dataclass

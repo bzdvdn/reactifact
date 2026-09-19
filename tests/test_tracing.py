@@ -729,3 +729,29 @@ def test_postgres_store_roundtrip(tmp_path):
     loaded = run(store.get("pg-1"))
     assert loaded is not None
     assert loaded.spans[0].relations[0].relation == "supported_by"
+
+
+def test_recording_llm_copies_prompt_hash():
+    from reactifact.providers import FakeLLM, LLMRequest, Message
+    from reactifact.tracing import LLMCall, RecordingLLM
+
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        FakeLLM('{"text":"x"}'),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+    )
+    request = LLMRequest(messages=[Message.user("hi")], prompt_hash="abc123")
+    asyncio.run(llm.complete(request))
+
+    assert recorded[0].prompt_hash == "abc123"
+
+
+def test_recording_llm_prompt_hash_defaults_empty():
+    from reactifact.providers import FakeLLM, LLMRequest, Message
+    from reactifact.tracing import LLMCall, RecordingLLM
+
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(FakeLLM("x"), on_call=recorded.append, agent_of=lambda: "a")
+    asyncio.run(llm.complete(LLMRequest(messages=[Message.user("hi")])))
+    assert recorded[0].prompt_hash == ""

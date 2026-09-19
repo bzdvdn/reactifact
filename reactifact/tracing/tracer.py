@@ -203,6 +203,7 @@ class RecordingLLM(LLMProvider):
             provider=self._provider,
             model=str(getattr(self._inner, "model", "") or ""),
             messages=_clip_messages(request.messages, self._redactor),
+            prompt_hash=request.prompt_hash,
             response=(
                 _redact(_clip(response.text), self._redactor)
                 if response is not None
