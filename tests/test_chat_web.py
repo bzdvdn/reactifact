@@ -104,6 +104,114 @@ def test_web_router_contract(tmp_path):
     assert client.get("/api/runs/s1").json()["messages"] == []
 
 
+def test_chat_event_kind_is_a_closed_literal(tmp_path):
+    import pytest
+    from pydantic import ValidationError
+    from reactifact.chat import ChatEvent
+
+    assert ChatEvent(kind="status").kind == "status"
+    with pytest.raises(ValidationError):
+        ChatEvent(kind="bogus")
+
+
+def test_web_router_custom_vocabulary(tmp_path):
+    """A client with its own wire format is configuration, not a fork."""
+    assistant = make_assistant(str(tmp_path))
+    app = FastAPI()
+    app.include_router(
+        create_chat_router(
+            assistant,
+            event_names={"message": "content", "session": "start"},
+            forward_kinds=("message",),  # drop session/status entirely
+            done_event="done",
+            payload_shaper=lambda ev: {"text": (ev.payload or {}).get("reply", "")},
+        )
+    )
+    client = TestClient(app)
+
+    with client.stream(
+        "POST", "/api/chat/stream", json={"message": "hi", "session_id": "s1"}
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert "event: start" not in body
+    assert "event: session" not in body
+    assert "event: content" in body
+    assert "event: done" in body
+    assert '"text": "answer"' in body
+    assert '"reply"' not in body  # payload was reshaped
+
+
+def test_web_router_openapi_publishes_event_schema(tmp_path):
+    assistant = make_assistant(str(tmp_path))
+    app = FastAPI()
+    app.include_router(
+        create_chat_router(assistant, event_names={"message": "content"})
+    )
+
+    responses = app.openapi()["paths"]["/api/chat/stream"]["post"]["responses"]
+    assert "200" in responses
+    schema = responses["200"]["content"]["text/event-stream"]["schema"]
+    # the frame schema (ChatEvent) is published, enum kinds and all
+    assert "session" in str(schema) and "status" in str(schema)
+    assert "content" in responses["200"]["description"]
+
+
+def test_disconnect_cancels_the_running_turn(tmp_path):
+    """A dropped SSE client must cancel in-flight work, not leave it burning.
+
+    Mirrors Starlette: when the streaming task is cancelled, the `CancelledError`
+    unwinds through `ChatAssistant.stream` → `run_message` → `Runtime.astream`,
+    whose `finally` cancels the runner task — so a slow agent/LLM call stops.
+    """
+    import contextlib
+
+    from reactifact import Agent, Produce
+
+    state = {"started": False, "cancelled": False}
+
+    class Slow(Produce[A]):
+        async def produce(self, call):
+            state["started"] = True
+            try:
+                await asyncio.sleep(5)
+            except asyncio.CancelledError:
+                state["cancelled"] = True
+                raise
+
+    class SlowAgent(Agent):
+        name = "slow"
+        consumes = [Consume(Q)]
+        produces = [Slow()]
+
+    store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[SlowAgent()],
+        user_message=Q,
+        reply=lambda ctx, mid: {"reply": "done", "waiting": False},
+        max_concurrency=1,
+    )
+
+    async def scenario():
+        agen = assistant.stream("hi", session_id="s1")
+        assert (await agen.__anext__()).kind == "session"
+        pending = asyncio.ensure_future(agen.__anext__())  # drive into the turn
+        for _ in range(200):
+            if state["started"]:
+                break
+            await asyncio.sleep(0.005)
+        assert state["started"], "the agent never started"
+        pending.cancel()  # what a client disconnect looks like to the server
+        with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration):
+            await pending
+        await agen.aclose()
+        await asyncio.sleep(0.05)
+
+    asyncio.run(scenario())
+    assert state["cancelled"], "the in-flight turn was not cancelled"
+
+
 def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     """Missing fastapi → a readable install hint, not a bare ModuleNotFoundError."""
     import builtins

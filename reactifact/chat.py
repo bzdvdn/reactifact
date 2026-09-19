@@ -35,15 +35,24 @@ from .session import Session, SessionStore
 logger = logging.getLogger("reactifact.chat")
 
 
+#: The three frame kinds of the canonical chat (start / progress / terminal).
+ChatEventKind = Literal["session", "status", "message"]
+
+
 class ChatEvent(BaseModel):
     """One frame of a chat turn, transport-neutral.
 
     `kind` is the wire contract of the canonical chat:
     ``session`` (start), ``status`` (progress announcement) or ``message``
-    (terminal reply).
+    (terminal reply). It is a closed `Literal`, so the schema is
+    introspectable (`ChatEvent.model_json_schema()`) and a typo is a type
+    error, not a frame a client silently ignores. To *rename* these on the
+    wire for a client that speaks a different vocabulary, configure
+    `reactifact.web.create_chat_router(event_names=…)` — don't fork the
+    router.
     """
 
-    kind: str
+    kind: ChatEventKind
     session_id: str = ""
     message: str = ""
     waiting: bool = False
@@ -349,6 +358,13 @@ class ChatAssistant:
         reply hook all degrade to the fallback `message` and are logged via the
         `reactifact.chat` logger, so a web layer never delivers a 500 mid-stream.
 
+        **Cancellation contract:** closing/`aclose()`-ing the returned generator
+        (what a dropped SSE client does to the server's streaming task) cancels
+        the in-flight turn — the `CancelledError` unwinds through `run_message`
+        to `Runtime.astream`, whose `finally` cancels the runner task, so a slow
+        agent or LLM call is stopped rather than left burning tokens. `stream`
+        still saves the session in its own `finally` first.
+
         Turns on the same `session_id` are serialized (`_locked_session`): a
         second concurrent call for the same session waits for the first to
         finish instead of racing it to `session.save()` (§59 — no silent lost
@@ -434,6 +450,7 @@ class ChatAssistant:
 __all__ = [
     "ChatAssistant",
     "ChatEvent",
+    "ChatEventKind",
     "default_session_state",
     "run_message",
 ]
