@@ -60,6 +60,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   with `redact(text) -> text` satisfies the protocol. `None` (default) is a
   no-op, so this is non-breaking. A raising redactor is swallowed like a failing
   sink — it can never abort the run.
+- `reactifact.audit` — `build_report(context, answer)` walks an answer's
+  provenance chain (`supported_by`/`derived_from`/`materialized_from`/…) into a
+  verifiable `AuditReport`: content sha256 per artifact, producing author and
+  version, the relation edges, and the source locators it rests on;
+  `report_to_json`/`report_to_markdown` render it. `context_hash(context)` is a
+  sha256 over the run's canonical state (artifacts + relations + version,
+  timestamps excluded) — reproducible run to run. `reactifact replay … --hash`
+  prints it and `--verify <hash>` exits non-zero on mismatch, so a saved
+  session can be checked against a recorded fingerprint offline.
+- `examples/fintech_audit` — the audit story end to end: a transactions CSV +
+  budget CSV + policy document, figures computed in plain Python (never the
+  model), an answer linked to its evidence, and an `AuditReport` +
+  reproducibility check. Runs offline, no key.
+- `examples/support_copilot` — a grounded support reply with citations, or a
+  real escalation: when no document matches, the runtime raises a
+  `PendingQuestion` (via `effects.ask`) instead of inventing an answer, and the
+  human's answer becomes the reply. Offline.
+- `examples/repo_agent` — a coding agent where `git_commit` is
+  `@tool(destructive=True)`: the model may decide to call it, but the runtime
+  gates execution behind a human approval (`ToolUseHITL`), while safe tools
+  (`read_file`, `run_tests`) run freely. Offline (scripted provider, local
+  tools).
+- `examples/starter_app` — a copy-pasteable FastAPI app covering the four
+  `quick` cases (one structured call, RAG with citations, LLM+tools, chat with
+  sessions) plus a trace dashboard, with a tiny no-build UI. Provider is
+  `from_env()`: offline when no key, OpenRouter (`OPENROUTER_API_KEY`), or any
+  OpenAI-compatible endpoint (`OPENAI_BASE_URL`); offline RAG still answers from
+  `knowledge/` with citations. Ships `.env.example` and a README.
+- `@tool(...)` now has proper overloads, so decorated functions stay typed under
+  a strict type checker (`@tool(destructive=True)` no longer reads as an untyped
+  decorator).
 
 ## [0.9.1] — 2026-09-18
 

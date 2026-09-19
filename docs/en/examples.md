@@ -27,6 +27,22 @@ the SSE transport and session persistence come from the framework. Ports
 uv run python ./examples/llm_ladder/level1.py
 ```
 
+## `starter_app` — a copy-pasteable web app over the quick cases
+
+**What it shows:** one FastAPI process you can clone and run, covering the
+shapes most apps start with — a structured call, RAG with citations, an LLM with
+tools, and a session-persisted chat — plus a trace dashboard for all of them.
+It's a thin skin over [`reactifact.quick`](quickstart.md#0-the-80-on-ramp-reactifactquick),
+and the provider is chosen by `from_env()`: no key → offline/deterministic
+fallbacks (RAG still answers from `knowledge/` with citations); `OPENROUTER_API_KEY`
+→ OpenRouter; `OPENAI_BASE_URL` → any OpenAI-compatible endpoint. Copy the
+directory and swap the domain.
+
+```bash
+uv sync --extra web
+uv run python -m examples.starter_app.app      # http://127.0.0.1:8000
+```
+
 ## `knowledge` — multi-source chat with evidence
 
 **What it shows:** `fan_out_sources` search over file + CSV sources → lazy
@@ -144,6 +160,52 @@ branch/merge.
 
 ```bash
 uv run python -m examples.ledger.main
+```
+
+## `fintech_audit` — auditable, reproducible answer
+
+**What it shows:** a finance question (*"what is the Q2 cloud spend variance,
+and does policy require approval?"*) answered from a transactions CSV, a budget
+CSV and a policy document. The audit story, end to end: the figures are computed
+in plain Python (the model is never the source of truth, §67); every derived
+artifact links to what it came from; `reactifact.audit.build_report` renders the
+answer with a content hash per artifact and a `context_sha256` for the run; and
+re-running the pipeline hashes identically — the check
+`reactifact replay <store> --session <id> --verify <hash>` runs against a saved
+session. Offline, no key.
+
+```bash
+uv run python -m examples.fintech_audit.main
+```
+
+See also [`reactifact/audit.py`](../reference.md) (`build_report`,
+`context_hash`, `report_to_markdown`) and [Observability](observability.md) for
+shipping such a run to a sink with `redactor=`.
+
+## `support_copilot` — grounded reply, or escalate, never hallucinate
+
+**What it shows:** a support agent with two honest outcomes — the docs cover the
+question → a grounded reply made of the matched document's own text, citing it
+via `supported_by` provenance; nothing matches → the runtime **escalates to a
+human** (`effects.ask(...)` → `PendingQuestion`), and the human's answer becomes
+the reply. "I don't know" is a first-class state, not an invented answer. No
+model required.
+
+```bash
+uv run python -m examples.support_copilot.main
+```
+
+## `repo_agent` — a coding agent behind an approval gate
+
+**What it shows:** an LLM + tools agent where `git_commit` is
+`@tool(destructive=True)` — the model may decide to call it, but the runtime
+turns that into a `PendingQuestion(kind="approve")` and only runs the commit
+after a human `resume`. Safe tools (`read_file`, `run_tests`) run freely. The
+gate is a property of the `Tool`, not of the prompt, so it holds regardless of
+what the model outputs. Offline (scripted provider, local tools).
+
+```bash
+uv run python -m examples.repo_agent.main
 ```
 
 ## `adaptive` — hybrid scheduling

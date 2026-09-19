@@ -93,3 +93,23 @@ is in how it's used, not its bare signature.
 ### Verify
 
 ::: reactifact.verify.Verify
+
+## Audit & reproducibility
+
+### build_report
+
+::: reactifact.audit.build_report
+
+### context_hash
+
+::: reactifact.audit.context_hash
+
+### AuditReport
+
+::: reactifact.audit.AuditReport
+
+## Redaction
+
+### RegexRedactor
+
+::: reactifact.redaction.RegexRedactor

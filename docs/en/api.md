@@ -13,7 +13,7 @@ the stable contract, not a moving target.
 
 - **Public API = every name in `reactifact.__all__`** (and each submodule's own
   `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`, `reactifact.eval`,
-  `reactifact.quick`, `reactifact.redaction`, …), which is exactly the set of symbols documented on this page. If it's
+  `reactifact.quick`, `reactifact.redaction`, `reactifact.audit`, …), which is exactly the set of symbols documented on this page. If it's
   importable from `reactifact` but not in `__all__`, it's an internal detail with
   no compatibility guarantee — e.g. `reactifact.relations.RelationGraph` and
   `reactifact.commit_log.CommitLog` exist because `Context` was split into

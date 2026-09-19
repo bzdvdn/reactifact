@@ -14,7 +14,7 @@
 
 - **Публичный API = каждое имя в `reactifact.__all__`** (и в `__all__` каждого
   подмодуля — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
-  `reactifact.eval`, `reactifact.quick`, `reactifact.redaction`, …) — это ровно тот набор символов, что задокументирован на
+  `reactifact.eval`, `reactifact.quick`, `reactifact.redaction`, `reactifact.audit`, …) — это ровно тот набор символов, что задокументирован на
   этой странице. Если что-то импортируется из `reactifact`, но не входит в
   `__all__` — это внутренняя деталь без гарантий совместимости. Например,
   `reactifact.relations.RelationGraph` и `reactifact.commit_log.CommitLog`
