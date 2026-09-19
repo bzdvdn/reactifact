@@ -8,6 +8,73 @@ session-persisted chat bot — each pointing at the full, production-shaped
 example it's trimmed from. Every snippet on this page was run to produce the
 output shown; none of it is hypothetical.
 
+## 0. The 80% on-ramp: `reactifact.quick`
+
+Most first tasks are one of four things. `reactifact.quick` wires each of them
+in a few lines, while still building **real reactive agents** under the hood:
+
+```python
+from pydantic import BaseModel
+from reactifact.quick import agent, rag, tools_agent, chat_agent
+
+
+class AnswerBody(BaseModel):
+    text: str
+
+
+# 1) one structured LLM call
+qa = agent(system="Answer in one sentence.", schema=AnswerBody)
+body = await qa.ask("What are the three states of water?")   # AnswerBody | None
+
+# 2) retrieval over your own files, with provenance
+r = rag({"docs": "./docs", "costs": "./costs.csv"})
+answer = await r.ask("what's the total gpu cost?")           # answer.text, answer.sources
+
+# 3) an LLM with tools (human=True → asks clarifying questions instead)
+t = tools_agent("You are ops. Use the tools.", [check_status])  # a @tool (§1)
+text = await t.ask("is checkout-api healthy?")
+
+# 4) a session-persisted chat assistant (store=None → in-memory)
+assistant = chat_agent(agents=[...], llm=provider)
+```
+
+Every entry point takes `llm=` — any `LLMProvider` (`from_env()`,
+`openai_llm(...)`, `openrouter_llm(...)`, …). It defaults to `from_env()`, so a
+configured `.env` just works; pass it explicitly to choose a model/endpoint.
+
+This is **sugar over the same primitives**, not a second framework. Every
+object exposes the real `Agent` and the `Context` the run produced:
+
+```python
+qa.agent      # the reactive Agent — mount it on your own Runtime
+qa.context    # the artifacts/provenance of the last ask()
+```
+
+`rag(...)` links every `Answer` `supported_by` the `Doc`s it used, and each
+`Doc` `materialized_from` its `SourceRef` — the same provenance the
+hand-written pipeline below builds. When the facade no longer fits, drop to
+`Consume`/`Produce`/`Effects` with nothing to rewrite. See
+[Patterns](patterns.md) for the full model.
+
+Bring your own artifact models — the facade is parameterized, not fixed:
+
+```python
+r = rag(
+    {"docs": "./docs"},
+    doc_type=MyDoc,          # must accept text/locator/title…
+    answer_type=MyAnswer,
+    # …or build them yourself and say how to read a doc's body/label:
+    doc_factory=lambda ctx, ref, content: MyDoc(body=content, url=ref.data.locator),
+    answer_factory=lambda text, docs: MyAnswer(answer=text, citations=[d.data.url for d in docs]),
+    doc_text=lambda d: d.body,
+    doc_locator=lambda d: d.url,
+)
+qa = agent("Answer briefly.", AnswerBody, question_type=MyQuestion)  # needs a `text` field
+```
+
+Provenance is unaffected by the model shape: an answer is still linked
+`supported_by` the documents it used.
+
 ## 1. A tool-calling agent (with human-in-the-loop)
 
 `HITLLMAgent` wires an LLM + a `Tool` list into the reactive ask/tool/answer

@@ -14,7 +14,7 @@
 
 - **Публичный API = каждое имя в `reactifact.__all__`** (и в `__all__` каждого
   подмодуля — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
-  `reactifact.eval`, …) — это ровно тот набор символов, что задокументирован на
+  `reactifact.eval`, `reactifact.quick`, …) — это ровно тот набор символов, что задокументирован на
   этой странице. Если что-то импортируется из `reactifact`, но не входит в
   `__all__` — это внутренняя деталь без гарантий совместимости. Например,
   `reactifact.relations.RelationGraph` и `reactifact.commit_log.CommitLog`
@@ -33,6 +33,21 @@
 - Всё, что находится под `reactifact.cli.*` за пределами задокументированных
   подкоманд `python -m reactifact …`, а также любые тест-хелперы модулей —
   деталь реализации, даже если формально импортируется.
+
+## Он-рамп (`reactifact.quick`)
+
+Тонкий сахар над примитивами ниже для четырёх частых первых задач — у каждого
+объекта есть настоящий `.agent`/`.agents` и `.context` запуска, поэтому он
+выпускается в `Consume`/`Produce`/`Effects` без переписывания. См.
+[Быстрый старт §0](quickstart.md).
+
+| Символ | Роль |
+| --- | --- |
+| `agent(system, schema)` | один структурированный вызов LLM → один типизированный артефакт |
+| `rag(sources)` | поиск → материализация → ответ, с провенансом `supported_by` |
+| `tools_agent(system, tools, human=False)` | LLM + тулы (`human=True` → HITL-вопросы) |
+| `chat_agent(agents)` | настроенный `ChatAssistant` (по умолчанию store в памяти) |
+| `Question` / `Doc` / `Answer` | обобщённые модели артефактов, которые использует фасад |
 
 ## Context и состояние
 

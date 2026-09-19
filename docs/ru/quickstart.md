@@ -8,6 +8,74 @@
 которого он урезан. Каждый сниппет на этой странице был реально запущен —
 вывод, который вы видите, не выдуман.
 
+## 0. Он-рамп для 80%: `reactifact.quick`
+
+Большинство первых задач — одна из четырёх. `reactifact.quick` собирает каждую
+в несколько строк, но под капотом всё ещё строит **настоящих реактивных
+агентов**:
+
+```python
+from pydantic import BaseModel
+from reactifact.quick import agent, rag, tools_agent, chat_agent
+
+
+class AnswerBody(BaseModel):
+    text: str
+
+
+# 1) один структурированный вызов LLM
+qa = agent(system="Answer in one sentence.", schema=AnswerBody)
+body = await qa.ask("What are the three states of water?")   # AnswerBody | None
+
+# 2) поиск по своим файлам, с провенансом
+r = rag({"docs": "./docs", "costs": "./costs.csv"})
+answer = await r.ask("what's the total gpu cost?")           # answer.text, answer.sources
+
+# 3) LLM с тулами (human=True → задаёт уточняющие вопросы)
+t = tools_agent("You are ops. Use the tools.", [check_status])  # @tool (§1)
+text = await t.ask("is checkout-api healthy?")
+
+# 4) чат-ассистент с сессиями (provider через llm=; store=None → в памяти)
+assistant = chat_agent(agents=[...], llm=provider)
+```
+
+Каждая точка входа принимает `llm=` — любой `LLMProvider` (`from_env()`,
+`openai_llm(...)`, `openrouter_llm(...)`, …). По умолчанию `from_env()`, так что
+настроенный `.env` просто работает; передайте явно, чтобы выбрать модель/эндпоинт.
+
+Это **сахар над теми же примитивами**, а не второй фреймворк. У каждого объекта
+есть настоящий `Agent` и `Context` последнего запуска:
+
+```python
+qa.agent      # реактивный Agent — можно смонтировать в свой Runtime
+qa.context    # артефакты/провенанс последнего ask()
+```
+
+`rag(...)` связывает каждый `Answer` по `supported_by` с использованными `Doc`,
+а каждый `Doc` — по `materialized_from` со своим `SourceRef` (тот же провенанс,
+что и в ручном пайплайне ниже). Когда сахара перестаёт хватать — спускайтесь к
+`Consume`/`Produce`/`Effects`, переписывать нечего. Полная модель — в
+[Patterns](patterns.md).
+
+Свои модели артефактов — фасад параметризован, а не захардкожен:
+
+```python
+r = rag(
+    {"docs": "./docs"},
+    doc_type=MyDoc,          # должен принимать text/locator/title…
+    answer_type=MyAnswer,
+    # …или соберите сами и скажите, как читать тело/метку документа:
+    doc_factory=lambda ctx, ref, content: MyDoc(body=content, url=ref.data.locator),
+    answer_factory=lambda text, docs: MyAnswer(answer=text, citations=[d.data.url for d in docs]),
+    doc_text=lambda d: d.body,
+    doc_locator=lambda d: d.url,
+)
+qa = agent("Answer briefly.", AnswerBody, question_type=MyQuestion)  # нужно поле `text`
+```
+
+Провенанс от формы моделей не зависит: ответ всё так же связывается
+`supported_by` с использованными документами.
+
 ## 1. Tool-calling агент (с human-in-the-loop)
 
 `HITLLMAgent` сам собирает LLM + список `Tool` в реактивный цикл

@@ -13,7 +13,7 @@ the stable contract, not a moving target.
 
 - **Public API = every name in `reactifact.__all__`** (and each submodule's own
   `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`, `reactifact.eval`,
-  …), which is exactly the set of symbols documented on this page. If it's
+  `reactifact.quick`, …), which is exactly the set of symbols documented on this page. If it's
   importable from `reactifact` but not in `__all__`, it's an internal detail with
   no compatibility guarantee — e.g. `reactifact.relations.RelationGraph` and
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
@@ -30,6 +30,21 @@ the stable contract, not a moving target.
 - Anything under `reactifact.cli.*` beyond the documented `python -m reactifact …`
   subcommands, and anything in a module's tests-only helpers, is implementation
   detail regardless of whether it happens to be importable.
+
+## Quick on-ramp (`reactifact.quick`)
+
+Thin sugar over the primitives below for the four common first tasks — every
+object exposes the real `.agent`/`.agents` and the run's `.context`, so it
+graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
+[Quickstart §0](quickstart.md).
+
+| Symbol | Role |
+| --- | --- |
+| `agent(system, schema)` | one structured LLM call → one typed artifact |
+| `rag(sources)` | retrieval → materialize → answer, with `supported_by` provenance |
+| `tools_agent(system, tools, human=False)` | LLM + tools (`human=True` → HITL asks) |
+| `chat_agent(agents)` | a configured `ChatAssistant` (in-memory store by default) |
+| `Question` / `Doc` / `Answer` | the generic artifact models the facade uses |
 
 ## Context & state
 
