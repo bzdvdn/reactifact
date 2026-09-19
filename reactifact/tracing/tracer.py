@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterable
@@ -34,8 +35,25 @@ if TYPE_CHECKING:
     from ..events import Event
     from ..patches import Patch
 
+logger = logging.getLogger(__name__)
+
 #: Up to what size to truncate artifact/response data in a trace.
 TRACE_TRUNCATE = 1500
+
+
+def _swallow_tracing_error(where: str, exc: BaseException) -> None:
+    """Reports a tracing failure and lets the run continue (§54).
+
+    Observability is best-effort by contract: a sink that is unreachable
+    (Langfuse down, Postgres refusing connections), a custom `Tracer`
+    callback that raises, or a malformed payload must never abort the
+    business run it was only supposed to observe. Every tracer call site
+    funnels its exceptions here and carries on; the trace for that step is
+    simply dropped. `exc_info` keeps the failure debuggable in logs.
+    """
+    logger.warning(
+        "tracing step %r failed; run continues without it: %s", where, exc, exc_info=exc
+    )
 
 
 def _clip(value: str, limit: int = TRACE_TRUNCATE) -> str:
@@ -44,14 +62,25 @@ def _clip(value: str, limit: int = TRACE_TRUNCATE) -> str:
     return value[:limit] + "…"
 
 
-def _clip_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
-            "role": msg.get("role", ""),
-            "content": _clip(str(msg.get("content") or "")),
-        }
-        for msg in messages
-    ]
+def _message_fields(message: Any) -> tuple[str, Any]:
+    """Reads role/content off a `Message` dataclass, dict, or pydantic-like object.
+
+    `LLMRequest.messages` is typed `list[Message]` (a plain dataclass without
+    `model_dump`), but providers/hand-rolled callers can also hand over dicts or
+    pydantic models — only these two fields are ever traced, so attribute access
+    covers all of them without assuming a serialization method.
+    """
+    if isinstance(message, dict):
+        return str(message.get("role", "")), message.get("content")
+    return str(getattr(message, "role", "")), getattr(message, "content", None)
+
+
+def _clip_messages(messages: Iterable[Any]) -> list[dict[str, Any]]:
+    clipped: list[dict[str, Any]] = []
+    for message in messages:
+        role, content = _message_fields(message)
+        clipped.append({"role": role, "content": _clip(str(content or ""))})
+    return clipped
 
 
 class Tracer:
@@ -87,7 +116,10 @@ class Tracer:
 
     async def on_turn_end(self, trace: RunTrace) -> None:
         for sink in self.sinks:
-            await sink.export(trace)
+            try:
+                await sink.export(trace)
+            except Exception as exc:  # noqa: BLE001 — one bad sink must not fail the run
+                _swallow_tracing_error(f"{type(sink).__name__}.export", exc)
 
 
 class RecordingLLM(LLMProvider):
@@ -110,13 +142,32 @@ class RecordingLLM(LLMProvider):
         try:
             response = await self._inner.complete(request)
         except Exception as exc:  # noqa: BLE001 — record and re-raise
-            self._record(request, None, (time.monotonic() - started) * 1000, str(exc))
+            self._safe_record(
+                request, None, (time.monotonic() - started) * 1000, str(exc)
+            )
             raise
-        self._record(request, response, (time.monotonic() - started) * 1000, None)
+        self._safe_record(request, response, (time.monotonic() - started) * 1000, None)
         return response
 
     def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
         return self._inner.stream(request)
+
+    def _safe_record(
+        self,
+        request: LLMRequest,
+        response: LLMResponse | None,
+        latency_ms: float,
+        error: str | None,
+    ) -> None:
+        """`_record`, isolated: losing one LLMCall must not fail the LLM call.
+
+        The error path matters most: if recording raised while handling the
+        provider's own exception, it would mask that original error.
+        """
+        try:
+            self._record(request, response, latency_ms, error)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("RecordingLLM._record", exc)
 
     def _record(
         self,
@@ -130,12 +181,7 @@ class RecordingLLM(LLMProvider):
             agent=self._agent_of(),
             provider=self._provider,
             model=str(getattr(self._inner, "model", "") or ""),
-            messages=_clip_messages(
-                [
-                    m.model_dump() if hasattr(m, "model_dump") else m.__dict__
-                    for m in request.messages
-                ]
-            ),
+            messages=_clip_messages(request.messages),
             response=_clip(response.text) if response is not None else "",
             prompt_tokens=int(usage.get("prompt_tokens") or usage.get("prompt") or 0),
             completion_tokens=int(
@@ -157,15 +203,26 @@ class CompositeTracer:
         self, run_id: str, *, session_id: str, started_at: datetime
     ) -> None:
         for tracer in self.tracers:
-            tracer.on_turn_begin(run_id, session_id=session_id, started_at=started_at)
+            try:
+                tracer.on_turn_begin(
+                    run_id, session_id=session_id, started_at=started_at
+                )
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_turn_begin", exc)
 
     def on_span(self, span: AgentSpan) -> None:
         for tracer in self.tracers:
-            tracer.on_span(span)
+            try:
+                tracer.on_span(span)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_span", exc)
 
     async def on_turn_end(self, trace: RunTrace) -> None:
         for tracer in self.tracers:
-            await tracer.on_turn_end(trace)
+            try:
+                await tracer.on_turn_end(trace)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_turn_end", exc)
 
 
 class RunTracer:
@@ -272,44 +329,52 @@ class RunTracer:
         ]
 
     def write_refs(self, patch: Patch, writes: list[Write]) -> list[ArtifactRef]:
-        ops_by_id: dict[str, tuple[str, Any | None]] = {}
-        for op in patch.operations:
-            artifact_id = getattr(op, "artifact_id", None)
-            if artifact_id is None:
-                continue
-            if isinstance(op, Create):
-                model: Any | None = op.data
-            elif isinstance(op, Update):
-                model = op.new_data
-            else:
-                model = None
-            ops_by_id[artifact_id] = (op.to_dict().get("type", ""), model)
-        return [
-            self.artifact_ref(
-                w.artifact_id,
-                w.version,
-                ops_by_id.get(w.artifact_id, ("", None))[0],
-                ops_by_id.get(w.artifact_id, ("", None))[1],
-            )
-            for w in writes
-        ]
+        try:
+            ops_by_id: dict[str, tuple[str, Any | None]] = {}
+            for op in patch.operations:
+                artifact_id = getattr(op, "artifact_id", None)
+                if artifact_id is None:
+                    continue
+                if isinstance(op, Create):
+                    model: Any | None = op.data
+                elif isinstance(op, Update):
+                    model = op.new_data
+                else:
+                    model = None
+                ops_by_id[artifact_id] = (op.to_dict().get("type", ""), model)
+            return [
+                self.artifact_ref(
+                    w.artifact_id,
+                    w.version,
+                    ops_by_id.get(w.artifact_id, ("", None))[0],
+                    ops_by_id.get(w.artifact_id, ("", None))[1],
+                )
+                for w in writes
+            ]
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("write_refs", exc)
+            return []
 
     def relation_refs(self, patch: Patch) -> list[RelationRef]:
         """Provenance edges (`patch.link`) recorded for the span (§34)."""
-        refs: list[RelationRef] = []
-        for op in patch.operations:
-            if not isinstance(op, Link):
-                continue
-            refs.append(
-                RelationRef(
-                    source_id=op.artifact_id,
-                    relation=op.relation,
-                    target_id=op.target_id,
-                    source_type=self._type_name(op.artifact_id, self._context),
-                    target_type=self._type_name(op.target_id, self._context),
+        try:
+            refs: list[RelationRef] = []
+            for op in patch.operations:
+                if not isinstance(op, Link):
+                    continue
+                refs.append(
+                    RelationRef(
+                        source_id=op.artifact_id,
+                        relation=op.relation,
+                        target_id=op.target_id,
+                        source_type=self._type_name(op.artifact_id, self._context),
+                        target_type=self._type_name(op.target_id, self._context),
+                    )
                 )
-            )
-        return refs
+            return refs
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("relation_refs", exc)
+            return []
 
     # ---- per-turn lifecycle ----
 
@@ -319,9 +384,12 @@ class RunTracer:
         self.run_id = str(uuid.uuid4())
         self.spans = []
         self._trace_data_cache = {}
-        self.tracer.on_turn_begin(
-            self.run_id, session_id=session_id, started_at=datetime.now(UTC)
-        )
+        try:
+            self.tracer.on_turn_begin(
+                self.run_id, session_id=session_id, started_at=datetime.now(UTC)
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_turn_begin", exc)
 
     def record_span(
         self,
@@ -340,31 +408,37 @@ class RunTracer:
         """
         if self.tracer is None:
             return None
-        span = AgentSpan(
-            agent=agent.name,
-            event_type=event.type.value,
-            reads=self.read_refs(reads),
-            latency_ms=latency_ms,
-            llm_calls=self._pending_llm.pop(agent.name, []),
-            error=f"{type(error).__name__}: {error}" if error is not None else None,
-            started_at=datetime.now(UTC),
-        )
-        self.spans.append(span)
-        self.tracer.on_span(span)
-        return span
+        try:
+            span = AgentSpan(
+                agent=agent.name,
+                event_type=event.type.value,
+                reads=self.read_refs(reads),
+                latency_ms=latency_ms,
+                llm_calls=self._pending_llm.pop(agent.name, []),
+                error=f"{type(error).__name__}: {error}" if error is not None else None,
+                started_at=datetime.now(UTC),
+            )
+            self.spans.append(span)
+            self.tracer.on_span(span)
+            return span
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_span", exc)
+            return None
 
     async def end_turn(
         self, *, session_id: str, duration_ms: float, outcome: str
     ) -> None:
         if self.tracer is None:
             return
-        await self.tracer.on_turn_end(
-            RunTrace(
-                id=self.run_id,
-                session_id=session_id,
-                started_at=datetime.now(UTC),
-                duration_ms=duration_ms,
-                outcome=outcome,
-                spans=self.spans,
-            )
+        trace = RunTrace(
+            id=self.run_id,
+            session_id=session_id,
+            started_at=datetime.now(UTC),
+            duration_ms=duration_ms,
+            outcome=outcome,
+            spans=self.spans,
         )
+        try:
+            await self.tracer.on_turn_end(trace)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_turn_end", exc)

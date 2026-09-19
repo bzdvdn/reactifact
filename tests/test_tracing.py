@@ -3,11 +3,12 @@ import json
 
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
-from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
+from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, Message
 from reactifact.tracing import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
+    RecordingLLM,
     RelationRef,
     RunTrace,
     Tracer,
@@ -200,6 +201,81 @@ def test_composite_tracer_fans_out(tmp_path):
     asyncio.run(runtime.arun())
     assert run(store_a.query())["total"] == 1
     assert run(store_b.query())["total"] == 1
+
+
+class BoomSink:
+    """A sink that is always unreachable (e.g. a down Langfuse)."""
+
+    async def export(self, trace: RunTrace) -> None:
+        raise RuntimeError("langfuse is down")
+
+
+class CapturingSink:
+    """Records the traces it received, to prove fan-out continued."""
+
+    def __init__(self) -> None:
+        self.traces: list[RunTrace] = []
+
+    async def export(self, trace: RunTrace) -> None:
+        self.traces.append(trace)
+
+
+def test_failing_sink_does_not_break_the_run():
+    """An unreachable sink is skipped; the run and healthy sinks still proceed."""
+    ok = CapturingSink()
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(sinks=[BoomSink(), ok]))
+    ctx.create(Question(text="привет"))
+
+    assert asyncio.run(runtime.arun()) >= 1
+    assert ctx.list_artifacts(Answer)  # business outcome still produced
+    assert len(ok.traces) == 1  # the healthy sibling still got the trace
+
+
+class BoomTracer(Tracer):
+    """A custom tracer whose every callback raises."""
+
+    def on_turn_begin(self, run_id, *, session_id, started_at) -> None:
+        raise RuntimeError("boom")
+
+    def on_span(self, span) -> None:
+        raise RuntimeError("boom")
+
+    async def on_turn_end(self, trace: RunTrace) -> None:
+        raise RuntimeError("boom")
+
+
+def test_failing_custom_tracer_does_not_break_the_run():
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=BoomTracer())
+    ctx.create(Question(text="привет"))
+
+    assert asyncio.run(runtime.arun()) >= 1
+    assert ctx.list_artifacts(Answer)
+
+
+def test_composite_tracer_isolates_a_failing_member():
+    ok = CapturingSink()
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(
+        ctx, agents=[Greeter()], tracer=[BoomTracer(), Tracer(sinks=[ok])]
+    )
+    ctx.create(Question(text="привет"))
+
+    assert asyncio.run(runtime.arun()) >= 1
+    assert len(ok.traces) == 1  # the second tracer still received the trace
+
+
+def test_recording_llm_ignores_a_failing_recorder():
+    """A raising `on_call` must not fail the wrapped LLM call."""
+
+    def boom(call: LLMCall) -> None:
+        raise RuntimeError("tracer is down")
+
+    llm = RecordingLLM(ReplyLLM(), on_call=boom, agent_of=lambda: "agent")
+    response = asyncio.run(llm.complete(LLMRequest(messages=[Message.user("hi")])))
+
+    assert response.text == '{"text":"привет"}'
 
 
 def test_trace_store_migrates_old_schema(tmp_path):
