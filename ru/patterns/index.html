@@ -1,0 +1,2178 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context">
+      
+      
+      
+        <link rel="canonical" href="https://bzdvdn.github.io/reactifact/ru/patterns/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/reactifact-hero.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Паттерны - reactifact</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="reactifact" class="md-header__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            reactifact
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Паттерны
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../en/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../en/why-reactifact/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why reactifact
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../en/quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../en/comparison/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Comparison
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../en/concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../en/effects/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../en/api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../en/design-notes/adaptive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="reactifact" class="md-nav__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    reactifact
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/why-reactifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why reactifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/branching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branching & merge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-generated reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/port-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/design-notes/adaptive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adaptive scheduler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/design-notes/patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constitution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constitution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../en/release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tldr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TL;DR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hitl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HITL: человек как полноправный участник
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-hitl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Инструментальные агенты: LLM + инструменты (блокирующий или HITL)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Инструментальные агенты: LLM + инструменты (блокирующий или HITL)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Отложенные группы инструментов: много инструментов без нагрузки на контекст
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Структурный вывод: никогда не парсите сырой JSON сами
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plan-and-execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plan-and-execute: план, затем шаг за шагом
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Корреляция между типами артефактов
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Реакция только на одно из нескольких событий
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Чтение входа без пробуждения на нём
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Дебаунс fan-out
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Фолбэки: честная деградация
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Модель изменений и отката («изменить → пересобрать»)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Бюджет и справедливость
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Память чата через сессии
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Машины состояний для длинных жизненных циклов
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Детерминизм как привычка
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bzdvdn/reactifact/edit/master/docs/ru/patterns.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="_1">Паттерны<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>Переиспользуемые паттерны, встречающиеся в примерах. Они не
+абстрактны — каждый конкретно воплощён в <code>examples/</code>.</p>
+<h2 id="tldr">TL;DR<a class="headerlink" href="#tldr" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Делай</th>
+<th>Не делай</th>
+<th>Почему</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Пиши <code>self.effects.create/update/link/ask(...)</code>, возвращай <code>None</code></td>
+<td>Собирай <code>Patch</code> вручную в обычном produce</td>
+<td>Runtime компилирует один атомарный патч на produce — ручная сборка это лазейка, а не дефолт</td>
+</tr>
+<tr>
+<td>Оформляй допустимость через ранний <code>return None</code></td>
+<td>Полагайся на порядок планирования, чтобы пропустить неготовую работу</td>
+<td>Допустимость — решение по состоянию, а не удачное стечение планирования (§69)</td>
+</tr>
+<tr>
+<td>Используй стабильные id (<code>answer:{qid}</code>) или <code>effects.create_once(...)</code></td>
+<td>Выводи id из счётчика или таймстампа</td>
+<td>Идемпотентные перезапуски — одно и то же событие дважды не должно дублировать состояние</td>
+</tr>
+<tr>
+<td>Возвращай <code>None</code> при отсутствии модели / неудачном парсинге, показывай честный fallback</td>
+<td>Подставляй «уверенно звучащий» канонический ответ при сбое LLM-вызова</td>
+<td>Детерминированная работа остаётся детерминированной; сбой генерации должен быть виден, а не замаскирован</td>
+</tr>
+<tr>
+<td>Держи <code>next_status</code>/скоринг чистыми функциями <code>(context, key) -&gt; ...</code></td>
+<td>Подмешивай LLM-вызовы или побочные эффекты в <code>StatusMachine.next_status</code></td>
+<td>Чистые функции тестируются без runtime</td>
+</tr>
+<tr>
+<td>Используй <code>Runtime(isolate_errors=True, on_agent_error=...)</code> только когда осознанно решил, что частичный прогресс приемлем</td>
+<td>Ставь <code>isolate_errors</code> по умолчанию, чтобы заглушить исключения</td>
+<td>По умолчанию — fail-loud (§69); изоляция ошибок — явное продуктовое решение, а не страховка</td>
+</tr>
+</tbody>
+</table>
+<p>Каждая строка ссылается на полный паттерн ниже.</p>
+<h2 id="hitl">HITL: человек как полноправный участник<a class="headerlink" href="#hitl" title="Permanent link">&para;</a></h2>
+<p>Человек — просто ещё одна реакция на контекст. Runtime представляет вопрос
+артефактом <code>PendingQuestion</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">PendingQuestion</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">question</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"general"</span>          <span class="c1"># например "clarify", "approval"</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">notes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>     <span class="c1"># маршрутизация ("какой агент спросил")</span>
+</code></pre></div>
+<p>Produce создаёт его через <code>self.effects.ask(...)</code>, а ответ человека приходит
+через <code>self.effects.resume(...)</code> (эффект, помечающий <code>PendingQuestion</code> отвеченным,
+§60):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">"Утвердить смету?"</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">"approval"</span><span class="p">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># ... web/UI видит ожидающий вопрос и показывает состояние «ожидание» ...</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">resume</span><span class="p">(</span><span class="n">question_artifact</span><span class="p">,</span> <span class="s2">"да"</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+<p>Производящий агент видит ответ как новое событие (артефакт <code>PendingQuestion</code>
+обновляется). Web-демо запрашивают <code>context.pending_questions()</code>, чтобы понять,
+показывать ли состояние «ожидание».</p>
+<p>Паттерн: <strong>активировалась стадия → сразу спросить</strong> (repair <code>ApprovalStage</code>
+создаёт вопрос об одобрении в момент, когда становится активной, не дожидаясь
+нового сообщения), затем <strong>реагировать на ответ</strong> следующим событием.</p>
+<p>Для пересобираемого вопроса (<code>f"steer:{qid}:{round}"</code>, как в steering-вопросе
+<code>medic-lab</code>) передайте <code>id=</code> в <code>effects.ask(...)</code>, чтобы гард
+(<code>if context.get(id) is not None: return None</code>) не давал produce спрашивать
+снова, пока вопрос ещё не отвечен — тот же идиом идемпотентности, что и у
+<code>effects.create_once</code>.</p>
+<h2 id="llm-hitl">Инструментальные агенты: LLM + инструменты (блокирующий или HITL)<a class="headerlink" href="#llm-hitl" title="Permanent link">&para;</a></h2>
+<p>Для потоков «модель решает, какой инструмент вызвать» используйте встроенных
+агентов:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact</span><span class="w"> </span><span class="kn">import</span> <span class="n">Consume</span><span class="p">,</span> <span class="n">Produce</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.llm_agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">HITLLMAgent</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OpsAgent</span><span class="p">(</span><span class="n">HITLLMAgent</span><span class="p">):</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">"ops"</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">system</span> <span class="o">=</span> <span class="s2">"You run Kubernetes/GitLab/Ansible tasks."</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">tools</span> <span class="o">=</span> <span class="p">[</span><span class="o">...</span><span class="p">]</span>        <span class="c1"># экземпляры FunctionTool</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">max_steps</span> <span class="o">=</span> <span class="mi">8</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">max_asks</span> <span class="o">=</span> <span class="mi">2</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Consume</span><span class="p">(</span><span class="n">Project</span><span class="p">)]</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">produces</span> <span class="o">=</span> <span class="p">[</span><span class="n">Produce</span><span class="p">(</span><span class="n">Report</span><span class="p">)]</span>
+</code></pre></div>
+<ul>
+<li><code>LLMAgent</code> — блокирующий цикл: LLM отдаёт <code>tool_call</code>, runtime выполняет
+  инструмент, наблюдение идёт в следующий шаг. Человека в цикле нет.</li>
+<li><code>HITLLMAgent</code> — то же плюс модель может выдать <code>ask</code>: создаётся
+  <code>PendingQuestion</code>, цикл останавливается, ответ человека возвращается как
+  <code>Observation(source="user")</code>. Само <em>исполнение</em> инструмента также
+  контролируется <code>ToolUseHITL</code>, поэтому рискованные команды ждут нажатия человека.</li>
+</ul>
+<p>Пример <code>devops</code> — каноническая демонстрация <code>HITLLMAgent</code> (LLM-роутер инструментов +
+одобрение мутаций K8s/GitLab/Ansible).</p>
+<h3 id="_2">Отложенные группы инструментов: много инструментов без нагрузки на контекст<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<p>Подключение нескольких MCP-серверов (или любого большого набора инструментов)
+означает, что каждая схема иначе попадёт в system prompt на каждом шаге, хотя
+большинство из них ни разу не вызовут. <code>DeferredToolGroup</code> держит инструменты
+группы вне промпта — в компактном каталоге видны только имя, описание и
+голые имена инструментов — пока LLM не запросит группу явно через встроенный
+инструмент <code>load_tools</code>. <code>ToolUse</code>/<code>LLMAgent</code> это поддерживают; <code>ToolUseHITL</code>/
+<code>HITLLMAgent</code> — пока нет (см. докстринг класса, почему):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.tool_use</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeferredToolGroup</span><span class="p">,</span> <span class="n">ToolUse</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">mcp_stdio_tools</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">load_github_tools</span><span class="p">():</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">mcp_stdio_tools</span><span class="p">(</span><span class="s2">"npx"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"-y"</span><span class="p">,</span> <span class="s2">"@modelcontextprotocol/server-github"</span><span class="p">])</span> <span class="k">as</span> <span class="n">tools</span><span class="p">:</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="k">return</span> <span class="n">tools</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">github_group</span> <span class="o">=</span> <span class="n">DeferredToolGroup</span><span class="p">(</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">group_id</span><span class="o">=</span><span class="s2">"mcp:github"</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">display_name</span><span class="o">=</span><span class="s2">"GitHub"</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">"Issues, PRs, repos, code search"</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">tool_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"create_issue"</span><span class="p">,</span> <span class="s2">"search_repos"</span><span class="p">,</span> <span class="s2">"create_pr"</span><span class="p">],</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">loader</span><span class="o">=</span><span class="n">load_github_tools</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">)</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="n">ToolUse</span><span class="p">(</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="n">system</span><span class="o">=</span><span class="s2">"..."</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>                          <span class="c1"># всегда видимые инструменты</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    <span class="n">deferred_tool_groups</span><span class="o">=</span><span class="p">[</span><span class="n">github_group</span><span class="p">],</span>  <span class="c1"># скрыты до запроса</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>loader</code> выполняется не более одного раза на группу за один запуск <code>ToolUse</code>
+— реальные инструменты группы (с полными схемами) присоединяются к обычному
+списку инструментов на весь остаток этого запуска после загрузки.</p>
+<h2 id="json">Структурный вывод: никогда не парсите сырой JSON сами<a class="headerlink" href="#json" title="Permanent link">&para;</a></h2>
+<p>Runtime оборачивает один вызов LLM в схему <code>pydantic</code> с ретраями и терпимым
+парсингом JSON:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.structured</span><span class="w"> </span><span class="kn">import</span> <span class="n">StructuredLLM</span><span class="p">,</span> <span class="n">structured_llm</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># процедурный вариант:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">body</span> <span class="o">=</span> <span class="k">await</span> <span class="n">structured_llm</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">context</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">AnswerBody</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">system</span><span class="o">=</span><span class="s2">"You assemble coherent answers."</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">user</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Question: </span><span class="si">{</span><span class="n">question</span><span class="si">}</span><span class="se">\n</span><span class="s2">Facts: </span><span class="si">{</span><span class="n">facts</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># переиспользуемый объектный вариант:</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">_extractor</span> <span class="o">=</span> <span class="n">StructuredLLM</span><span class="p">(</span><span class="n">ProjectInfo</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="s2">"Extract repair facts; unknown = null"</span><span class="p">)</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">facts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_extractor</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">message_text</span><span class="p">)</span>
+</code></pre></div>
+<p>Оба возвращают <code>None</code> при отсутствии модели или провале парсинга после ретраев —
+и вызывающий обязан обработать <code>None</code> (см. фолбэки). Если нужно отличить
+«провайдер не настроен» от «провайдер упал» (например, чтобы алертить на
+реальный простой), не меняя саму обработку <code>None</code> — передайте <code>on_error</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">alert_if_down</span><span class="p">(</span><span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">if</span> <span class="n">reason</span> <span class="o">==</span> <span class="s2">"provider_error"</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"LLM outage: </span><span class="si">%r</span><span class="s2">"</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">body</span> <span class="o">=</span> <span class="k">await</span> <span class="n">structured_llm</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">AnswerBody</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">text</span><span class="p">,</span> <span class="n">on_error</span><span class="o">=</span><span class="n">alert_if_down</span><span class="p">)</span>
+</code></pre></div>
+<p>Строки <code>system</code>/<code>user</code> собирайте через <code>PromptTemplate</code> (ядро): объявленные
+переменные, <code>KeyError</code> при нехватке, поля атрибутов модели
+(<code>template.render(topic=…, question=…)</code>) — без ручного <code>.format</code> в коде приложения.</p>
+<p><code>StructuredGenerateAgent</code> — декларативная обёртка: переопределите
+<code>build_prompt(inputs)</code>, опционально <code>fallback(inputs)</code>, объявите <code>schema</code> — чтение
+и запись провенанса запишутся за вас.</p>
+<h2 id="plan-and-execute">Plan-and-execute: план, затем шаг за шагом<a class="headerlink" href="#plan-and-execute" title="Permanent link">&para;</a></h2>
+<p>Для цели, которая раскладывается на упорядоченную последовательность
+<em>зависимых</em> шагов (в отличие от независимых чанков map-reduce выше), разделите
+планирование и выполнение на два produce вместо одного большого tool-loop:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Planner</span><span class="p">(</span><span class="n">Produce</span><span class="p">[</span><span class="n">PlanStep</span><span class="p">]):</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">artifact_type</span> <span class="o">=</span> <span class="n">PlanStep</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">produce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">context</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">context</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">goal</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">trigger</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="k">if</span> <span class="n">goal</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">context</span><span class="o">.</span><span class="n">list_artifacts</span><span class="p">(</span><span class="n">PlanStep</span><span class="p">):</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>            <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># не Goal, либо план уже построен (§42)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="n">steps</span> <span class="o">=</span> <span class="k">await</span> <span class="n">plan_steps</span><span class="p">(</span><span class="n">goal</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>  <span class="c1"># structured LLM или фолбэк</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">instruction</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">steps</span><span class="p">):</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">PlanStep</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">instruction</span><span class="o">=</span><span class="n">instruction</span><span class="p">),</span> <span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="k">class</span><span class="w"> </span><span class="nc">Executor</span><span class="p">(</span><span class="n">Produce</span><span class="p">[</span><span class="n">StepResult</span><span class="p">]):</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">artifact_type</span> <span class="o">=</span> <span class="n">StepResult</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">produce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>        <span class="n">context</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">context</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>        <span class="n">steps</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">list_artifacts</span><span class="p">(</span><span class="n">PlanStep</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">steps</span><span class="p">:</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>            <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"result:</span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>                <span class="k">continue</span>  <span class="c1"># уже выполнен</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>            <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">index</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"result:</span><span class="si">{</span><span class="n">steps</span><span class="p">[</span><span class="n">step</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>                <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># ждём результат предыдущего шага (§69)</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">StepResult</span><span class="p">(</span><span class="o">...</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"result:</span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>            <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># один шаг за поколение; следующий результат перезапустит нас</span>
+</code></pre></div>
+<p>Ключевой момент: исполнитель <strong>не</strong> ветвится по <code>event.artifact_id</code>, как это
+делает поштучный produce в map-reduce — он на каждом триггере заново вычисляет
+«какой шаг следующий» из состояния (подписан и на <code>PlanStep</code>, и на
+<code>StepResult</code>) — тот же идиом «допустимость — решение по состоянию», что и у
+<code>Combine</code> в <code>map_reduce</code>. Гард <code>if step.data.index &gt; 0 and ... is None: return
+None</code> — это и есть весь механизм упорядочивания: без явного графа
+управления, без ручной проводки «жди узел N». Produce <code>Finisher</code> зеркалит
+<code>Combine</code> из <code>map_reduce</code>: ждёт результата каждого шага, затем собирает
+финальный ответ.</p>
+<p>Полный порт — в <code>examples/plan_execute</code> (структурированное планирование с
+детерминированным однотаговым фолбэком и финишером).</p>
+<h2 id="_3">Корреляция между типами артефактов<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p><code>Consume.condition</code> видит только один артефакт своего же типа — заглянуть в
+экземпляр <em>другого</em> типа, чтобы решить, срабатывать ли, он не может. Реальные
+случаи, которым это нужно («существуют <code>Report</code> и отвеченный <code>PendingQuestion</code>
+для одного треда», «для этого треда ещё не заведён <code>HelpdeskTicket</code>»), раньше
+приходилось ручками зашивать <em>внутрь</em> <code>produce()</code> — ровно ту логику, которую
+<code>consumes</code> и придуман убирать оттуда. <code>reactifact.consume.CorrelatedConsume</code>
+(и две его фабрики под частные случаи) возвращает это на объявление класса:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.consume</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbsentConsume</span><span class="p">,</span> <span class="n">JoinConsume</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">ApprovalGate</span><span class="p">(</span><span class="n">Agent</span><span class="p">):</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="n">JoinConsume</span><span class="p">(</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>            <span class="n">Report</span><span class="p">,</span> <span class="n">PendingQuestion</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">thread_id</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>            <span class="n">part_conditions</span><span class="o">=</span><span class="p">{</span><span class="n">PendingQuestion</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">answered</span><span class="p">},</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        <span class="p">),</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="p">]</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">produces</span> <span class="o">=</span> <span class="p">[</span><span class="n">RecordApproval</span><span class="p">()]</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="k">class</span><span class="w"> </span><span class="nc">TicketGate</span><span class="p">(</span><span class="n">Agent</span><span class="p">):</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>        <span class="n">AbsentConsume</span><span class="p">(</span><span class="n">Report</span><span class="p">,</span> <span class="n">absent_type</span><span class="o">=</span><span class="n">HelpdeskTicket</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">thread_id</span><span class="p">),</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="p">]</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">produces</span> <span class="o">=</span> <span class="p">[</span><span class="n">FileTicket</span><span class="p">()]</span>
+</code></pre></div>
+<p><code>JoinConsume(*parts, key=...)</code> срабатывает, когда для одного ключа существуют
+все перечисленные типы; <code>AbsentConsume(type, absent_type=..., key=...)</code>
+срабатывает для <code>type</code>, только если для того же ключа ещё нет
+<code>absent_type</code>. Обе — тонкие фабрики над <code>CorrelatedConsume(require=...,
+forbid=...)</code> — берите <code>CorrelatedConsume</code> напрямую, когда нужно и то, и
+другое сразу (требуемое присутствует <strong>и</strong> запрещённое отсутствует), что ни
+одна из фабрик по отдельности не выразит без вложения одной в другую.
+<code>produce()</code> читает <code>inputs</code> так же, как читал бы смешанный список от
+нескольких обычных <code>Consume</code> — без <code>isinstance</code>-сканирования внутри тела.</p>
+<h2 id="_4">Реакция только на одно из нескольких событий<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>Агент с несколькими <code>consumes</code> и несколькими <code>produces</code> по умолчанию
+запускает <em>каждый</em> produce на <em>каждое</em> подходящее событие —
+<code>Agent.execute()</code> не знает, какой из <code>Consume</code> агента волнует конкретный
+produce. Без <code>reacts_to</code> каждый produce вынужден сам себя гардить:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">produce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="k">if</span> <span class="n">call</span><span class="o">.</span><span class="n">event</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">trigger</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">ResolvedDocuments</span><span class="p">):</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="o">...</span>
+</code></pre></div>
+<p>Вместо этого объявите <code>reacts_to = (TheType,)</code> на <code>Produce</code>, и
+<code>Agent.execute()</code> вообще не вызовет <code>produce()</code> для события, которое не
+подходит ни под один тип из <code>reacts_to</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">FinalizeWithDocuments</span><span class="p">(</span><span class="n">Produce</span><span class="p">[</span><span class="n">DraftAnswer</span><span class="p">]):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">artifact_type</span> <span class="o">=</span> <span class="n">DraftAnswer</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">reacts_to</span> <span class="o">=</span> <span class="p">(</span><span class="n">ResolvedDocuments</span><span class="p">,)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="o">...</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">DirectFinalize</span><span class="p">(</span><span class="n">Produce</span><span class="p">[</span><span class="n">DraftAnswer</span><span class="p">]):</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">artifact_type</span> <span class="o">=</span> <span class="n">DraftAnswer</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">reacts_to</span> <span class="o">=</span> <span class="p">(</span><span class="n">DecisionReply</span><span class="p">,)</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="o">...</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">FinalAgent</span><span class="p">(</span><span class="n">Agent</span><span class="p">):</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Consume</span><span class="p">(</span><span class="n">ResolvedDocuments</span><span class="p">),</span> <span class="n">Consume</span><span class="o">.</span><span class="n">by_field</span><span class="p">(</span><span class="n">DecisionReply</span><span class="p">,</span> <span class="s2">"route_action"</span><span class="p">,</span> <span class="s2">"final"</span><span class="p">)]</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="n">produces</span> <span class="o">=</span> <span class="p">[</span><span class="n">FinalizeWithDocuments</span><span class="p">(),</span> <span class="n">DirectFinalize</span><span class="p">()]</span>
+</code></pre></div>
+<p>Это ровно тот случай, который не даёт переиспользовать <code>artifact_type</code> для
+обоих направлений: два produce здесь делят один тип результата
+(<code>DraftAnswer</code>), но реагируют на два разных входящих события. <code>None</code> (по
+умолчанию) остаётся неограниченным — любой существующий <code>Produce</code> без
+<code>reacts_to</code> работает как прежде.</p>
+<p>Раз <code>reacts_to</code> уже ограничивает, на какое событие запускается produce,
+резолв артефакта этого события (<code>call.trigger</code>) — настоящая гарантия, а не
+удобство "на удачу", и именно она убирает гард целиком, а не только
+проверку типа:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">FinalizeWithDocuments</span><span class="p">(</span><span class="n">Produce</span><span class="p">[</span><span class="n">DraftAnswer</span><span class="p">]):</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">artifact_type</span> <span class="o">=</span> <span class="n">DraftAnswer</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">reacts_to</span> <span class="o">=</span> <span class="p">(</span><span class="n">ResolvedDocuments</span><span class="p">,)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">produce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>            <span class="n">DraftAnswer</span><span class="p">(</span><span class="n">query_id</span><span class="o">=</span><span class="n">call</span><span class="o">.</span><span class="n">trigger</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">query_id</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">"documents"</span><span class="p">)</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>        <span class="p">)</span>
+</code></pre></div>
+<p>Для CREATED/UPDATED/STALE события <code>Agent.execute()</code> вообще не вызывает
+<code>produce()</code>, если <code>context.get(event.artifact_id)</code> больше не резолвится —
+артефакт был удалён другим агентом раньше в том же поколении (та самая
+гонка, которую уже документирует <code>Trigger.matches()</code>) — так что
+<code>call.trigger</code> никогда не будет <code>None</code>, когда этот produce реально
+запустился, и телу не нужен вообще никакой гард. Единственное исключение —
+DELETED-событие для собственного типа <code>reacts_to</code> produce: там
+<code>context.get(...)</code> корректно возвращает <code>None</code> — это и есть событие, а не
+гонка, — так что produce всё равно запускается, но с <code>call.trigger</code>, равным
+<code>None</code>; такое стоит обработать самостоятельно, если реагируете на удаления.
+Без <code>reacts_to</code> <code>call.trigger</code> по-прежнему резолвится и передаётся, когда
+<code>call.event</code> не <code>None</code>, но чисто как удобство — тут нет типового контракта,
+который нужно соблюдать, поэтому это никогда не гейтит вызов.</p>
+<p>Но это не повод делать <code>reacts_to</code> обязательным: некоторые паттерны выше
+(<code>Combine</code>, <code>Finisher</code>, <code>Executor</code> из plan-execute) намеренно реагируют
+единообразно сразу на несколько потребляемых типов — заставлять их
+объявлять <code>reacts_to</code> было бы ритуалом, а не явностью. <code>call.event</code> также
+по-прежнему несёт <code>artifact_id</code>/<code>artifact_type</code> после DELETED-события, когда
+<code>call.trigger</code> неизбежно не может (данных уже нет) — оставляйте <code>call.event</code>,
+если вам нужно знать, <em>что именно</em> удалено, а не просто факт удаления.</p>
+<h2 id="_5">Чтение входа без пробуждения на нём<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p><code>Consume(..., wakes=False)</code> по-прежнему питает <code>_collect_inputs()</code>, но
+никогда не попадает в <code>Agent.triggers</code> — «читай это как вход, но не буди
+меня на этом». Повторяющийся случай: агент, который должен запускаться при
+поступлении <code>Question</code>, но которому также нужна <code>ConversationHistory</code> как
+вход — без перезапуска на каждый артефакт истории:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">Consume</span><span class="p">(</span><span class="n">Question</span><span class="p">),</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">Consume</span><span class="p">(</span><span class="n">ConversationHistory</span><span class="p">,</span> <span class="n">wakes</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">]</span>
+</code></pre></div>
+<p>До <code>wakes</code> единственным способом отделить «что меня будит» от «что я читаю»
+был отдельный оверрайд <code>triggers=</code> у <code>Agent</code>, который приходилось вручную
+синхронизировать с <code>consumes</code>. <code>triggers=</code> по-прежнему нужен для
+<em>императивного</em> стиля (подкласс <code>Agent</code>, переопределяющий <code>run()</code> напрямую,
+вообще без <code>consumes</code>) — там просто нет <code>Consume</code>, к которому можно было бы
+привязать условие.</p>
+<h2 id="fan-out">Дебаунс fan-out<a class="headerlink" href="#fan-out" title="Permanent link">&para;</a></h2>
+<p>Шаг fan-out, создающий несколько артефактов одного типа в одном коммите
+(пять <code>Evidence</code> из одного шага поиска), порождает по одному событию на
+каждый. Агент, подписанный на этот тип, по умолчанию запускается на каждое
+событие — пять раз на один батч. <code>Consume(..., debounce=True)</code> схлопывает
+события одного поколения для этого <code>Consume</code> в один запуск:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">consumes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Consume</span><span class="p">(</span><span class="n">Evidence</span><span class="p">,</span> <span class="n">debounce</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+</code></pre></div>
+<p>Единственный запуск читает <code>inputs</code> (собранные заново из <code>Context</code>), а не
+<code>event</code> — это как раз та информация «что именно изменилось», которую
+дебаунс отбрасывает, так что дебаунсящий produce не должен опираться на
+<code>event</code> ни для чего, кроме факта «что-то изменилось». Дебаунс завязан на
+конкретный <code>Consume</code>, а не на весь агент: агент со смесью дебаунсящих и
+обычных <code>Consume</code> схлопывает события только для дебаунсящего типа.
+Схлопнутый запуск также корректно стоит <strong>один</strong> пункт бюджета
+<code>Budget(max_runs=...)</code>, а не по одному на каждое схлопнутое событие.</p>
+<h2 id="_6">Фолбэки: честная деградация<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>Детерминированная работа остаётся детерминированной; генеративная деградирует
+<em>честно</em>:</p>
+<ol>
+<li>Если <strong>модель не настроена</strong> — используйте детерминированный вариант
+   (заготовленные варианты, фолбэк-планы): демо-режим без ключа.</li>
+<li>Если <strong>модель вернула ничего полезного</strong> — НЕ подменяйте канонные ответы;
+   сообщите о сбое открыто: <em>«Не удалось подобрать варианты…»</em>.</li>
+</ol>
+<p>Пример <code>repair</code> реализует оба пути в <code>_make_design_options</code>: <code>fallback_options</code>
+только когда <code>context.resources.llm is None</code>, иначе — явное сообщение о сбое.</p>
+<h2 id="_7">Модель изменений и отката («изменить → пересобрать»)<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<p>Длинные многоэтапные диалоги иногда должны <em>откатываться</em>. Пример <code>repair</code>
+моделирует это так: разобрать запрос на изменение → определить самую раннюю
+затронутую стадию → детерминированно сбросить всё ниже по потоку:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">target</span> <span class="o">=</span> <span class="n">rollback_target</span><span class="p">(</span><span class="n">changed</span><span class="p">)</span>      <span class="c1"># "plan" | "estimate" | …</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">updates</span> <span class="o">=</span> <span class="n">_downstream_resets</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>   <span class="c1"># чистит design_options/plan/estimate</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">updates</span> <span class="o">|=</span> <span class="p">{</span><span class="s2">"stage"</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span> <span class="s2">"info"</span><span class="p">:</span> <span class="n">new_info</span><span class="p">,</span> <span class="s2">"handled_msg"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
+</code></pre></div>
+<p>Сброс <code>handled_msg</code> переустанавливает стадии, чтобы пересборка реально
+запустилась. Это ручной близнец <code>StatusMachine</code> — для потоков, где откат — часть
+продукта, а не жизненного цикла.</p>
+<h2 id="_8">Бюджет и справедливость<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p><code>Budget</code> ограничивает запуск:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">runtime</span> <span class="o">=</span> <span class="n">Runtime</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">agents</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">budget</span><span class="o">=</span><span class="n">Budget</span><span class="p">(</span><span class="n">max_runs</span><span class="o">=</span><span class="mi">200</span><span class="p">),</span> <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><code>max_runs</code>, <code>max_iterations</code>, <code>max_time_s</code>, лимиты вызовов инструментов — runtime
+  останавливается и сообщает <code>RunOutcome</code> (<code>completed</code> | <code>budget_exhausted</code> | …)
+  вместе с <code>RunStats</code>.</li>
+<li><code>Agent.concurrency_limit</code> (у LLM-агентов по умолчанию ниже) + глобальный
+  <code>max_concurrency</code> runtime держат лимиты провайдеров: демо <code>medic-lab</code> — лаборатория
+  гипотез с лимитом LLM = 2 внутри глобального лимита 6.</li>
+<li>По умолчанию исключение одного агента пробрасывается из <code>arun()</code>/<code>astream()</code>
+  и останавливает весь запуск (§69 — падать громко, не молчать). Изолировать
+  его можно через <code>Runtime(isolate_errors=True, on_agent_error=...)</code>: такой
+  агент не даёт патча в этом поколении, остальные агенты всё равно
+  продвигаются, а сбой трейсится (<code>AgentSpan.error</code>) и считается
+  (<code>RunStats.errors</code>), а не прячется.</li>
+</ul>
+<h2 id="_9">Память чата через сессии<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<p>Состояние живёт в контексте, поэтому <em>память чата — это просто состояние</em>. Между
+запросами:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SessionStore</span><span class="p">(</span><span class="n">FileKVBackend</span><span class="p">(</span><span class="s2">"sessions"</span><span class="p">))</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">session</span> <span class="o">=</span> <span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="n">resources</span><span class="o">=</span><span class="n">resources</span><span class="p">)</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># ...создать UserMsg, astream, await session.save()</span>
+</code></pre></div>
+<p><code>store.open</code> восстанавливает контекст из последнего чекпоинта; фоновый агент
+(<code>@consume</code>/триггер) может ужимать историю, обновлять указатель <code>handled_msg</code> и
+закрывать зависшие вопросы. Web-демо несут этот паттерн дословно.</p>
+<h2 id="_10">Машины состояний для длинных жизненных циклов<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<p>См. <a href="../recipes/">recipes</a>. Правило выбора паттерна:</p>
+<table>
+<thead>
+<tr>
+<th>Ситуация</th>
+<th>Подход</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Артефакт проходит фазовые состояния</td>
+<td><code>StatusMachine</code> + верификатор-produce</td>
+</tr>
+<tr>
+<td>Потоку нужно <em>откатываться</em> на правках пользователя</td>
+<td>гард стадии + <code>_downstream_resets</code></td>
+</tr>
+<tr>
+<td>Исследовать и сравнивать альтернативные состояния</td>
+<td><code>branch()</code> + <code>merge()</code> (§39-§40)</td>
+</tr>
+<tr>
+<td>«Который из этих выбрала модель?»</td>
+<td>парсинг как в <code>PickStage</code> + гард</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_11">Детерминизм как привычка<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Контракт produce</strong>: пишите <code>self.effects.create/update/link/ask(...)</code> и
+  возвращайте <code>None</code>; рантайm компилирует слот в один атомарный патч (§24).
+  <code>Patch</code> — транспорт, в обычном produce его почти не печатают.</li>
+<li>Право на запуск — гард, а не удачный порядок планировщика (<code>return None</code> рано).</li>
+<li>Предпочитайте стабильные id (<code>answer:{qid}</code>, <code>ref:{sid}:{owner}</code>) →
+  идемпотентные повторы. <code>self.effects.create_once(Model(...), id=...)</code>
+  сворачивает гард «уже сделано» прямо в вызов — <code>None</code> в ответ значит
+  пропустить, а не собирать гард руками перед каждым <code>create</code>.</li>
+<li>Чистые функции решений (<code>next_status</code>) тестируются без runtime.</li>
+<li>У каждого LLM-вызова — структурная схема, бюджет ретраев и путь <code>None</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
