@@ -74,6 +74,7 @@ from .skills import Skill, load_skills, match_skills
 from .status import StatusMachine
 from .supervisor import ApprovalGate, Router
 from .text import EN_STOPWORDS, keyword_score, stem, stem_words
+from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
 
 __all__ = [
     "ApprovalGate",
@@ -87,6 +88,8 @@ __all__ = [
     "SeedIdentity",
     "Skill",
     "StatusMachine",
+    "ToolLoopResult",
+    "ToolObservation",
     "WindowPruner",
     "WindowSummarizer",
     "changed_fields",
@@ -101,6 +104,7 @@ __all__ = [
     "load_skills",
     "match_skills",
     "materialize_doc",
+    "run_tool_loop",
     "stem",
     "stem_words",
 ]
