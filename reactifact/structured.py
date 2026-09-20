@@ -23,8 +23,20 @@ TModel = TypeVar("TModel", bound=BaseModel)
 #: same `None` return (the honest-fallback contract, §67), but a caller that
 #: needs to alert on real outages can now distinguish them without changing
 #: how it handles the `None`.
-StructuredLLMFailure = Literal["no_provider", "provider_error", "parse_error"]
+StructuredLLMFailure = Literal[
+    "no_provider", "provider_error", "parse_error", "validation_error"
+]
 OnStructuredError = Callable[[StructuredLLMFailure, BaseException | None], None]
+
+#: Retry instruction when the model's reply was not parseable JSON.
+DEFAULT_PARSE_REPAIR = (
+    "Previous reply was not valid JSON. Return a single strict JSON object only."
+)
+#: Retry instruction when it parsed but failed the caller's `validate`.
+DEFAULT_VALIDATION_REPAIR = (
+    "The previous reply violated a required rule. Return a corrected single "
+    "strict JSON object only."
+)
 
 SYSTEM_STRUCTURED = (
     "You produce structured output. Reply with a single JSON object only, "
@@ -111,6 +123,8 @@ async def structured_llm(
     max_tokens: int | None = None,
     prompt_hash: str = "",
     on_error: OnStructuredError | None = None,
+    validate: Callable[[TModel], bool] | None = None,
+    repair: Callable[[TModel | None, str], str] | None = None,
 ) -> TModel | None:
     """Single LLM call against a schema: JSON + tolerant parse + retry.
 
@@ -121,9 +135,18 @@ async def structured_llm(
     for a per-call override.
 
     `on_error`, if given, is called right before returning None with *why*
-    ("no_provider" | "provider_error" | "parse_error") and the exception when
-    there is one — for callers that want to distinguish "offline" from "the
-    provider is down" (e.g. to alert) without changing how they handle `None`.
+    ("no_provider" | "provider_error" | "parse_error" | "validation_error") and
+    the exception when there is one — for callers that want to distinguish
+    "offline" from "the provider is down" (e.g. to alert) without changing how
+    they handle `None`.
+
+    `validate` adds a **domain-rule** check on top of the JSON schema: given the
+    parsed model, return `False` to reject it (e.g. "the total must equal the
+    sum of the lines", "the cited id must exist"). A rejection is retried like a
+    parse failure, and `repair(invalid_model_or_None, last_reply_text)` — when
+    given — returns the extra instruction appended for the next attempt (the
+    default tells the model its reply violated a rule). When the attempts run
+    out the result is the same honest `None`, with `on_error("validation_error")`.
     """
     llm = context.resources.llm
     if llm is None:
@@ -167,20 +190,25 @@ async def structured_llm(
                 on_error("provider_error", exc)
             return None  # provider/network failed — honest fallback
         parsed = parse_structured(response.text, schema)
-        if parsed is not None:
+        valid = parsed is not None and (validate is None or validate(parsed))
+        if valid:
             return parsed
         logger.debug(
-            "structured_llm parse failed (attempt %s): %.160r",
+            "structured_llm %s failed (attempt %s): %.160r",
+            "parse" if parsed is None else "validation",
             attempt + 1,
             response.text,
         )
         if attempt + 1 < total:
-            request = _request(
-                f"{instruction}\n\n{user}\n\n"
-                "Previous reply was not valid JSON. Return a single strict JSON object only."
-            )
+            if repair is not None:
+                note = repair(parsed, response.text)
+            elif parsed is None:
+                note = DEFAULT_PARSE_REPAIR
+            else:
+                note = DEFAULT_VALIDATION_REPAIR
+            request = _request(f"{instruction}\n\n{user}\n\n{note}")
     if on_error is not None:
-        on_error("parse_error", None)
+        on_error("parse_error" if parsed is None else "validation_error", None)
     return None
 
 
@@ -422,6 +450,9 @@ class StructuredLLM(Generic[TModel]):
         temperature: float = 0.0,
         max_tokens: int = 2048,
         on_error: OnStructuredError | None = None,
+        validate: Callable[[TModel], bool] | None = None,
+        repair: Callable[[TModel | None, str], str] | None = None,
+        prompt_hash: str = "",
     ):
         self.schema = schema
         self.system = system
@@ -429,6 +460,9 @@ class StructuredLLM(Generic[TModel]):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.on_error = on_error
+        self.validate = validate
+        self.repair = repair
+        self.prompt_hash = prompt_hash
 
     async def call(self, context: Context, user: str) -> TModel | None:
         return await structured_llm(
@@ -440,4 +474,7 @@ class StructuredLLM(Generic[TModel]):
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             on_error=self.on_error,
+            validate=self.validate,
+            repair=self.repair,
+            prompt_hash=self.prompt_hash,
         )

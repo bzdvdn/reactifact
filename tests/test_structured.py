@@ -394,3 +394,61 @@ def test_chat_complete_full_returns_none_on_provider_error():
     ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
     result = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
     assert result is None
+
+
+class _Pos(BaseModel):
+    n: int
+
+
+def test_validate_rejects_then_repairs():
+    llm = ScriptedLLM(['{"n": -1}', '{"n": 5}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    seen: list[tuple[int | None, str]] = []
+
+    def repair(bad, text):
+        seen.append((bad.n if bad else None, text))
+        return "n must be positive"
+
+    result = asyncio.run(
+        structured_llm(
+            ctx,
+            schema=_Pos,
+            user="give a positive",
+            validate=lambda m: m.n > 0,
+            repair=repair,
+        )
+    )
+    assert result is not None and result.n == 5
+    assert seen == [(-1, '{"n": -1}')]
+
+
+def test_validation_error_reported_when_all_attempts_invalid():
+    llm = ScriptedLLM(['{"n": -1}', '{"n": -2}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    reasons: list[str] = []
+
+    result = asyncio.run(
+        structured_llm(
+            ctx,
+            schema=_Pos,
+            user="x",
+            validate=lambda m: m.n > 0,
+            on_error=lambda reason, exc: reasons.append(reason),
+        )
+    )
+    assert result is None
+    assert reasons == ["validation_error"]
+
+
+def test_repair_sees_none_on_parse_failure():
+    llm = ScriptedLLM(["not json", '{"n": 1}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    seen: list[object] = []
+
+    def repair(bad, text):
+        seen.append(bad)
+        return "return json"
+
+    result = asyncio.run(structured_llm(ctx, schema=_Pos, user="x", repair=repair))
+    assert result is not None and result.n == 1
+    assert seen == [None]
