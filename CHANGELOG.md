@@ -4,7 +4,14 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [Unreleased]
+## [0.10.0] — 2026-09-20
+
+The on-ramp release: a thin `reactifact.quick` facade over the primitives,
+first-class audit + reproducible-run tooling, per-run request context and typed
+resources, loop-safe provider clients, validated/repairable structured output,
+opt-in trace redaction, a migration guide, and four new examples
+(`fintech_audit`, `support_copilot`, `repo_agent`, `starter_app`) plus a Colab
+quickstart. No breaking changes.
 
 ### Docs
 
@@ -16,6 +23,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   what is deliberately *not* guaranteed. `tests/test_scheduler_semantics.py`
   pins the load-bearing claims so the doc cannot silently drift from the code.
   Added to the docs nav as "Execution model".
+- `docs/en/migrating.md` (+ `docs/ru/` mirror) — a migration guide from
+  LangGraph / CrewAI / LlamaIndex / plain Python: concept map, a "port one node"
+  before/after, state-dict→artifacts, checkpointing/interrupts/RAG/tool loops,
+  interop ("don't go all-or-nothing": call reactifact from a node, expose it over
+  MCP), an ops mapping and a migration checklist. Added to the nav as
+  "Migrating".
+- `examples/quickstart.ipynb` — a Colab notebook walking the four `quick` cases
+  (offline by default, optional provider cell); "Open in Colab" badges in
+  `quickstart.md` and the README.
 
 ### Added
 
@@ -149,6 +165,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `assert_golden(...)` fails on drift, and `replay_resources(recording)` gives a
   `RuntimeResources` whose llm replays a recording, so a real run becomes an
   offline, deterministic regression.
+
+### Fixed
+
+- Providers, `WebSource` and the OTLP/Langfuse sinks no longer cache one
+  `httpx.AsyncClient` for the whole process. A client is bound to the event loop
+  it was created on, so reusing a long-lived provider across loops (pytest's
+  per-test loops, repeated `asyncio.run`, uvicorn reload) raised
+  `RuntimeError: Event loop is closed` on the second use. The client is now
+  created lazily **per running loop** (a new `reactifact._httpx.LoopBoundClient`,
+  used by `OpenAICompatProvider`/`...Embedder`, `AnthropicProvider`,
+  `GeminiProvider`, the image/speech/video providers, `WebSource`,
+  `OTLPTracer`, `LangfuseTracer`); `aclose()` closes the current loop's client.
+  `RuntimeResources.scope(...)` remains the recommended explicit lifecycle.
+- `reactifact.quick`'s `.context` is a real `Context` from construction, not
+  `Context | None`. Reading it after `ask()` (`r.context.list_artifacts(...)`)
+  no longer gets flagged by a type checker (the run still replaces it).
+- `examples/repair` no longer loops on «Уточните, пожалуйста: площадь» forever.
+  Fact extraction was LLM-only, so with no provider configured (the offline
+  demo) `room_type`/`area`/`budget` were never filled and the collect stage
+  re-asked forever; and with a model, a plainly-stated «10 метров» sometimes
+  came back with `area` null. Added a deterministic `parse_facts` (Russian
+  units: «10 метров»/«10 м»/«10 м²» → area, «300 тысяч»/«50к» → budget,
+  «потолок 2.7 м» ≠ area), used when no model is configured and to fill fields
+  a configured model left unset — without masking a genuine model failure.
 
 ## [0.9.1] — 2026-09-18
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reactifact"
-version = "0.9.1"
+version = "0.10.0"
 description = "Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -118,6 +118,9 @@ fail_under = 85
 target-version = "py311"
 line-length = 88
 src = ["reactifact", "examples"]
+# Notebooks are Colab artifacts (IPython magics, top-level await) — not package
+# code; don't lint/format them.
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = [

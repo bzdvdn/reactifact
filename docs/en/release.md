@@ -23,8 +23,22 @@ entry when the version is bumped:
 
 There's no separate migration doc — `CHANGELOG.md` is the source of truth for
 what changed between versions, and breaking entries are marked per the rule
-above. Two changes worth knowing if you're crossing them:
+above. A few changes worth knowing if you're crossing them (see also
+[migrating.md](migrating.md) for porting from other frameworks):
 
+- **0.10.0** — behavior-visible (non-breaking) changes to know about:
+  - `PromptTemplate.render` now substitutes only *identifier-shaped* `{field}`
+    placeholders and leaves other braces verbatim, so a literal JSON example in
+    a prompt needs no `{{`/`}}` escaping. Templates that relied on `str.format`
+    treating a stray `{...}` as an error/format-spec now pass it through.
+  - `reactifact.chat.ChatEvent.kind` is a closed
+    `Literal["session","status","message"]`; constructing one with an arbitrary
+    `kind` now fails validation.
+  - Provider/`WebSource`/OTLP/Langfuse HTTP clients are created lazily per event
+    loop (no more `RuntimeError: Event loop is closed` across loops); an
+    injected `client=` is still used as-is.
+  - `Runtime.arun/astream` gained a keyword-only `request=`; `Runtime.run`/
+    `run_once` likewise. Existing positional calls are unaffected.
 - **0.7.0** — `Context.merge_from` now preserves the `id` of an artifact
   that exists in `other` but not in `target` (it previously minted a fresh
   one). If you relied on the old id-regenerating behavior — unlikely, since
