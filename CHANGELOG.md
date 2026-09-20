@@ -130,6 +130,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   that creates resources on the current event loop and closes them on exit, so
   loop-bound provider clients (httpx, vector DBs) don't survive into the next
   loop a CLI or pytest uses (`RuntimeError: Event loop is closed`).
+- `structured_llm(..., validate=fn, repair=fn, prompt_hash=…)` — a domain-rule
+  check on top of the JSON schema: a `validate(model) -> bool` rejection is
+  retried like a parse failure, with `repair(invalid_or_None, last_reply) -> str`
+  supplying the retry instruction (defaults provided); exhaustion returns the
+  same honest `None` with `on_error("validation_error")`. `StructuredLLM` carries
+  the same knobs.
+- `recipes.run_tool_loop(context, *, system, user, tools, max_rounds=…,
+  parallel=True, mandatory=…)` — the opt-in native tool-calling loop over
+  `native_tool_use`: bounded rounds, parallel tool execution, a nudge until a
+  mandatory tool runs, and a forced final answer when rounds run out; returns a
+  `ToolLoopResult` (final text, OpenAI-format transcript, `ToolObservation`s).
+  A recipe, not a core primitive — ignore it and compose `native_tool_use`
+  yourself if the shape doesn't fit.
+- `reactifact.testing` golden-run helpers — `capture(context, trace=…)` freezes
+  a `GoldenRun` (`audit.context_hash` + every `LLMCall.prompt_hash`),
+  `assert_golden(...)` fails on drift, and `replay_resources(recording)` gives a
+  `RuntimeResources` whose llm replays a recording, so a real run becomes an
+  offline, deterministic regression.
 
 ## [0.9.1] — 2026-09-18
 

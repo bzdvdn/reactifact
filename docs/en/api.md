@@ -153,7 +153,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `structured_llm(context, schema, *, system, user, attempts=…, on_error=…)` | one structured call; `None` on honest failure; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`) to distinguish *why*, without changing the `None` contract |
+| `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | one structured call; `None` on honest failure; `validate(model)->bool` adds a domain-rule check retried like a parse failure, `repair(invalid_or_None, last_reply)->str` supplies the retry instruction; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) to distinguish *why*, without changing the `None` contract |
 | `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | reusable instance; `.call(context, user)` |
 | `llm_reply(context, *, system, user, attempts=…, on_error=…)` | plain-text completion → `str` or `None` (single-text schema under the hood) |
 | `parse_structured` | lenient JSON→model parser used internally |
@@ -202,6 +202,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count |
 | `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful |
 | `llm_summarizer(system=…)` | builds a `WindowSummarizer(summarize=…)` callback from a system prompt via `llm_reply` |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in native tool-calling loop over `native_tool_use`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; returns `ToolLoopResult` (text, transcript, `ToolObservation`s) |
 
 ## Text & rollback helpers (reactifact.recipes)
 
@@ -224,6 +225,15 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write; the dashboard (`create_trace_router`) accepts any `TraceReader` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI dashboard router |
+
+## Testing (reactifact.testing, §56)
+
+| Symbol | Role |
+| --- | --- |
+| `ScenarioLab` | scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/errors), `mode=` live/record/replay, fault injection |
+| `capture(context, *, trace=…)` | freeze a `GoldenRun` — `context_hash` plus the trace's prompt hashes |
+| `assert_golden(context, golden, *, trace=…)` | fail loudly when state (or, with `trace`, prompts) drifted |
+| `replay_resources(recording, *, base=…)` | a `RuntimeResources` whose llm replays a recording — an offline regression on a real run |
 
 ## MCP (reactifact.mcp, `mcp` extra)
 

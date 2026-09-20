@@ -156,7 +156,7 @@
 
 | Символ | Роль |
 | --- | --- |
-| `structured_llm(context, schema, *, system, user, attempts=…, on_error=…)` | один структурный вызов; `None` при честном сбое; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`) — понять *почему*, не меняя контракт `None` |
+| `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | один структурный вызов; `None` при честном сбое; `validate(model)->bool` добавляет домен-проверку, повторяемую как parse-сбой; `repair(invalid_or_None, last_reply)->str` даёт инструкцию для повтора; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) — понять *почему*, не меняя контракт `None` |
 | `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | переиспользуемый экземпляр; `.call(context, user)` |
 | `llm_reply(context, *, system, user, attempts=…, on_error=…)` | обычный (неструктурный) вызов → `str` или `None` (под капотом схема с одним полем) |
 | `parse_structured` | допускающий JSON→модель парсер, используемый внутри |
@@ -205,6 +205,7 @@
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений |
 | `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе |
 | `llm_summarizer(system=…)` | строит колбэк `WindowSummarizer(summarize=…)` из системного промпта через `llm_reply` |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in цикл native tool-calling поверх `native_tool_use`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`) |
 
 ## Хелперы текста и отката (reactifact.recipes)
 
@@ -227,6 +228,15 @@
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда |
+
+## Тестирование (reactifact.testing, §56)
+
+| Символ | Роль |
+| --- | --- |
+| `ScenarioLab` | scenario-харнесс: посев артефактов, прогон агентов, ассерты (артефакты/тулы/путь/ошибки), `mode=` live/record/replay, инъекция сбоев |
+| `capture(context, *, trace=…)` | замораживает `GoldenRun` — `context_hash` плюс хеши промптов из трейса |
+| `assert_golden(context, golden, *, trace=…)` | громко падает при дрейфе состояния (и промптов, если передан `trace`) |
+| `replay_resources(recording, *, base=…)` | `RuntimeResources`, чей llm реплеит запись — офлайн-регресс на реальном прогоне |
 
 ## MCP (reactifact.mcp, extra `mcp`)
 

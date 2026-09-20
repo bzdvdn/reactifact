@@ -113,3 +113,19 @@ is in how it's used, not its bare signature.
 ### RegexRedactor
 
 ::: reactifact.redaction.RegexRedactor
+
+## Tool loop
+
+### run_tool_loop
+
+::: reactifact.recipes.run_tool_loop
+
+## Golden runs
+
+### capture
+
+::: reactifact.testing.capture
+
+### assert_golden
+
+::: reactifact.testing.assert_golden
