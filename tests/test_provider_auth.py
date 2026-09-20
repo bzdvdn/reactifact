@@ -154,10 +154,15 @@ def test_proxy_is_forwarded():
         transport=httpx.MockTransport(lambda req: httpx.Response(200, json=COMPLETION)),
     )
     assert provider._proxy == "http://proxy.example:8080"
+
     # httpx does not expose .proxy; the wiring contract is that a proxy URL is
     # forwarded to the AsyncClient and the client builds and caches cleanly.
-    client = provider._get_client()
-    assert client is provider._get_client()
+    # `_get_client()` needs a running loop (the client is loop-bound).
+    async def scenario() -> None:
+        client = provider._get_client()
+        assert client is provider._get_client()
+
+    asyncio.run(scenario())
 
 
 def test_env_knobs_are_read(tmp_path):

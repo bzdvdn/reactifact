@@ -182,6 +182,12 @@
 
 ## Провайдеры (reactifact.providers)
 
+Каждый провайдер лениво создаёт `httpx.AsyncClient` и **перепривязывает его к
+текущему event loop**, поэтому один экземпляр провайдера переживает повторные
+`asyncio.run(...)` и per-test loop'ы (без `RuntimeError: Event loop is closed`);
+`aclose()` закрывает клиент текущего loop. То же — для `WebSource` и
+OTLP/Langfuse-приёмников.
+
 | Символ | Роль |
 | --- | --- |
 | `LLMProvider`, `EmbeddingProvider` | два контракта, с которыми говорит ядро |

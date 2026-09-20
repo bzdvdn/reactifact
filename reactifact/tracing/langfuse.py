@@ -21,6 +21,9 @@ import base64
 from datetime import datetime, timedelta
 from typing import Any
 
+import httpx
+
+from .._httpx import LoopBoundClient
 from ._otlp import attr as _attr
 from ._otlp import span_id as _span_id
 from ._otlp import trace_id as _trace_id
@@ -50,12 +53,9 @@ class LangfuseTracer(Tracer):
             "x-langfuse-ingestion-version": "4",
             "Content-Type": "application/json",
         }
-        if client is not None:
-            self._client = client
-        else:
-            import httpx
-
-            self._client = httpx.AsyncClient(headers=self._headers)
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(headers=self._headers), client=client
+        )
 
     async def on_turn_end(self, trace: RunTrace) -> None:
         trace_id = _trace_id(trace.id)
@@ -118,7 +118,7 @@ class LangfuseTracer(Tracer):
                 }
             ]
         }
-        await self._client.post(self._url, json=body)
+        await self._http.get().post(self._url, json=body)
 
     def _agent_span(
         self,

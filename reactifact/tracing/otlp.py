@@ -24,6 +24,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
+import httpx
+
+from .._httpx import LoopBoundClient
 from ._otlp import attr, span_id, trace_id, type_summary, unix_nanos
 from .models import AgentSpan, LLMCall, RunTrace
 from .tracer import Tracer
@@ -49,12 +52,9 @@ class OTLPTracer(Tracer):
         self._url = endpoint
         self._service_name = service_name
         self._headers = {"Content-Type": "application/json", **(headers or {})}
-        if client is not None:
-            self._client = client
-        else:
-            import httpx
-
-            self._client = httpx.AsyncClient(headers=self._headers)
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(headers=self._headers), client=client
+        )
 
     async def on_turn_end(self, trace: RunTrace) -> None:
         tid = trace_id(trace.id)
@@ -104,7 +104,7 @@ class OTLPTracer(Tracer):
                 }
             ]
         }
-        await self._client.post(self._url, json=body)
+        await self._http.get().post(self._url, json=body)
 
     def _agent_span(
         self,

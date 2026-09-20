@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from .._httpx import LoopBoundClient
 from ._retry import with_retry
 from .contracts import (
     EmbeddingProvider,
@@ -61,17 +62,17 @@ class OpenAICompatProvider(LLMProvider):
         #: complete()-only retry budget for transient failures (429/5xx/
         #: connection errors, see providers/_retry.py); 1 disables retrying.
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
-
-    def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(
                 timeout=self._timeout,
                 transport=self._transport,
                 headers=self._headers,
                 proxy=self._proxy,
             )
-        return self._client
+        )
+
+    def _get_client(self) -> httpx.AsyncClient:
+        return self._http.get()
 
     def _payload(self, request: LLMRequest, stream: bool) -> dict[str, Any]:
         # A request-level value overrides the provider default; if neither is
@@ -147,9 +148,7 @@ class OpenAICompatProvider(LLMProvider):
                     yield LLMResponseChunk(text=text)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 class OpenAICompatEmbedder(EmbeddingProvider):
@@ -177,17 +176,17 @@ class OpenAICompatEmbedder(EmbeddingProvider):
         self._transport = transport
         self._proxy = proxy
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
-
-    def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(
                 timeout=self._timeout,
                 transport=self._transport,
                 headers=self._headers,
                 proxy=self._proxy,
             )
-        return self._client
+        )
+
+    def _get_client(self) -> httpx.AsyncClient:
+        return self._http.get()
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         async def _call() -> list[list[float]]:
@@ -206,9 +205,7 @@ class OpenAICompatEmbedder(EmbeddingProvider):
         return await with_retry(_call, attempts=self.retry_attempts)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 def _network_knobs(

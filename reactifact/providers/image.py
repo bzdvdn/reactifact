@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from .._httpx import LoopBoundClient
 from ._retry import with_retry
 from .chat import _network_knobs
 from .contracts import auth_value
@@ -60,20 +61,21 @@ class OpenAICompatImageProvider(ImageProvider):
         self._auth_header = auth_header
         self._auth_scheme = auth_scheme
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
+        self._http = LoopBoundClient(self._build_client)
+
+    def _build_client(self) -> httpx.AsyncClient:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers[self._auth_header] = auth_value(self.api_key, self._auth_scheme)
+        return httpx.AsyncClient(
+            timeout=self._timeout,
+            transport=self._transport,
+            headers=headers,
+            proxy=self._proxy,
+        )
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            headers = {"Content-Type": "application/json"}
-            if self.api_key:
-                headers[self._auth_header] = auth_value(self.api_key, self._auth_scheme)
-            self._client = httpx.AsyncClient(
-                timeout=self._timeout,
-                transport=self._transport,
-                headers=headers,
-                proxy=self._proxy,
-            )
-        return self._client
+        return self._http.get()
 
     async def generate(self, prompt: str, **params: Any) -> bytes | None:
         # Provider-level defaults (n/size/quality) can be overridden per call.
@@ -126,9 +128,7 @@ class OpenAICompatImageProvider(ImageProvider):
         return None
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 # Back-compat alias (the previous name, now that the provider is vendor-neutral).

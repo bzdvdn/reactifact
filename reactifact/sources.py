@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ._httpx import LoopBoundClient
+
 
 class SourceRef(BaseModel):
     """A reference to an external object that can be saved as an artifact.
@@ -417,7 +419,7 @@ class WebSource(Source):
         self._timeout = timeout
         self._transport = transport
         self._headers = {"User-Agent": user_agent, "Accept": "text/html,*/*"}
-        self._client: Any | None = None
+        self._http = LoopBoundClient(self._build_client)
         if urls:
             for url in urls:
                 self.add_url(url)
@@ -432,14 +434,19 @@ class WebSource(Source):
         """Registered (url, title) pairs — never fetched by just listing them."""
         return list(self._urls)
 
-    def _get_client(self) -> Any:
-        if self._client is None:
-            import httpx
+    def _build_client(self) -> Any:
+        import httpx
 
-            self._client = httpx.AsyncClient(
-                timeout=self._timeout, transport=self._transport, headers=self._headers
-            )
-        return self._client
+        return httpx.AsyncClient(
+            timeout=self._timeout, transport=self._transport, headers=self._headers
+        )
+
+    def _get_client(self) -> Any:
+        return self._http.get()
+
+    async def aclose(self) -> None:
+        """Closes the HTTP client (if one was created) on the current loop."""
+        await self._http.aclose()
 
     async def _fetch(self, url: str) -> str:
         response = await self._get_client().get(url)

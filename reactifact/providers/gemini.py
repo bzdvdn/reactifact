@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 
+from .._httpx import LoopBoundClient
 from ._retry import with_retry
 from .chat import _network_knobs
 from .contracts import (
@@ -69,17 +70,17 @@ class GeminiProvider(LLMProvider):
         self._headers[auth_header] = auth_value(api_key, auth_scheme)
         self._transport = transport
         self._proxy = proxy
-        self._client: httpx.AsyncClient | None = None
-
-    def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(
                 timeout=self._timeout,
                 transport=self._transport,
                 headers=self._headers,
                 proxy=self._proxy,
             )
-        return self._client
+        )
+
+    def _get_client(self) -> httpx.AsyncClient:
+        return self._http.get()
 
     def _payload(self, request: LLMRequest, stream: bool) -> dict[str, Any]:
         contents: list[dict[str, Any]] = []
@@ -171,9 +172,7 @@ class GeminiProvider(LLMProvider):
                         yield LLMResponseChunk(text=text)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 class GeminiImageProvider(ImageProvider):

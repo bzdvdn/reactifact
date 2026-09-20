@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 
+from .._httpx import LoopBoundClient
 from ._retry import with_retry
 from .chat import _network_knobs
 from .contracts import auth_value
@@ -53,8 +54,6 @@ class VideoProvider(ABC):
     Subclasses that can fetch the finished file from `result.url` override
     `download` with an HTTP client; the embedded-`data` shortcut lives here.
     """
-
-    _client: httpx.AsyncClient | None = None
 
     @abstractmethod
     async def generate(self, prompt: str, **params: Any) -> str:
@@ -104,9 +103,9 @@ class VideoProvider(ABC):
         return result.data
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        http = getattr(self, "_http", None)
+        if http is not None:
+            await http.aclose()
 
 
 class _HttpVideoProvider(VideoProvider):
@@ -135,17 +134,17 @@ class _HttpVideoProvider(VideoProvider):
         self._transport = transport
         self._proxy = proxy
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
-
-    def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
+        self._http = LoopBoundClient(
+            lambda: httpx.AsyncClient(
                 timeout=self._timeout,
                 transport=self._transport,
                 headers=self._headers,
                 proxy=self._proxy,
             )
-        return self._client
+        )
+
+    def _get_client(self) -> httpx.AsyncClient:
+        return self._http.get()
 
     async def download(self, result: VideoResult) -> bytes | None:
         if result.data is not None:

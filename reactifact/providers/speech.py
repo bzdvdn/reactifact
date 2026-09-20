@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 
+from .._httpx import LoopBoundClient
 from ._retry import with_retry
 from .chat import _network_knobs, _resolve_env_api_key
 from .contracts import auth_value
@@ -88,19 +89,20 @@ class OpenAICompatSpeech(SpeechProvider):
         self._auth_header = auth_header
         self._auth_scheme = auth_scheme
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
+        self._http = LoopBoundClient(self._build_client)
+
+    def _build_client(self) -> httpx.AsyncClient:
+        return Connectable().build_client(
+            self._timeout,
+            self._transport,
+            self._proxy,
+            self.api_key,
+            self._auth_header,
+            self._auth_scheme,
+        )
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = Connectable().build_client(
-                self._timeout,
-                self._transport,
-                self._proxy,
-                self.api_key,
-                self._auth_header,
-                self._auth_scheme,
-            )
-        return self._client
+        return self._http.get()
 
     async def synthesize(self, text: str, **params: Any) -> bytes:
         payload: dict[str, Any] = {
@@ -123,9 +125,7 @@ class OpenAICompatSpeech(SpeechProvider):
         return await with_retry(_call, attempts=self.retry_attempts)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 class OpenAICompatTranscriber(TranscriberProvider):
@@ -156,19 +156,20 @@ class OpenAICompatTranscriber(TranscriberProvider):
         self._mime_type = mime_type
         self._filename = filename
         self.retry_attempts = retry_attempts
-        self._client: httpx.AsyncClient | None = None
+        self._http = LoopBoundClient(self._build_client)
+
+    def _build_client(self) -> httpx.AsyncClient:
+        return Connectable().build_client(
+            self._timeout,
+            self._transport,
+            self._proxy,
+            self.api_key,
+            self._auth_header,
+            self._auth_scheme,
+        )
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = Connectable().build_client(
-                self._timeout,
-                self._transport,
-                self._proxy,
-                self.api_key,
-                self._auth_header,
-                self._auth_scheme,
-            )
-        return self._client
+        return self._http.get()
 
     async def transcribe(self, audio: bytes, **params: Any) -> str:
         model = params.get("model") or self.model
@@ -195,9 +196,7 @@ class OpenAICompatTranscriber(TranscriberProvider):
         return await with_retry(_call, attempts=self.retry_attempts)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        await self._http.aclose()
 
 
 def _factory_extra(overrides: dict[str, Any], skip: tuple[str, ...]) -> dict[str, Any]:

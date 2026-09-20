@@ -179,6 +179,12 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 ## Providers (reactifact.providers)
 
+Every provider lazily creates its `httpx.AsyncClient` and **rebinds it to the
+current event loop**, so one provider instance stays usable across repeated
+`asyncio.run(...)` and per-test loops (no `RuntimeError: Event loop is closed`);
+`aclose()` closes the client for the running loop. The same applies to
+`WebSource` and the OTLP/Langfuse sinks.
+
 | Symbol | Role |
 | --- | --- |
 | `LLMProvider`, `EmbeddingProvider` | the two contracts the core talks to |
