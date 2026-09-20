@@ -317,3 +317,9 @@ def test_quick_agent_composes_in_a_plain_runtime():
     ctx.create(Question(text="hello"))
     asyncio.run(Runtime(ctx, agents=[qa.agent]).arun())
     assert ctx.latest(AnswerBody) is not None
+
+
+def test_context_is_available_before_ask():
+    qa = agent("Answer.", AnswerBody, llm=FakeLLM())
+    # a real Context from construction (not `Context | None`) — type-checker friendly
+    assert qa.context.list_artifacts() == []

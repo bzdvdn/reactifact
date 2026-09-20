@@ -78,7 +78,9 @@ class QuickAgent(Generic[TSchema]):
         self.resources = _default_resources(llm=llm)
         self.budget = budget
         self.tracer = tracer
-        self.context: Context | None = None
+        # Eager, so `.context` is a real `Context`, never `None` — the run
+        # replaces it, but callers (and type checkers) never see a `None`.
+        self.context: Context = Context(resources=self.resources)
         self.agent = create_agent(
             name=name,
             consumes=[Consume(question_type)],

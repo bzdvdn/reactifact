@@ -258,7 +258,8 @@ class QuickRAG(Generic[TAnswer]):
             if resources is not None
             else _default_resources(llm=llm, sources=sources)
         )
-        self.context: Context | None = None
+        # Eager, so `.context` is a real `Context`, never `None`.
+        self.context: Context = Context(resources=self.resources)
         resolved_doc_locator = doc_locator or _default_doc_locator
         resolved_doc_text = doc_text or _default_doc_text
         doc_builder = doc_factory or _default_doc_builder(doc_type)

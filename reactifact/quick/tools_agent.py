@@ -114,7 +114,8 @@ class QuickToolsAgent:
         self.resources = _default_resources(llm=llm)
         self.budget = budget
         self.tracer = tracer
-        self.context: Context | None = None
+        # Eager, so `.context` is a real `Context`, never `None`.
+        self.context: Context = Context(resources=self.resources)
 
     async def ask(self, text: str, *, context: Context | None = None) -> str | None:
         ctx = context if context is not None else Context(resources=self.resources)

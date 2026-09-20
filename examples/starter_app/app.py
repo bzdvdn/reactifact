@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -131,7 +131,7 @@ def create_app(
     )
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
         yield
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:
@@ -158,11 +158,7 @@ def create_app(
             # No provider: the pipeline still retrieved and materialized the
             # documents (`.context` is the graduation path) — answer with the
             # matched passages themselves, still cited, instead of a shrug.
-            docs = (
-                rag_app.context.list_artifacts(Doc)
-                if rag_app.context is not None
-                else []
-            )
+            docs = rag_app.context.list_artifacts(Doc)
             if docs:
                 return AskResponse(
                     mode="rag",
