@@ -24,15 +24,17 @@ from typing import TYPE_CHECKING, Any
 from .exceptions import ScenarioError
 
 if TYPE_CHECKING:
-    from reactifact.resources import RuntimeResources
+    from reactifact.resources import ResourceKey, RuntimeResources
 
 
 @dataclass
 class ResourceFault:
-    """A queued fault for one named resource.
+    """A queued fault for one resource.
 
-    `resource` is `"llm"`, `"embedder"`, a source id (`resources.sources
-    [id]`), or a name set via `resources.set(name, ...)`. `method=None`
+    `resource` addresses it either by **string name** — `"llm"`, `"embedder"`,
+    a source id (`resources.sources[id]`), or a name set via
+    `resources.set(name, ...)` — or by a **typed key**: a class or a
+    `ResourceKey` registered with `resources.register(...)`. `method=None`
     (default) fails every callable on the resource; naming one (e.g.
     `"embed"`) faults only that method, leaving the rest of the resource
     working normally. `times=None` faults every call; `times=N` faults the
@@ -40,15 +42,20 @@ class ResourceFault:
     `fault.ToolFault`.
     """
 
-    resource: str
+    resource: str | type[Any] | ResourceKey[Any]
     error: BaseException | Callable[[], BaseException]
     method: str | None = None
     times: int | None = None
 
 
-def _get_resource(resources: RuntimeResources, name: str) -> tuple[Any, bool]:
+def _get_resource(
+    resources: RuntimeResources, key: str | type[Any] | ResourceKey[Any]
+) -> tuple[Any, bool]:
     """Returns `(value, found)` — `found=False` means no such resource exists
     at all (as opposed to existing but being `None`)."""
+    if not isinstance(key, str):
+        return (resources.get(key), True) if resources.has(key) else (None, False)
+    name = key
     if name == "llm":
         return resources.llm, True
     if name == "embedder":
@@ -60,7 +67,13 @@ def _get_resource(resources: RuntimeResources, name: str) -> tuple[Any, bool]:
     return None, False
 
 
-def _set_resource(resources: RuntimeResources, name: str, value: Any) -> None:
+def _set_resource(
+    resources: RuntimeResources, key: str | type[Any] | ResourceKey[Any], value: Any
+) -> None:
+    if not isinstance(key, str):
+        resources.register(key, value)
+        return
+    name = key
     if name == "llm":
         resources.llm = value
     elif name == "embedder":
@@ -140,7 +153,7 @@ class ResourceFaultInstaller:
     ) -> None:
         self._resources = resources
         self._faults = {f.resource: f for f in faults}
-        self._originals: list[tuple[str, Any]] = []
+        self._originals: list[tuple[str | type[Any] | ResourceKey[Any], Any]] = []
 
     def __enter__(self) -> ResourceFaultInstaller:
         for name, fault in self._faults.items():
@@ -148,8 +161,9 @@ class ResourceFaultInstaller:
             if not found:
                 raise ScenarioError(
                     f"fail_resource({name!r}, ...): no such resource — expected "
-                    '"llm", "embedder", a source id, or a name set via '
-                    "resources.set(...)"
+                    '"llm", "embedder", a source id, a name set via '
+                    "resources.set(...), or a key registered via "
+                    "resources.register(Type | ResourceKey, ...)"
                 )
             if original is None:
                 raise ScenarioError(

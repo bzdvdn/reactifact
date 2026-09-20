@@ -108,17 +108,24 @@ def _iter_tool_dicts(agents: Sequence[Agent]) -> Iterator[dict[str, Tool]]:
 
 
 def _iter_tool_lists(resources: RuntimeResources | None) -> Iterator[list[Tool]]:
-    """Yields every `list[Tool]`-shaped value found in `resources.additional`.
+    """Yields every `list[Tool]`-shaped value found on `resources`.
 
-    Covers tools resolved dynamically at produce-time (`context.resources.get(...)`)
-    rather than fixed on a `Produce` instance at construction — `_iter_tool_dicts`
-    has nothing to scan for those, since no static attribute holds them. Same
-    duck-typing as `_iter_tool_dicts`: any non-empty list whose items all have
-    `.execute` is treated as a tool list, whatever key it's stored under.
+    Covers tools resolved dynamically at produce-time
+    (`context.resources.get(...)` / `resources.require(...)`) rather than fixed
+    on a `Produce` instance at construction — `_iter_tool_dicts` has nothing to
+    scan for those, since no static attribute holds them. Both storage shapes
+    are scanned: the string-keyed `additional` escape hatch, and resources
+    registered typedly via `resources.register(...)` (`_typed`, surfaced by
+    `RuntimeResources.typed_values()`). Missing the latter silently made
+    `result.tools.called/never_called` blind to tools registered that way.
+
+    Same duck-typing as `_iter_tool_dicts`: any non-empty list whose items all
+    have `.execute` is treated as a tool list, wherever it is stored. The
+    caller de-dupes by identity, so a list present in both is wrapped once.
     """
     if resources is None:
         return
-    for value in resources.additional.values():
+    for value in (*resources.additional.values(), *resources.typed_values()):
         if (
             isinstance(value, list)
             and value

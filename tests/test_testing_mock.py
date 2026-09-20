@@ -15,7 +15,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, RuntimeResources, tool
+from reactifact import Agent, Consume, ResourceKey, RuntimeResources, produce, tool
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioError, ScenarioLab
 from reactifact.testing.mock import ResourceFault, ResourceFaultInstaller, _FailingProxy
@@ -270,3 +270,66 @@ def test_fail_resource_is_one_shot_and_restores_the_llm():
         )
     )
     result.errors.none()
+
+
+# --- fail_resource by typed key (type / ResourceKey) -------------------------- #
+
+CATALOG_KEY: ResourceKey[FakeResource] = ResourceKey("scenario_catalog")
+
+
+def test_installer_can_wrap_a_typed_resource():
+    fake = FakeResource()
+    resources = RuntimeResources()
+    resources.register(CATALOG_KEY, fake)
+    installer = ResourceFaultInstaller(
+        resources, [ResourceFault(CATALOG_KEY, RuntimeError("boom"))]
+    )
+
+    with installer, pytest.raises(RuntimeError, match="boom"):
+        resources.require(CATALOG_KEY).sync_method(1)
+
+    assert resources.require(CATALOG_KEY) is fake
+
+
+class Reply(BaseModel):
+    text: str
+
+
+@produce(Reply)
+async def use_catalog(call):
+    catalog = call.context.resources.require(CATALOG_KEY)
+    try:
+        text = catalog.sync_method(1)
+    except Exception as exc:  # the injected fault surfaces as a handled failure
+        text = f"fallback: {exc}"
+    call.effects.create(Reply(text=text))
+    return None
+
+
+class CatalogAgent(Agent):
+    name = "catalog"
+    consumes = [Consume(Problem)]
+    produces = [use_catalog]
+
+
+def test_fail_resource_by_typed_key_end_to_end():
+    resources = RuntimeResources(llm=ScriptedLLM([]))
+    resources.register(CATALOG_KEY, FakeResource())
+
+    lab = ScenarioLab([CatalogAgent()], resources=resources)
+    lab.fail_resource(CATALOG_KEY, RuntimeError("catalog down"))
+
+    result = run(lab.run(Problem(text="x")))
+
+    assert "catalog down" in result.artifacts(Reply).exists().text
+    result.errors.none()
+    assert resources.require(CATALOG_KEY).sync_calls == []  # never reached the real one
+
+
+def test_fail_resource_rejects_an_unregistered_typed_key():
+    resources = RuntimeResources()
+    lab = ScenarioLab([CatalogAgent()], resources=resources)
+    lab.fail_resource(CATALOG_KEY, RuntimeError("boom"))
+
+    with pytest.raises(ScenarioError, match="no such resource"):
+        run(lab.run(Problem(text="x")))

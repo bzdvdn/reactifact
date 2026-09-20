@@ -237,7 +237,7 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `ScenarioLab` | scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/errors), `mode=` live/record/replay, fault injection |
+| `ScenarioLab` | scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/errors), `mode=` live/record/replay, fault injection (`fail(tool, …)`, `fail_resource(name_or_key, …)` — a string name or a typed `Type`/`ResourceKey`) |
 | `capture(context, *, trace=…)` | freeze a `GoldenRun` — `context_hash` plus the trace's prompt hashes |
 | `assert_golden(context, golden, *, trace=…)` | fail loudly when state (or, with `trace`, prompts) drifted |
 | `replay_resources(recording, *, base=…)` | a `RuntimeResources` whose llm replays a recording — an offline regression on a real run |

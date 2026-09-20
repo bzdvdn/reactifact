@@ -240,7 +240,7 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `ScenarioLab` | scenario-харнесс: посев артефактов, прогон агентов, ассерты (артефакты/тулы/путь/ошибки), `mode=` live/record/replay, инъекция сбоев |
+| `ScenarioLab` | scenario-харнесс: посев артефактов, прогон агентов, ассерты (артефакты/тулы/путь/ошибки), `mode=` live/record/replay, инъекция сбоев (`fail(tool, …)`, `fail_resource(name_or_key, …)` — строковое имя или типизированный `Type`/`ResourceKey`) |
 | `capture(context, *, trace=…)` | замораживает `GoldenRun` — `context_hash` плюс хеши промптов из трейса |
 | `assert_golden(context, golden, *, trace=…)` | громко падает при дрейфе состояния (и промптов, если передан `trace`) |
 | `replay_resources(recording, *, base=…)` | `RuntimeResources`, чей llm реплеит запись — офлайн-регресс на реальном прогоне |

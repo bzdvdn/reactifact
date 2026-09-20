@@ -133,6 +133,15 @@ class RuntimeResources:
         """The keys of every registered typed resource (for diagnostics)."""
         return frozenset(self._typed)
 
+    def typed_values(self) -> list[Any]:
+        """Every registered typed resource value (read-only introspection).
+
+        `registered` gives the keys; this gives the values — e.g. so a generic
+        tool scanner (`reactifact.testing.fault`) can find a `list[Tool]`
+        registered with `register(...)`, not just one stashed via `set(...)`.
+        """
+        return list(self._typed.values())
+
     def set(self, name: str, value: Any) -> None:
         self.additional[name] = value
 

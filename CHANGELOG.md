@@ -4,6 +4,26 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [Unreleased]
+
+### Added
+
+- `ScenarioLab.fail_resource(...)` accepts a **typed key** — a class or a
+  `ResourceKey` registered via `resources.register(...)` — as well as the
+  existing string names (`"llm"`, a source id, `resources.set(name, ...)`), so
+  a resource stored typedly can be faulted and restored like any other.
+
+### Fixed
+
+- `reactifact.testing` fault injection now finds tool lists registered as
+  **typed resources**. `_iter_tool_lists` scanned only `resources.additional`,
+  so after moving to `resources.register(...)` a dynamically-resolved
+  `list[Tool]` was invisible to `FaultInstaller` — `result.tools.called(...)` /
+  `never_called(...)` silently missed those calls and `lab.fail(tool, ...)`
+  had nothing to wrap. It now scans both `additional` and the typed store
+  (`RuntimeResources.typed_values()`), de-duping by identity so a list present
+  in both is wrapped once.
+
 ## [0.10.0] — 2026-09-20
 
 The on-ramp release: a thin `reactifact.quick` facade over the primitives,

@@ -17,7 +17,9 @@ from reactifact import (
     Patch,
     Produce,
     ProduceCall,
+    ResourceKey,
     RuntimeResources,
+    produce,
     tool,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -211,3 +213,47 @@ def test_scenario_turn_shares_context_and_aggregates_across_turns():
     convo.llm.max_calls(4)
     convo.errors.none()
     convo.events.min_count(2, kind="agent")  # "Deciding next action…" x2 turns
+
+
+#: A tool list stored typedly (not via `resources.set`), as an app's produce
+#: would `resources.require(...)` for its own tool-calling loop.
+DECISION_TOOLS: ResourceKey[list] = ResourceKey("decision_tools")
+
+
+@produce(Report)
+async def run_dynamic_tools(call: ProduceCall) -> None:
+    tools = call.context.resources.require(DECISION_TOOLS)
+    try:
+        output = await tools[0].execute({"resource": "pods"})
+        text = output.text
+    except Exception as exc:  # the injected fault surfaces as an error result
+        text = f"failed: {exc}"
+    call.effects.create(Report(text=text))
+    return None
+
+
+class DynamicToolsAgent(Agent):
+    name = "dynamic"
+    consumes = [Consume(Problem)]
+    produces = [run_dynamic_tools]
+
+
+def test_fail_covers_tools_registered_as_typed_resources():
+    """`_iter_tool_lists` must scan `_typed`, not just `additional` — otherwise
+    `result.tools.called/never_called` silently miss typedly-registered tools."""
+    tool_calls.clear()
+    resources = RuntimeResources(llm=ScriptedLLM([]))
+    resources.register(DECISION_TOOLS, [kubectl])
+
+    lab = ScenarioLab([DynamicToolsAgent()], resources=resources)
+    lab.fail("kubectl", ConnectionError("typed tool down"), times=1)
+
+    result = run(lab.run(Problem(text="check pods")))
+
+    calls = result.tools.called("kubectl")
+    assert calls, "typed tool call was not recorded"
+    assert calls[0].error == "typed tool down"
+    result.errors.none()
+    assert "typed tool down" in result.artifacts(Report).exists().text
+    # wrapped in place, then restored on exit
+    assert resources.require(DECISION_TOOLS)[0] is kubectl

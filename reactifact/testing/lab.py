@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from reactifact.agents import Agent
 from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
-from reactifact.resources import RuntimeResources
+from reactifact.resources import ResourceKey, RuntimeResources
 from reactifact.runtime import Runtime
 from reactifact.streaming import ProgressEvent, QueueEvent
 from reactifact.tracing.models import RunTrace
@@ -176,27 +176,30 @@ class ScenarioLab:
 
     def fail_resource(
         self,
-        name: str,
+        resource: str | type[Any] | ResourceKey[Any],
         error: BaseException | Callable[[], BaseException],
         *,
         method: str | None = None,
         times: int | None = None,
     ) -> None:
-        """Queues a fault for a named resource — the general-purpose analog
-        of `fail()` for anything that isn't a tool: `"llm"`, `"embedder"`, a
-        source id (`resources.sources[id]`), or a name set via
-        `resources.set(name, ...)`.
+        """Queues a fault for a resource — the general-purpose analog of
+        `fail()` for anything that isn't a tool.
+
+        `resource` addresses it either by **string name** — `"llm"`,
+        `"embedder"`, a source id (`resources.sources[id]`), or a name set via
+        `resources.set(name, ...)` — or by a **typed key**: a class or a
+        `ResourceKey` registered with `resources.register(...)`.
 
         Wraps the resource in a duck-typed proxy for the next `run()`/
         `.turn()`: `method=None` (default) fails every callable on it;
         naming one method (e.g. `"embed"`, `"search"`) faults only that
         method. `times=None` faults every call; `times=N` faults the first
         `N`, then delegates to the real resource — same shape as `fail()`.
-        Raises `ScenarioError` at run time if `name` doesn't match any
+        Raises `ScenarioError` at run time if `resource` doesn't match any
         resource, or matches one that's `None` (nothing configured to fail).
         """
         self._resource_faults.append(
-            ResourceFault(name, error, method=method, times=times)
+            ResourceFault(resource, error, method=method, times=times)
         )
 
     def _build_resources(self) -> RuntimeResources:
