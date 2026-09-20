@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from .catalog import Catalog, CatalogItem
 from .estimate import build_estimate, qa_budget_warning
-from .facts import FACT_LABELS, REQUIRED_FACTS, STAGES
+from .facts import FACT_LABELS, REQUIRED_FACTS, STAGES, parse_facts
 from .fast import (
     FAST_ABILITIES_TEXT,
     FAST_FAREWELL_TEXT,
@@ -41,6 +41,7 @@ __all__ = [
     "ensure_geometry",
     "fast_reply",
     "geometry_text",
+    "parse_facts",
     "qa_budget_warning",
     "rollback_target",
 ]

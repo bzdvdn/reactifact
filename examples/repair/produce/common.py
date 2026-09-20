@@ -21,6 +21,7 @@ from reactifact.recipes import (
 from reactifact.structured import structured_llm
 
 from ..models import ChatReply, DesignOption, Project, ProjectInfo, UserMsg
+from ..services.facts import parse_facts
 from ..services.geometry import ensure_geometry, geometry_text
 
 logger = logging.getLogger(__name__)
@@ -48,10 +49,27 @@ def _project_artifact(context: Context) -> Artifact[Project] | None:
     return projects[0] if projects else None
 
 
+def _apply_facts(
+    base: ProjectInfo, facts: dict[str, Any], *, override: bool
+) -> ProjectInfo:
+    """Merges parsed facts into `base`; `override` replaces existing values too."""
+    updates = {
+        key: value
+        for key, value in facts.items()
+        if value is not None and (override or getattr(base, key, None) is None)
+    }
+    return base.model_copy(update=updates) if updates else base
+
+
 async def _extract_info(
     context: Context, text: str, current: ProjectInfo
 ) -> ProjectInfo:
     context.announce("Анализирую детали проекта…", kind="status")
+    # No model configured (offline demo): extract deterministically instead of
+    # asking the user to repeat facts forever.
+    if context.resources.llm is None:
+        return _apply_facts(current, parse_facts(text), override=True)
+
     result = await structured_llm(
         context,
         schema=ProjectInfo,
@@ -59,13 +77,19 @@ async def _extract_info(
         max_tokens=3000,
         user=(
             "Извлеки факты о ремонте. Не домысливай: неизвестные поля = null.\n"
+            "Подсказки по единицам: «10 метров»/«10 м»/«10 кв.м»/«10 м²» → area;\n"
+            "«300 тысяч»/«50к»/«150000 рублей» → budget (в рублях);\n"
+            "«потолок 2.7 м» → ceiling_height (не area).\n"
             f"Сообщение: {text}"
         ),
     )
     if result is None:
-        return current
+        return current  # a configured model that failed is not silently masked
     updates = {k: v for k, v in result.model_dump().items() if v is not None}
-    return current.model_copy(update=updates)
+    merged = current.model_copy(update=updates)
+    # the model answered but may have missed something plainly stated in the
+    # text (e.g. left `area` null for «10 метров») — fill only the gaps
+    return _apply_facts(merged, parse_facts(text), override=False)
 
 
 def _list_preferences(info: ProjectInfo) -> str:

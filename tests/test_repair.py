@@ -553,3 +553,50 @@ def test_catalog_find_prefers_cheaper_among_same_stem(tmp_path):
     assert picked.price < 15958  # not the industrial one
     top = catalog.search("розетка", top_k=5)
     assert top and top[0].price < 15958
+
+
+def test_parse_facts_units():
+    from examples.repair.services import parse_facts
+
+    assert parse_facts("10 метров, 300 тысяч рублей") == {
+        "area": 10.0,
+        "budget": 300000.0,
+    }
+    assert parse_facts("ванная 6 м² бюджет 50к") == {
+        "room_type": "ванная",
+        "area": 6.0,
+        "budget": 50000.0,
+    }
+    # «потолок 2.7 м» must be the height, not the area
+    kitchen = parse_facts("Кухня 12 кв.м, потолок 2.7м, бюджет 150000 рублей")
+    assert kitchen["area"] == 12.0
+    assert kitchen["ceiling_height"] == 2.7
+    assert parse_facts("просто ремонт") == {}
+
+
+def test_offline_multi_turn_reaches_design_choice(tmp_path):
+    """No model: facts are still collected, so the demo does not loop on «площадь»."""
+    ctx, runtime = build(tmp_path, None)
+    for text in ("детская, в космическом стиле", "10 метров, 300 тысяч рублей"):
+        ctx.create(UserMsg(text=text, session_id="s"))
+        asyncio.run(runtime.arun())
+
+    project = ctx.list_artifacts(Project)[0].data
+    assert project.info.area == 10.0
+    assert project.info.budget == 300000.0
+    assert project.info.room_type == "детская"
+    assert project.info.style == "космический"
+    assert project.stage == "design_choice"
+
+
+def test_model_missed_area_is_filled_from_text(tmp_path):
+    """A configured model that leaves `area` null is corrected by the parser."""
+    llm = ScriptedLLM(['{"room_type": "детская", "budget": 300000}'])
+    ctx, runtime = build(tmp_path, llm)
+    ctx.create(UserMsg(text="детская 10 метров, 300 тысяч рублей", session_id="s"))
+    asyncio.run(runtime.arun())
+
+    info = ctx.list_artifacts(Project)[0].data.info
+    assert info.area == 10.0
+    assert info.budget == 300000.0
+    assert info.room_type == "детская"
