@@ -57,6 +57,9 @@ qa.context    # артефакты/провенанс последнего ask()
 `Consume`/`Produce`/`Effects`, переписывать нечего. Полная модель — в
 [Patterns](patterns.md).
 
+Удобнее ноутбук? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
+— [`examples/quickstart.ipynb`](../../examples/quickstart.ipynb) проходит те же четыре кейса, по умолчанию офлайн.
+
 Свои модели артефактов — фасад параметризован, а не захардкожен:
 
 ```python

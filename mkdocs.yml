@@ -90,6 +90,7 @@ nav:
   - Home: en/index.md
   - Why reactifact: en/why-reactifact.md
   - Quickstart: en/quickstart.md
+  - Migrating: en/migrating.md
   - Comparison: en/comparison.md
   - Concepts: en/concepts.md
   - Execution model: en/scheduler-semantics.md

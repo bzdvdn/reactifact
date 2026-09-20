@@ -206,6 +206,9 @@ uv run python ./examples/devops/web.py         # HITL ops assistant + trace dash
 Classic-pattern ports run as one-liners too:
 `python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute,adaptive,ledger}.main`.
 
+Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
+— `examples/quickstart.ipynb` covers the four `quick` cases (`agent`/`rag`/`tools_agent`/`chat_agent`), offline by default.
+
 ## Examples (in-repo, not shipped)
 
 - `knowledge` — multi-source chat: search → evidence → claim verification → answer, with CSV calculation.
@@ -223,8 +226,11 @@ Classic-pattern ports run as one-liners too:
 
 - [English](docs/en/index.md) · [Русский](docs/ru/index.md) — concepts, sources,
   providers, recipes, patterns, observability, eval, branching, replay, viz/CLI, API.
-- [Quickstart](docs/en/quickstart.md) — three runnable snippets: tool-calling
-  agent, retrieval over your docs, session-persisted chat bot.
+- [Quickstart](docs/en/quickstart.md) — the four `quick` cases (structured call,
+  RAG, tools, chat) in a few lines; also as a
+  [Colab notebook](examples/quickstart.ipynb).
+- [Migrating](docs/en/migrating.md) — from LangGraph / CrewAI / LlamaIndex /
+  plain Python: concept map, port-one-node, interop, checklist.
 - [Why reactifact](docs/en/why-reactifact.md) — the *design argument*: why effects, why no graph, why determinism.
 - [Comparison](docs/en/comparison.md) — reactifact vs LangGraph/CrewAI, feature by feature, and when *not* to use reactifact.
 - [Tutorial · llm-ladder](docs/en/examples.md#tutorial-ladder) — learn the workflow.
