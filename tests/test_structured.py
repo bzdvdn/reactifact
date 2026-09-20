@@ -452,3 +452,50 @@ def test_repair_sees_none_on_parse_failure():
     result = asyncio.run(structured_llm(ctx, schema=_Pos, user="x", repair=repair))
     assert result is not None and result.n == 1
     assert seen == [None]
+
+
+_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {"n": {"type": "integer"}},
+    "required": ["n"],
+}
+
+
+def test_json_schema_llm_validate_then_repair():
+    llm = ScriptedLLM(['{"n": -1}', '{"n": 5}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    seen: list[dict | None] = []
+
+    def repair(bad, text):
+        seen.append(bad)
+        return "n must be positive"
+
+    result = asyncio.run(
+        json_schema_llm(
+            ctx,
+            json_schema=_JSON_SCHEMA,
+            user="x",
+            validate=lambda d: d["n"] > 0,
+            repair=repair,
+        )
+    )
+    assert result == {"n": 5}
+    assert seen == [{"n": -1}]
+
+
+def test_json_schema_llm_validation_error_reported():
+    llm = ScriptedLLM(['{"n": -1}', '{"n": -2}'])
+    ctx = Context(resources=RuntimeResources(llm=llm))
+    reasons: list[str] = []
+
+    result = asyncio.run(
+        json_schema_llm(
+            ctx,
+            json_schema=_JSON_SCHEMA,
+            user="x",
+            validate=lambda d: d["n"] > 0,
+            on_error=lambda reason, exc: reasons.append(reason),
+        )
+    )
+    assert result is None
+    assert reasons == ["validation_error"]

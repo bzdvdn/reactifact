@@ -157,6 +157,7 @@
 | Символ | Роль |
 | --- | --- |
 | `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | один структурный вызов; `None` при честном сбое; `validate(model)->bool` добавляет домен-проверку, повторяемую как parse-сбой; `repair(invalid_or_None, last_reply)->str` даёт инструкцию для повтора; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) — понять *почему*, не меняя контракт `None` |
+| `json_schema_llm(context, json_schema, *, user, validate=…, repair=…, …)` | структурный вывод по собственной JSON Schema (dict или JSON-строка), возвращает обычный `dict`; те же хуки повтора `validate`/`repair`, что у `structured_llm` |
 | `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | переиспользуемый экземпляр; `.call(context, user)` |
 | `llm_reply(context, *, system, user, attempts=…, on_error=…)` | обычный (неструктурный) вызов → `str` или `None` (под капотом схема с одним полем) |
 | `parse_structured` | допускающий JSON→модель парсер, используемый внутри |

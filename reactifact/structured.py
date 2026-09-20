@@ -224,14 +224,21 @@ async def json_schema_llm(
     max_tokens: int | None = None,
     prompt_hash: str = "",
     on_error: OnStructuredError | None = None,
+    validate: Callable[[dict[str, Any]], bool] | None = None,
+    repair: Callable[[dict[str, Any] | None, str], str] | None = None,
 ) -> dict[str, Any] | None:
     """Structured output against *your own* JSON Schema, not one derived
     from a pydantic model — for a schema that must match specific text
     verbatim (a prompt tuned against it) or expresses something pydantic
     can't easily (cross-field constraints, `oneOf`, a hand-maintained
     schema shared with another system). Returns the parsed `dict`, not a
-    validated model — nothing here knows your schema's shape well enough
-    to build one; validate it yourself downstream if you need to.
+    validated model — this function doesn't build one.
+
+    `validate(dict) -> bool` / `repair(invalid_or_None, last_reply) -> str`
+    are the same domain-rule retry hooks `structured_llm` has (see its
+    docstring): a `False` from `validate` is retried like a parse failure,
+    `repair` supplies the next attempt's instruction, and exhausting the
+    attempts returns the honest `None` with `on_error("validation_error")`.
 
     Unlike `structured_llm` (`response_format={"type":"json_object"}` — the
     *weaker* native mode: guarantees valid JSON, not any particular shape),
@@ -295,20 +302,25 @@ async def json_schema_llm(
                 on_error("provider_error", exc)
             return None
         parsed = _parse_raw_json(response.text)
-        if parsed is not None:
+        valid = parsed is not None and (validate is None or validate(parsed))
+        if valid:
             return parsed
         logger.debug(
-            "json_schema_llm parse failed (attempt %s): %.160r",
+            "json_schema_llm %s failed (attempt %s): %.160r",
+            "parse" if parsed is None else "validation",
             attempt + 1,
             response.text,
         )
         if attempt + 1 < total:
-            request = _request(
-                f"{instruction}\n\n{user}\n\n"
-                "Previous reply was not valid JSON. Return a single strict JSON object only."
-            )
+            if repair is not None:
+                note = repair(parsed, response.text)
+            elif parsed is None:
+                note = DEFAULT_PARSE_REPAIR
+            else:
+                note = DEFAULT_VALIDATION_REPAIR
+            request = _request(f"{instruction}\n\n{user}\n\n{note}")
     if on_error is not None:
-        on_error("parse_error", None)
+        on_error("parse_error" if parsed is None else "validation_error", None)
     return None
 
 

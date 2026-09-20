@@ -154,6 +154,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | one structured call; `None` on honest failure; `validate(model)->bool` adds a domain-rule check retried like a parse failure, `repair(invalid_or_None, last_reply)->str` supplies the retry instruction; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) to distinguish *why*, without changing the `None` contract |
+| `json_schema_llm(context, json_schema, *, user, validate=…, repair=…, …)` | structured output against your own JSON Schema (dict or JSON string), returns a plain `dict`; same `validate`/`repair` retry hooks as `structured_llm` |
 | `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | reusable instance; `.call(context, user)` |
 | `llm_reply(context, *, system, user, attempts=…, on_error=…)` | plain-text completion → `str` or `None` (single-text schema under the hood) |
 | `parse_structured` | lenient JSON→model parser used internally |

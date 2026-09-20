@@ -134,8 +134,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   check on top of the JSON schema: a `validate(model) -> bool` rejection is
   retried like a parse failure, with `repair(invalid_or_None, last_reply) -> str`
   supplying the retry instruction (defaults provided); exhaustion returns the
-  same honest `None` with `on_error("validation_error")`. `StructuredLLM` carries
-  the same knobs.
+  same honest `None` with `on_error("validation_error")`. The same two hooks are
+  on `json_schema_llm` (for `dict`/JSON-Schema output), and `StructuredLLM`
+  carries them too.
 - `recipes.run_tool_loop(context, *, system, user, tools, max_rounds=…,
   parallel=True, mandatory=…)` — the opt-in native tool-calling loop over
   `native_tool_use`: bounded rounds, parallel tool execution, a nudge until a
