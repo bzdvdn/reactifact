@@ -1,11 +1,35 @@
 # reactifact
 
-**Reactive, artifact-driven agent runtime.**
+**Auditable answers, not another graph — agents transform typed, versioned,
+provenance-aware artifacts inside an evolving context, with a content hash you
+can re-run and verify.**
 
-`reactifact` builds agents as reactive, stateful processes that transform
-**versioned, typed, provenance-aware artifacts** inside an **evolving context**.
-There is no execution graph: agents react to changes in state, and the runtime
-derives what can run next from those changes.
+Most agent frameworks ask you to **draw the graph** and trust the model's
+arithmetic. In a workflow that has to stand up — a finance close, an audit, a
+compliance review — an answer you can't reproduce is an answer you can't file.
+`reactifact` makes the **answer itself auditable**: typed, versioned, linked to
+the sources it came from, reproducible from a `context_hash`. The model reasons;
+the deterministic parts stay in code; every claim carries provenance. Agents
+react to changes in state, and the runtime derives what can run next — there is
+no graph to draw.
+
+## The point: a provable answer
+
+[`examples/fintech_audit`](../../examples/fintech_audit) — a transactions CSV, a
+budget CSV and a policy doc, **no API key**. The model never computes the number;
+plain Python does, and the answer is linked to its evidence:
+
+```text
+variance vs budget: +12.5%   ($45,000 actual vs $40,000 budget, 10% policy threshold → over)
+answer sha256 5461290d…  ·  context sha256 24449f6f…
+
+re-running the pipeline hashes identically — or verify a saved run:
+  reactifact replay <store> --session <id> --verify 24449f6f…
+```
+
+![fintech_audit demo: the variance, the answer, and the reproducible context hash — a second run prints the same hash.](../img/fintech-audit-short.gif)
+
+## How it works
 
 ```text
                                    EVENT (created/updated)

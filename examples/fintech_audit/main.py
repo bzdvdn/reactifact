@@ -12,7 +12,7 @@ reviewer or a `reactifact replay --verify <hash>` would run.
 
 No API key needed: nothing here calls a model.
 
-Run:  .venv/bin/python -m examples.fintech_audit.main
+Run:  .venv/bin/python -m examples.fintech_audit.main [--brief]
 """
 
 from __future__ import annotations
@@ -61,11 +61,30 @@ async def run_pipeline() -> Context:
 
 
 async def main() -> int:
+    brief = "--brief" in sys.argv[1:]
     context = await run_pipeline()
     spend = context.latest(Spend)
     variance = context.latest(Variance)
     answer = context.latest(AuditAnswer)
     assert spend is not None and variance is not None and answer is not None
+
+    if brief:
+        digest = context_hash(context)
+        print("fintech_audit — no API key; the number is computed in plain Python")
+        print(
+            f"  variance vs budget: {variance.data.pct:+.1%}   "
+            f"(threshold {variance.data.threshold:.0%}, within policy: "
+            f"{variance.data.within_policy})"
+        )
+        print(f"  answer:   {answer.data.text}")
+        print(f"  sources:  {', '.join(answer.data.citations)}")
+        print(f"  context:  {digest}")
+        again = context_hash(await run_pipeline())
+        if again != digest:
+            print(">>> re-running the pipeline… HASH MISMATCH")
+            return 1
+        print(">>> re-running the pipeline… same hash — reproducible.")
+        return 0
 
     print("computed figures (plain Python — not the model):")
     print(f"  cloud spend: ${spend.data.total:,.0f}  by month: {spend.data.by_month}")

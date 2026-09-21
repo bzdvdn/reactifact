@@ -178,6 +178,8 @@ session. Offline, no key.
 uv run python -m examples.fintech_audit.main
 ```
 
+![fintech_audit demo: the variance and its audit report, then the reproducibility check — a second run prints the same context hash.](../img/fintech-audit-demo.gif)
+
 See also [`reactifact/audit.py`](../reference.md) (`build_report`,
 `context_hash`, `report_to_markdown`) and [Observability](observability.md) for
 shipping such a run to a sink with `redactor=`.

@@ -179,6 +179,8 @@ uv run python -m examples.ledger.main
 uv run python -m examples.fintech_audit.main
 ```
 
+![fintech_audit demo: вариация и её аудит-отчёт, затем проверка воспроизводимости — повторный прогон печатает тот же context hash.](../img/fintech-audit-demo.gif)
+
 См. также [`reactifact/audit.py`](../reference.md) (`build_report`,
 `context_hash`, `report_to_markdown`) и [Наблюдаемость](observability.md) —
 как отправить такой запуск в приёмник с `redactor=`.

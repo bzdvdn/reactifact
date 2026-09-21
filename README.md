@@ -2,7 +2,7 @@
   <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to artifacts, not graphs" width="800">
 </p>
 
-**Stop drawing the graph. Build agents as reactions to versioned, provable artifacts.**
+**Agents that produce provable answers — typed, versioned, provenance-aware artifacts with a content hash you can re-run and verify. No graph to draw.**
 
 [![CI](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml/badge.svg)](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/bzdvdn/reactifact/graph/badge.svg)](https://codecov.io/gh/bzdvdn/reactifact)
@@ -12,14 +12,68 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bzdvdn/reactifact)
 [![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
-Most agent frameworks make you **draw the graph**: connect nodes, wire memory,
-declare control flow. But a knowledge question — *"why did infra costs jump in
-Q2?"* — needs Confluence + GitLab + CSV + calculations + verification, and the
-*next* question needs a different path. There is no universal graph to draw.
+Most agent frameworks ask you to **draw the graph** and trust the model's
+arithmetic. For a knowledge question that matters — *"what's the Q2 cloud-spend
+variance, and does policy require approval?"* — that's the wrong bet twice: the
+path depends on the data, and an answer you can't audit is an answer you can't
+ship.
 
-reactifact flips the model. You describe **what artifacts exist and what agents can
-do with them**; the runtime derives what runs next from **state changes**. Agents
-react to events — there is no graph, no node pipeline.
+reactifact flips it. The **answer is an artifact**: typed, versioned, linked to
+the sources it came from, with a `context_hash` you can re-run and verify
+(`reactifact replay … --verify <hash>`). The model reasons; the arithmetic is
+deterministic; every claim carries provenance. Agents react to **state changes** —
+you describe what artifacts exist and what agents can do with them, and the
+runtime derives what runs next. No graph, no node pipeline.
+
+## The point: a provable answer
+
+[`examples/fintech_audit`](examples/fintech_audit) — a transactions CSV, a budget
+CSV and a policy doc, **no API key**. The model never produces the number; plain
+Python does, and the answer is linked to its evidence:
+
+```text
+$ .venv/bin/python -m examples.fintech_audit.main
+
+  cloud spend:        $45,000   (2026-04 $12k, 2026-05 $15k, 2026-06 $18k)
+  variance vs budget: +12.5%    budget $40,000, policy threshold 10% → over
+
+  answer:    Q2 cloud spend was $45,000 against a $40,000 budget (+12.5%) —
+             exceeds the 10% policy threshold. CFO approval is required.
+  citations: budget.csv, transactions.csv, policy.md
+  audit:     Answer —supported_by→ {Variance, Spend, Table, Policy}
+             answer sha256 5461290d…  ·  context sha256 24449f6f…
+
+  >>> re-running the pipeline hashes identically — or verify a saved run:
+  >>> reactifact replay <store> --session <id> --verify 24449f6f…
+```
+
+That hash is the whole point: the answer is *reproducible* and its provenance is
+a queryable graph (`context.related(answer.id, "supported_by")`), not a log line.
+
+![fintech_audit demo: the variance, the answer, and the reproducible context hash — a second run prints the same hash.](docs/img/fintech-audit-short.gif)
+
+The number is computed, and its provenance recorded, in plain Python — the model
+is never the source of truth (trimmed from
+[`examples/fintech_audit/produce.py`](examples/fintech_audit/produce.py)):
+
+```python
+@produce(Variance, reacts_to=Spend)              # wakes when a Spend artifact exists
+async def compute_variance(call: ProduceCall) -> None:
+    spend = call.trigger                         # the artifact that triggered this run
+    budget = cloud_budget(call.context)          # read from budget.csv
+    pct = (spend.data.total - budget) / budget   # deterministic — never the model
+    variance = call.effects.create_once_from(
+        spend,                                   # stable id → idempotent re-runs (§42)
+        Variance(actual=spend.data.total, budget=budget, pct=pct,
+                 threshold=0.10, within_policy=abs(pct) <= 0.10),
+    )
+    variance.link("calculated_from", spend)      # provenance edge, queryable
+
+
+answer = ctx.latest(AuditAnswer)
+print(report_to_markdown(build_report(ctx, answer)))  # hash per artifact + edges
+print(context_hash(ctx))                              # reproducible fingerprint
+```
 
 ![Left: a hand-wired fetch → verify → answer pipeline. Right: reactifact — search_agent and answer_agent each declare only what they consume and produce, wired together by Context, never each other.](docs/img/wiring.svg)
 

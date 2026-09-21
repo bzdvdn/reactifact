@@ -17,6 +17,8 @@ one:
 
 No API key needed: nothing here calls a model.
 
+![fintech_audit demo: the variance and its audit report, then the reproducibility check — a second run prints the same context hash.](../../docs/img/fintech-audit-demo.gif)
+
 ## Run
 
 ```bash

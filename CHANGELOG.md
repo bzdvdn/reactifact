@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Docs
+
+- README and the docs landing (`docs/en/index.md` + RU) now lead with the
+  auditable-answer wedge (pain → promise → proof) instead of the architecture:
+  a `fintech_audit` hero with real figures and a `context_sha256`, and a trimmed
+  deterministic-produce snippet. Two recorded GIFs (`vhs`, from committed `.tape`
+  scripts): a short top-of-funnel one (`docs/img/fintech-audit-short.gif`,
+  ~88 KB, from `fintech-audit-short.tape`) on the README/landing, and the full
+  `docs/img/fintech-audit-demo.gif` (from `fintech-audit-demo.tape`) in
+  `examples.md` (EN+RU) and the example's own README. `examples/fintech_audit`
+  gained a `--brief` flag for the compact recording.
+
 ### Added
 
 - `ScenarioLab.fail_resource(...)` accepts a **typed key** — a class or a
