@@ -1,19 +1,33 @@
 # reactifact
 
-**Auditable answers, not another graph — agents transform typed, versioned,
-provenance-aware artifacts inside an evolving context, with a content hash you
-can re-run and verify.**
+**Event-driven agents for Python developers — tasks wake on typed artifacts, like
+Celery tasks wake on messages. No graph to draw.**
 
-Most agent frameworks ask you to **draw the graph** and trust the model's
-arithmetic. In a workflow that has to stand up — a finance close, an audit, a
-compliance review — an answer you can't reproduce is an answer you can't file.
-`reactifact` makes the **answer itself auditable**: typed, versioned, linked to
-the sources it came from, reproducible from a `context_hash`. The model reasons;
-the deterministic parts stay in code; every claim carries provenance. Agents
-react to changes in state, and the runtime derives what can run next — there is
-no graph to draw.
+Python developers already know this model from Celery: define a **task**,
+declare what triggers it, let the runtime run it. `reactifact` applies it to agents — a task
+reacts to a **typed, versioned artifact** appearing in the context, not to a
+queue message you push or a graph edge you draw. The runtime derives what runs
+next from state.
 
-## The point: a provable answer
+| Celery | reactifact |
+| --- | --- |
+| a task | `@produce(Model)` — a unit of work that writes an artifact |
+| `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
+| routing key / queue | `Consume(Type)` — which artifact type wakes the task |
+| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
+| retries, `acks_late` | guards + `Budget`, an honest `None` instead of a wrong result |
+| result backend | the `Context` — typed, versioned artifacts |
+| worker | `Runtime` |
+
+Single process today (no broker, no worker pool) — the *model* is Celery-shaped,
+not its distributed runtime.
+
+On top of that model you get something a task queue doesn't: every artifact is
+**versioned with provenance**, so a run is reproducible (`context_hash`) and
+auditable (`audit.report`) for free. The model reasons; the deterministic parts
+stay in code; every claim carries provenance.
+
+## On top: a provable answer
 
 [`examples/fintech_audit`](../../examples/fintech_audit) — a transactions CSV, a
 budget CSV and a policy doc, **no API key**. The model never computes the number;

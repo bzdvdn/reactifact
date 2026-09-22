@@ -5,6 +5,24 @@ reactifact does, this page explains the *why*: why effects instead of graphs,
 why versioned state, why determinism is a philosophy rather than an option.
 The invariants behind every claim live in [constitution.md](../constitution.md).
 
+## If you know Celery, you already know the model
+
+Celery's mental model: define a **task**, declare what triggers it, let the
+runtime run it; results land in a result backend. reactifact applies exactly that
+to agents:
+
+- a **task** is a `@produce(Model)` — a unit of work that writes an artifact;
+- the **trigger** isn't a message you push — creating the input artifact *is*
+  the trigger, and `Consume(Type)` says which artifact type wakes the task;
+- a **chain / group / chord** is just several `consumes` / `produces`; the
+  runtime derives the order from state, not from wiring;
+- the **result backend** is the `Context` — typed, versioned artifacts, so you
+  get provenance and reproducibility a task queue doesn't give you.
+
+One honest caveat: reactifact is single-process today — a Celery-shaped *model*,
+not its distributed broker/worker runtime. The rest of this page argues *why*
+that model (state over execution) is the right one for open-ended knowledge work.
+
 ## The problem with "agent = a graph you draw"
 
 Most agent frameworks give you a **graph** (or a chain) as the primary

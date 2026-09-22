@@ -8,18 +8,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Docs
 
-- README and the docs landing (`docs/en/index.md` + RU) now lead with the
-  auditable-answer wedge (pain → promise → proof) instead of the architecture:
-  a `fintech_audit` hero with real figures and a `context_sha256`, and a trimmed
-  deterministic-produce snippet. Two recorded GIFs (`vhs`, from committed `.tape`
-  scripts): a short top-of-funnel one (`docs/img/fintech-audit-short.gif`,
-  ~88 KB, from `fintech-audit-short.tape`) on the README/landing, and the full
+- README and the docs landing (`docs/en/index.md` + RU) now lead with a
+  **Celery-shaped, event-driven framing** for Python developers: a task wakes on
+  a typed artifact (not a message you push or an edge you draw), with a
+  task/queue/chord/retry/result-backend → reactifact mapping table and the honest
+  caveat that it's single-process today. Reproducibility, provenance and audit
+  are presented as what you get *on top* of that model. `why-reactifact.md`
+  (EN+RU) opens with the same "if you know Celery" model before the design
+  argument.
+- The `fintech_audit` hero (pain → proof) with real figures and a
+  `context_sha256`, a trimmed deterministic-produce snippet, and two recorded
+  GIFs (`vhs`, from committed `.tape` scripts) live under "On top: a provable
+  answer": a short top-of-funnel one (`docs/img/fintech-audit-short.gif`, ~88 KB,
+  from `fintech-audit-short.tape`) on the README/landing, and the full
   `docs/img/fintech-audit-demo.gif` (from `fintech-audit-demo.tape`) in
   `examples.md` (EN+RU) and the example's own README. `examples/fintech_audit`
   gained a `--brief` flag for the compact recording.
 
 ### Added
 
+- Deterministic runs and a one-call check. `RuntimeResources(id_factory=…)` (with
+  `reactifact.replay.counter_ids()`) gives artifacts created without an explicit
+  id stable `Model:0000`-style ids instead of `uuid4`, so an otherwise-unmodified
+  app's `context_hash` is reproducible run to run. `reactifact.replay.verify_run(
+  build, *, recording=…)` runs a pipeline `repeat` times under a recorded model
+  and strict ids and returns a `ReproReport` — `ok=False` (with every diverging
+  hash) when something is still nondeterministic (time, randomness, unstable
+  ids, order).
 - `ScenarioLab.fail_resource(...)` accepts a **typed key** — a class or a
   `ResourceKey` registered via `resources.register(...)` — as well as the
   existing string names (`"llm"`, a source id, `resources.set(name, ...)`), so

@@ -2,7 +2,7 @@
   <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to artifacts, not graphs" width="800">
 </p>
 
-**Agents that produce provable answers — typed, versioned, provenance-aware artifacts with a content hash you can re-run and verify. No graph to draw.**
+**Event-driven agents for Python developers — tasks wake on typed artifacts, like Celery tasks wake on messages. No graph to draw.**
 
 [![CI](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml/badge.svg)](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/bzdvdn/reactifact/graph/badge.svg)](https://codecov.io/gh/bzdvdn/reactifact)
@@ -12,20 +12,31 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bzdvdn/reactifact)
 [![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
-Most agent frameworks ask you to **draw the graph** and trust the model's
-arithmetic. For a knowledge question that matters — *"what's the Q2 cloud-spend
-variance, and does policy require approval?"* — that's the wrong bet twice: the
-path depends on the data, and an answer you can't audit is an answer you can't
-ship.
+Python developers already know this model from Celery: define a **task**,
+declare what triggers it, let the runtime run it. reactifact applies it to agents — a task
+reacts to a **typed, versioned artifact** appearing in the context, not to a
+queue message you push or a graph edge you draw. The runtime derives what runs
+next from state.
 
-reactifact flips it. The **answer is an artifact**: typed, versioned, linked to
-the sources it came from, with a `context_hash` you can re-run and verify
-(`reactifact replay … --verify <hash>`). The model reasons; the arithmetic is
-deterministic; every claim carries provenance. Agents react to **state changes** —
-you describe what artifacts exist and what agents can do with them, and the
-runtime derives what runs next. No graph, no node pipeline.
+| Celery | reactifact |
+| --- | --- |
+| a task | `@produce(Model)` — a unit of work that writes an artifact |
+| `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
+| routing key / queue | `Consume(Type)` — which artifact type wakes the task |
+| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
+| retries, `acks_late` | guards + `Budget`, an honest `None` instead of a wrong result |
+| result backend | the `Context` — typed, versioned artifacts |
+| worker | `Runtime` |
 
-## The point: a provable answer
+Single process today (no broker, no worker pool) — the *model* is Celery-shaped,
+not its distributed runtime.
+
+On top of that model you get something a task queue doesn't: every artifact is
+**versioned with provenance**, so a run is reproducible (`context_hash`) and
+auditable (`audit.report`) for free. The model reasons; the arithmetic stays
+deterministic; every claim carries provenance.
+
+## On top: a provable answer
 
 [`examples/fintech_audit`](examples/fintech_audit) — a transactions CSV, a budget
 CSV and a policy doc, **no API key**. The model never produces the number; plain
