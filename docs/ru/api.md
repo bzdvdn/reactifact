@@ -130,6 +130,8 @@
 | --- | --- |
 | `ReplayLLM(recording, mode="record"\|"replay", inner=…)` | записывает каждый LLM-вызов в JSONL или воспроизводит их точно; `ReplayMiss` при расхождении |
 | `ReplayMiss` | воспроизводимый вызов не совпал с записью |
+| `verify_run(build, *, recording=None, repeat=2)` | прогоняет `build(resources) -> Context` `repeat` раз под записанной моделью **и** строгими id (`counter_ids`), возвращает `ReproReport`; `ok=False`, если `context_hash` разошёлся (реальная недетерминированность) |
+| `counter_ids()` | детерминированный `id_factory` (`Model:0000`, `Model:0001`, …) для `RuntimeResources(id_factory=…)` — делает артефакты без явного id воспроизводимыми |
 | `replay_context(store, session_id, version=None)` | восстанавливает состояние сохранённой сессии на коммите |
 | `replay_summary(context)` | компактная сводка состояния для CLI `replay` |
 

@@ -102,9 +102,15 @@ class Effects:
         site when that "may already exist" intent should be explicit instead
         of implicit in a plain `create(..., id=...)`.
         """
-        artifact_id = id or _auto_id(type(data).__name__)
-        self.operations.append(Create(data, id=artifact_id))
-        return Handle(self, artifact_id, data)
+        if id is None:
+            factory = self._context.resources.id_factory
+            id = (
+                factory(type(data).__name__)
+                if factory is not None
+                else _auto_id(type(data).__name__)
+            )
+        self.operations.append(Create(data, id=id))
+        return Handle(self, id, data)
 
     def create_once(self, data: Any, *, id: str) -> Handle | None:
         """Idempotent create (§42): `None` if `id` already exists in the

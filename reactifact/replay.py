@@ -21,17 +21,23 @@ Two complementary halves:
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import BaseModel
+
+from .audit import context_hash
 from .context import Context
 from .providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from .resources import RuntimeResources
     from .session import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -168,6 +174,83 @@ async def replay_context(
     return context
 
 
+def counter_ids(start: int = 0) -> Callable[[str], str]:
+    """A deterministic id factory: `Model:0000`, `Model:0001`, … per run.
+
+    Assign it to `RuntimeResources(id_factory=…)` and every artifact created
+    without an explicit id gets a stable, order-derived id instead of a
+    `uuid4` — enough to make an otherwise-unmodified app's `context_hash`
+    reproducible run to run. Pair with `ReplayLLM` (recorded model calls) for
+    full reproducibility; `verify_run` wires both.
+    """
+    counter = itertools.count(start)
+
+    def make(model_name: str) -> str:
+        return f"{model_name.lower()}:{next(counter):04d}"
+
+    return make
+
+
+class ReproReport(BaseModel):
+    """Outcome of `verify_run`: were repeated runs byte-identical?"""
+
+    ok: bool
+    hashes: list[str]
+    repeat: int
+    recording: str | None = None
+
+
+#: A run builder: given resources, produce the finished `Context`.
+RunBuilder = Callable[["RuntimeResources"], Awaitable["Context"]]
+
+
+async def verify_run(
+    build: RunBuilder,
+    *,
+    recording: str | Path | None = None,
+    repeat: int = 2,
+    resources_factory: Callable[[], RuntimeResources] | None = None,
+) -> ReproReport:
+    """Runs `build` `repeat` times and checks the `context_hash` is identical.
+
+    Each run gets fresh resources with **deterministic ids**
+    (`counter_ids()`) and — when `recording` is given — a `ReplayLLM` replaying
+    it, so a difference between runs is real nondeterminism in the app (time,
+    randomness, unstable ids, order), not model variance. `build(resources)`
+    must build the app on the given resources and return the finished
+    `Context` (it must not create resources itself).
+
+        report = await verify_run(build, recording="calls.jsonl")
+        assert report.ok, report.hashes
+
+    Returns a `ReproReport`; `ok` is False (with every hash) when they differ.
+    """
+    if repeat < 2:
+        raise ValueError("verify_run needs repeat >= 2 to compare runs")
+    hashes: list[str] = []
+    for _ in range(repeat):
+        resources = (
+            resources_factory() if resources_factory is not None else _resources()
+        )
+        resources.id_factory = counter_ids()
+        if recording is not None:
+            resources.llm = ReplayLLM(recording, mode="replay")
+        context = await build(resources)
+        hashes.append(context_hash(context))
+    return ReproReport(
+        ok=len(set(hashes)) == 1,
+        hashes=hashes,
+        repeat=repeat,
+        recording=str(recording) if recording is not None else None,
+    )
+
+
+def _resources() -> RuntimeResources:
+    from .resources import RuntimeResources
+
+    return RuntimeResources()
+
+
 def replay_summary(context: Context) -> dict[str, Any]:
     """A compact "state at this point" summary for the replay CLI."""
     artifacts = context.list_artifacts()
@@ -184,4 +267,12 @@ def replay_summary(context: Context) -> dict[str, Any]:
     }
 
 
-__all__ = ["ReplayLLM", "ReplayMiss", "replay_context", "replay_summary"]
+__all__ = [
+    "ReproReport",
+    "ReplayLLM",
+    "ReplayMiss",
+    "counter_ids",
+    "replay_context",
+    "replay_summary",
+    "verify_run",
+]

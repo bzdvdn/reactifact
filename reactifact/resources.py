@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+#: Mints an artifact id from its model/type name — injectable for deterministic
+#: runs (`reactifact.replay.counter_ids`). `None` keeps the uuid default.
+IdFactory = Callable[[str], str]
+
 
 class ResourceKey(Generic[T]):
     """A typed key for registering a resource when the *type* isn't a good key.
@@ -47,11 +51,17 @@ class RuntimeResources:
         context_builder: ContextBuilder | None = None,
         verification_threshold: float | None = None,
         redactor: Redactor | None = None,
+        id_factory: IdFactory | None = None,
         **additional: Any,
     ):
         self.llm = llm
         self.embedder = embedder
         self.sources = sources or {}
+        # Injected id source for artifacts created without an explicit id
+        # (`None` = the uuid default). A deterministic factory
+        # (`reactifact.replay.counter_ids`) makes an unmodified app's
+        # `context_hash` reproducible run to run — see `reactifact.replay.verify_run`.
+        self.id_factory = id_factory
         # Applied to trace text only (artifact `data`, LLM messages/responses,
         # errors) before it reaches a sink — never to the live `Context` or a
         # persisted session. `None` (default) reproduces the pre-hook behavior.

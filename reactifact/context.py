@@ -124,6 +124,8 @@ class Context:
         """
         if id is not None and id in self._artifacts:
             return self._artifacts[id]
+        if id is None and self.resources.id_factory is not None:
+            id = self.resources.id_factory(type(data).__name__)
         artifact = Artifact(data=data, id=id)
         self._artifacts[artifact.id] = artifact
         self._by_type.setdefault(type(data), set()).add(artifact.id)

@@ -127,6 +127,8 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `ReplayLLM(recording, mode="record"\|"replay", inner=…)` | records every LLM call to JSONL, or replays them exactly; `ReplayMiss` on divergence |
 | `ReplayMiss` | a replaying call did not match the recording |
+| `verify_run(build, *, recording=None, repeat=2)` | runs `build(resources) -> Context` `repeat` times under a recorded model **and** strict ids (`counter_ids`), returns a `ReproReport`; `ok` is False when the `context_hash` differs (real nondeterminism) |
+| `counter_ids()` | a deterministic `id_factory` (`Model:0000`, `Model:0001`, …) for `RuntimeResources(id_factory=…)` — makes artifacts created without an explicit id reproducible |
 | `replay_context(store, session_id, version=None)` | reconstructs a saved session's state at a commit |
 | `replay_summary(context)` | compact state summary for the `replay` CLI |
 

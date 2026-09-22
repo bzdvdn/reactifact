@@ -35,6 +35,37 @@ runtime.run()                          # те же артефакты, те же
 повторённый запуск даёт идентичные артефакты — и по воспроизведённому состоянию
 можно пройтись (или отрисовать `context_to_mermaid`), чтобы объяснить ответ.
 
+## Проверить, что запуск воспроизводится
+
+Запись фиксирует модель, но запуск воспроизводим только если детерминировано и
+всё остальное — обычно ломают авто-id артефактов (`uuid4`), wall-clock время и
+случайность. `verify_run` прогоняет пайплайн несколько раз под записанной
+моделью **и строгими детерминированными id**, затем сравнивает `context_hash`:
+
+```python
+from reactifact import Context, Runtime
+from reactifact.replay import verify_run
+
+
+async def build(resources):
+    context = Context(resources=resources)
+    context.create(Question(...))
+    await Runtime(context, agents=AGENTS).arun()
+    return context
+
+
+report = await verify_run(build, recording="calls.jsonl")   # прогонит дважды
+assert report.ok, report.hashes
+```
+
+Расхождение — это реальная недетерминированность в вашем коде (нестабильный id,
+`time.time()`, `uuid4()` в данных артефакта, порядок), а не разброс модели:
+`report.hashes` показывает разошедшиеся отпечатки. Когда ресурсы строите сами,
+передача `RuntimeResources(id_factory=counter_ids())` даёт артефактам без
+явного id стабильные вида `Model:0000` вместо `uuid4` — часто это и есть всё
+исправление. Так делает пример [`fintech_audit`](../../examples/fintech_audit),
+поэтому повторный прогон печатает тот же `context sha256`.
+
 ## Детерминированный реплей состояния
 
 Чекпоинт сессии несёт полную цепочку коммитов. Восстанавливайте состояние на
