@@ -1,162 +1,350 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>reactifact traces</title>
-<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
-<style>
-  :root{
-    --bg:#f7f7f9;--panel:#ffffff;--panel-alt:#fafafc;--border:#e6e6ee;--border-strong:#d3d3de;
-    --text:#17171f;--muted:#6f6f7e;--accent:#4f46e5;--accent-soft:#eef0ff;
-    --ok:#15803d;--err:#b91c1c;--ok-soft:#e9f7ef;--err-soft:#fdeeee;--chip:#eef0ff;--chip-text:#4338ca;
-    --hover:#f4f4f8;--shadow:0 1px 2px rgba(16,16,30,.04),0 1px 6px rgba(16,16,30,.05);
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  }
-  html.dark{
-    --bg:#0f1016;--panel:#171820;--panel-alt:#1d1e27;--border:#262733;--border-strong:#33344a;
-    --text:#e7e7f0;--muted:#9a9aae;--accent:#8b93ff;--accent-soft:#232448;
-    --ok:#3ecf7c;--err:#f97c7c;--ok-soft:#123522;--err-soft:#3c1718;--chip:#262a48;--chip-text:#a9b1ff;
-    --hover:#1f202b;--shadow:0 1px 2px rgba(0,0,0,.4),0 1px 8px rgba(0,0,0,.3);
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;}
-  header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);backdrop-filter:saturate(1.4) blur(6px);}
-  .header-inner{max-width:1240px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;gap:14px;}
-  .logo{display:flex;align-items:center;gap:9px;color:var(--text);text-decoration:none;}
-  .logo b{font-size:15px;letter-spacing:.1px;}
-  .logo .sub{color:var(--muted);font-family:var(--mono);font-size:12px;font-weight:400;}
-  .spacer{flex:1;}
-  #theme{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer;}
-  #theme:hover{border-color:var(--accent);color:var(--accent);}
-  main{max-width:1240px;margin:0 auto;padding:28px;}
-  .page-head{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
-  .page-head h1{font-size:21px;margin:0;font-weight:650;letter-spacing:-.2px;}
-  .page-head .meta{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);}
-  .toolbar{display:flex;align-items:end;gap:14px;padding:16px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
-  .field{display:flex;flex-direction:column;gap:5px;}
-  .field label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
-  .pills{display:flex;gap:5px;flex-wrap:wrap;}
-  .pill{border:1px solid var(--border);background:var(--panel);color:var(--muted);border-radius:20px;padding:4px 12px;font-size:12.5px;cursor:pointer;}
-  .pill.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
-  .toolbar input,.toolbar select{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;}
-  .btn{border:1px solid var(--border);background:var(--panel);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;}
-  .btn:hover{border-color:var(--accent);color:var(--accent);}
-  table{width:100%;border-collapse:collapse;}
-  thead th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--border);background:var(--panel);}
-  tbody td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
-  tbody tr:last-child td{border-bottom:none;}
-  tbody tr.row{cursor:pointer;}
-  tbody tr.row:hover td{background:var(--hover);}
-  .status{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:12.5px;}
-  .dot{width:8px;height:8px;border-radius:50%;flex:none;}
-  .dot.ok{background:var(--ok);} .dot.err{background:var(--err);} .dot.amber{background:#d97706;}
-  .status.ok{color:var(--ok);} .status.err{color:var(--err);} .status.amber{color:#d97706;}
-  .mono{font-family:var(--mono);} .num{font-variant-numeric:tabular-nums;color:var(--muted);}
-  .run-id{font-weight:600;color:var(--accent);font-family:var(--mono);}
-  .empty{padding:48px 20px;text-align:center;color:var(--muted);}
-  .empty .big{font-size:26px;display:block;margin-bottom:8px;}
-  .pager{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;}
-  .pager button{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12.5px;font-family:inherit;}
-  .pager button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
-  .pager button:disabled{opacity:.4;cursor:default;}
-  .pager .pageinfo{font-variant-numeric:tabular-nums;}
-  .pager select{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:5px 8px;font-size:12.5px;font-family:inherit;}
-  .poll{font-size:12px;color:var(--muted);}
-</style>
+<link rel="stylesheet" href="/traces/assets/app.css"/>
+<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
 </head>
 <body>
-<header>
-  <div class="header-inner">
-    <a class="logo" href="/traces">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="5" cy="12" r="2.6" fill="currentColor"/>
-        <circle cx="19" cy="5" r="2.6" fill="currentColor"/>
-        <circle cx="19" cy="19" r="2.6" fill="currentColor"/>
-        <path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      <b>reactifact <span style="color:var(--accent)">traces</span></b>
-      <span class="sub">artifact run observer</span>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <a class="brand" href="/traces">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="name">reactifact <em>traces</em></span>
     </a>
-    <div class="spacer"></div>
-    <span class="poll" id="poll"></span>
-    <button id="theme" title="toggle dark mode">dark</button>
-  </div>
-</header>
-<main>
-  <div class="page-head">
-    <h1>Traces</h1>
-    <span class="meta" id="summary">loading…</span>
-  </div>
-  <div class="card">
-    <div class="toolbar">
-      <div class="field">
-        <label>outcome</label>
-        <div class="pills" id="outcome-pills">
-          <button class="pill active" data-v="">all</button>
-          <button class="pill" data-v="completed">completed</button>
-          <button class="pill" data-v="budget_runs_exceeded">budget</button>
+    <nav class="nav">
+      <a class="nav-item active" href="/traces">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
+        <span class="nav-label">Traces</span>
+      </a>
+      <a class="nav-item" href="/sessions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
+        <span class="nav-label">Sessions</span>
+      </a>
+    </nav>
+    <div class="side-spacer"></div>
+    <div class="side-foot">
+      <button class="side-btn" id="theme" title="toggle theme" aria-label="toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <span class="nav-label" id="theme-label">Theme</span>
+      </button>
+      <button class="side-btn" id="collapse" title="collapse sidebar" aria-label="collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="nav-label">Collapse</span>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="content">
+    <header class="topbar">
+      <button class="icon-btn" id="menu-btn" aria-label="open navigation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <h1>Traces</h1>
+      <span class="count" id="summary">loading…</span>
+      <div class="spacer"></div>
+      <span class="poll" id="poll"></span>
+      <button class="icon-btn on" id="live" title="auto-refresh" aria-label="toggle auto-refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+      </button>
+    </header>
+    <main>
+      <div class="card">
+        <div class="toolbar">
+          <div class="field" style="flex:1;min-width:200px">
+            <label>search</label>
+            <input class="input" id="f-q" type="search" placeholder="run / session / agent / error…"/>
+          </div>
+          <div class="field">
+            <label>outcome</label>
+            <div class="pills" id="outcome-pills">
+              <button class="pill active" data-v="">all</button>
+              <button class="pill" data-v="completed">completed</button>
+              <button class="pill" data-v="budget_runs_exceeded">runs budget</button>
+              <button class="pill" data-v="budget_time_exceeded">time budget</button>
+              <button class="pill" data-v="iterations_exhausted">iterations</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>session</label>
+            <input class="input" id="f-session" type="search" placeholder="exact id…" style="min-width:150px"/>
+          </div>
+          <div class="field">
+            <label>sort</label>
+            <div style="display:flex;gap:5px">
+              <select class="select" id="f-sort">
+                <option value="started_at">created</option>
+                <option value="duration_ms">duration</option>
+                <option value="spans">spans</option>
+                <option value="outcome">outcome</option>
+                <option value="session_id">session</option>
+              </select>
+              <button class="btn icon" id="f-order" title="toggle direction" aria-label="toggle sort direction">↓</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>views</label>
+            <div style="display:flex;gap:5px">
+              <select class="select" id="views"><option value="">saved views…</option></select>
+              <button class="btn icon" id="view-save" title="save current view" aria-label="save current view">+</button>
+              <button class="btn icon" id="view-del" title="delete selected view" aria-label="delete selected view">×</button>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn icon" id="copy-link" title="copy link to this view" aria-label="copy link to this view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1L11 4.9"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.9-1.9"/></svg>
+          </button>
+          <button class="btn" id="export">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            export
+          </button>
+        </div>
+        <div class="filter-chips" id="fchips" style="display:none"></div>
+        <div class="tagbar">
+          <span class="lbl">tags</span>
+          <div id="facets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <span class="mode faint" id="mode-wrap" style="display:none;gap:8px;align-items:center;font-size:12px">
+            <label><input type="radio" name="tagmode" value="any" checked/> any</label>
+            <label><input type="radio" name="tagmode" value="all"/> all</label>
+          </span>
+          <div class="spacer"></div>
+          <button class="btn sm" id="manage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+            manage tags
+          </button>
+        </div>
+        <div class="table-wrap" id="runs"><div class="empty">Loading traces…</div></div>
+        <div class="pager">
+          <button class="btn sm" id="prev" disabled>← prev</button>
+          <span class="pageinfo" id="pageinfo">–</span>
+          <button class="btn sm" id="next" disabled>next →</button>
+          <div class="spacer"></div>
+          <span>per page</span>
+          <select class="select" id="f-limit">
+            <option value="10">10</option><option value="25" selected>25</option>
+            <option value="50">50</option><option value="100">100</option>
+          </select>
         </div>
       </div>
-      <div class="field">
-        <label>session</label>
-        <input id="f-session" type="search" placeholder="search…" style="min-width:170px"/>
+    </main>
+  </div>
+</div>
+
+<div class="bulkbar" id="bulkbar">
+  <span class="count" id="bulkcount">0 selected</span>
+  <input class="input" id="bulk-tag" list="taglist" placeholder="tag…" style="width:150px"/>
+  <input class="input" id="bulk-note" placeholder="note (optional)" style="width:220px"/>
+  <button class="btn primary" id="bulk-apply">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    apply
+  </button>
+  <select class="select" id="bulk-remove-sel"><option value="">remove tag…</option></select>
+  <button class="btn danger" id="bulk-remove">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    remove
+  </button>
+  <button class="btn ghost" id="bulk-clear">clear</button>
+</div>
+
+<div class="modal-bg" id="tagmodal">
+  <div class="modal">
+    <div class="modal-head"><h2>Tag vocabulary</h2><div class="spacer"></div><button class="btn" id="modal-close">close</button></div>
+    <div class="modal-body">
+      <p class="faint" style="margin:0 0 12px">Rename, recolour or delete tags. Deleting removes the tag from every run.</p>
+      <div id="tagrows"></div>
+      <div class="addtag">
+        <input type="text" id="new-tag-name" placeholder="new tag…"/>
+        <input type="color" id="new-tag-color" value="#4f46e5"/>
+        <button class="btn primary" id="new-tag-add">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          add
+        </button>
       </div>
-      <div class="spacer"></div>
-      <button class="btn" id="reset">clear filters</button>
-    </div>
-    <div id="runs"></div>
-    <div class="pager">
-      <button id="prev" disabled>← prev</button>
-      <span class="pageinfo" id="pageinfo">–</span>
-      <button id="next" disabled>next →</button>
-      <div style="flex:1"></div>
-      <span>per page</span>
-      <select id="f-limit">
-        <option value="10">10</option><option value="25" selected>25</option>
-        <option value="50">50</option><option value="100">100</option>
-      </select>
     </div>
   </div>
-</main>
+</div>
+<datalist id="taglist"></datalist>
+
 <script>
-const state = { outcome: '', session: '', limit: 25, offset: 0, total: 0, runs: [] };
+const state = {
+  outcome:'', session:'', q:'', tags:[], tagMode:'any',
+  sort:'started_at', order:'desc', limit:25, offset:0, total:0,
+  runs:[], facets:[], selected:new Set(), live:true, stats:null
+};
+let timer=null;
+const VIEWS_KEY='reactifact-views';
 
-function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme').textContent=dark?'light':'dark';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
-function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':true);}
+function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
+function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
 document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
+(function initShell(){
+  const app=document.getElementById('app');
+  let collapsed=false;try{collapsed=localStorage.getItem('reactifact-sidebar')==='collapsed';}catch(_){}
+  app.classList.toggle('collapsed',collapsed);
+  document.getElementById('collapse').addEventListener('click',()=>{collapsed=!collapsed;app.classList.toggle('collapsed',collapsed);try{localStorage.setItem('reactifact-sidebar',collapsed?'collapsed':'expanded');}catch(_){}});
+  document.getElementById('menu-btn').addEventListener('click',()=>app.classList.toggle('nav-open'));
+  document.getElementById('scrim').addEventListener('click',()=>app.classList.remove('nav-open'));
+})();
+let toastTimer=null;
+function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t);}t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1600);}
 
-async function load(){
-  const q=new URLSearchParams({limit:state.limit,offset:state.offset});
+function readURL(){
+  const p=new URLSearchParams(location.search);
+  state.outcome=p.get('outcome')||'';
+  state.session=p.get('session_id')||'';
+  state.q=p.get('q')||'';
+  state.tags=p.getAll('tag');
+  state.tagMode=p.get('tag_mode')||'any';
+  state.sort=p.get('sort')||'started_at';
+  state.order=p.get('order')||'desc';
+  state.limit=Number(p.get('limit'))||25;
+  state.offset=Number(p.get('offset'))||0;
+}
+function urlQuery(){const q=filters();q.set('limit',state.limit);q.set('offset',state.offset);return q;}
+function syncURL(push){const url=location.pathname+'?'+urlQuery();if(push)history.pushState(null,'',url);else history.replaceState(null,'',url);}
+function syncControls(){
+  document.querySelectorAll('#outcome-pills .pill').forEach(x=>x.classList.toggle('active',x.dataset.v===state.outcome));
+  document.getElementById('f-q').value=state.q;
+  document.getElementById('f-session').value=state.session;
+  document.getElementById('f-sort').value=state.sort;
+  document.getElementById('f-order').textContent=state.order==='desc'?'↓':'↑';
+  document.getElementById('f-limit').value=String(state.limit);
+  document.querySelectorAll('input[name=tagmode]').forEach(r=>{r.checked=r.value===state.tagMode;});
+  renderFilterChips();
+}
+function getViews(){try{return JSON.parse(localStorage.getItem(VIEWS_KEY))||[];}catch(_){return [];}}
+function setViews(v){try{localStorage.setItem(VIEWS_KEY,JSON.stringify(v));}catch(_){}}
+function renderViews(){
+  const views=getViews();const sel=document.getElementById('views');const cur=sel.value;
+  sel.innerHTML='<option value="">saved views…</option>'+views.map((v,i)=>'<option value="'+i+'">'+escapeHtml(v.name)+'</option>').join('');
+  sel.value=views.some((v,i)=>String(i)===cur)?cur:'';
+}
+function applyView(query){history.replaceState(null,'',location.pathname+(query?('?'+query):''));readURL();syncControls();refresh();}
+function activeFilters(){
+  const out=[];
+  if(state.outcome)out.push({k:'outcome',v:state.outcome});
+  if(state.session)out.push({k:'session',v:state.session});
+  if(state.q)out.push({k:'search',v:state.q});
+  for(const t of state.tags)out.push({k:'tag',v:t});
+  return out;
+}
+function renderFilterChips(){
+  const el=document.getElementById('fchips');const fs=activeFilters();
+  if(!fs.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='flex';
+  el.innerHTML='<span class="lbl">filters</span>'+fs.map((f,i)=>'<span class="fchip"><span class="k">'+f.k+'</span> '+escapeHtml(f.v)+'<button class="x" data-i="'+i+'" title="remove" aria-label="remove filter">×</button></span>').join('')+
+    '<button class="btn sm ghost" id="clear-filters">clear all</button>';
+}
+
+function hex(c){return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(c||''))?c:'';}
+function tagStyle(c){c=hex(c);return c?('background:'+c+'22;color:'+c+';border-color:'+c+'66'):'';}
+function tagChip(t,opts){opts=opts||{};const name=(t.tag!==undefined?t.tag:t.name);const color=(t.color||'');const note=t.note||'';
+  return '<span class="tagchip'+(opts.active?' active':'')+(opts.static?' static':'')+'" style="'+tagStyle(color)+'"'+(note?' title="'+escapeHtml(note)+'"':'')+
+    (opts.click?' data-tag="'+escapeHtml(name)+'"':'')+'>'+(color?'<span class="swatch" style="background:'+hex(color)+'"></span>':'')+
+    escapeHtml(name)+(opts.count!==undefined?' <span class="n">'+opts.count+'</span>':'')+'</span>';}
+function rowTagsHtml(tags){
+  tags=tags||[];if(!tags.length)return '<span class="num">—</span>';
+  const shown=tags.slice(0,2).map(t=>tagChip(t,{static:true})).join('');
+  const extra=tags.length>2?('<span class="tag-more" title="'+escapeHtml(tags.slice(2).map(t=>t.tag).join(', '))+'">+'+(tags.length-2)+'</span>'):'';
+  return shown+extra;
+}
+
+function filters(){
+  const q=new URLSearchParams();
   if(state.outcome)q.set('outcome',state.outcome);
   if(state.session)q.set('session_id',state.session);
-  const res=await fetch('/api/traces?'+q);
-  const data=await res.json();
-  state.runs=data.items||[]; state.total=data.total||0;
-  render();
-  document.getElementById('poll').textContent='updated '+new Date().toLocaleTimeString();
+  if(state.q)q.set('q',state.q);
+  if(state.sort!=='started_at')q.set('sort',state.sort);
+  if(state.order!=='desc')q.set('order',state.order);
+  for(const t of state.tags)q.append('tag',t);
+  if(state.tags.length>1)q.set('tag_mode',state.tagMode);
+  return q;
+}
+
+async function loadFacets(){
+  try{const r=await fetch('/api/tags');const d=await r.json();state.facets=d.items||[];}
+  catch(_){state.facets=[];}
+  renderFacets();
+}
+function renderFacets(){
+  const el=document.getElementById('facets');
+  const names=state.facets.map(f=>f.name);
+  const active=state.tags.slice();
+  el.innerHTML=state.facets.length?state.facets.map(f=>
+    tagChip(f,{active:active.includes(f.name),count:f.count,click:true})).join('')
+    :'<span class="faint" style="font-size:12.5px">no tags yet — open a run to add one</span>';
+  document.getElementById('mode-wrap').style.display=state.tags.length>1?'flex':'none';
+  document.getElementById('taglist').innerHTML=names.map(n=>'<option value="'+escapeHtml(n)+'">').join('');
+  const sel=document.getElementById('bulk-remove-sel');const cur=sel.value;
+  sel.innerHTML='<option value="">remove tag…</option>'+names.map(n=>'<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>').join('');
+  sel.value=names.includes(cur)?cur:'';
+}
+
+async function load(){
+  const q=filters();q.set('limit',state.limit);q.set('offset',state.offset);
+  try{
+    const res=await fetch('/api/traces?'+q);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    state.runs=data.items||[];state.total=data.total||0;state.stats=data.stats||null;
+    for(const id of Array.from(state.selected)){if(!state.runs.some(r=>r.id===id))state.selected.delete(id);}
+    render();
+    document.getElementById('poll').textContent='updated '+new Date().toLocaleTimeString();
+  }catch(err){
+    document.getElementById('poll').textContent='';
+    const el=document.getElementById('runs');
+    el.innerHTML='<div class="empty">Could not load traces — '+escapeHtml(err&&err.message?err.message:String(err))+'<div style="margin-top:12px"><button class="btn" id="retry">retry</button></div></div>';
+    document.getElementById('retry').addEventListener('click',load);
+  }
 }
 
 function render(){
   const el=document.getElementById('runs');
-  document.getElementById('summary').textContent=`${state.total} trace${state.total===1?'':'s'}`;
-  if(!state.runs.length){el.innerHTML='<div class="empty"><span class="big">∅</span>Нет трейсов. Запустите прогон, чтобы увидеть спаны.</div>';updatePager();return;}
-  let html='<table><thead><tr><th>outcome</th><th>run</th><th>session</th><th style="text-align:right">duration</th><th style="text-align:right">spans</th><th style="text-align:right">created</th></tr></thead><tbody>';
+  const s=state.stats||{};
+  const avg=s.runs?Math.round(s.duration_ms/s.runs):0;
+  document.getElementById('summary').textContent=(s.runs||state.total)+' runs · avg '+avg+' ms · tokens '+((s.prompt_tokens||0)+(s.completion_tokens||0));
+  renderFilterChips();renderBulk();
+  if(!state.runs.length){el.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><div>No traces match. Run something, or clear the filters.</div></div>';updatePager();return;}
+  const arrow=k=>state.sort===k?(state.order==='desc'?' ▾':' ▴'):'';
+  const th=(label,k,align)=>'<th class="sortable'+(state.sort===k?' active':'')+'" data-sort="'+k+'"'+(align?' style="text-align:right"':'')+'>'+label+arrow(k)+'</th>';
+  const allSel=state.runs.every(r=>state.selected.has(r.id));
+  let html='<table><thead><tr><th class="col-check"><input type="checkbox" id="check-all"'+(allSel?' checked':'')+'/></th>'+
+    th('outcome','outcome')+'<th>run</th>'+th('session','session_id')+'<th>tags</th>'+
+    th('duration','duration_ms',true)+'<th style="text-align:right">tokens</th>'+
+    th('spans','spans',true)+th('created','started_at',true)+'</tr></thead><tbody>';
   for(const r of state.runs){
-    const cls=r.outcome==='completed'?'ok':'err';
-    html+='<tr class="row" onclick="openRun(\''+r.id+'\')">'+
+    const cls=r.outcome==='completed'?'ok':(r.outcome==='failed'?'err':'amber');
+    html+='<tr class="row'+(state.selected.has(r.id)?' selected':'')+'" data-id="'+escapeHtml(r.id)+'">'+
+      '<td class="col-check"><input type="checkbox" class="rowcheck" data-id="'+escapeHtml(r.id)+'"'+(state.selected.has(r.id)?' checked':'')+'/></td>'+
       '<td><span class="status '+cls+'"><span class="dot '+cls+'"></span>'+escapeHtml(r.outcome)+'</span></td>'+
       '<td class="run-id" title="'+escapeHtml(r.id)+'">#'+String(r.id).slice(0,8)+'</td>'+
       '<td>'+escapeHtml(r.session_id||'—')+'</td>'+
+      '<td><div class="row-tags">'+rowTagsHtml(r.tags)+'</div></td>'+
       '<td class="num" style="text-align:right">'+Number(r.duration_ms).toFixed(0)+' ms</td>'+
+      '<td class="num" style="text-align:right">'+(((r.prompt_tokens||0)+(r.completion_tokens||0))||'—')+'</td>'+
       '<td class="num" style="text-align:right">'+Number(r.spans)+'</td>'+
-      '<td class="num" style="text-align:right">'+fmtTime(r.started_at)+'</td></tr>';
+      '<td class="num" style="text-align:right" title="'+escapeHtml(fmtAbs(r.started_at))+'">'+fmtRel(r.started_at)+'</td></tr>';
   }
   el.innerHTML=html+'</tbody></table>';
+  el.querySelectorAll('th.sortable').forEach(h=>h.addEventListener('click',()=>{
+    const k=h.dataset.sort;
+    if(state.sort===k)state.order=state.order==='desc'?'asc':'desc';
+    else{state.sort=k;state.order=(k==='session_id'||k==='outcome')?'asc':'desc';}
+    state.offset=0;syncURL(true);syncControls();load();
+  }));
+  document.getElementById('check-all').addEventListener('change',(e)=>{
+    for(const r of state.runs){if(e.target.checked)state.selected.add(r.id);else state.selected.delete(r.id);}
+    render();
+  });
   updatePager();
 }
 
+function renderBulk(){
+  document.getElementById('bulkbar').classList.toggle('show',state.selected.size>0);
+  document.getElementById('bulkcount').textContent=state.selected.size+' selected';
+}
 function updatePager(){
   const pages=Math.max(1,Math.ceil(state.total/state.limit));
   const page=Math.floor(state.offset/state.limit)+1;
@@ -164,33 +352,136 @@ function updatePager(){
   document.getElementById('next').disabled=page>=pages;
   document.getElementById('pageinfo').textContent=`${Math.min(state.total,state.offset+1)}–${Math.min(state.total,state.offset+state.limit)} of ${state.total} · page ${page}/${pages}`;
 }
-
-function openRun(id){window.location.href='/traces/'+id;}
-function fmtTime(t){
+function fmtAbs(t){try{const d=typeof t==='number'?new Date(t*1000):new Date(t);return d.toLocaleString();}catch(_){return '—';}}
+function fmtRel(t){
   try{
     const d=typeof t==='number'?new Date(t*1000):new Date(t);
-    return d.toLocaleString(undefined,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const s=Math.max(0,(Date.now()-d.getTime())/1000);
+    if(s<45)return 'just now';
+    if(s<5400)return Math.max(1,Math.round(s/60))+'m ago';
+    if(s<86400)return Math.round(s/3600)+'h ago';
+    if(s<604800)return Math.round(s/86400)+'d ago';
+    return d.toLocaleDateString();
   }catch(_){return '—';}
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms||200);};}
+async function refresh(){await loadFacets();await load();}
 
+document.getElementById('fchips').addEventListener('click',(e)=>{
+  if(e.target.id==='clear-filters'){state.outcome='';state.session='';state.q='';state.tags=[];state.offset=0;syncURL(false);syncControls();refresh();return;}
+  const x=e.target.closest('.x');if(!x)return;
+  const f=activeFilters()[Number(x.dataset.i)];if(!f)return;
+  if(f.k==='outcome')state.outcome='';
+  else if(f.k==='session')state.session='';
+  else if(f.k==='search')state.q='';
+  else if(f.k==='tag')state.tags=state.tags.filter(t=>t!==f.v);
+  state.offset=0;syncURL(false);syncControls();refresh();
+});
+document.getElementById('facets').addEventListener('click',(e)=>{
+  const c=e.target.closest('.tagchip');if(!c)return;
+  const name=c.dataset.tag;const i=state.tags.indexOf(name);
+  if(i>=0)state.tags.splice(i,1);else state.tags.push(name);
+  state.offset=0;syncURL(true);refresh();
+});
+document.querySelectorAll('input[name=tagmode]').forEach(r=>r.addEventListener('change',(e)=>{state.tagMode=e.target.value;state.offset=0;syncURL(true);load();}));
 document.getElementById('outcome-pills').addEventListener('click',(e)=>{
-  const p=e.target.closest('.pill'); if(!p)return;
-  document.querySelectorAll('#outcome-pills .pill').forEach(x=>x.classList.remove('active'));
-  p.classList.add('active'); state.outcome=p.dataset.v; state.offset=0; load();
+  const p=e.target.closest('.pill');if(!p)return;
+  state.outcome=p.dataset.v;state.offset=0;syncURL(true);syncControls();load();
 });
-document.getElementById('f-session').addEventListener('input',debounce((e)=>{state.session=e.target.value.trim();state.offset=0;load();}));
-document.getElementById('f-limit').addEventListener('change',(e)=>{state.limit=Number(e.target.value);state.offset=0;load();});
-document.getElementById('prev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);load();});
-document.getElementById('next').addEventListener('click',()=>{state.offset+=state.limit;load();});
-document.getElementById('reset').addEventListener('click',()=>{
-  document.querySelectorAll('#outcome-pills .pill').forEach(x=>x.classList.toggle('active',x.dataset.v===''));
-  document.getElementById('f-session').value='';
-  state.outcome='';state.session='';state.offset=0;load();
+document.getElementById('f-q').addEventListener('input',debounce((e)=>{state.q=e.target.value.trim();state.offset=0;syncURL(false);load();}));
+document.getElementById('f-session').addEventListener('input',debounce((e)=>{state.session=e.target.value.trim();state.offset=0;syncURL(false);load();}));
+document.getElementById('f-limit').addEventListener('change',(e)=>{state.limit=Number(e.target.value);state.offset=0;syncURL(false);load();});
+document.getElementById('f-sort').addEventListener('change',(e)=>{state.sort=e.target.value;state.offset=0;syncURL(true);load();});
+document.getElementById('f-order').addEventListener('click',()=>{state.order=state.order==='desc'?'asc':'desc';state.offset=0;syncURL(true);syncControls();load();});
+document.getElementById('prev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);syncURL(true);load();});
+document.getElementById('next').addEventListener('click',()=>{state.offset+=state.limit;syncURL(true);load();});
+document.getElementById('copy-link').addEventListener('click',()=>{
+  const done=()=>{toast('Link copied');};
+  if(navigator.clipboard)navigator.clipboard.writeText(location.href).then(done).catch(done);else done();
+});
+document.getElementById('views').addEventListener('change',(e)=>{const v=getViews()[Number(e.target.value)];if(v)applyView(v.query);});
+document.getElementById('view-save').addEventListener('click',()=>{
+  const name=prompt('Name this view:');if(!name)return;
+  const views=getViews();views.unshift({name:name,query:urlQuery().toString()});
+  setViews(views.slice(0,30));renderViews();document.getElementById('views').value='0';toast('View saved');
+});
+document.getElementById('view-del').addEventListener('click',()=>{
+  const sel=document.getElementById('views');if(sel.value==='')return;
+  const views=getViews();views.splice(Number(sel.value),1);setViews(views);renderViews();toast('View deleted');
+});
+document.getElementById('export').addEventListener('click',()=>{const q=filters();q.set('limit',500);window.location.href='/api/traces/export?'+q;});
+document.getElementById('live').addEventListener('click',(e)=>{
+  state.live=!state.live;e.currentTarget.classList.toggle('on',state.live);
+  if(state.live){timer=setInterval(()=>{if(!document.hidden)load();},3000);}else{clearInterval(timer);}
+});
+document.getElementById('runs').addEventListener('click',(e)=>{
+  if(e.target.closest('.rowcheck'))return;
+  const row=e.target.closest('tr.row');if(!row)return;
+  window.location.href='/traces/'+row.dataset.id;
+});
+document.getElementById('runs').addEventListener('change',(e)=>{
+  const c=e.target.closest('.rowcheck');if(!c)return;
+  if(c.checked)state.selected.add(c.dataset.id);else state.selected.delete(c.dataset.id);
+  const row=c.closest('tr.row');if(row)row.classList.toggle('selected',c.checked);
+  const ca=document.getElementById('check-all');
+  if(ca)ca.checked=state.runs.every(r=>state.selected.has(r.id));
+  renderBulk();
+});
+document.getElementById('bulk-clear').addEventListener('click',()=>{state.selected.clear();render();});
+document.getElementById('bulk-apply').addEventListener('click',async()=>{
+  const tag=document.getElementById('bulk-tag').value.trim();if(!tag)return;
+  const note=document.getElementById('bulk-note').value;
+  await fetch('/api/traces/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag,note:note})});
+  document.getElementById('bulk-tag').value='';document.getElementById('bulk-note').value='';
+  state.selected.clear();toast('Tagged');await refresh();
+});
+document.getElementById('bulk-remove').addEventListener('click',async()=>{
+  const tag=document.getElementById('bulk-remove-sel').value;if(!tag)return;
+  await fetch('/api/traces/tags/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag})});
+  state.selected.clear();toast('Tag removed');await refresh();
 });
 
-initTheme(); load(); setInterval(load,3000);
+function openModal(){document.getElementById('tagmodal').classList.add('show');renderTagRows();}
+function closeModal(){document.getElementById('tagmodal').classList.remove('show');}
+document.getElementById('manage').addEventListener('click',openModal);
+document.getElementById('modal-close').addEventListener('click',closeModal);
+document.getElementById('tagmodal').addEventListener('click',(e)=>{if(e.target.id==='tagmodal')closeModal();});
+function renderTagRows(){
+  const el=document.getElementById('tagrows');
+  if(!state.facets.length){el.innerHTML='<p class="faint">No tags yet.</p>';return;}
+  el.innerHTML=state.facets.map(f=>'<div class="tagrow" data-name="'+escapeHtml(f.name)+'">'+
+    '<input type="color" class="row-color" value="'+(hex(f.color)||'#4f46e5')+'"/>'+
+    '<input type="text" class="row-name" value="'+escapeHtml(f.name)+'"/>'+
+    '<span class="cnt">'+f.count+'</span>'+
+    '<button class="btn sm row-save">save</button>'+
+    '<button class="btn sm danger row-del">delete</button></div>').join('');
+}
+document.getElementById('tagrows').addEventListener('click',async(e)=>{
+  const row=e.target.closest('.tagrow');if(!row)return;
+  const old=row.dataset.name;
+  if(e.target.closest('.row-save')){
+    const name=row.querySelector('.row-name').value.trim();
+    const color=row.querySelector('.row-color').value;
+    await fetch('/api/tags/'+encodeURIComponent(old),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:name,color:color})});
+    await refresh();renderTagRows();toast('Tag updated');
+  }else if(e.target.closest('.row-del')){
+    if(!confirm('Delete tag "'+old+'" from every run?'))return;
+    await fetch('/api/tags/'+encodeURIComponent(old),{method:'DELETE'});
+    await refresh();renderTagRows();toast('Tag deleted');
+  }
+});
+document.getElementById('new-tag-add').addEventListener('click',async()=>{
+  const name=document.getElementById('new-tag-name').value.trim();if(!name)return;
+  const color=document.getElementById('new-tag-color').value;
+  await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,color:color})});
+  document.getElementById('new-tag-name').value='';await refresh();renderTagRows();toast('Tag added');
+});
+
+initTheme();readURL();syncControls();renderViews();refresh();
+timer=setInterval(()=>{if(!document.hidden)load();},3000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+window.addEventListener('popstate',()=>{readURL();syncControls();refresh();});
 </script>
 </body>
 </html>

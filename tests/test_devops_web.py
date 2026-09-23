@@ -146,4 +146,5 @@ def test_traces_ui_and_api(tmp_path):
 
     run_page = client.get("/traces/" + traces[0]["id"])
     assert run_page.status_code == 200
-    assert "artifact run observer" in run_page.text
+    assert "reactifact" in run_page.text
+    assert "Evidence graph" in run_page.text

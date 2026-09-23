@@ -498,7 +498,9 @@ class Runtime:
             self._warn_no_runs()
         await self._trace.end_turn(
             session_id=self.session.session_id if self.session is not None else "",
-            duration_ms=time.monotonic() - self._turn_started_at,
+            # `time.monotonic()` is seconds; the trace's `duration_ms` (and every
+            # sink/UI reading it) is milliseconds — same unit as span latency.
+            duration_ms=(time.monotonic() - self._turn_started_at) * 1000,
             outcome=self.outcome.value,
         )
         if self.session is not None and self.session_save_policy == "per_turn":

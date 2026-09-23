@@ -100,7 +100,7 @@ packages = { find = { where = ["."], include = ["reactifact*"], exclude = ["exam
 
 [tool.setuptools.package-data]
 reactifact = ["py.typed"]
-"reactifact.tracing" = ["templates/*.html"]
+"reactifact.tracing" = ["templates/*.html", "templates/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -731,6 +731,102 @@ def test_postgres_store_roundtrip(tmp_path):
     assert loaded.spans[0].relations[0].relation == "supported_by"
 
 
+def test_span_started_at_roundtrips(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    store = TraceStore(str(tmp_path / "start.db"))
+    start = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    run(
+        store.export(
+            RunTrace(
+                id="s1",
+                outcome="completed",
+                started_at=start,
+                spans=[
+                    AgentSpan(
+                        agent="a",
+                        event_type="e",
+                        latency_ms=40,
+                        started_at=start + timedelta(milliseconds=10),
+                    )
+                ],
+            )
+        )
+    )
+    loaded = run(store.get("s1"))
+    assert loaded is not None
+    assert loaded.spans[0].started_at == start + timedelta(milliseconds=10)
+
+
+def test_runtime_sets_span_start_within_the_run():
+    """The runtime records each span's start (record time minus latency)."""
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    captured: list[RunTrace] = []
+
+    class Sink:
+        async def export(self, trace: RunTrace) -> None:
+            captured.append(trace)
+
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(sinks=[Sink()]))
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    assert captured
+    trace = captured[0]
+    span = trace.spans[0]
+    assert span.started_at is not None
+    # started no earlier than the run, and the run's start is the turn begin.
+    assert span.started_at >= trace.started_at
+
+
+def test_trace_duration_is_in_milliseconds():
+    """`RunTrace.duration_ms` must be ms, not the raw `time.monotonic()` seconds."""
+
+    class Sleeper(Agent):
+        consumes = [Consume(Question)]
+
+        async def run(self, event, context):
+            await asyncio.sleep(0.02)
+            return Patch().create(Answer(text="ok"))
+
+    captured: list[RunTrace] = []
+
+    class Sink:
+        async def export(self, trace: RunTrace) -> None:
+            captured.append(trace)
+
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Sleeper()], tracer=Tracer(sinks=[Sink()]))
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = captured[0]
+    assert trace.duration_ms >= 15  # ~20 ms; seconds-as-ms would be ~0.02
+    assert trace.spans[0].latency_ms >= 15
+
+
+def test_sessions_aggregate_runs(tmp_path):
+    store = TraceStore(str(tmp_path / "sess.db"))
+    _seed_session(store, "a1", "chat-1", duration_ms=10)
+    _seed_session(store, "a2", "chat-1", duration_ms=20)
+    _seed_session(store, "b1", "chat-2", duration_ms=5)
+
+    result = run(store.sessions())
+    assert result["total"] == 2
+    by_id = {s["session_id"]: s for s in result["items"]}
+    assert by_id["chat-1"]["runs"] == 2
+    assert by_id["chat-1"]["duration_ms"] == 30.0
+    assert by_id["chat-2"]["runs"] == 1
+
+    filtered = run(store.sessions(q="chat-2"))
+    assert filtered["total"] == 1
+    assert filtered["items"][0]["session_id"] == "chat-2"
+
+
+def _seed_session(store: TraceStore, run_id: str, session_id: str, **kw) -> None:
+    run(store.export(RunTrace(id=run_id, session_id=session_id, **kw)))
+
+
 def test_recording_llm_copies_prompt_hash():
     from reactifact.providers import FakeLLM, LLMRequest, Message
     from reactifact.tracing import LLMCall, RecordingLLM

@@ -58,6 +58,36 @@ class RelationRef(BaseModel):
     target_type: str = ""
 
 
+class Tag(BaseModel):
+    """A vocabulary entry: a named label humans use to mark runs for review.
+
+    Tags are **annotations**, not runtime data: the runtime never produces them,
+    a reviewer adds them from the dashboard after inspecting a trace (e.g.
+    `bad-prompt`, `hallucination`, `needs-review`). `count` is filled in by
+    `list_tags` (how many runs carry the tag) and left at 0 elsewhere.
+    """
+
+    name: str
+    color: str = ""
+    count: int = 0
+    created_at: datetime | None = None
+
+
+class TagAssignment(BaseModel):
+    """One tag attached to one run, with an optional reviewer note.
+
+    The note is free text describing *what is wrong* / *what to change* — the
+    payload a reviewer leaves so the run can be found again by tag and acted on
+    (prompt/behaviour fix). `color` is copied from the vocabulary for rendering.
+    """
+
+    tag: str
+    note: str = ""
+    color: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class AgentSpan(BaseModel):
     """A single agent execution within a run (§54)."""
 
@@ -81,6 +111,9 @@ class RunTrace(BaseModel):
     duration_ms: float = 0.0
     outcome: str = ""
     spans: list[AgentSpan] = Field(default_factory=list)
+    #: Reviewer annotations attached *after* the run (UI review workflow, §54).
+    #: The runtime always leaves this empty; `TraceStore.get` populates it.
+    annotations: list[TagAssignment] = Field(default_factory=list)
 
     @property
     def llm_calls(self) -> list[LLMCall]:

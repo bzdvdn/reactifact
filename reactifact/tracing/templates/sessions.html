@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>reactifact sessions</title>
+<link rel="stylesheet" href="/traces/assets/app.css"/>
+<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <a class="brand" href="/traces">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="name">reactifact <em>traces</em></span>
+    </a>
+    <nav class="nav">
+      <a class="nav-item" href="/traces">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
+        <span class="nav-label">Traces</span>
+      </a>
+      <a class="nav-item active" href="/sessions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
+        <span class="nav-label">Sessions</span>
+      </a>
+    </nav>
+    <div class="side-spacer"></div>
+    <div class="side-foot">
+      <button class="side-btn" id="theme" title="toggle theme" aria-label="toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <span class="nav-label" id="theme-label">Theme</span>
+      </button>
+      <button class="side-btn" id="collapse" title="collapse sidebar" aria-label="collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="nav-label">Collapse</span>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="content">
+    <header class="topbar">
+      <button class="icon-btn" id="menu-btn" aria-label="open navigation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <h1>Sessions</h1>
+      <span class="count" id="summary">loading…</span>
+      <div class="spacer"></div>
+    </header>
+    <main>
+      <div class="card">
+        <div class="toolbar">
+          <div class="field" style="flex:1;min-width:220px">
+            <label>search</label>
+            <input class="input" id="f-q" type="search" placeholder="search session id…"/>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn sm" id="reset">clear</button>
+        </div>
+        <div class="table-wrap" id="rows"><div class="empty">Loading sessions…</div></div>
+        <div class="pager">
+          <button class="btn sm" id="prev" disabled>← prev</button>
+          <span class="pageinfo" id="pageinfo">–</span>
+          <button class="btn sm" id="next" disabled>next →</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script>
+const state={q:'',limit:25,offset:0,total:0,items:[]};
+function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
+function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
+document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
+(function initShell(){
+  const app=document.getElementById('app');
+  let collapsed=false;try{collapsed=localStorage.getItem('reactifact-sidebar')==='collapsed';}catch(_){}
+  app.classList.toggle('collapsed',collapsed);
+  document.getElementById('collapse').addEventListener('click',()=>{collapsed=!collapsed;app.classList.toggle('collapsed',collapsed);try{localStorage.setItem('reactifact-sidebar',collapsed?'collapsed':'expanded');}catch(_){}});
+  document.getElementById('menu-btn').addEventListener('click',()=>app.classList.toggle('nav-open'));
+  document.getElementById('scrim').addEventListener('click',()=>app.classList.remove('nav-open'));
+})();
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms||200);};}
+function fmtAbs(t){try{const d=typeof t==='number'?new Date(t*1000):new Date(t);return d.toLocaleString();}catch(_){return '—';}}
+function fmtRel(t){
+  try{
+    const d=typeof t==='number'?new Date(t*1000):new Date(t);
+    const s=Math.max(0,(Date.now()-d.getTime())/1000);
+    if(s<45)return 'just now';
+    if(s<5400)return Math.max(1,Math.round(s/60))+'m ago';
+    if(s<86400)return Math.round(s/3600)+'h ago';
+    if(s<604800)return Math.round(s/86400)+'d ago';
+    return d.toLocaleDateString();
+  }catch(_){return '—';}
+}
+async function load(){
+  const p=new URLSearchParams({limit:state.limit,offset:state.offset});
+  if(state.q)p.set('q',state.q);
+  try{
+    const res=await fetch('/api/sessions?'+p);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    state.items=data.items||[];state.total=data.total||0;render();
+  }catch(err){
+    const el=document.getElementById('rows');
+    el.innerHTML='<div class="empty">Could not load sessions — '+escapeHtml(err&&err.message?err.message:String(err))+'<div style="margin-top:12px"><button class="btn" id="retry">retry</button></div></div>';
+    document.getElementById('retry').addEventListener('click',load);
+  }
+}
+function render(){
+  const el=document.getElementById('rows');
+  document.getElementById('summary').textContent=state.total+' sessions';
+  if(!state.items.length){el.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg><div>No sessions yet. Sessions appear once traces carry a session id.</div></div>';updatePager();return;}
+  let html='<table><thead><tr><th>session</th><th style="text-align:right">runs</th><th style="text-align:right">duration</th><th style="text-align:right">tokens</th><th style="text-align:right">last seen</th></tr></thead><tbody>';
+  for(const s of state.items){
+    const tokens=(s.prompt_tokens||0)+(s.completion_tokens||0);
+    html+='<tr class="row" data-id="'+escapeHtml(s.session_id)+'">'+
+      '<td class="run-id">'+escapeHtml(s.session_id)+'</td>'+
+      '<td class="num" style="text-align:right">'+s.runs+'</td>'+
+      '<td class="num" style="text-align:right">'+Number(s.duration_ms).toFixed(0)+' ms</td>'+
+      '<td class="num" style="text-align:right">'+(tokens||'—')+'</td>'+
+      '<td class="num" style="text-align:right" title="'+escapeHtml(fmtAbs(s.last_at))+'">'+fmtRel(s.last_at)+'</td></tr>';
+  }
+  el.innerHTML=html+'</tbody></table>';
+  updatePager();
+}
+function updatePager(){
+  const pages=Math.max(1,Math.ceil(state.total/state.limit));
+  const page=Math.floor(state.offset/state.limit)+1;
+  document.getElementById('prev').disabled=state.offset<=0;
+  document.getElementById('next').disabled=page>=pages;
+  document.getElementById('pageinfo').textContent=`${Math.min(state.total,state.offset+1)}–${Math.min(state.total,state.offset+state.limit)} of ${state.total} · page ${page}/${pages}`;
+}
+document.getElementById('rows').addEventListener('click',(e)=>{
+  const row=e.target.closest('tr.row');if(!row)return;
+  window.location.href='/traces?session_id='+encodeURIComponent(row.dataset.id);
+});
+document.getElementById('f-q').addEventListener('input',debounce((e)=>{state.q=e.target.value.trim();state.offset=0;load();}));
+document.getElementById('prev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);load();});
+document.getElementById('next').addEventListener('click',()=>{state.offset+=state.limit;load();});
+document.getElementById('reset').addEventListener('click',()=>{document.getElementById('f-q').value='';state.q='';state.offset=0;load();});
+initTheme();load();
+</script>
+</body>
+</html>

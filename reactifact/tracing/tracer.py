@@ -20,7 +20,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..patches import Create, Link, Update
@@ -278,6 +278,9 @@ class RunTracer:
         self._redactor = getattr(context.resources, "redactor", None)
         self.run_id = ""
         self.spans: list[AgentSpan] = []
+        #: Wall-clock start of the current turn, used as the trace's `started_at`
+        #: (and the origin for the dashboard's timeline).
+        self.started_at: datetime | None = None
         if self.tracer is not None and context.resources.llm is not None:
             context.resources.llm = RecordingLLM(
                 context.resources.llm,
@@ -415,6 +418,7 @@ class RunTracer:
         self.run_id = str(uuid.uuid4())
         self.spans = []
         self._trace_data_cache = {}
+        self.started_at = datetime.now(UTC)
         try:
             self.tracer.on_turn_begin(
                 self.run_id, session_id=session_id, started_at=datetime.now(UTC)
@@ -451,7 +455,11 @@ class RunTracer:
                     if error is not None
                     else None
                 ),
-                started_at=datetime.now(UTC),
+                # The span is recorded after its agent finished (delivery is
+                # once per generation), so the true start is the record time
+                # minus the measured latency — this keeps parallel agents'
+                # bars side by side on the dashboard timeline.
+                started_at=datetime.now(UTC) - timedelta(milliseconds=latency_ms),
             )
             self.spans.append(span)
             self.tracer.on_span(span)
@@ -468,7 +476,7 @@ class RunTracer:
         trace = RunTrace(
             id=self.run_id,
             session_id=session_id,
-            started_at=datetime.now(UTC),
+            started_at=self.started_at or datetime.now(UTC),
             duration_ms=duration_ms,
             outcome=outcome,
             spans=self.spans,

@@ -38,11 +38,12 @@ from reactifact.tracing.web import create_trace_router
 app.include_router(create_trace_router(store), prefix="/traces")
 ```
 
-It serves `traces.html` (list of runs, filterable) and `run.html` (spans, reads,
-writes, LLM input/output, timing, plus two live Mermaid diagrams: the run's
-**sequence** and its **evidence graph** — written artifacts with `patch.link`
-provenance edges, §34). The `devops` example mounts this router and is the
-reference UI.
+It serves a small app shell (shared `templates/app.css`): a collapsible sidebar
+(Traces / Sessions), `/traces` (list of runs, filterable), `/traces/{id}` (stat
+tiles, spans, reads, writes, LLM input/output, timing, plus two live Mermaid
+diagrams — the run's **sequence** and its **evidence graph**, i.e. written
+artifacts with `patch.link` provenance edges, §34), and `/sessions`. The
+`devops` example mounts this router and is the reference UI.
 
 ![Traces list: filterable by outcome and session, each row showing duration and span count.](../img/tracer-list.png)
 
@@ -52,6 +53,48 @@ flow: `k8s` calls the model across several `artifact_created` spans, then
 `render` builds the final reply:
 
 ![Run detail: work grouped by agent, plus a live sequence diagram of every artifact write and LLM call.](../img/tracer-run-detail.png)
+
+### Reviewing runs: tags and notes
+
+The dashboard is also the **review surface**. After inspecting a trace you mark
+the run with a tag (`bad-prompt`, `hallucination`, `needs-review`, …) and an
+optional note describing what is wrong / what to change. Tags live in the store,
+not in the runtime — they are annotations attached to a `run_id` *after* the
+fact, so the immutable trace the runtime produced is never rewritten.
+
+- The list page shows tag facets with counts (click to filter), tag chips per
+  run, free-text search (run / session / agent / error), sortable columns
+  (click a header), token and latency rollups, a live toggle and a JSON export
+  of the current filter. Every filter/tag/sort/page lives in the URL, so a view
+  is a **shareable link**; name one and it is kept as a **saved view**.
+- A **sessions** page (`/sessions`) groups runs by `session_id` with run count,
+  total duration, tokens and last-seen, and links into the filtered trace list.
+- The run page has a **Review** card: add/remove tags, each with a note.
+- **Tree ↔ Timeline**: the run's work is shown either grouped by agent, or as a
+  Gantt timeline of spans (start offset + width by latency) that makes
+  parallelism and the latency bottleneck obvious.
+- In-trace search filters spans/agents/LLM text; **copy link**, **copy JSON**
+  and a raw **JSON** view are one click away.
+- Select several runs to tag or untag them in bulk.
+- `manage tags` renames, recolours or deletes a tag across every run.
+
+```text
+GET    /api/traces?tag=bad-prompt&tag=review&tag_mode=all&q=refund&sort=duration_ms
+GET    /api/tags                       # facets: name, colour, count
+POST   /api/traces/{id}/tags           # {tag, note}
+DELETE /api/traces/{id}/tags/{tag}
+POST   /api/traces/tags                # bulk: {run_ids, tag, note}
+POST   /api/traces/tags/remove         # bulk: {run_ids, tag}
+PATCH  /api/tags/{name}                # {new_name, color}
+DELETE /api/tags/{name}
+GET    /api/traces/export              # full traces for the current filter
+GET    /api/sessions                   # runs grouped by session, with rollups
+```
+
+Both backends implement the same annotation API: SQLite keeps `tags`/`run_tags`
+tables (created and migrated automatically), Postgres mirrors them as
+`TEXT`/`TIMESTAMPTZ` with cascading deletes. Point `create_trace_router` at
+either and the review workflow behaves identically.
 
 ### Langfuse and Postgres as additional sinks
 

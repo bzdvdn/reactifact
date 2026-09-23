@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Fixed
+
+- `RunTrace.duration_ms` was carrying seconds (`time.monotonic()`), so the
+  dashboard showed every run as `0 ms` and the Langfuse run span ended ~1000×
+  too early. It is now milliseconds, the same unit as `AgentSpan.latency_ms`
+  (`RunStats.duration` stays seconds and is documented as such).
+- The Mermaid viewer failed with `mermaid.initialize is not a function`:
+  recent `mermaid@11` dists no longer expose the `window.mermaid` global. The
+  loader now uses a pinned UMD build (`11.6.0`) with the jsDelivr ESM bundle as
+  a fallback.
+- The Mermaid diagram now fits the full block width (small diagrams are scaled
+  up, wide ones down, and centred) and stays crisp: fit/zoom resize the SVG
+  itself instead of CSS-scaling a rasterised layer, so text is no longer blurry.
+
 ### Docs
 
 - README and the docs landing (`docs/en/index.md` + RU) now lead with a
@@ -27,6 +41,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Dashboard redesign (app shell).** The trace UI now shares one design system
+  (`templates/app.css`, served at `/traces/assets/app.css`): a collapsible left
+  sidebar (Traces / Sessions, persisted, drawer on mobile), a sticky topbar with
+  breadcrumbs, a unified card/section style, stat tiles on the run page, a
+  filter bar with removable active-filter chips, a floating bulk-action bar (no
+  layout shift), sticky table headers with horizontal scroll, tag "+N" overflow,
+  skeletons/empty states, toasts, and a system-aware theme with a smooth
+  transition. All three pages were rebuilt on it.
+- **Trace review annotations.** The trace dashboard is now a review surface:
+  open a run, tag it (`bad-prompt`, `hallucination`, `needs-review`, …) with an
+  optional note describing what to fix, and filter runs by tag later. Tags are
+  reviewer annotations stored by the sink — never produced by the runtime — so
+  the immutable `RunTrace` is not rewritten. Both `TraceStore` (SQLite) and
+  `PostgresStore` gain `tags`/`run_tags` tables (auto-created + migrated),
+  `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag`,
+  tag filters (`any`/`all`) and free-text search over the run list. New models
+  `Tag`/`TagAssignment` (+ `RunTrace.annotations`), a managed tag vocabulary
+  (rename/recolour/delete across all runs), bulk tagging, per-run token/latency
+  rollups, sorting and JSON export. New API under `create_trace_router`:
+  `GET/POST /api/tags`, `PATCH/DELETE /api/tags/{name}`,
+  `POST/DELETE /api/traces/{id}/tags`, `POST /api/traces/tags[/remove]`,
+  `GET /api/traces/export`, plus `tag`/`tag_mode`/`q`/`sort`/`order` on
+  `/api/traces`. The dashboard UI (list + run pages) was reworked for the full
+  review workflow, with a unified button system and a proper Mermaid viewer:
+  one shared loader (previously two), palette-matched light/dark theming that
+  re-renders on toggle, zoom / pan / reset / fullscreen controls, a fit-to-width
+  default, a loading spinner and an offline fallback that keeps the source
+  readable. The list gained URL-synced state (every filter/tag/sort/page is a
+  shareable link, with local **saved views**), sortable column headers and a
+  sessions view; the run page gained a **Tree ↔ Timeline (Gantt)** toggle that
+  shows span start offsets and parallelism (spans now persist `started_at` —
+  SQLite + Postgres migration), in-trace search, a raw-JSON view and
+  copy-link/copy-JSON actions. New `TraceStore.sessions()` / `GET /api/sessions`
+  / `/sessions` page aggregate runs per session. The UI also got production
+  polish: loading and fetch-error states with retry on all pages, relative
+  timestamps (absolute on hover), correct outcome filters (all four
+  `RunOutcome`s), background-tab polling pause, and aria-labels on icon
+  buttons.
 - Deterministic runs and a one-call check. `RuntimeResources(id_factory=…)` (with
   `reactifact.replay.counter_ids()`) gives artifacts created without an explicit
   id stable `Model:0000`-style ids instead of `uuid4`, so an otherwise-unmodified

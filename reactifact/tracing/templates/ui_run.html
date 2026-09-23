@@ -3,214 +3,258 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Trace #__RUN_ID__ · reactifact</title>
-<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
-<style>
-  :root{
-    --bg:#f7f7f9;--panel:#ffffff;--panel-alt:#fafafc;--border:#e6e6ee;--border-strong:#d3d3de;
-    --text:#17171f;--muted:#6f6f7e;--accent:#4f46e5;--accent-soft:#eef0ff;
-    --ok:#15803d;--err:#b91c1c;--ok-soft:#e9f7ef;--err-soft:#fdeeee;
-    --hover:#f4f4f8;--shadow:0 1px 2px rgba(16,16,30,.04),0 1px 6px rgba(16,16,30,.05);
-    --pre-bg:#fafafc;--pre-border:#ececf2;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  }
-  html.dark{
-    --bg:#0f1016;--panel:#171820;--panel-alt:#1d1e27;--border:#262733;--border-strong:#33344a;
-    --text:#e7e7f0;--muted:#9a9aae;--accent:#8b93ff;--accent-soft:#232448;
-    --ok:#3ecf7c;--err:#f97c7c;--ok-soft:#123522;--err-soft:#3c1718;
-    --hover:#1f202b;--shadow:0 1px 2px rgba(0,0,0,.4),0 1px 8px rgba(0,0,0,.3);
-    --pre-bg:#101116;--pre-border:#2a2b38;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;}
-  header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);backdrop-filter:saturate(1.4) blur(6px);}
-  .header-inner{max-width:1240px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;gap:14px;}
-  .logo{display:flex;align-items:center;gap:9px;color:var(--text);text-decoration:none;}
-  .logo b{font-size:15px;letter-spacing:.1px;}
-  .logo .sub{color:var(--muted);font-family:var(--mono);font-size:12px;font-weight:400;}
-  .spacer{flex:1;}
-  #theme{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer;}
-  #theme:hover{border-color:var(--accent);color:var(--accent);}
-  main{max-width:1240px;margin:0 auto;padding:28px;}
-  .crumbs{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;color:var(--muted);}
-  .crumbs a{color:var(--muted);text-decoration:none;font-weight:550;}
-  .crumbs a:hover{color:var(--accent);}
-  .crumbs .sep{opacity:.5;} .crumbs b{color:var(--text);font-family:var(--mono);}
-  .head-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
-  .head-row h1{font-size:21px;margin:0;font-weight:650;font-family:var(--mono);letter-spacing:-.2px;}
-  .badge{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;border-radius:20px;padding:3px 12px;}
-  .badge.ok{background:var(--ok-soft);color:var(--ok);} .badge.err{background:var(--err-soft);color:var(--err);}
-  .badge .dot{width:8px;height:8px;border-radius:50%;} .badge.ok .dot{background:var(--ok);} .badge.err .dot{background:var(--err);}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px;}
-  .card h2{font-size:11px;font-weight:650;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:0 0 14px;}
-  .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 22px;}
-  .meta-item{display:flex;flex-direction:column;gap:2px;}
-  .meta-item .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
-  .meta-item .v{font-size:13.5px;font-weight:550;font-variant-numeric:tabular-nums;word-break:break-all;}
-  .meta-item .v.mono{font-family:var(--mono);}
-  .agents{display:flex;flex-direction:column;gap:12px;}
-  details.agent{border:1px solid var(--border);border-radius:12px;background:var(--panel);box-shadow:var(--shadow);overflow:hidden;}
-  details.agent>summary{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;font-size:14px;}
-  details.agent>summary:hover{background:var(--hover);}
-  .caret{color:var(--muted);transition:transform .15s;} details[open]>.caret,.caret.open{transform:rotate(90deg);}
-  .agent .muted,.spans-stat{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;}
-  .agent-body{padding:6px 16px 16px;border-top:1px solid var(--border);background:var(--panel-alt);}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);border-radius:12px;padding:2px 9px;font-family:var(--mono);font-size:11.5px;}
-  .spans{display:flex;flex-direction:column;gap:8px;}
-  details.node{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;background:var(--panel);overflow:hidden;}
-  details.node summary{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:13px;}
-  details.node summary:hover{background:var(--hover);}
-  .s-dot{width:9px;height:9px;border-radius:50%;flex:none;} .s-dot.ok{background:var(--ok);} .s-dot.err{background:var(--err);}
-  .nid{font-family:var(--mono);font-weight:600;}
-  .ntype{color:var(--muted);font-family:var(--mono);font-size:12px;}
-  .stat{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;margin-left:auto;white-space:nowrap;}
-  .node-body{padding:0 14px 14px;border-top:1px solid var(--border);}
-  .io-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;}
-  @media(max-width:700px){.io-grid{grid-template-columns:1fr;}}
-  .io h3{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px;}
-  .io{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
-  details.io-more summary{cursor:pointer;font-size:11.5px;color:var(--muted);font-family:var(--mono);}
-  .art{font-family:var(--mono);font-size:12.5px;padding:3px 0;color:var(--text);}
-  .art-head{display:flex;gap:8px;align-items:baseline;}
-  .art .tag{color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:0 6px;font-size:11px;}
-  .art .atype{color:var(--muted);}
-  .art code{color:var(--muted);}
-  .art .ver{color:var(--muted);}
-  .adata{background:var(--pre-bg);border:1px solid var(--pre-border);color:var(--text);border-radius:6px;padding:6px 8px;margin:4px 0 0;font-size:11.5px;white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto;}
-  .muted{color:var(--muted);font-family:var(--mono);font-size:12px;}
-  .llm h3{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:14px 0 8px;}
-  details.llm-call{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--panel);}
-  details.llm-call summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:13px;}
-  details.llm-call summary:hover{background:var(--hover);}
-  .role{padding:6px 10px;border-left:2px solid var(--border);margin:6px 0;font-size:12.5px;white-space:pre-wrap;word-break:break-word;}
-  .role.user{border-left-color:var(--accent);}
-  .role.assistant{border-left-color:var(--ok);}
-  .role.tool{border-left-color:var(--muted);}
-  .role-label{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:2px;}
-  .err-box{margin-top:12px;background:var(--err-soft);border:1px solid var(--err);color:var(--err);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;}
-  .empty{padding:32px;text-align:center;color:var(--muted);}
-  .diag-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
-  #copy-mermaid{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer;}
-  #copy-mermaid:hover{border-color:var(--accent);color:var(--accent);}
-  .diag-hint{color:var(--muted);font-size:12px;}
-  #mermaid{background:var(--panel-alt);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:auto;}
-  #mermaid:empty{display:none;}
-  .diag-fallback{color:var(--muted);font-size:12.5px;}
-  .diag-error{color:var(--err);font-size:12.5px;}
-  #mermaid-src{margin-top:10px;}
-  #mermaid-src summary{cursor:pointer;font-size:11.5px;color:var(--muted);font-family:var(--mono);}
-  #mermaid-pre{background:var(--pre-bg);border:1px solid var(--pre-border);color:var(--text);border-radius:6px;padding:10px;font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-word;margin:8px 0 0;max-height:360px;overflow:auto;}
-</style>
+<title>reactifact trace</title>
+<link rel="stylesheet" href="/traces/assets/app.css"/>
+<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
 </head>
 <body>
-<header>
-  <div class="header-inner">
-    <a class="logo" href="/traces">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="5" cy="12" r="2.6" fill="currentColor"/>
-        <circle cx="19" cy="5" r="2.6" fill="currentColor"/>
-        <circle cx="19" cy="19" r="2.6" fill="currentColor"/>
-        <path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      <b>reactifact <span style="color:var(--accent)">traces</span></b>
-      <span class="sub">artifact run observer</span>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <a class="brand" href="/traces">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="name">reactifact <em>traces</em></span>
     </a>
-    <div class="spacer"></div>
-    <button id="theme" title="toggle dark mode">dark</button>
+    <nav class="nav">
+      <a class="nav-item active" href="/traces">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
+        <span class="nav-label">Traces</span>
+      </a>
+      <a class="nav-item" href="/sessions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
+        <span class="nav-label">Sessions</span>
+      </a>
+    </nav>
+    <div class="side-spacer"></div>
+    <div class="side-foot">
+      <button class="side-btn" id="theme" title="toggle theme" aria-label="toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <span class="nav-label" id="theme-label">Theme</span>
+      </button>
+      <button class="side-btn" id="collapse" title="collapse sidebar" aria-label="collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="nav-label">Collapse</span>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="content">
+    <header class="topbar">
+      <button class="icon-btn" id="menu-btn" aria-label="open navigation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div class="crumb"><a href="/traces">traces</a><span class="sep">/</span><b id="cid">#…</b><span id="head"></span></div>
+      <div class="spacer"></div>
+      <button class="btn sm" id="copy-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1L11 4.9"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.9-1.9"/></svg><span data-label>link</span></button>
+      <button class="btn sm" id="copy-json"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>json</span></button>
+      <button class="btn sm" id="toggle-json">{ } raw</button>
+    </header>
+    <main>
+      <div class="card"><div class="card-head"><h2>Run</h2></div><div class="card-body"><div class="stats" id="meta"></div></div></div>
+      <div class="card"><div class="card-head"><h2>Review</h2><span class="hint">tag this run so you can find it later and fix the prompt/behaviour it exposes</span></div><div class="card-body"><div id="annot"></div></div></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Work</h2>
+          <div class="spacer"></div>
+          <input class="input" id="trace-search" type="search" placeholder="search spans…" style="min-width:180px"/>
+          <div class="seg" id="view-seg">
+            <button class="seg-btn active" data-view="tree">Tree</button>
+            <button class="seg-btn" data-view="timeline">Timeline</button>
+          </div>
+        </div>
+        <div class="card-body"><div class="agents" id="agents"></div></div>
+      </div>
+      <div class="card" id="json-card" style="display:none"><div class="card-head"><h2>Raw JSON</h2></div><div class="card-body"><pre id="json-pre" class="json-pre"></pre></div></div>
+      <div class="card">
+        <div class="card-head"><h2>Sequence</h2><button class="btn sm" id="copy-mermaid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>copy</span></button><span class="hint">mermaid — rendered live; paste the source into mermaid.live / GitHub</span></div>
+        <div class="card-body">
+          <div class="diagram" id="diagram-mermaid"><div class="diagram-toolbar"><button class="btn sm icon" data-act="zoom-out" title="zoom out">−</button><span class="zoom-label" data-zoom>100%</span><button class="btn sm icon" data-act="zoom-in" title="zoom in">+</button><button class="btn sm" data-act="reset">reset</button><div class="spacer"></div><button class="btn sm" data-act="fullscreen">fullscreen</button></div><div class="diagram-viewport"><div class="diagram-stage" id="mermaid"></div></div></div>
+          <details class="src-block" id="mermaid-src"><summary>show source</summary><pre id="mermaid-pre"></pre></details>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Evidence graph</h2><button class="btn sm" id="copy-graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>copy</span></button><span class="hint">provenance: written artifacts + patch.link edges (§34)</span></div>
+        <div class="card-body">
+          <div class="diagram" id="diagram-graph"><div class="diagram-toolbar"><button class="btn sm icon" data-act="zoom-out" title="zoom out">−</button><span class="zoom-label" data-zoom>100%</span><button class="btn sm icon" data-act="zoom-in" title="zoom in">+</button><button class="btn sm" data-act="reset">reset</button><div class="spacer"></div><button class="btn sm" data-act="fullscreen">fullscreen</button></div><div class="diagram-viewport"><div class="diagram-stage" id="mermaid-graph"></div></div></div>
+          <details class="src-block" id="graph-src"><summary>show source</summary><pre id="graph-pre"></pre></details>
+        </div>
+      </div>
+    </main>
   </div>
-</header>
-<main>
-  <div class="crumbs"><a href="/traces">traces</a><span class="sep">/</span><b id="cid">#…</b></div>
-  <div class="head-row" id="head"></div>
-  <section class="card"><h2>Run</h2><div class="meta-grid" id="meta"></div></section>
-  <section class="card"><h2>Work by agent</h2><div class="agents" id="agents"></div></section>
-  <section class="card"><h2>Sequence</h2><div class="diag-head"><button id="copy-mermaid">copy</button><span class="diag-hint">mermaid — rendered live; paste the source into mermaid.live / GitHub</span></div><div id="mermaid" class="mermaid"></div><details id="mermaid-src"><summary>show source</summary><pre id="mermaid-pre"></pre></details></section>
-  <section class="card"><h2>Evidence graph</h2><div class="diag-head"><button id="copy-graph">copy</button><span class="diag-hint">provenance: written artifacts + patch.link edges (§34)</span></div><div id="mermaid-graph" class="mermaid"></div><details id="graph-src"><summary>show source</summary><pre id="graph-pre"></pre></details></section>
-</main>
+</div>
+<datalist id="taglist"></datalist>
+
 <script>
 const RUN_ID=__RUN_ID__;
 const MERMAID_SRC=__MERMAID__;
 const MERMAID_GRAPH_SRC=__MERMAID_GRAPH__;
-function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme').textContent=dark?'light':'dark';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
-function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':true);}
+function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}DIAGRAMS.forEach(d=>{if(d.src)d.render(d.src);});}
+function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
 document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
+(function initShell(){
+  const app=document.getElementById('app');
+  let collapsed=false;try{collapsed=localStorage.getItem('reactifact-sidebar')==='collapsed';}catch(_){}
+  app.classList.toggle('collapsed',collapsed);
+  document.getElementById('collapse').addEventListener('click',()=>{collapsed=!collapsed;app.classList.toggle('collapsed',collapsed);try{localStorage.setItem('reactifact-sidebar',collapsed?'collapsed':'expanded');}catch(_){}});
+  document.getElementById('menu-btn').addEventListener('click',()=>app.classList.toggle('nav-open'));
+  document.getElementById('scrim').addEventListener('click',()=>app.classList.remove('nav-open'));
+})();
+let toastTimer=null;
+function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t);}t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1600);}
 
 async function load(){
-  const res=await fetch('/api/traces/'+RUN_ID);
-  if(!res.ok){document.getElementById('cid').textContent='#'+RUN_ID+' — not found';return;}
-  render(await res.json());
+  try{
+    const res=await fetch('/api/traces/'+RUN_ID);
+    if(res.status===404){document.getElementById('cid').textContent='#'+RUN_ID+' — not found';return;}
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    render(await res.json());
+  }catch(err){
+    document.getElementById('cid').textContent='#'+RUN_ID;
+    document.getElementById('meta').innerHTML='<div class="annot-empty">Could not load trace — '+escapeHtml(err&&err.message?err.message:String(err))+'</div>';
+  }
 }
-function meta(k,v,mono){return '<div class="meta-item"><span class="k">'+k+'</span><span class="v'+(mono?' mono':'')+'">'+v+'</span></div>';}
+function tile(k,v){return '<div class="stat-tile"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
 function fmtTime(t){try{const d=typeof t==='number'?new Date(t*1000):new Date(t);return d.toLocaleString();}catch(_){return '—';}}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms||150);};}
+function hex(c){return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(c||''))?c:'';}
+
+let VOCAB=[];
+let CURRENT=[];
+async function loadVocab(){
+  try{const r=await fetch('/api/tags');const d=await r.json();VOCAB=(d.items||[]).map(x=>x.name);}
+  catch(_){VOCAB=[];}
+  const dl=document.getElementById('taglist');
+  if(dl)dl.innerHTML=VOCAB.map(n=>'<option value="'+escapeHtml(n)+'">').join('');
+}
+function annotChip(a){
+  const c=hex(a.color);const sw=c?'<span class="swatch" style="background:'+c+'"></span>':'';
+  return '<span class="tagchip" style="'+(c?'background:'+c+'22;color:'+c+';border-color:'+c+'66':'')+'">'+sw+escapeHtml(a.tag)+'</span>';
+}
+function renderAnnot(list){
+  CURRENT=list||[];
+  const el=document.getElementById('annot');
+  const rows=CURRENT.length?CURRENT.map(a=>
+    '<div class="annot">'+annotChip(a)+
+    '<span class="note">'+(a.note?escapeHtml(a.note):'<i>no note</i>')+'</span>'+
+    '<button class="btn sm danger rm" data-tag="'+escapeHtml(a.tag)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>remove</button></div>').join('')
+    :'<div class="annot-empty">No tags yet. Tag this run so you can find it later and fix the prompt/behaviour it exposes.</div>';
+  el.innerHTML='<div class="annot-list">'+rows+'</div>'+
+    '<div class="annot-add">'+
+    '<input class="input" type="text" id="annot-tag" list="taglist" placeholder="tag (e.g. bad-prompt)"/>'+
+    '<input class="input note-input" type="text" id="annot-note" placeholder="note — what is wrong / what to change"/>'+
+    '<button class="btn primary" id="annot-add-btn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>add tag</button></div>';
+  el.querySelectorAll('.rm').forEach(b=>b.addEventListener('click',()=>removeTag(b.dataset.tag)));
+  document.getElementById('annot-add-btn').addEventListener('click',addTag);
+  const tagInput=document.getElementById('annot-tag');const addBtn=document.getElementById('annot-add-btn');
+  const sync=()=>{addBtn.disabled=!tagInput.value.trim();};tagInput.addEventListener('input',sync);sync();
+  tagInput.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();addTag();}});
+  document.getElementById('annot-note').addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();addTag();}});
+}
+async function reloadTrace(){
+  const res=await fetch('/api/traces/'+RUN_ID);
+  if(res.ok)renderAnnot((await res.json()).annotations||[]);
+  await loadVocab();
+}
+async function addTag(){
+  const tag=document.getElementById('annot-tag').value.trim();if(!tag)return;
+  const note=document.getElementById('annot-note').value;
+  await fetch('/api/traces/'+RUN_ID+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:tag,note:note})});
+  toast('Tag added');await reloadTrace();
+}
+async function removeTag(tag){
+  await fetch('/api/traces/'+RUN_ID+'/tags/'+encodeURIComponent(tag),{method:'DELETE'});
+  toast('Tag removed');await reloadTrace();
+}
 
 function typeCounts(arts){const m={};for(const a of arts||[]){const k=a.data_type||'artifact';m[k]=(m[k]||0)+1;}return m;}
-function chipsHtml(arts){
-  return Object.entries(typeCounts(arts)).map(([t,n])=>'<span class="chip">'+escapeHtml(t)+' '+n+'</span>').join('');
-}
+function chipsHtml(arts){return Object.entries(typeCounts(arts)).map(([t,n])=>'<span class="chip">'+escapeHtml(t)+' '+n+'</span>').join('');}
 const SHOWN=6;
 function artsBlock(arts){
-  const list=arts||[]; const n=list.length;
-  if(!n) return '<div class="art" style="color:var(--muted)">—</div>';
+  const list=arts||[];const n=list.length;
+  if(!n)return '<div class="art muted">—</div>';
   const chips=chipsHtml(list);
-  if(n<=SHOWN) return chips+'<div class="art-list">'+list.map(artHtml).join('')+'</div>';
+  if(n<=SHOWN)return chips+'<div class="art-list">'+list.map(artHtml).join('')+'</div>';
   const first=list.slice(0,SHOWN).map(artHtml).join('');
   const rest=list.slice(SHOWN).map(artHtml).join('');
   return chips+'<div class="art-list">'+first+'<details class="io-more" open><summary>… + '+(n-SHOWN)+' more</summary>'+rest+'</details></div>';
 }
 
+let TRACE=null,VIEW='tree',FILTER='';
 function render(t){
+  TRACE=t;
   document.title='Trace #'+t.id+' · reactifact';
   document.getElementById('cid').textContent='#'+t.id;
-  const cls=t.outcome==='completed'?'ok':'err';
-  document.getElementById('head').innerHTML='<h1>#'+escapeHtml(t.id)+'</h1><span class="badge '+cls+'"><span class="dot"></span>'+escapeHtml(t.outcome)+'</span>';
+  const cls=t.outcome==='completed'?'ok':(t.outcome==='failed'?'err':'amber');
+  document.getElementById('head').innerHTML='<span class="badge '+cls+'"><span class="dot"></span>'+escapeHtml(t.outcome)+'</span>';
+  const tokens=(t.spans||[]).reduce((a,s)=>a+(s.llm_calls||[]).reduce((b,c)=>b+(c.prompt_tokens||0)+(c.completion_tokens||0),0),0);
+  const work=(t.spans||[]).reduce((a,s)=>a+(Number(s.latency_ms)||0),0);
   document.getElementById('meta').innerHTML=
-    meta('session',escapeHtml(t.session_id||'—'),true)+
-    meta('duration',Number(t.duration_ms).toFixed(1)+' <small>ms</small>')+
-    meta('spans',String((t.spans||[]).length))+
-    meta('created',fmtTime(t.started_at));
-
-  const spans=t.spans||[];
-  const byAgent={};
+    tile('duration',Number(t.duration_ms).toFixed(1)+' <small>ms</small>')+
+    tile('work',Number(work).toFixed(1)+' <small>ms</small>')+
+    tile('spans',String((t.spans||[]).length))+
+    tile('tokens',String(tokens))+
+    tile('session',escapeHtml(t.session_id||'—'))+
+    tile('created',fmtTime(t.started_at));
+  renderAnnot(t.annotations||[]);
+  const jp=document.getElementById('json-pre');if(jp)jp.textContent=JSON.stringify(t,null,2);
+  renderWork();
+}
+function spanMatches(s,f){
+  const hay=[s.agent,s.event_type,s.error||''];
+  for(const a of (s.reads||[]).concat(s.writes||[]))hay.push(a.data_type||'',a.data||'');
+  for(const c of (s.llm_calls||[]))hay.push(c.provider||'',c.model||'',c.response||'',...(c.messages||[]).map(m=>m.content||''));
+  return hay.join(' ').toLowerCase().includes(f);
+}
+function renderWork(){
+  const spans=(TRACE&&TRACE.spans)||[];const f=FILTER.trim().toLowerCase();
+  const filtered=f?spans.filter(s=>spanMatches(s,f)):spans;
+  if(VIEW==='timeline')renderTimeline(filtered);else renderTree(filtered);
+}
+function renderTree(spans){
+  const el=document.getElementById('agents');const byAgent={};
   for(const s of spans){(byAgent[s.agent]=byAgent[s.agent]||[]).push(s);}
   const keys=Object.keys(byAgent);
-  document.getElementById('agents').innerHTML = keys.length
-    ? keys.map(agent=>agentHtml(agent,byAgent[agent])).join('')
-    : '<div class="empty">no spans recorded</div>';
+  el.innerHTML=keys.length?keys.map(a=>agentHtml(a,byAgent[a])).join(''):'<div class="empty">no spans match</div>';
 }
-
-function agentHtml(agent,list){
-  const ms=list.reduce((a,s)=>a+Number(s.latency_ms||0),0)/list.length;
-  let writes=0,llm=0;
-  const readsAgg={};
-  for(const s of list){
-    writes+=(s.writes||[]).length; llm+=(s.llm_calls||[]).length;
-    for(const r of s.reads||[]){const t=r.data_type||'artifact';readsAgg[t]=(readsAgg[t]||0)+1;}
+function renderTimeline(spans){
+  const el=document.getElementById('agents');
+  if(!spans.length){el.innerHTML='<div class="empty">no spans match</div>';return;}
+  const run=TRACE||{};const origin=new Date(run.started_at||Date.now()).getTime();
+  const hasStart=spans.some(s=>s.started_at);let cursor=0;
+  const rows=spans.map(s=>{const dur=Number(s.latency_ms)||0;let start;
+    if(hasStart&&s.started_at)start=Math.max(0,new Date(s.started_at).getTime()-origin);else{start=cursor;cursor+=dur;}
+    return {s:s,start:start,dur:dur};});
+  rows.sort((a,b)=>a.start-b.start);
+  let total=Number(run.duration_ms)||0;for(const r of rows)total=Math.max(total,r.start+r.dur);total=Math.max(total,1);
+  const ticks=[0,0.25,0.5,0.75,1].map(p=>'<span class="tl-tick" style="left:'+(p*100)+'%">'+Math.round(total*p)+' ms</span>').join('');
+  let html='<div class="timeline"><div class="tl-axis">'+ticks+'</div>';
+  for(const r of rows){
+    const s=r.s;const left=(r.start/total)*100;const width=Math.max(0.6,(r.dur/total)*100);
+    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_type||'span');const llm=(s.llm_calls||[]).length;
+    html+='<div class="tl-row"><div class="tl-label" title="'+label+'">'+label+(llm?' <span class="sub">'+llm+' llm</span>':'')+'</div>'+
+      '<div class="tl-track"><div class="tl-bar'+(s.error?' err':'')+'" style="left:'+left+'%;width:'+width+'%" title="'+label+' — '+r.dur.toFixed(1)+' ms"><span class="lbl">'+r.dur.toFixed(0)+' ms</span></div></div></div>';
   }
-  const chips=Object.entries(readsAgg)
-    .map(([t,n])=>'<span class="chip">'+escapeHtml(t)+' '+n+'</span>').join('');
-  return '<details class="agent" open>'+
-    '<summary><span class="caret">▸</span><b>'+escapeHtml(agent)+'</b>'+
-    '<span class="muted">'+list.length+' spans · '+ms.toFixed(1)+' ms avg</span>'+
-    '<span class="stat">'+writes+' writes · '+llm+' llm · '+'<span class="spans-stat">'+(Object.keys(readsAgg).join(', '))+'</span></span></summary>'+
-    '<div class="agent-body">'+
-    (chips?'<div class="chips">'+chips+'</div>':'')+
-    '<div class="spans">'+list.map(spanHtml).join('')+'</div>'+
-    '</div></details>';
+  el.innerHTML=html+'</div>';
 }
-
+function agentHtml(agent,list){
+  const ms=list.reduce((a,s)=>a+Number(s.latency_ms||0),0)/list.length;let writes=0,llm=0;const readsAgg={};
+  for(const s of list){writes+=(s.writes||[]).length;llm+=(s.llm_calls||[]).length;
+    for(const r of s.reads||[]){const t=r.data_type||'artifact';readsAgg[t]=(readsAgg[t]||0)+1;}}
+  const chips=Object.entries(readsAgg).map(([t,n])=>'<span class="chip">'+escapeHtml(t)+' '+n+'</span>').join('');
+  return '<details class="agent" open><summary><span class="caret">▸</span><b>'+escapeHtml(agent)+'</b>'+
+    '<span class="muted">'+list.length+' spans · '+ms.toFixed(1)+' ms avg</span>'+
+    '<span class="stat">'+writes+' writes · '+llm+' llm</span></summary>'+
+    '<div class="agent-body">'+(chips?'<div class="chips">'+chips+'</div>':'')+
+    '<div class="spans">'+list.map(spanHtml).join('')+'</div></div></details>';
+}
 function spanHtml(s){
-  const ok=!s.error;
-  const errBlock=s.error?'<div class="err-box">'+escapeHtml(s.error)+'</div>':'';
+  const ok=!s.error;const errBlock=s.error?'<div class="err-box">'+escapeHtml(s.error)+'</div>':'';
   const reads=(s.reads||[]).length?('<div class="io"><h3>reads</h3>'+artsBlock(s.reads)+'</div>'):'';
   const writes=(s.writes||[]).length?('<div class="io"><h3>writes</h3>'+artsBlock(s.writes)+'</div>'):'';
   const io=(reads||writes)?'<div class="io-grid">'+reads+writes+'</div>':'';
   const llm=(s.llm_calls||[]).map(llmHtml).join('');
-  return '<details class="node">'+
-    '<summary><span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
-    '<span class="nid">'+escapeHtml(s.agent)+'</span>'+
-    '<span class="ntype">'+escapeHtml(s.event_type)+'</span>'+
+  return '<details class="node"><summary><span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
+    '<span class="nid">'+escapeHtml(s.agent)+'</span><span class="ntype">'+escapeHtml(s.event_type)+'</span>'+
     '<span class="stat">'+Number(s.latency_ms).toFixed(1)+' ms · '+(s.llm_calls||[]).length+' llm'+(ok?'':' · failed')+'</span></summary>'+
     '<div class="node-body">'+errBlock+io+(llm?'<div class="llm"><h3>LLM calls</h3>'+llm+'</div>':'')+'</div></details>';
 }
@@ -226,39 +270,117 @@ function llmHtml(c){
     '<div class="node-body">'+(c.error?'<div class="err-box">'+escapeHtml(c.error)+'</div>':'')+detail+(c.response?'<div class="role assistant"><span class="role-label">response</span>'+escapeHtml(c.response)+'</div>':'')+'</div></details>';
 }
 
-function mountMermaid(src, nodeId, preId){
-  const pre=document.getElementById(preId);
-  pre.textContent=src||'no provenance recorded';
-  if(!src) return;
-  const el=document.getElementById(nodeId);
-  const s=document.createElement('script');
-  s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
-  s.onload=()=>{
-    const dark=document.documentElement.classList.contains('dark');
-    window.mermaid.initialize({startOnLoad:false,theme:dark?'dark':'default'});
-    el.textContent=src;
-    try{window.mermaid.run({nodes:[el]});}
-    catch(err){el.innerHTML='<div class="diag-error">Mermaid could not render: '+escapeHtml(err&&err.message?err.message:String(err))+'</div>';}
-  };
-  s.onerror=()=>{el.innerHTML='<div class="diag-fallback">Mermaid JS unavailable (offline) — the diagram source is shown below.</div>';};
-  document.head.appendChild(s);
+const DIAGRAMS=[];
+let mermaidPromise=null;
+function loadScript(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error('offline'));document.head.appendChild(s);});}
+function loadMermaid(){
+  if(window.mermaid&&typeof window.mermaid.initialize==='function')return Promise.resolve(window.mermaid);
+  if(mermaidPromise)return mermaidPromise;
+  mermaidPromise=(async()=>{
+    try{await loadScript('https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js');
+      if(window.mermaid&&typeof window.mermaid.initialize==='function')return window.mermaid;}catch(_){}
+    const mod=await import('https://cdn.jsdelivr.net/npm/mermaid@11/+esm');
+    const m=mod.default||mod;
+    if(!m||typeof m.initialize!=='function')throw new Error('offline');
+    return m;
+  })().catch(err=>{mermaidPromise=null;throw err;});
+  return mermaidPromise;
 }
-function fallbackCopy(text){
-  const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
-  try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);
+function mermaidConfig(){
+  const dark=document.documentElement.classList.contains('dark');
+  const font='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif';
+  const vars=dark?{darkMode:true,background:'#16171e',primaryColor:'#232448',primaryTextColor:'#e8e8f0',primaryBorderColor:'#8b93ff',lineColor:'#8f93b8',secondaryColor:'#1b1c24',tertiaryColor:'#1b1c24',noteBkgColor:'#232448',noteTextColor:'#e8e8f0',noteBorderColor:'#8b93ff',actorBkg:'#232448',actorTextColor:'#e8e8f0',actorBorder:'#8b93ff',signalColor:'#9a9aae',signalTextColor:'#e8e8f0',labelBoxBkgColor:'#1b1c24',labelBoxBorderColor:'#8b93ff',labelTextColor:'#e8e8f0',loopTextColor:'#e8e8f0',fontFamily:font}
+    :{darkMode:false,background:'#ffffff',primaryColor:'#eef0ff',primaryTextColor:'#17171f',primaryBorderColor:'#4f46e5',lineColor:'#6b6b7a',secondaryColor:'#fafafb',tertiaryColor:'#f7f5ff',noteBkgColor:'#eef0ff',noteTextColor:'#17171f',noteBorderColor:'#4f46e5',actorBkg:'#eef0ff',actorTextColor:'#17171f',actorBorder:'#4f46e5',signalColor:'#6b6b7a',signalTextColor:'#17171f',labelBoxBkgColor:'#fafafb',labelBoxBorderColor:'#4f46e5',labelTextColor:'#17171f',loopTextColor:'#17171f',fontFamily:font};
+  return {startOnLoad:false,securityLevel:'strict',theme:'base',themeVariables:vars};
 }
+function Diagram(root){
+  this.root=root;this.src='';this.scale=1;this.fitScale=1;this.tx=0;this.ty=0;this.naturalW=0;this.loading=null;
+  this.stage=root.querySelector('.diagram-stage');this.viewport=root.querySelector('.diagram-viewport');this.zoomLabel=root.querySelector('[data-zoom]');
+  DIAGRAMS.push(this);this.bind();
+}
+Diagram.prototype.bind=function(){
+  const self=this;
+  this.root.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>self.act(b.dataset.act)));
+  let down=false,sx=0,sy=0,ox=0,oy=0;
+  this.viewport.addEventListener('mousedown',e=>{down=true;sx=e.clientX;sy=e.clientY;ox=self.tx;oy=self.ty;self.viewport.classList.add('grabbing');e.preventDefault();});
+  window.addEventListener('mousemove',e=>{if(!down)return;self.tx=ox+(e.clientX-sx);self.ty=oy+(e.clientY-sy);self.apply();});
+  window.addEventListener('mouseup',()=>{down=false;self.viewport.classList.remove('grabbing');});
+  this.viewport.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();self.zoom(e.deltaY<0?1.12:1/1.12);},{passive:false});
+  this.viewport.addEventListener('dblclick',()=>self.act('reset'));
+  document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement===self.root)self.fit();});
+  window.addEventListener('resize',()=>{if(Math.abs(self.scale-self.fitScale)<1e-6)self.fit();});
+};
+Diagram.prototype.apply=function(){
+  const svg=this.stage.querySelector('svg');
+  if(svg&&this.naturalW){svg.style.width=(this.naturalW*this.scale)+'px';svg.style.height='auto';svg.style.maxWidth='none';}
+  this.stage.style.transform='translate('+this.tx+'px,'+this.ty+'px)';
+  if(this.zoomLabel)this.zoomLabel.textContent=Math.round((this.scale/(this.fitScale||1))*100)+'%';
+};
+Diagram.prototype.zoom=function(f){
+  const min=this.fitScale*0.25,max=this.fitScale*5;const ns=Math.min(max,Math.max(min,this.scale*f));
+  const r=this.viewport.getBoundingClientRect();const cx=r.width/2;
+  this.tx=cx-(cx-this.tx)*(ns/this.scale);this.scale=ns;this.apply();
+};
+Diagram.prototype.act=function(a){
+  if(a==='zoom-in')this.zoom(1.2);else if(a==='zoom-out')this.zoom(1/1.2);else if(a==='reset')this.fit();
+  else if(a==='fullscreen'){if(document.fullscreenElement===this.root)document.exitFullscreen();else if(this.root.requestFullscreen)this.root.requestFullscreen();}
+};
+Diagram.prototype.fit=function(){
+  const svg=this.stage.querySelector('svg');const vw=this.viewport.clientWidth;
+  if(!svg||vw<=0){this.scale=1;this.fitScale=1;this.tx=0;this.ty=0;this.apply();return;}
+  const vb=svg.viewBox&&svg.viewBox.baseVal&&svg.viewBox.baseVal.width;let sw;
+  if(vb&&vb>0)sw=vb;else{svg.style.width='';sw=svg.getBoundingClientRect().width||svg.scrollWidth||1;}
+  this.naturalW=sw;const pad=52;this.fitScale=Math.min(2.5,Math.max(0.35,(vw-pad)/sw));this.scale=this.fitScale;
+  this.tx=Math.max(0,(vw-(sw*this.scale+pad))/2);this.ty=0;this.apply();
+};
+Diagram.prototype.showLoading=function(on){
+  if(on&&!this.loading){this.loading=document.createElement('div');this.loading.className='diagram-loading';this.loading.innerHTML='<span class="spinner"></span>rendering…';this.viewport.appendChild(this.loading);}
+  else if(!on&&this.loading){this.loading.remove();this.loading=null;}
+};
+Diagram.prototype.render=async function(src){
+  this.src=src||'';
+  if(!this.src){this.stage.innerHTML='<div class="diag-fallback">no provenance recorded</div>';return;}
+  this.showLoading(true);
+  try{
+    const mermaid=await loadMermaid();mermaid.initialize(mermaidConfig());
+    this.stage.removeAttribute('data-processed');this.stage.textContent=src;
+    await mermaid.run({nodes:[this.stage]});
+    this.fit();this.showLoading(false);
+  }catch(err){
+    this.showLoading(false);const offline=err&&err.message==='offline';
+    this.stage.innerHTML='<div class="'+(offline?'diag-fallback':'diag-error')+'">'+(offline?'Mermaid JS unavailable (offline) — the diagram source is shown below.':'Mermaid could not render: '+escapeHtml(err&&err.message?err.message:String(err)))+'</div>';
+  }
+};
+function mountDiagram(src,rootId,preId){const pre=document.getElementById(preId);if(pre)pre.textContent=src||'no provenance recorded';const root=document.getElementById(rootId);if(root)new Diagram(root).render(src);}
+function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);}
 function initCopy(){
-  const bind=(btnId,src)=>{const btn=document.getElementById(btnId);btn.addEventListener('click',()=>{
-    const done=()=>{btn.textContent='copied';setTimeout(()=>btn.textContent='copy',900);};
-    const text=src||'';
-    if(navigator.clipboard){navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});}
-    else{fallbackCopy(text);done();}
-  });};
-  bind('copy-mermaid',MERMAID_SRC);
-  bind('copy-graph',MERMAID_GRAPH_SRC);
+  const bind=(btnId,src)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
+    btn.addEventListener('click',()=>{const done=()=>{label.textContent='copied';setTimeout(()=>{label.textContent='copy';},900);};const text=src||'';
+      if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});else{fallbackCopy(text);done();}});};
+  bind('copy-mermaid',MERMAID_SRC);bind('copy-graph',MERMAID_GRAPH_SRC);
 }
 
-initTheme(); load(); mountMermaid(MERMAID_SRC,'mermaid','mermaid-pre'); mountMermaid(MERMAID_GRAPH_SRC,'mermaid-graph','graph-pre'); initCopy();
+document.getElementById('view-seg').addEventListener('click',(e)=>{
+  const b=e.target.closest('.seg-btn');if(!b)return;
+  document.querySelectorAll('#view-seg .seg-btn').forEach(x=>x.classList.toggle('active',x===b));
+  VIEW=b.dataset.view;renderWork();
+});
+document.getElementById('trace-search').addEventListener('input',debounce((e)=>{FILTER=e.target.value;renderWork();}));
+function copyTo(btnId,text,label){
+  const btn=document.getElementById(btnId);const el=btn.querySelector('[data-label]')||btn;
+  const done=()=>{el.textContent='copied';setTimeout(()=>{el.textContent=label;},900);};
+  if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});else{fallbackCopy(text);done();}
+}
+document.getElementById('copy-link').addEventListener('click',()=>copyTo('copy-link',location.href,'link'));
+document.getElementById('copy-json').addEventListener('click',()=>copyTo('copy-json',TRACE?JSON.stringify(TRACE,null,2):'','json'));
+document.getElementById('toggle-json').addEventListener('click',(e)=>{
+  const card=document.getElementById('json-card');const on=card.style.display==='none';
+  card.style.display=on?'block':'none';e.currentTarget.classList.toggle('on',on);
+});
+
+initTheme();load();loadVocab();initCopy();
+mountDiagram(MERMAID_SRC,'diagram-mermaid','mermaid-pre');
+mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
 </script>
 </body>
 </html>

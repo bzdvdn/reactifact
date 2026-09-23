@@ -35,6 +35,8 @@ class RunStats:
     runs: int
     iterations: int
     outcome: RunOutcome
+    #: Wall-clock duration of the turn, in **seconds** (`time.monotonic()`).
+    #: Distinct from `RunTrace.duration_ms`, which is in milliseconds.
     duration: float
     #: Agent executions that raised and were isolated (`Runtime(isolate_errors=True)`).
     #: Always 0 when isolation is off — an exception propagates instead (§69).

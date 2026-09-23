@@ -231,9 +231,10 @@ current event loop**, so one provider instance stays usable across repeated
 | `Session`, `SessionStore` | durable per-chat working memory across requests |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock` |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`) |
-| `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write; the dashboard (`create_trace_router`) accepts any `TraceReader` |
-| `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI dashboard router |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline) |
+| `Tag`, `TagAssignment`, `TraceAnnotator`, `TraceStoreProtocol` | reviewer annotations: a tag vocabulary (`Tag`) and per-run tags + notes (`TagAssignment`, `RunTrace.annotations`); stores expose `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag` |
+| `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write and the full annotation API; the dashboard (`create_trace_router`) accepts any `TraceStoreProtocol` (SQLite or Postgres) |
+| `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI dashboard router: list/detail/sessions pages, tag facets + filtering, bulk tagging, tag-vocabulary management, URL-synced + saved views, sortable table, Tree/Timeline run view, in-trace search, raw JSON, JSON export |
 
 ## Testing (reactifact.testing, §56)
 
