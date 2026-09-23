@@ -49,7 +49,7 @@ from .session import Session, SessionStore
 from .tools import FunctionTool, Tool, ToolOutput, tool
 from .triggers import Trigger
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 __all__ = [
     "Agent",

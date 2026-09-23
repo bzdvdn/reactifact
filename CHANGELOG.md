@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-09-23
+
 ### Fixed
 
 - `RunTrace.duration_ms` was carrying seconds (`time.monotonic()`), so the

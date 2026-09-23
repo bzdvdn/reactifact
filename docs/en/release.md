@@ -26,6 +26,19 @@ what changed between versions, and breaking entries are marked per the rule
 above. A few changes worth knowing if you're crossing them (see also
 [migrating.md](migrating.md) for porting from other frameworks):
 
+- **0.11.0** — behavior-visible (non-breaking) changes to know about:
+  - `RunTrace.duration_ms` is now **milliseconds** (it carried raw
+    `time.monotonic()` seconds before, so the dashboard showed `0 ms` and the
+    Langfuse run span ended ~1000× too early). `RunStats.duration` stays
+    seconds.
+  - `RunTrace.started_at` is now the turn **start** (previously the end), and
+    `AgentSpan.started_at` is persisted (SQLite/Postgres auto-migrate) to power
+    the dashboard timeline.
+  - The `TraceReader` protocol grew a `sessions()` read; the dashboard's
+    `create_trace_router` now expects a `TraceStoreProtocol` (read + the tag
+    annotation methods). The built-in `TraceStore`/`PostgresStore` satisfy it;
+    a custom reader implementing only `query`/`get` needs `sessions()` and the
+    annotation methods for the new pages to work.
 - **0.10.0** — behavior-visible (non-breaking) changes to know about:
   - `PromptTemplate.render` now substitutes only *identifier-shaped* `{field}`
     placeholders and leaves other braces verbatim, so a literal JSON example in
@@ -95,9 +108,9 @@ uv publish --publish-url https://upload.pypi.org/legacy/
 ## What ships
 
 `uv build` packages only the `reactifact` package (setuptools `packages.find`
-excludes `examples`/`tests`) plus the trace dashboard templates
-(`reactifact/tracing/templates/*.html`). Examples, tests and docs stay in the
-repository and are the documentation-by-example.
+excludes `examples`/`tests`) plus the trace dashboard assets
+(`reactifact/tracing/templates/*.html` and `*.css`). Examples, tests and docs
+stay in the repository and are the documentation-by-example.
 
 ## Rollback
 
