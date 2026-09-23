@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import tempfile
 
@@ -105,6 +106,48 @@ async def _test_postgres_kv_roundtrip(dsn: str) -> None:
         assert await backend.keys() == ["k1"]
         await backend.delete("k1")
         assert await backend.get("k1") is None
+    finally:
+        await backend.aclose()
+
+
+def test_postgres_kv_self_heals_after_a_cancelled_query():
+    """A poisoned shared connection must not wedge the store.
+
+    A query cancelled mid-flight (a client that drops a streaming turn) leaves
+    libpq busy/aborted; before the fix every later session read/write failed
+    forever with ``InFailedSqlTransaction`` / "another command is already in
+    progress". The backend must reconnect and retry instead.
+    """
+    dsn = os.environ.get("TEST_PG_DSN")
+    if not dsn:
+        pytest.skip("TEST_PG_DSN not set — skipping Postgres KV integration")
+    import psycopg  # noqa: F401  (ensure the extra is installed)
+
+    asyncio.run(_test_postgres_kv_self_heal(dsn))
+
+
+async def _test_postgres_kv_self_heal(dsn: str) -> None:
+    from reactifact.checkpoints import PostgreSQLKVBackend
+
+    backend = PostgreSQLKVBackend(dsn)
+    try:
+        await backend.set("heal", {"v": 1})
+        conn = await backend._connection()
+
+        async def slow() -> None:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT pg_sleep(10)")
+
+        task = asyncio.create_task(slow())
+        await asyncio.sleep(0.3)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+        assert await backend.get("heal") == {"v": 1}
+        assert backend._conn is not conn  # reconnected, not the poisoned one
+        await backend.delete("heal")
+        assert await backend.get("heal") is None
     finally:
         await backend.aclose()
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import json
 import sqlite3
@@ -301,6 +302,12 @@ class PostgreSQLKVBackend(KVBackend):
     enough for session-checkpoint traffic (small, infrequent writes); reach for
     `psycopg_pool.AsyncConnectionPool` yourself if you need many concurrent
     writers sharing one DSN.
+
+    The connection **self-heals**: a query cancelled mid-flight (a client that
+    drops a streaming turn) or any protocol error leaves the shared libpq
+    connection busy/aborted, and a single poisoned connection would otherwise
+    fail every later session read/write. Each statement reconnects and retries
+    once, so one bad query cannot wedge the whole store.
     """
 
     def __init__(self, dsn: str):
@@ -324,42 +331,64 @@ class PostgreSQLKVBackend(KVBackend):
             self._conn = conn
         return conn
 
-    async def set(self, key: str, data: dict[str, Any]) -> None:
+    async def _reset(self) -> None:
+        """Drops the cached connection so the next statement reconnects.
+
+        Called after any error: a connection that raised is never trusted again
+        (it may be mid-command or in an aborted transaction).
+        """
+        conn, self._conn = self._conn, None
+        if conn is not None and not conn.closed:
+            with contextlib.suppress(Exception):
+                await conn.close()
+
+    async def _run(
+        self,
+        sql: str,
+        params: tuple[Any, ...] = (),
+        *,
+        fetch: str | None = None,
+    ) -> Any:
+        """Runs one statement under the lock, reconnecting once on failure.
+
+        All `kv_entries` statements are idempotent (upsert/delete/select), so a
+        retry after a dropped connection is safe.
+        """
         async with self._lock:
-            conn = await self._connection()
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO kv_entries (key, data) VALUES (%s, %s) "
-                    "ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data",
-                    (key, json.dumps(data)),
-                )
-            await conn.commit()
+            for attempt in (0, 1):
+                try:
+                    conn = await self._connection()
+                    async with conn.cursor() as cur:
+                        await cur.execute(sql, params)
+                        result = await getattr(cur, fetch)() if fetch else None
+                    await conn.commit()
+                    return result
+                except self._psycopg.Error:
+                    await self._reset()
+                    if attempt:
+                        raise
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    async def set(self, key: str, data: dict[str, Any]) -> None:
+        await self._run(
+            "INSERT INTO kv_entries (key, data) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data",
+            (key, json.dumps(data)),
+        )
 
     async def get(self, key: str) -> dict[str, Any] | None:
-        async with self._lock:
-            conn = await self._connection()
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT data FROM kv_entries WHERE key = %s", (key,))
-                row = await cur.fetchone()
+        row = await self._run(
+            "SELECT data FROM kv_entries WHERE key = %s", (key,), fetch="fetchone"
+        )
         return cast(dict[str, Any], json.loads(row[0])) if row is not None else None
 
     async def delete(self, key: str) -> None:
-        async with self._lock:
-            conn = await self._connection()
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM kv_entries WHERE key = %s", (key,))
-            await conn.commit()
+        await self._run("DELETE FROM kv_entries WHERE key = %s", (key,))
 
     async def keys(self) -> list[str]:
-        async with self._lock:
-            conn = await self._connection()
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT key FROM kv_entries")
-                rows = await cur.fetchall()
+        rows = await self._run("SELECT key FROM kv_entries", fetch="fetchall")
         return [cast(str, r[0]) for r in rows]
 
     async def aclose(self) -> None:
         async with self._lock:
-            if self._conn is not None and not self._conn.closed:
-                await self._conn.close()
-            self._conn = None
+            await self._reset()

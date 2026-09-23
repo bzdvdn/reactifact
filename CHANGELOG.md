@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Fixed
+
+- `PostgreSQLKVBackend` could be wedged for good by a single cancelled query:
+  a client dropping a streaming turn cancels the session save mid-flight, which
+  leaves the shared libpq connection busy/aborted, and every later session
+  read/write then failed (`InFailedSqlTransaction`, or "another command is
+  already in progress" — surfacing as a 500 on `DELETE /api/runs/{id}`). Each
+  statement now drops the connection and retries once on any `psycopg` error,
+  so the store self-heals instead of staying poisoned.
+
 ## [0.11.1] — 2026-09-24
 
 ### Fixed
