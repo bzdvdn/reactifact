@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.11.2] — 2026-09-24
+
 ### Fixed
 
 - `PostgreSQLKVBackend` could be wedged for good by a single cancelled query:
