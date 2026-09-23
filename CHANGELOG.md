@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-09-24
+
 ### Fixed
 
 - The trace router's `/api/traces/export` handler broke OpenAPI schema
