@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Fixed
+
+- The trace router's `/api/traces/export` handler broke OpenAPI schema
+  generation: its `-> JSONResponse` return annotation is an unresolvable forward
+  ref (the module uses `from __future__ import annotations` and imports fastapi
+  lazily inside `create_trace_router`), so `/openapi.json` and `/docs` raised
+  `PydanticUserError`. The route now declares `response_model=None`.
+
 ## [0.11.0] — 2026-09-23
 
 ### Fixed

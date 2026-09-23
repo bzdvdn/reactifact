@@ -141,7 +141,11 @@ def create_trace_router(
             offset=offset,
         )
 
-    @router.get("/api/traces/export")
+    # ``response_model=None`` is required: the module uses ``from __future__
+    # import annotations`` and imports fastapi lazily here, so the ``->
+    # JSONResponse`` return annotation stays an unresolvable forward ref and
+    # FastAPI would fail to build ``/openapi.json``.
+    @router.get("/api/traces/export", response_model=None)
     async def export_traces(
         session_id: str | None = Query(default=None),
         outcome: str | None = Query(default=None),

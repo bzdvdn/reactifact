@@ -576,6 +576,23 @@ def test_trace_router_open_without_auth(tmp_path):
     assert client.get("/api/traces").status_code == 200
 
 
+def test_trace_router_openapi_schema_builds(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "schema.db"))
+    app = FastAPI()
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+
+    # regression: the ``-> JSONResponse`` export handler used to make schema
+    # generation raise on an unresolvable forward ref (no module-level import)
+    spec = client.get("/openapi.json")
+    assert spec.status_code == 200
+    assert "/api/traces/export" in spec.json()["paths"]
+
+
 def test_trace_run_page_embeds_mermaid_diagram(tmp_path):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
