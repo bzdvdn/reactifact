@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- `ScenarioResult.report` / `Scenario.report` return a `ScenarioReport`: token
+  totals (`prompt_tokens`/`completion_tokens`/`total_tokens`), `llm_calls`,
+  `tool_calls`, `spans`, `agents`, `errors` and `outcomes` for a turn — or
+  aggregated across every turn of a multi-turn `scenario()` — with `to_dict()`
+  and a readable `render()`. `result.llm` gained `prompt_tokens` /
+  `completion_tokens` alongside `tokens`.
+
 ## [0.11.2] — 2026-09-24
 
 ### Fixed

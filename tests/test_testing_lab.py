@@ -63,6 +63,22 @@ class ScriptedLLM(LLMProvider):
         yield LLMResponse(text="")
 
 
+class UsageLLM(LLMProvider):
+    """Like `ScriptedLLM`, but reports token usage (for the scenario report)."""
+
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = list(responses)
+
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        text = self.responses.pop(0) if self.responses else "{}"
+        return LLMResponse(
+            text=text, usage={"prompt_tokens": 10, "completion_tokens": 5}
+        )
+
+    async def stream(self, request: LLMRequest):
+        yield LLMResponse(text="")
+
+
 class BuildReport(Produce[Report]):
     artifact_type = Report
 
@@ -213,6 +229,81 @@ def test_scenario_turn_shares_context_and_aggregates_across_turns():
     convo.llm.max_calls(4)
     convo.errors.none()
     convo.events.min_count(2, kind="agent")  # "Deciding next action…" x2 turns
+
+
+def test_result_report_totals_and_render():
+    tool_calls.clear()
+    lab = ScenarioLab(
+        [K8sAgent()],
+        resources=lambda: RuntimeResources(
+            llm=UsageLLM(
+                [
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"pods"}}',
+                    '{"type":"answer","text":"pods: all good"}',
+                ]
+            )
+        ),
+    )
+
+    result = run(lab.run(Problem(text="check pods")))
+    report = result.report
+
+    assert report.turns == 1
+    assert report.agents == ["k8s"]
+    assert report.tool_calls == 1
+    assert report.llm_calls == 2
+    assert (report.prompt_tokens, report.completion_tokens) == (20, 10)
+    assert report.total_tokens == 30
+    assert report.errors == 0
+    assert report.outcomes == ["completed"]
+    assert report.duration_ms >= 0
+
+    # assertion-surface tokens and the report read the same numbers
+    assert result.llm.prompt_tokens == 20
+    assert result.llm.completion_tokens == 10
+    assert result.llm.tokens == report.total_tokens
+
+    data = report.to_dict()
+    assert data["total_tokens"] == 30
+    assert data["llm_calls"] == 2
+    assert data["agents"] == ["k8s"]
+
+    rendered = report.render()
+    assert "scenario report" in rendered
+    assert "30 total" in rendered
+    assert "completed" in rendered
+
+
+def test_scenario_report_aggregates_across_turns():
+    tool_calls.clear()
+    lab = ScenarioLab(
+        [K8sAgent()],
+        resources=lambda: RuntimeResources(
+            llm=UsageLLM(
+                [
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"pods"}}',
+                    '{"type":"answer","text":"pods: all good"}',
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"nodes"}}',
+                    '{"type":"answer","text":"nodes: all good"}',
+                ]
+            )
+        ),
+    )
+    convo = lab.scenario()
+
+    turn1 = run(convo.turn(Problem(text="check pods")))
+    assert turn1.report.turns == 1
+    assert turn1.report.llm_calls == 2
+
+    run(convo.turn(Problem(text="check nodes")))
+    report = convo.report
+
+    assert report.turns == 2
+    assert report.llm_calls == 4
+    assert report.tool_calls == 2
+    assert report.total_tokens == 60
+    assert report.agents == ["k8s"]
+    assert report.outcomes == ["completed"]
 
 
 #: A tool list stored typedly (not via `resources.set`), as an app's produce

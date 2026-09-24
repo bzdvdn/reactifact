@@ -20,7 +20,7 @@ from .assertions import (
 from .exceptions import AssertionFailure, ScenarioError, ScenarioSkip
 from .fault import ToolCallRecord, ToolCallRecorder, ToolFault
 from .golden import GoldenRun, assert_golden, capture, prompt_hashes, replay_resources
-from .lab import Scenario, ScenarioLab, ScenarioResult
+from .lab import Scenario, ScenarioLab, ScenarioReport, ScenarioResult
 from .mock import ResourceFault
 from .record import Mode, mode_from_env
 from .registry import ScenarioCase, collect, scenario
@@ -38,6 +38,7 @@ __all__ = [
     "ScenarioCase",
     "ScenarioError",
     "ScenarioLab",
+    "ScenarioReport",
     "ScenarioResult",
     "ScenarioSkip",
     "ToolAssertions",

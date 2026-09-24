@@ -273,8 +273,16 @@ class LLMAssertions:
         return len(self._calls())
 
     @property
+    def prompt_tokens(self) -> int:
+        return sum(c.prompt_tokens for c in self._calls())
+
+    @property
+    def completion_tokens(self) -> int:
+        return sum(c.completion_tokens for c in self._calls())
+
+    @property
     def tokens(self) -> int:
-        return sum(c.prompt_tokens + c.completion_tokens for c in self._calls())
+        return self.prompt_tokens + self.completion_tokens
 
     def max_calls(self, n: int) -> None:
         if self.calls > n:

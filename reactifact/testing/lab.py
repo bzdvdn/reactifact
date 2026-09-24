@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -82,6 +82,97 @@ class _CapturingTracer(Tracer):
 
 
 @dataclass
+class ScenarioReport:
+    """Aggregate cost/shape of a scenario run: what it took, in one object.
+
+    The reporting counterpart of the assertion groups — token totals, LLM/tool
+    counts, the agents that ran and the outcome, with `to_dict()` for a CI/log
+    artifact and `render()` for a readable multi-line summary. A single
+    `ScenarioResult.report` covers one turn; `Scenario.report` aggregates every
+    turn run so far.
+    """
+
+    turns: int = 0
+    spans: int = 0
+    agents: list[str] = field(default_factory=list)
+    tool_calls: int = 0
+    llm_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    duration_ms: float = 0.0
+    errors: int = 0
+    outcomes: list[str] = field(default_factory=list)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "turns": self.turns,
+            "spans": self.spans,
+            "agents": list(self.agents),
+            "tool_calls": self.tool_calls,
+            "llm_calls": self.llm_calls,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "duration_ms": self.duration_ms,
+            "errors": self.errors,
+            "outcomes": list(self.outcomes),
+        }
+
+    def render(self) -> str:
+        rows = [
+            ("turns", str(self.turns)),
+            ("agents", ", ".join(self.agents) or "—"),
+            ("spans", str(self.spans)),
+            ("tool calls", str(self.tool_calls)),
+            ("llm calls", str(self.llm_calls)),
+            (
+                "tokens",
+                f"{self.prompt_tokens} in / {self.completion_tokens} out"
+                f" / {self.total_tokens} total",
+            ),
+            ("duration", f"{self.duration_ms:.1f} ms"),
+            ("errors", str(self.errors)),
+            ("outcomes", ", ".join(self.outcomes) or "—"),
+        ]
+        width = max(len(key) for key, _ in rows)
+        return "\n".join(
+            ["scenario report"] + [f"  {key:<{width}}  {value}" for key, value in rows]
+        )
+
+
+def _scenario_report(
+    traces: list[RunTrace],
+    calls: list[ToolCallRecord],
+    *,
+    turns: int | None = None,
+    errors: int | None = None,
+) -> ScenarioReport:
+    """Builds a `ScenarioReport` off one or more run traces + recorded calls."""
+    spans = [span for trace in traces for span in trace.spans]
+    llm = [call for trace in traces for call in trace.llm_calls]
+    outcomes: list[str] = []
+    for trace in traces:
+        if trace.outcome and trace.outcome not in outcomes:
+            outcomes.append(trace.outcome)
+    return ScenarioReport(
+        turns=len(traces) if turns is None else turns,
+        spans=len(spans),
+        agents=sorted({span.agent for span in spans}),
+        tool_calls=len(calls),
+        llm_calls=len(llm),
+        prompt_tokens=sum(call.prompt_tokens for call in llm),
+        completion_tokens=sum(call.completion_tokens for call in llm),
+        duration_ms=round(sum(trace.duration_ms for trace in traces), 1),
+        errors=(sum(1 for span in spans if span.error) if errors is None else errors),
+        outcomes=outcomes,
+    )
+
+
+@dataclass
 class ScenarioResult:
     """Everything a scenario assertion needs, read off one `ScenarioLab.run()`.
 
@@ -97,6 +188,15 @@ class ScenarioResult:
 
     def artifacts(self, artifact_type: type[T]) -> ArtifactAssertions[T]:
         return ArtifactAssertions(self.context, artifact_type)
+
+    @property
+    def report(self) -> ScenarioReport:
+        """Token/latency/tool totals for this one turn (see `ScenarioReport`)."""
+        traces = [self.trace] if self.trace is not None else []
+        errors = None
+        if not traces and self.stats is not None:
+            errors = self.stats.errors
+        return _scenario_report(traces, self.calls, turns=1, errors=errors)
 
     @property
     def tools(self) -> ToolAssertions:
@@ -389,3 +489,8 @@ class Scenario:
     def errors(self) -> ErrorAssertions:
         """Isolated agent errors across every turn run so far."""
         return ErrorAssertions(_combined_trace(self.all_traces), None)
+
+    @property
+    def report(self) -> ScenarioReport:
+        """Aggregate `ScenarioReport` across every turn run so far."""
+        return _scenario_report(self.all_traces, self.all_calls)
