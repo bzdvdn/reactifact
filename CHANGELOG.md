@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-09-25
+
 ### Added
 
 - **Configurable artifact columns in the traces table.** `create_trace_router(
@@ -21,10 +23,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   A chat is many runs and a HITL clarify splits one exchange into two (ask
   turn, then resume), so `Question` is the message that started the current
   exchange (shown on the resume row too) and `Answer` the latest reply so far.
-  The run page also shows
-  the configured columns as a **Fields** card (`/api/traces/{id}` carries
-  `fields`), so the question — and a HITL clarify, via a `PendingQuestion`
-  column — are visible when opening a run, not just in the list.
+  The run page also shows the configured columns as a **Fields** card
+  (`/api/traces/{id}` carries `fields`), so the question — and a HITL clarify,
+  via a `PendingQuestion` column — are visible when opening a run, not just in
+  the list.
   `RuntimeResources(trace_truncate=…)` now controls how much artifact/response
   JSON a trace keeps (`None` = no clip), so deep fields stay resolvable. The
   `devops` example shows the question, the pending clarify question and the
