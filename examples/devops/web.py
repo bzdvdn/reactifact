@@ -33,7 +33,7 @@ from reactifact import Budget, RuntimeResources, SessionStore
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import openai_llm, openrouter_llm
-from reactifact.tracing import Tracer, TraceStore
+from reactifact.tracing import TraceColumn, Tracer, TraceStore
 from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
 
@@ -131,6 +131,29 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
     app.include_router(
         create_trace_router(
             trace_store,
+            # Show the user's question and the reply as columns in the traces
+            # table. `scope="session"` resolves as of the row's run (the default
+            # `index=-1` is the most recent), so a HITL clarify that splits one
+            # exchange across two runs (ask turn, then resume turn) still shows
+            # the question the exchange started from on both rows.
+            columns=[
+                TraceColumn(
+                    label="Question",
+                    agent="route",
+                    type=UserMsg,
+                    field="text",
+                    direction="read",
+                    scope="session",
+                ),
+                # The clarify question a HITL agent asked in this run (if any).
+                TraceColumn(label="Pending", type="PendingQuestion", field="question"),
+                TraceColumn(
+                    label="Answer",
+                    type=ChatReply,
+                    field="text",
+                    scope="session",
+                ),
+            ],
             username=os.environ.get("TRACE_USER") or None,
             password=os.environ.get("TRACE_PASSWORD") or None,
         )

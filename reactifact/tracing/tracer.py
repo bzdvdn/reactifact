@@ -72,8 +72,8 @@ def _redact(value: str, redactor: Redactor | None) -> str:
         return value
 
 
-def _clip(value: str, limit: int = TRACE_TRUNCATE) -> str:
-    if len(value) <= limit:
+def _clip(value: str, limit: int | None = TRACE_TRUNCATE) -> str:
+    if limit is None or len(value) <= limit:
         return value
     return value[:limit] + "…"
 
@@ -151,12 +151,14 @@ class RecordingLLM(LLMProvider):
         agent_of: Callable[[], str],
         provider: str = "",
         redactor: Redactor | None = None,
+        truncate: int | None = TRACE_TRUNCATE,
     ):
         self._inner = inner
         self._on_call = on_call
         self._agent_of = agent_of
         self._provider = provider or type(inner).__name__
         self._redactor = redactor
+        self._truncate = truncate
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
         started = time.monotonic()
@@ -205,7 +207,7 @@ class RecordingLLM(LLMProvider):
             messages=_clip_messages(request.messages, self._redactor),
             prompt_hash=request.prompt_hash,
             response=(
-                _redact(_clip(response.text), self._redactor)
+                _redact(_clip(response.text, self._truncate), self._redactor)
                 if response is not None
                 else ""
             ),
@@ -276,6 +278,7 @@ class RunTracer:
         self._pending_llm: dict[str, list[LLMCall]] = {}
         self._trace_data_cache: dict[tuple[str, int], str] = {}
         self._redactor = getattr(context.resources, "redactor", None)
+        self._truncate = getattr(context.resources, "trace_truncate", TRACE_TRUNCATE)
         self.run_id = ""
         self.spans: list[AgentSpan] = []
         #: Wall-clock start of the current turn, used as the trace's `started_at`
@@ -287,6 +290,7 @@ class RunTracer:
                 on_call=self._record_llm,
                 agent_of=self._current_agent_name,
                 redactor=self._redactor,
+                truncate=self._truncate,
             )
 
     @property
@@ -332,7 +336,8 @@ class RunTracer:
             if data is None:
                 data = _redact(
                     _clip(
-                        json.dumps(model.model_dump(mode="json"), ensure_ascii=False)
+                        json.dumps(model.model_dump(mode="json"), ensure_ascii=False),
+                        self._truncate,
                     ),
                     self._redactor,
                 )

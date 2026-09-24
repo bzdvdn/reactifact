@@ -93,6 +93,12 @@
             </div>
           </div>
           <div class="spacer"></div>
+          <div class="col-wrap">
+            <button class="btn icon" id="col-btn" title="choose columns" aria-label="choose columns">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
+            </button>
+            <div class="col-menu" id="col-menu" style="display:none"></div>
+          </div>
           <button class="btn icon" id="copy-link" title="copy link to this view" aria-label="copy link to this view">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1L11 4.9"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.9-1.9"/></svg>
           </button>
@@ -171,10 +177,27 @@
 const state = {
   outcome:'', session:'', q:'', tags:[], tagMode:'any',
   sort:'started_at', order:'desc', limit:25, offset:0, total:0,
-  runs:[], facets:[], selected:new Set(), live:true, stats:null
+  runs:[], facets:[], selected:new Set(), live:true, stats:null, columns:[]
 };
 let timer=null;
 const VIEWS_KEY='reactifact-views';
+const COLS_KEY='reactifact-columns';
+let VISIBLE_COLS=null;  // null = all configured columns visible
+
+function loadColumnPref(){try{const raw=localStorage.getItem(COLS_KEY);VISIBLE_COLS=raw?JSON.parse(raw):null;}catch(_){VISIBLE_COLS=null;}}
+function saveColumnPref(){try{localStorage.setItem(COLS_KEY,JSON.stringify(VISIBLE_COLS||[]));}catch(_){}}
+function visibleColumns(){const all=state.columns.map(c=>c.label);if(VISIBLE_COLS===null)return all;return all.filter(l=>VISIBLE_COLS.includes(l));}
+async function loadColumns(){
+  try{const r=await fetch('/api/columns');state.columns=(await r.json()).items||[];}
+  catch(_){state.columns=[];}
+  render();
+}
+function renderColMenu(){
+  const el=document.getElementById('col-menu');
+  if(!state.columns.length){el.innerHTML='<div class="col-none">No columns configured. Pass <code>columns=[…]</code> to <code>create_trace_router</code>.</div>';return;}
+  if(VISIBLE_COLS===null)VISIBLE_COLS=state.columns.map(c=>c.label);
+  el.innerHTML=state.columns.map(c=>'<label class="col-item"><input type="checkbox" data-col="'+escapeHtml(c.label)+'"'+(VISIBLE_COLS.includes(c.label)?' checked':'')+'/> '+escapeHtml(c.label)+'</label>').join('');
+}
 
 function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
 function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
@@ -310,17 +333,22 @@ function render(){
   const arrow=k=>state.sort===k?(state.order==='desc'?' ▾':' ▴'):'';
   const th=(label,k,align)=>'<th class="sortable'+(state.sort===k?' active':'')+'" data-sort="'+k+'"'+(align?' style="text-align:right"':'')+'>'+label+arrow(k)+'</th>';
   const allSel=state.runs.every(r=>state.selected.has(r.id));
+  const cols=visibleColumns();
+  const extraHead=cols.map(l=>'<th class="col-extra" title="'+escapeHtml(l)+'">'+escapeHtml(l)+'</th>').join('');
   let html='<table><thead><tr><th class="col-check"><input type="checkbox" id="check-all"'+(allSel?' checked':'')+'/></th>'+
-    th('outcome','outcome')+'<th>run</th>'+th('session','session_id')+'<th>tags</th>'+
+    th('outcome','outcome')+'<th>run</th>'+th('session','session_id')+extraHead+'<th>tags</th>'+
     th('duration','duration_ms',true)+'<th style="text-align:right">tokens</th>'+
     th('spans','spans',true)+th('created','started_at',true)+'</tr></thead><tbody>';
   for(const r of state.runs){
     const cls=r.outcome==='completed'?'ok':(r.outcome==='failed'?'err':'amber');
+    const fields=r.fields||{};
+    const extraCells=cols.map(l=>{const v=(fields[l]!==undefined&&fields[l]!==null)?String(fields[l]):'—';
+      return '<td class="col-extra" title="'+escapeHtml(v)+'">'+escapeHtml(v)+'</td>';}).join('');
     html+='<tr class="row'+(state.selected.has(r.id)?' selected':'')+'" data-id="'+escapeHtml(r.id)+'">'+
       '<td class="col-check"><input type="checkbox" class="rowcheck" data-id="'+escapeHtml(r.id)+'"'+(state.selected.has(r.id)?' checked':'')+'/></td>'+
       '<td><span class="status '+cls+'"><span class="dot '+cls+'"></span>'+escapeHtml(r.outcome)+'</span></td>'+
       '<td class="run-id" title="'+escapeHtml(r.id)+'">#'+String(r.id).slice(0,8)+'</td>'+
-      '<td>'+escapeHtml(r.session_id||'—')+'</td>'+
+      '<td class="col-session" title="'+escapeHtml(r.session_id||'')+'">'+escapeHtml(r.session_id||'—')+'</td>'+extraCells+
       '<td><div class="row-tags">'+rowTagsHtml(r.tags)+'</div></td>'+
       '<td class="num" style="text-align:right">'+Number(r.duration_ms).toFixed(0)+' ms</td>'+
       '<td class="num" style="text-align:right">'+(((r.prompt_tokens||0)+(r.completion_tokens||0))||'—')+'</td>'+
@@ -400,6 +428,22 @@ document.getElementById('copy-link').addEventListener('click',()=>{
   const done=()=>{toast('Link copied');};
   if(navigator.clipboard)navigator.clipboard.writeText(location.href).then(done).catch(done);else done();
 });
+document.getElementById('col-btn').addEventListener('click',()=>{
+  const menu=document.getElementById('col-menu');
+  if(menu.style.display==='none'){renderColMenu();menu.style.display='block';}
+  else menu.style.display='none';
+});
+document.getElementById('col-menu').addEventListener('change',(e)=>{
+  const c=e.target.closest('input[data-col]');if(!c)return;
+  if(VISIBLE_COLS===null)VISIBLE_COLS=state.columns.map(x=>x.label);
+  if(c.checked){if(!VISIBLE_COLS.includes(c.dataset.col))VISIBLE_COLS.push(c.dataset.col);}
+  else VISIBLE_COLS=VISIBLE_COLS.filter(l=>l!==c.dataset.col);
+  saveColumnPref();render();
+});
+document.addEventListener('click',(e)=>{
+  const menu=document.getElementById('col-menu');
+  if(menu.style.display!=='none'&&!e.target.closest('.col-wrap'))menu.style.display='none';
+});
 document.getElementById('views').addEventListener('change',(e)=>{const v=getViews()[Number(e.target.value)];if(v)applyView(v.query);});
 document.getElementById('view-save').addEventListener('click',()=>{
   const name=prompt('Name this view:');if(!name)return;
@@ -478,7 +522,7 @@ document.getElementById('new-tag-add').addEventListener('click',async()=>{
   document.getElementById('new-tag-name').value='';await refresh();renderTagRows();toast('Tag added');
 });
 
-initTheme();readURL();syncControls();renderViews();refresh();
+initTheme();readURL();syncControls();renderViews();loadColumnPref();loadColumns();refresh();
 timer=setInterval(()=>{if(!document.hidden)load();},3000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
 window.addEventListener('popstate',()=>{readURL();syncControls();refresh();});

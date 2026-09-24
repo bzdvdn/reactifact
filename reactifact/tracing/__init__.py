@@ -5,6 +5,7 @@ Package: models (`models`), delivery (`tracer`), storage (`store`), UI
 but without `web`, so that importing the package does not pull in FastAPI.
 """
 
+from .columns import TraceColumn
 from .langfuse import LangfuseTracer
 from .models import (
     AgentSpan,
@@ -41,6 +42,7 @@ __all__ = [
     "Tag",
     "TagAssignment",
     "TraceAnnotator",
+    "TraceColumn",
     "TraceReader",
     "TraceSink",
     "TraceStore",

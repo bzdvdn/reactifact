@@ -50,6 +50,7 @@
     </header>
     <main>
       <div class="card"><div class="card-head"><h2>Run</h2></div><div class="card-body"><div class="stats" id="meta"></div></div></div>
+      <div class="card" id="fields-card" style="display:none"><div class="card-head"><h2>Fields</h2><span class="hint">configured artifact columns (see <code>create_trace_router(columns=…)</code>)</span></div><div class="card-body"><div class="field-list" id="fields"></div></div></div>
       <div class="card"><div class="card-head"><h2>Review</h2><span class="hint">tag this run so you can find it later and fix the prompt/behaviour it exposes</span></div><div class="card-body"><div id="annot"></div></div></div>
       <div class="card">
         <div class="card-head">
@@ -195,9 +196,21 @@ function render(t){
     tile('tokens',String(tokens))+
     tile('session',escapeHtml(t.session_id||'—'))+
     tile('created',fmtTime(t.started_at));
+  renderFields(t.fields||{});
   renderAnnot(t.annotations||[]);
   const jp=document.getElementById('json-pre');if(jp)jp.textContent=JSON.stringify(t,null,2);
   renderWork();
+}
+function renderFields(fields){
+  const card=document.getElementById('fields-card');
+  const labels=Object.keys(fields||{});
+  if(!labels.length){card.style.display='none';return;}
+  card.style.display='block';
+  document.getElementById('fields').innerHTML=labels.map(k=>{
+    const v=fields[k];const empty=(v===undefined||v===null||v===''||v==='—');
+    return '<div class="field-row"><div class="fk">'+escapeHtml(k)+'</div>'+
+      '<div class="fv'+(empty?' empty':'')+'">'+escapeHtml(empty?'—':String(v))+'</div></div>';
+  }).join('');
 }
 function spanMatches(s,f){
   const hay=[s.agent,s.event_type,s.error||''];

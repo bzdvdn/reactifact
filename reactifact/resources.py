@@ -51,6 +51,7 @@ class RuntimeResources:
         context_builder: ContextBuilder | None = None,
         verification_threshold: float | None = None,
         redactor: Redactor | None = None,
+        trace_truncate: int | None = 1500,
         id_factory: IdFactory | None = None,
         **additional: Any,
     ):
@@ -67,6 +68,11 @@ class RuntimeResources:
         # persisted session. `None` (default) reproduces the pre-hook behavior.
         # See `reactifact.redaction`.
         self.redactor = redactor
+        # How many characters of an artifact's JSON (and an LLM response) are
+        # kept in a trace. `None` disables truncation. Larger values make
+        # configurable table columns / deep fields resolvable, at the cost of
+        # trace size.
+        self.trace_truncate = trace_truncate
         # Framework-wide pass/fail cutoff for `Verify` (verify.py): `None`
         # means "use Verify's own DEFAULT_THRESHOLD". A `Verify` instance's
         # own explicit `threshold=` still overrides this per agent.

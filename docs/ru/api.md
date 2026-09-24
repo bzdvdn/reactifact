@@ -55,7 +55,7 @@
 | --- | --- |
 | `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback |
 | `View` | результат типа-запроса (`context.view(...)`) |
-| `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении |
+| `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `trace_truncate=` ограничивает JSON артефактов/ответов в трейсе (`None` — без обрезки); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении |
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
 | `current_request()` | request-маппинг активного хода (то же, что `ProduceCall.request`) |
@@ -236,6 +236,7 @@ OTLP/Langfuse-приёмников.
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | чекпоинты всего контекста |
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
+| `TraceColumn` | настраиваемая колонка таблицы из артефактов для `create_trace_router(store, columns=[…])`: `label`, `field` (точечный путь, список→первый), `agent`, `type` (класс или имя), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда |
 
 ## Тестирование (reactifact.testing, §56)

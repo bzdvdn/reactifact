@@ -8,6 +8,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Configurable artifact columns in the traces table.** `create_trace_router(
+  store, columns=[TraceColumn(...)])` adds columns pulled from a run's
+  artifacts: each `TraceColumn` names an `agent`, artifact `type` (class or
+  name), `direction` (read/write/any) and a dotted `field` (a list step takes
+  its first element unless an explicit index is given). Values are computed
+  server-side per run and returned in each `/api/traces` item as `fields`
+  (`GET /api/columns` lists the labels); the dashboard renders them with a
+  per-browser column chooser. `scope="session"` resolves a column as of the
+  row's run (every run up to it, chronological; read order reversed so the
+  triggering artifact is the most recent and `index=-1` means "latest so far").
+  A chat is many runs and a HITL clarify splits one exchange into two (ask
+  turn, then resume), so `Question` is the message that started the current
+  exchange (shown on the resume row too) and `Answer` the latest reply so far.
+  The run page also shows
+  the configured columns as a **Fields** card (`/api/traces/{id}` carries
+  `fields`), so the question — and a HITL clarify, via a `PendingQuestion`
+  column — are visible when opening a run, not just in the list.
+  `RuntimeResources(trace_truncate=…)` now controls how much artifact/response
+  JSON a trace keeps (`None` = no clip), so deep fields stay resolvable. The
+  `devops` example shows the question, the pending clarify question and the
+  final answer; `repair` (which now mounts the trace dashboard) shows the
+  question, the flow stage, the pending approval and the final answer.
 - `ScenarioResult.report` / `Scenario.report` return a `ScenarioReport`: token
   totals (`prompt_tokens`/`completion_tokens`/`total_tokens`), `llm_calls`,
   `tool_calls`, `spans`, `agents`, `errors` and `outcomes` for a turn — or

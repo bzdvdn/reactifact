@@ -96,6 +96,54 @@ tables (created and migrated automatically), Postgres mirrors them as
 `TEXT`/`TIMESTAMPTZ` with cascading deletes. Point `create_trace_router` at
 either and the review workflow behaves identically.
 
+### Configurable columns from artifacts
+
+Give the traces table columns pulled from the run's artifacts — e.g. the user's
+question and the final answer:
+
+```python
+from reactifact.tracing import TraceColumn
+
+app.include_router(create_trace_router(
+    store,
+    columns=[
+        TraceColumn(label="Question", agent="route", type=UserMsg,
+                    field="text", direction="read"),
+        TraceColumn(label="Answer", type=ChatReply, field="text"),
+    ],
+))
+```
+
+A `TraceColumn` names the column and where its value comes from: which agent's
+span, which artifact `type` (a class or its name), `direction` (`read` / `write`
+/ `any`), and a dotted `field` into the artifact's data. A list step takes its
+first element unless an explicit index is given, so `sources.title` means
+`sources[0].title` and `sources.1.title` the second. Several matches: `index`
+defaults to the last. A missing artifact, a `—` default, or JSON cut off by the
+trace size limit all fall back to `default`.
+
+`scope="session"` resolves a column **as of** the row's run: it looks at every
+run up to and including that one, in chronological order, instead of just the
+row's run. The read order is reversed, so the triggering artifact (recorded
+first) is treated as the most recent and the default `index=-1` means "latest
+so far". A chat is many turns, and a HITL clarify splits one exchange into two
+runs (the ask turn, then the resume turn) — so `Question` = the message that
+started the current exchange (`index=-1`), shown on the resume row too, and
+`Answer` = the latest reply so far (`—` until it exists).
+
+Columns are computed server-side per run and returned in each `/api/traces`
+item as `fields` (`GET /api/columns` lists the labels). The dashboard renders
+them in the list (with a **column chooser**, visibility persisted per browser)
+and, on the run page, as a **Fields** card — so the question/answer (and a HITL
+clarify, e.g. a `PendingQuestion` column) are visible on the run too, not just
+the list. Values
+come from the JSON persisted with each span, clipped by
+`RuntimeResources(trace_truncate=…)` (default 1500 chars; `None` disables the
+clip) — raise it if a deep/large field must resolve.
+
+The `devops` and `repair` examples wire this up (`Question` + `Answer`, and the
+latter also `Stage` + a pending HITL `Pending`).
+
 ### Langfuse and Postgres as additional sinks
 
 A trace can go to several places at once via `CompositeTracer`, passed to the

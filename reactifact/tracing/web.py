@@ -22,12 +22,14 @@ the router is created (a web app).
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from .columns import TraceColumn
 from .store import TraceStoreProtocol
 
 if TYPE_CHECKING:
@@ -67,11 +69,16 @@ class TagPatch(BaseModel):
 def create_trace_router(
     store: TraceStoreProtocol,
     *,
+    columns: Sequence[TraceColumn] | None = None,
     username: str | None = None,
     password: str | None = None,
     export_limit: int = 500,
 ) -> APIRouter:
     """Router over a trace store (SQLite or Postgres).
+
+    `columns` adds configurable, artifact-derived columns to the traces table
+    (see `TraceColumn`): each names an agent/artifact type/field, computed
+    server-side per run and shown in the UI (which can hide/reorder them).
 
     Returns `fastapi.APIRouter`; fastapi is imported here (lazily)
     so that `reactifact.tracing.web` works without it.
@@ -137,6 +144,7 @@ def create_trace_router(
             q=q,
             sort=sort,
             order=order,
+            columns=columns,
             limit=limit,
             offset=offset,
         )
@@ -200,12 +208,20 @@ def create_trace_router(
     ) -> dict[str, Any]:
         return await store.sessions(q=q, limit=limit, offset=offset)
 
+    @router.get("/api/columns")
+    async def list_columns() -> dict[str, Any]:
+        items = [{"label": column.label} for column in (columns or [])]
+        return {"items": items, "total": len(items)}
+
     @router.get("/api/traces/{trace_id}")
     async def get_trace(trace_id: str) -> dict[str, Any]:
         trace = await store.get(trace_id)
         if trace is None:
             raise HTTPException(status_code=404, detail="trace not found")
-        return trace.to_dict()
+        data = trace.to_dict()
+        if columns:
+            data["fields"] = await store.field_values(trace_id, columns)
+        return data
 
     # ---- annotation writes ------------------------------------------------- #
 

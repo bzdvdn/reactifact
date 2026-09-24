@@ -20,10 +20,12 @@ import asyncio
 import json
 import sqlite3
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
     AgentSpan,
     ArtifactRef,
@@ -83,11 +85,16 @@ class TraceReader(Protocol):
         q: str | None = None,
         sort: str = "started_at",
         order: str = "desc",
+        columns: Sequence[TraceColumn] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]: ...
 
     async def get(self, trace_id: str) -> RunTrace | None: ...
+
+    async def field_values(
+        self, run_id: str, columns: Sequence[TraceColumn]
+    ) -> dict[str, str]: ...
 
     async def sessions(
         self,
@@ -240,6 +247,7 @@ class TraceStore:
         q: str | None = None,
         sort: str = "started_at",
         order: str = "desc",
+        columns: Sequence[TraceColumn] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -252,12 +260,18 @@ class TraceStore:
             q,
             sort,
             order,
+            columns,
             limit,
             offset,
         )
 
     async def get(self, trace_id: str) -> RunTrace | None:
         return await asyncio.to_thread(self._get_sync, trace_id)
+
+    async def field_values(
+        self, run_id: str, columns: Sequence[TraceColumn]
+    ) -> dict[str, str]:
+        return await asyncio.to_thread(self._field_values_for_run_sync, run_id, columns)
 
     async def sessions(
         self,
@@ -419,6 +433,7 @@ class TraceStore:
         q: str | None,
         sort: str,
         order: str,
+        columns: Sequence[TraceColumn] | None,
         limit: int,
         offset: int,
     ) -> dict[str, Any]:
@@ -450,7 +465,13 @@ class TraceStore:
             f"FROM runs{where_sql} ORDER BY {sort_col} {direction} LIMIT ? OFFSET ?",
             (*args, limit, offset),
         ).fetchall()
-        tags_by_run = self._tags_by_run([row[0] for row in rows])
+        run_ids = [row[0] for row in rows]
+        tags_by_run = self._tags_by_run(run_ids)
+        fields_by_run = (
+            self._field_values(run_ids, {row[0]: row[1] for row in rows}, columns)
+            if columns
+            else {}
+        )
         items = [
             {
                 "id": row[0],
@@ -462,10 +483,108 @@ class TraceStore:
                 "completion_tokens": row[6],
                 "spans": row[7],
                 "tags": tags_by_run.get(row[0], []),
+                "fields": fields_by_run.get(row[0], {}),
             }
             for row in rows
         ]
         return {"items": items, "total": total, "stats": stats}
+
+    def _run_span_artifacts(self, run_ids: list[str]) -> dict[str, list[SpanArtifacts]]:
+        if not run_ids:
+            return {}
+        placeholders = ",".join("?" for _ in run_ids)
+        rows = self._conn.execute(
+            "SELECT run_id, agent, reads, writes FROM spans "
+            f"WHERE run_id IN ({placeholders}) ORDER BY id",
+            tuple(run_ids),
+        ).fetchall()
+        spans_by_run: dict[str, list[SpanArtifacts]] = {}
+        for run_id, agent, reads, writes in rows:
+            spans_by_run.setdefault(run_id, []).append(
+                SpanArtifacts(
+                    agent=agent,
+                    reads=[ArtifactRef(**d) for d in json.loads(reads)],
+                    writes=[ArtifactRef(**d) for d in json.loads(writes)],
+                )
+            )
+        return spans_by_run
+
+    def _session_span_artifacts(
+        self, session_ids: list[str]
+    ) -> dict[str, list[tuple[str, list[SpanArtifacts]]]]:
+        """Per session, its runs' spans in chronological run order.
+
+        Kept as `[(run_id, spans), …]` (not flattened) so a column can be
+        resolved *as of* a specific run: only runs up to and including it.
+        """
+        if not session_ids:
+            return {}
+        placeholders = ",".join("?" for _ in session_ids)
+        run_rows = self._conn.execute(
+            "SELECT id, session_id FROM runs "
+            f"WHERE session_id IN ({placeholders}) ORDER BY started_at ASC, id ASC",
+            tuple(session_ids),
+        ).fetchall()
+        spans_by_run = self._run_span_artifacts([r[0] for r in run_rows])
+        out: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
+        for session_id in session_ids:
+            out[session_id] = [
+                (run_id, spans_by_run.get(run_id, []))
+                for run_id, sid in run_rows
+                if sid == session_id
+            ]
+        return out
+
+    @staticmethod
+    def _session_prefix(
+        ordered: list[tuple[str, list[SpanArtifacts]]], run_id: str
+    ) -> list[SpanArtifacts]:
+        """Every span of the session up to and including `run_id`."""
+        out: list[SpanArtifacts] = []
+        for rid, spans in ordered:
+            out.extend(spans)
+            if rid == run_id:
+                break
+        return out
+
+    def _field_values_for_run_sync(
+        self, run_id: str, columns: Sequence[TraceColumn]
+    ) -> dict[str, str]:
+        row = self._conn.execute(
+            "SELECT session_id FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        if row is None:
+            return {}
+        return self._field_values([run_id], {run_id: row[0]}, columns).get(run_id, {})
+
+    def _field_values(
+        self,
+        run_ids: list[str],
+        run_sessions: dict[str, str],
+        columns: Sequence[TraceColumn],
+    ) -> dict[str, dict[str, str]]:
+        """Computes the configured artifact columns for each run (page-scoped)."""
+        if not run_ids:
+            return {}
+        spans_by_run = self._run_span_artifacts(run_ids)
+        needs_session = any(column.scope == "session" for column in columns)
+        session_order: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
+        if needs_session:
+            sessions = sorted({s for s in run_sessions.values() if s})
+            session_order = self._session_span_artifacts(sessions)
+        out: dict[str, dict[str, str]] = {}
+        for run_id in run_ids:
+            session_spans: list[SpanArtifacts] | None = None
+            if needs_session:
+                ordered = session_order.get(run_sessions.get(run_id, ""))
+                if ordered is not None:
+                    session_spans = self._session_prefix(ordered, run_id)
+            out[run_id] = extract_columns(
+                spans_by_run.get(run_id, []),
+                columns,
+                session_spans=session_spans,
+            )
+        return out
 
     def _get_sync(self, trace_id: str) -> RunTrace | None:
         row = self._conn.execute(

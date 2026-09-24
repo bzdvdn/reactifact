@@ -18,9 +18,11 @@ be shared across requests.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
     AgentSpan,
     ArtifactRef,
@@ -238,6 +240,7 @@ class PostgresStore:
         q: str | None = None,
         sort: str = "started_at",
         order: str = "desc",
+        columns: Sequence[TraceColumn] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -287,6 +290,69 @@ class PostgresStore:
                         tags_by_run.setdefault(run_id, []).append(
                             {"tag": tag, "note": note, "color": color}
                         )
+                fields_by_run: dict[str, dict[str, str]] = {}
+                if run_ids and columns:
+                    placeholders = ",".join("%s" for _ in run_ids)
+                    await cur.execute(
+                        "SELECT run_id, agent, reads, writes FROM spans "
+                        f"WHERE run_id IN ({placeholders}) ORDER BY id",
+                        tuple(run_ids),
+                    )
+                    spans_by_run: dict[str, list[SpanArtifacts]] = {}
+                    for run_id, agent, reads, writes in await cur.fetchall():
+                        spans_by_run.setdefault(run_id, []).append(
+                            SpanArtifacts(
+                                agent=agent,
+                                reads=[ArtifactRef(**d) for d in reads],
+                                writes=[ArtifactRef(**d) for d in writes],
+                            )
+                        )
+                    needs_session = any(c.scope == "session" for c in columns)
+                    session_order: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
+                    if needs_session:
+                        sessions = sorted({r[1] for r in rows if r[1]})
+                        for sid in sessions:
+                            await cur.execute(
+                                "SELECT id FROM runs WHERE session_id = %s "
+                                "ORDER BY started_at ASC, id ASC",
+                                (sid,),
+                            )
+                            ordered = [x[0] for x in await cur.fetchall()]
+                            if not ordered:
+                                continue
+                            sph = ",".join("%s" for _ in ordered)
+                            await cur.execute(
+                                "SELECT run_id, agent, reads, writes FROM spans "
+                                f"WHERE run_id IN ({sph}) ORDER BY id",
+                                tuple(ordered),
+                            )
+                            by_run: dict[str, list[SpanArtifacts]] = {}
+                            for run_id, agent, reads, writes in await cur.fetchall():
+                                by_run.setdefault(run_id, []).append(
+                                    SpanArtifacts(
+                                        agent=agent,
+                                        reads=[ArtifactRef(**d) for d in reads],
+                                        writes=[ArtifactRef(**d) for d in writes],
+                                    )
+                                )
+                            session_order[sid] = [
+                                (rid, by_run.get(rid, [])) for rid in ordered
+                            ]
+                    for row in rows:
+                        session_spans: list[SpanArtifacts] | None = None
+                        if needs_session:
+                            ordered = session_order.get(row[1])
+                            if ordered is not None:
+                                session_spans = []
+                                for rid, spans in ordered:
+                                    session_spans.extend(spans)
+                                    if rid == row[0]:
+                                        break
+                        fields_by_run[row[0]] = extract_columns(
+                            spans_by_run.get(row[0], []),
+                            columns,
+                            session_spans=session_spans,
+                        )
         finally:
             await conn.close()
 
@@ -301,6 +367,7 @@ class PostgresStore:
                 "completion_tokens": r[6],
                 "spans": r[7],
                 "tags": tags_by_run.get(r[0], []),
+                "fields": fields_by_run.get(r[0], {}),
             }
             for r in rows
         ]
@@ -373,6 +440,63 @@ class PostgresStore:
             spans=spans,
             annotations=annotations,
         )
+
+    async def field_values(
+        self, run_id: str, columns: Sequence[TraceColumn]
+    ) -> dict[str, str]:
+        if not columns:
+            return {}
+        await self._ensure_schema()
+        conn = await self._psycopg.AsyncConnection.connect(self.dsn)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT session_id FROM runs WHERE id = %s", (run_id,)
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    return {}
+                session_id = row[0]
+
+                async def spans_of(
+                    run_ids: list[str],
+                ) -> dict[str, list[SpanArtifacts]]:
+                    placeholders = ",".join("%s" for _ in run_ids)
+                    await cur.execute(
+                        "SELECT run_id, agent, reads, writes FROM spans "
+                        f"WHERE run_id IN ({placeholders}) ORDER BY id",
+                        tuple(run_ids),
+                    )
+                    out: dict[str, list[SpanArtifacts]] = {}
+                    for rid, agent, reads, writes in await cur.fetchall():
+                        out.setdefault(rid, []).append(
+                            SpanArtifacts(
+                                agent=agent,
+                                reads=[ArtifactRef(**d) for d in reads],
+                                writes=[ArtifactRef(**d) for d in writes],
+                            )
+                        )
+                    return out
+
+                run_spans = (await spans_of([run_id])).get(run_id, [])
+                session_spans: list[SpanArtifacts] | None = None
+                if session_id and any(c.scope == "session" for c in columns):
+                    await cur.execute(
+                        "SELECT id FROM runs WHERE session_id = %s "
+                        "ORDER BY started_at ASC, id ASC",
+                        (session_id,),
+                    )
+                    ordered = [r[0] for r in await cur.fetchall()]
+                    if ordered:
+                        by_run = await spans_of(ordered)
+                        session_spans = []
+                        for rid in ordered:
+                            session_spans.extend(by_run.get(rid, []))
+                            if rid == run_id:
+                                break
+        finally:
+            await conn.close()
+        return extract_columns(run_spans, columns, session_spans=session_spans)
 
     async def sessions(
         self,

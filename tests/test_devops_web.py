@@ -113,6 +113,60 @@ def test_runs_routes(tmp_path):
     assert client.get("/api/runs/s3").json()["messages"] == []
 
 
+def test_traces_table_shows_question_and_answer_columns(tmp_path):
+    """The devops example configures Question/Answer columns for the table."""
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"tool_call","tool":"kubectl_get","args":{"resource":"pods","namespace":"production"}}',
+            '{"type":"answer","text":"В production всё ок"}',
+        ]
+    )
+    app = create_app(llm=llm, store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST", "/api/chat/stream", json={"message": "упал под", "session_id": "sq"}
+    ) as response:
+        "".join(response.iter_text())
+
+    columns = client.get("/api/columns").json()["items"]
+    assert [c["label"] for c in columns] == ["Question", "Pending", "Answer"]
+
+    top = client.get("/api/traces").json()["items"][0]
+    assert top["fields"]["Question"] == "упал под"
+    assert top["fields"]["Answer"] == "В production всё ок"
+
+
+def test_trace_detail_shows_pending_question_column(tmp_path):
+    """The HITL ask run surfaces the clarify question as a `Pending` field."""
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"ask","text":"В каком namespace?"}',
+            '{"type":"tool_call","tool":"kubectl_get","args":{"resource":"pods","namespace":"production"}}',
+            '{"type":"answer","text":"готово"}',
+        ]
+    )
+    app = create_app(llm=llm, store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST", "/api/chat/stream", json={"message": "упал под", "session_id": "sp"}
+    ) as response:
+        "".join(response.iter_text())  # the ask turn: waiting
+
+    assert [c["label"] for c in client.get("/api/columns").json()["items"]] == [
+        "Question",
+        "Pending",
+        "Answer",
+    ]
+    top = client.get("/api/traces").json()["items"][0]
+    detail = client.get("/api/traces/" + top["id"]).json()
+    assert detail["fields"]["Question"] == "упал под"
+    assert detail["fields"]["Pending"] == "В каком namespace?"
+
+
 def test_traces_ui_and_api(tmp_path):
     """Traces are written and served via /traces and /api/traces."""
     from examples.devops.web import create_app as create_devops_app

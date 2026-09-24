@@ -32,6 +32,8 @@ from reactifact.providers import (
     openai_llm,
     openrouter_llm,
 )
+from reactifact.tracing import TraceColumn, Tracer, TraceStore
+from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
 
 
@@ -121,6 +123,9 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
     store = SessionStore(
         FileKVBackend(str(Path(store_dir) if store_dir else ROOT / "sessions"))
     )
+    trace_store = TraceStore(
+        str(Path(store_dir) / "traces.db") if store_dir else str(ROOT / "traces.db")
+    )
 
     assistant = ChatAssistant(
         store=store,
@@ -131,9 +136,42 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         resources=lambda: _resources(active_llm),
         budget=Budget(max_runs=200),
         max_concurrency=2,
+        tracer=lambda: Tracer(store=trace_store),
     )
 
     app = FastAPI(title="repair-ai (reactifact)")
+    app.include_router(
+        create_trace_router(
+            trace_store,
+            # The same configurable columns as devops, tuned to the repair flow:
+            # the user's question (session-scoped), the stage this run reached,
+            # a pending HITL approval question, and the session's final reply.
+            columns=[
+                TraceColumn(
+                    label="Question",
+                    agent="repair_flow",
+                    type=UserMsg,
+                    field="text",
+                    direction="read",
+                    scope="session",
+                ),
+                TraceColumn(
+                    label="Stage",
+                    agent="repair_flow",
+                    type=Project,
+                    field="stage",
+                    direction="write",
+                ),
+                TraceColumn(label="Pending", type="PendingQuestion", field="question"),
+                TraceColumn(
+                    label="Answer",
+                    type=ChatReply,
+                    field="text",
+                    scope="session",
+                ),
+            ],
+        )
+    )
     app.include_router(create_chat_router(assistant))
 
     @app.get("/api/runs/{session_id}/estimate.csv")

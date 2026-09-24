@@ -53,6 +53,32 @@ def test_sse_missing_facts_asks(tmp_path):
     assert "Уточните" in body
 
 
+def test_traces_with_repair_columns(tmp_path):
+    """The repair example wires the trace dashboard with Question/Stage/… columns."""
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "нужно отремонтировать комнату 18 кв м", "session_id": "rt"},
+    ) as response:
+        "".join(response.iter_text())
+
+    assert [c["label"] for c in client.get("/api/columns").json()["items"]] == [
+        "Question",
+        "Stage",
+        "Pending",
+        "Answer",
+    ]
+    top = client.get("/api/traces").json()["items"][0]
+    assert top["fields"]["Question"].startswith("нужно отремонтировать")
+    assert top["fields"]["Stage"] == "collect"
+    detail = client.get("/api/traces/" + top["id"]).json()
+    assert detail["fields"]["Question"].startswith("нужно отремонтировать")
+    assert "Fields" in client.get("/traces/" + top["id"]).text
+
+
 def test_runs_routes(tmp_path):
     app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
     client = TestClient(app)
