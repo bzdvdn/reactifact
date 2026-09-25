@@ -2,7 +2,7 @@
   <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to artifacts, not graphs" width="800">
 </p>
 
-**Event-driven agents for Python developers — tasks wake on typed artifacts, like Celery tasks wake on messages. No graph to draw.**
+**Auditable agents for Python.** Build **knowledge assistants** over docs, spreadsheets and the web — where the path per question isn't a graph you can draw. Every answer is computed, versioned and reproducible — not a string you have to trust.
 
 [![CI](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml/badge.svg)](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/bzdvdn/reactifact/graph/badge.svg)](https://codecov.io/gh/bzdvdn/reactifact)
@@ -12,29 +12,15 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bzdvdn/reactifact)
 [![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
-Python developers already know this model from Celery: define a **task**,
-declare what triggers it, let the runtime run it. reactifact applies it to agents — a task
-reacts to a **typed, versioned artifact** appearing in the context, not to a
-queue message you push or a graph edge you draw. The runtime derives what runs
-next from state.
+> **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · runs offline, no API key
+> **Isn't:** a managed platform · a distributed task queue · a pre-built agent/tool marketplace
 
-| Celery | reactifact |
-| --- | --- |
-| a task | `@produce(Model)` — a unit of work that writes an artifact |
-| `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
-| routing key / queue | `Consume(Type)` — which artifact type wakes the task |
-| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
-| retries, `acks_late` | guards + `Budget`, an honest `None` instead of a wrong result |
-| result backend | the `Context` — typed, versioned artifacts |
-| worker | `Runtime` |
+A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy doc and a page off the web — and the *next* question needs a different subset. That is not one graph you can draw up front. You declare what artifacts exist and what agents can do with them; the runtime derives the order from state.
 
-Single process today (no broker, no worker pool) — the *model* is Celery-shaped,
-not its distributed runtime.
-
-On top of that model you get something a task queue doesn't: every artifact is
-**versioned with provenance**, so a run is reproducible (`context_hash`) and
-auditable (`audit.report`) for free. The model reasons; the arithmetic stays
-deterministic; every claim carries provenance.
+Every derived artifact then links to what produced it
+(`Answer —supported_by→ Evidence —extracted_from→ Doc`), so *"why did it say
+that?"* is a query, not a guess — and the run is reproducible (`context_hash`)
+and verifiable (`reactifact replay --verify`).
 
 ## On top: a provable answer
 
@@ -86,12 +72,45 @@ print(report_to_markdown(build_report(ctx, answer)))  # hash per artifact + edge
 print(context_hash(ctx))                              # reproducible fingerprint
 ```
 
+## Knowledge assistants, live
+
+The same shape over many sources, not a fixed path — the
+[`knowledge`](examples/knowledge) CLI answers a harder, multi-source question
+(docs + a CSV) with a real computed number and its sources, no LLM key required:
+
+![CLI demo: asking "how much does gpu cost in total?" — the runtime searches docs and a spreadsheet, computes the sum, verifies it, and answers with sources.](docs/img/knowledge-cli-demo.gif)
+
 ![Left: a hand-wired fetch → verify → answer pipeline. Right: reactifact — search_agent and answer_agent each declare only what they consume and produce, wired together by Context, never each other.](docs/img/wiring.svg)
 
 Two agents explore independently on their own forks and merge back automatically
 — and when they disagree, reactifact refuses to merge silently:
 
 ![forklab demo: two strategies (depth/breadth) investigate on separate forks and merge cleanly; a second run edits the same artifact on both forks and reactifact raises MergeConflict instead of guessing, then re-merges under an explicit policy.](docs/img/forklab-demo.gif)
+
+<details>
+<summary><strong>If you know Celery…</strong> — the programming model, not its distributed runtime</summary>
+
+Python developers already know this model from Celery: define a **task**,
+declare what triggers it, let the runtime run it. reactifact applies it to
+agents — a task reacts to a **typed, versioned artifact** appearing in the
+context, not to a queue message you push or a graph edge you draw. The runtime
+derives what runs next from state.
+
+| Celery | reactifact |
+| --- | --- |
+| a task | `@produce(Model)` — a unit of work that writes an artifact |
+| `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
+| routing key / queue | `Consume(Type)` — which artifact type wakes the task |
+| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
+| result backend | the `Context` — typed, versioned artifacts |
+| worker | `Runtime` |
+
+**Not inherited:** a broker, a worker pool, `acks_late`/redelivery, cross-process
+exactly-once. reactifact is a library with an in-process runtime — the *model* is
+Celery-shaped, the deployment is not. (Session-backed runs do survive a restart;
+see [Durability & resume](docs/en/durability.md).)
+
+</details>
 
 ```bash
 pip install reactifact
@@ -158,12 +177,6 @@ evidence = ctx.related(answer.id, "supported_by")[0]
 print(answer.data.text)                     # "Refunds are available within 14 days of purchase."
 print("supported_by:", evidence.data.text)  # provenance you can trace, not just a string in a log
 ```
-
-The same idea, live — the [`knowledge`](examples/knowledge) example's CLI answering a
-harder, multi-source question (docs + a CSV) with a real computed number and
-its sources, no LLM key required:
-
-![CLI demo: asking "how much does gpu cost in total?" — the runtime searches docs and a spreadsheet, computes the sum, verifies it, and answers with sources.](docs/img/knowledge-cli-demo.gif)
 
 ## How it works
 
@@ -310,6 +323,14 @@ uv sync --extra dev --extra web
 .venv/bin/mypy
 .venv/bin/ruff check
 ```
+
+## Status & contributing
+
+Active, `0.12.x`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
+(see the [roadmap](docs/roadmap.md)); releases follow
+[Keep a Changelog](CHANGELOG.md). Questions and design discussion live in
+[GitHub Discussions](https://github.com/bzdvdn/reactifact/discussions); a star,
+or a `good first issue`, helps more than you'd think.
 
 ## License
 

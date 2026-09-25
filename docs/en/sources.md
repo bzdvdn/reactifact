@@ -16,9 +16,10 @@ from reactifact.sources import CSVSource, EmbeddingSource, FileSystemSource, Web
 ctx = Context(
     resources=RuntimeResources(
         sources={
-            "docs": FileSystemSource("./docs", embedder=embedder),  # optional
-            "catalog": CSVSource("data/price.csv", key="sku", columns=...),
-            "web": WebSource(...),
+            "docs": FileSystemSource("./docs"),                 # keyword by default
+            "catalog": CSVSource("data/"),                      # a directory of .csv files
+            "rag": EmbeddingSource("data/", embedder=embedder),  # vector search needs an embedder
+            "web": WebSource(["https://example.com/docs"]),     # pages are fetched lazily
         }
     )
 )
@@ -30,12 +31,13 @@ The shared result of *every* search is a `SourceRef` — a ranked, scoped pointe
 
 ```python
 class SourceRef(BaseModel):
-    source_id: str      # which source produced it
-    payload: str        # small preview/test snippet
-    uid: str            # stable document uid inside the source
-    score: float | None # rank/hit score, if the source scores
-    query: str | None   # the query that found it
-    metadata: dict      # owner_id scoping, extra context
+    source_id: str         # which source produced it
+    locator: str           # stable locator inside the source (path / URL / id)
+    metadata: dict         # owner_id scoping, structured flag, extra context
+    score: float | None    # rank/hit score, if the source scores
+    title: str             # optional display title
+    excerpt: str           # small preview snippet
+    query_id: str          # the query that found it
 ```
 
 `SourceRef.stable_id()` lets you build deterministic artifact ids
@@ -46,7 +48,7 @@ idempotent.
 
 | Source | Purpose | Notes |
 | --- | --- | --- |
-| `FileSystemSource` | keyword (and optional embedding) search over local files | `embedder` optional; scores hits |
+| `FileSystemSource` | keyword search over local files | `scorer` optional; keyword overlap by default |
 | `EmbeddingSource` | vector search over an in-memory or prepared corpus | needs an `EmbeddingProvider` |
 | `CSVSource` | query catalog/price rows, returns structured rows | deterministic, no embeddings |
 | `WebSource` | live web: search + **lazy** page resolution | fetches the *promised* docs on demand |

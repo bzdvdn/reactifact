@@ -16,9 +16,10 @@ from reactifact.sources import CSVSource, EmbeddingSource, FileSystemSource, Web
 ctx = Context(
     resources=RuntimeResources(
         sources={
-            "docs": FileSystemSource("./docs", embedder=embedder),  # опционально
-            "catalog": CSVSource("data/price.csv", key="sku", columns=...),
-            "web": WebSource(...),
+            "docs": FileSystemSource("./docs"),                 # по ключевым словам по умолчанию
+            "catalog": CSVSource("data/"),                      # каталог с .csv-файлами
+            "rag": EmbeddingSource("data/", embedder=embedder),  # векторный поиск требует embedder
+            "web": WebSource(["https://example.com/docs"]),     # страницы тянутся лениво
         }
     )
 )
@@ -31,12 +32,13 @@ ctx = Context(
 
 ```python
 class SourceRef(BaseModel):
-    source_id: str      # какой источник его произвёл
-    payload: str        # маленький превью/тестовый фрагмент
-    uid: str            # стабильный uid документа внутри источника
-    score: float | None # ранг/оценка совпадения, если источник скорирует
-    query: str | None   # запрос, который его нашёл
-    metadata: dict      # owner_id-скоуп, дополнительный контекст
+    source_id: str         # какой источник его произвёл
+    locator: str           # стабильный локатор внутри источника (путь / URL / id)
+    metadata: dict         # owner_id-скоуп, флаг structured, доп. контекст
+    score: float | None    # ранг/оценка совпадения, если источник скорирует
+    title: str             # опциональный заголовок
+    excerpt: str           # маленький превью-фрагмент
+    query_id: str          # запрос, который его нашёл
 ```
 
 `SourceRef.stable_id()` позволяет строить детерминированные id артефактов
@@ -47,7 +49,7 @@ class SourceRef(BaseModel):
 
 | Источник | Назначение | Примечания |
 | --- | --- | --- |
-| `FileSystemSource` | поиск по ключевым словам (и, опционально, эмбединг) по локальным файлам | `embedder` опционален; скорирует совпадения |
+| `FileSystemSource` | поиск по ключевым словам по локальным файлам | `scorer` опционален; по умолчанию — пересечение слов |
 | `EmbeddingSource` | векторный поиск по подготовленному корпусу | нужен `EmbeddingProvider` |
 | `CSVSource` | запрос к каталогу/таблице, возвращает структурированные строки | детерминированно, без эмбеддингов |
 | `WebSource` | живой веб: поиск + **ленивое** разрешение страниц | тянет *обещанные* документы по требованию |

@@ -1,13 +1,31 @@
 # reactifact
 
-**Event-driven agents for Python developers — tasks wake on typed artifacts, like
-Celery tasks wake on messages. No graph to draw.**
+**Auditable agents for Python.** Build **knowledge assistants** over docs,
+spreadsheets and the web — where the path per question isn't a graph you can
+draw. Every answer is computed, versioned and reproducible — not a string you
+have to trust.
 
-Python developers already know this model from Celery: define a **task**,
-declare what triggers it, let the runtime run it. `reactifact` applies it to agents — a task
-reacts to a **typed, versioned artifact** appearing in the context, not to a
-queue message you push or a graph edge you draw. The runtime derives what runs
-next from state.
+> **Is:** a Python library (3 core deps) · single-process · typed, versioned
+> artifacts with provenance · deterministic replay · runs offline, no API key
+> **Isn't:** a managed platform · a distributed task queue · a pre-built
+> agent/tool marketplace
+
+A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy
+doc and a page off the web — and the *next* question needs a different subset.
+That is not one graph you can draw up front. You declare what artifacts exist and
+what agents can do with them; the runtime derives the order from state. Every
+derived artifact then links to what produced it
+(`Answer —supported_by→ Evidence —extracted_from→ Doc`), so *"why did it say
+that?"* is a query, not a guess — and the run is reproducible (`context_hash`)
+and verifiable (`reactifact replay --verify`).
+
+<details>
+<summary><strong>If you know Celery…</strong> — the programming model, not its distributed runtime</summary>
+
+Python developers already know this model from Celery: define a **task**, declare
+what triggers it, let the runtime run it. `reactifact` applies it to agents: a
+task reacts to a **typed, versioned artifact** in the context, not to a queued
+message or a graph edge.
 
 | Celery | reactifact |
 | --- | --- |
@@ -15,17 +33,13 @@ next from state.
 | `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
 | routing key / queue | `Consume(Type)` — which artifact type wakes the task |
 | chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
-| retries, `acks_late` | guards + `Budget`, an honest `None` instead of a wrong result |
 | result backend | the `Context` — typed, versioned artifacts |
 | worker | `Runtime` |
 
-Single process today (no broker, no worker pool) — the *model* is Celery-shaped,
-not its distributed runtime.
+**Not inherited:** a broker, a worker pool, `acks_late`/redelivery, cross-process
+exactly-once — the *model* is Celery-shaped, the deployment is not.
 
-On top of that model you get something a task queue doesn't: every artifact is
-**versioned with provenance**, so a run is reproducible (`context_hash`) and
-auditable (`audit.report`) for free. The model reasons; the deterministic parts
-stay in code; every claim carries provenance.
+</details>
 
 ## On top: a provable answer
 
