@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img"
+     aria-label="reactifact — Stop drawing the graph. React to versioned, provable artifacts.">
+  <defs>
+    <linearGradient id="blob" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e4572e" stop-opacity="0.09"/>
+      <stop offset="55%" stop-color="#e4572e" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#1e8e6b" stop-opacity="0.07"/>
+    </linearGradient>
+    <linearGradient id="blob2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1e8e6b" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#e4572e" stop-opacity="0.04"/>
+    </linearGradient>
+    <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#14171c" opacity="0.07"/>
+    </pattern>
+    <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4">
+      <circle cx="5" cy="5" r="4" fill="#e4572e"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="640" fill="#fbfbfa"/>
+  <rect x="0" y="0" width="1280" height="640" fill="url(#dots)"/>
+
+  <!-- decorative blobs, right side, bleeding off edge like reference -->
+  <path d="M 980 -60 C 1180 -20 1340 140 1320 340 C 1300 540 1120 700 900 660 C 760 630 720 470 800 340 C 880 210 820 20 980 -60 Z"
+        fill="url(#blob)"/>
+  <path d="M 1120 120 C 1300 180 1360 400 1260 540 C 1180 650 1000 620 960 500 C 930 400 1040 60 1120 120 Z"
+        fill="url(#blob2)"/>
+
+  <!-- scattered squares like cubeloop reference -->
+  <rect x="70" y="72" width="14" height="14" rx="3" fill="#e4572e" opacity="0.35" transform="rotate(18 77 79)"/>
+  <circle cx="498" cy="80" r="5" fill="#1e8e6b" opacity="0.45"/>
+  <rect x="978" y="52" width="12" height="12" rx="3" fill="#14171c" opacity="0.18" transform="rotate(-10 984 58)"/>
+  <circle cx="180" cy="540" r="5" fill="#e4572e" opacity="0.4"/>
+  <rect x="46" y="560" width="16" height="16" rx="4" fill="#1e8e6b" opacity="0.3" transform="rotate(12 54 568)"/>
+
+  <!-- ============ ICON: a versioned, provable artifact ============ -->
+  <g transform="translate(120,140)">
+    <!-- v0: oldest version, furthest back, faint -->
+    <g transform="translate(0,26) rotate(-11 145 155)" opacity="0.28">
+      <rect x="26" y="20" width="218" height="294" rx="14" fill="#14171c"/>
+    </g>
+    <!-- v1: previous version, ghosted -->
+    <g transform="translate(14,13) rotate(-9 145 155)" opacity="0.5">
+      <rect x="26" y="20" width="218" height="294" rx="14" fill="#14171c"/>
+    </g>
+    <!-- v2: current version, solid on top -->
+    <g transform="rotate(-7 155 165)">
+      <path d="M40 20 H230 A14 14 0 0 1 244 34 V300 A14 14 0 0 1 230 314 H40 A14 14 0 0 1 26 300 V34 A14 14 0 0 1 40 20 Z"
+            fill="#14171c"/>
+      <!-- folded corner -->
+      <path d="M230 20 H244 V34 Z" fill="#fbfbfa"/>
+      <path d="M230 20 L244 34 H230 Z" fill="#3a3f47"/>
+      <!-- typed-artifact label chip -->
+      <rect x="56" y="52" width="94" height="30" rx="15" fill="none" stroke="#fbfbfa" stroke-width="2" opacity="0.9"/>
+      <text x="103" y="72" text-anchor="middle" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="15" font-weight="700" fill="#fbfbfa">Claim</text>
+      <!-- version tag, top right of the card face -->
+      <rect x="160" y="52" width="66" height="30" rx="15" fill="#e4572e"/>
+      <text x="193" y="72" text-anchor="middle" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="15" font-weight="700" fill="#fbfbfa">v2</text>
+      <!-- content lines on card -->
+      <rect x="56" y="110" width="150" height="10" rx="5" fill="#fbfbfa" opacity="0.55"/>
+      <rect x="56" y="132" width="110" height="10" rx="5" fill="#fbfbfa" opacity="0.35"/>
+    </g>
+
+    <!-- provable seal (ring + check) overlapping bottom-right of card -->
+    <circle cx="235" cy="300" r="58" fill="#fbfbfa"/>
+    <circle cx="235" cy="300" r="50" fill="#e4572e"/>
+    <path d="M210 300 L228 318 L262 280" fill="none" stroke="#fbfbfa" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- reacting artifact capsules, orbiting with spark links -->
+    <path d="M300 70 Q 340 40 372 66" fill="none" stroke="#1e8e6b" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"/>
+    <rect x="366" y="46" width="26" height="46" rx="13" fill="#1e8e6b"/>
+    <path d="M330 200 Q 372 190 388 220" fill="none" stroke="#e4572e" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"/>
+    <rect x="382" y="216" width="26" height="46" rx="13" fill="#e4572e"/>
+  </g>
+
+  <!-- ============ WORDMARK ============ -->
+  <g font-family="Arial, 'Helvetica Neue', sans-serif">
+    <text x="556" y="290" font-size="118" font-weight="800" fill="#14171c" letter-spacing="-2">reactifact</text>
+    <text x="558" y="342" font-size="27" font-weight="500" fill="#5b6472">Agents that react to artifacts, not graphs</text>
+  </g>
+
+  <line x1="556" y1="372" x2="1152" y2="372" stroke="#dde1e7" stroke-width="1.5"/>
+
+  <!-- reactive chain: produce -> consume -> produce, mirroring cubeloop's bottom bar -->
+  <g font-family="'IBM Plex Mono', ui-monospace, monospace">
+    <line x1="556" y1="420" x2="716" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="740" cy="420" r="11" fill="#e4572e"/>
+    <line x1="764" y1="420" x2="924" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="948" cy="420" r="11" fill="#1e8e6b"/>
+    <line x1="972" y1="420" x2="1132" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
+
+    <text x="556" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">produce</text>
+    <text x="716" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">consume</text>
+    <text x="924" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">produce</text>
+  </g>
+</svg>

@@ -1,0 +1,2277 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context">
+      
+      
+      
+        <link rel="canonical" href="https://bzdvdn.github.io/reactifact/en/migrating/">
+      
+      
+        <link rel="prev" href="../quickstart/">
+      
+      
+        <link rel="next" href="../comparison/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/reactifact-hero.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Migrating - reactifact</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#migrating-from-langgraph-crewai-llamaindex-plain-python" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="reactifact" class="md-header__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            reactifact
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Migrating
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../why-reactifact/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why reactifact
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../comparison/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Comparison
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../scheduler-semantics/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Execution model
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../effects/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../design-notes/adaptive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="reactifact" class="md-nav__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    reactifact
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-reactifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why reactifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-concept-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Concept map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-port-one-node-before-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Port one node (before → after)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-state-dict-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. State dict → artifacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-checkpointing-threads-time-travel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Checkpointing, threads, time-travel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-interrupts-human-in-the-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Interrupts → human-in-the-loop
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-rag-chain-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. RAG chain → sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-tool-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Tool loops
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-dont-go-all-or-nothing-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Don't go all-or-nothing (interop)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-ops-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Ops mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Migration checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Gotchas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-where-to-look-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Where to look next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduler-semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branching & merge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../durability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Durability & resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-generated reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/adaptive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adaptive scheduler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constitution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constitution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-concept-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Concept map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-port-one-node-before-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Port one node (before → after)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-state-dict-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. State dict → artifacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-checkpointing-threads-time-travel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Checkpointing, threads, time-travel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-interrupts-human-in-the-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Interrupts → human-in-the-loop
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-rag-chain-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. RAG chain → sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-tool-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Tool loops
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-dont-go-all-or-nothing-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Don't go all-or-nothing (interop)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-ops-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Ops mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Migration checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Gotchas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-where-to-look-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Where to look next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bzdvdn/reactifact/edit/master/docs/en/migrating.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="migrating-from-langgraph-crewai-llamaindex-plain-python">Migrating from LangGraph / CrewAI / LlamaIndex / plain Python<a class="headerlink" href="#migrating-from-langgraph-crewai-llamaindex-plain-python" title="Permanent link">&para;</a></h1>
+<p>You don't move everything at once. The recommended path is <strong>port one piece,
+keep it running next to the old code, and grow from there</strong> — reactifact is a
+library, it composes with whatever already works. This page is the <em>how</em>; the
+<a href="../port-matrix/">port matrix</a> is the <em>what maps to what</em>, and each pattern below
+links to a runnable example.</p>
+<p>If you only take one idea away:</p>
+<blockquote>
+<p><strong>State is primary, execution is derived.</strong> Instead of drawing what runs next,
+you declare what artifacts exist and what each agent consumes/produces; the
+runtime decides what runs from the state changes.</p>
+</blockquote>
+<h2 id="1-concept-map">1. Concept map<a class="headerlink" href="#1-concept-map" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>You have (LangGraph / LangChain / CrewAI / LlamaIndex)</th>
+<th>reactifact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>node + <code>add_edge</code> / <code>add_conditional_edges</code></td>
+<td>a <code>Produce</code> + a <code>Consume(Type)</code> — the edge <em>is</em> "who consumes this type"</td>
+</tr>
+<tr>
+<td>a shared <code>TypedDict</code>/dict state, mutated by nodes</td>
+<td>typed, versioned <code>Artifact</code>s in the <code>Context</code></td>
+</tr>
+<tr>
+<td>reducer (<code>Annotated[list, add]</code>)</td>
+<td><code>self.effects.create/update/link(...)</code> compiled into one atomic <code>Patch</code></td>
+</tr>
+<tr>
+<td>checkpointer / thread state</td>
+<td><code>Context</code> (git-like), <code>Session</code>/<code>SessionStore</code>, <code>context.branch()</code>/<code>merge()</code></td>
+</tr>
+<tr>
+<td><code>interrupt()</code> / <code>Command(resume=...)</code></td>
+<td><code>effects.ask(...)</code> → <code>PendingQuestion</code>, answered with <code>effects.resume(...)</code></td>
+</tr>
+<tr>
+<td>subgraph / nested agent</td>
+<td><code>AgentAsTool</code> (isolated nested runtime) or <code>context.branch()</code></td>
+</tr>
+<tr>
+<td>conditional router / supervisor</td>
+<td><code>Consume.condition</code> / <code>Consume.by_field</code>, or <code>recipes.Router</code></td>
+</tr>
+<tr>
+<td>RAG chain (retriever → prompt → LLM)</td>
+<td><code>Source</code> + <code>fan_out_sources</code> + <code>materialize_doc</code> + produces (<code>quick.rag</code> for the simple case)</td>
+</tr>
+<tr>
+<td>tool loop (<code>create_react_agent</code>)</td>
+<td><code>LLMAgent</code>/<code>ToolUse</code> (or <code>ToolUseHITL</code> for approvals), or <code>native_tool_use</code> / <code>recipes.run_tool_loop</code></td>
+</tr>
+<tr>
+<td><code>MemorySaver</code> + summary node</td>
+<td><code>Msg</code> artifacts + <code>context.view</code> + <code>recipes.WindowSummarizer</code>/<code>RollingDigestSummarizer</code></td>
+</tr>
+<tr>
+<td>callbacks / LangSmith / Langfuse</td>
+<td>native traces (<code>reactifact.tracing</code>) + <code>redactor=</code>, export to Langfuse/OTLP/Postgres</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-port-one-node-before-after">2. Port one node (before → after)<a class="headerlink" href="#2-port-one-node-before-after" title="Permanent link">&para;</a></h2>
+<p>A LangGraph node that classifies then answers:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">classify</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>            <span class="c1"># node</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"route"</span><span class="p">:</span> <span class="s2">"billing"</span> <span class="k">if</span> <span class="s2">"invoice"</span> <span class="ow">in</span> <span class="n">state</span><span class="p">[</span><span class="s2">"text"</span><span class="p">]</span> <span class="k">else</span> <span class="s2">"general"</span><span class="p">}</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">answer</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>              <span class="c1"># node</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"reply"</span><span class="p">:</span> <span class="n">llm</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">"text"</span><span class="p">],</span> <span class="n">route</span><span class="o">=</span><span class="n">state</span><span class="p">[</span><span class="s2">"route"</span><span class="p">])}</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">"classify"</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">"classify"</span><span class="p">,</span> <span class="s2">"answer"</span><span class="p">)</span>
+</code></pre></div>
+<p>On reactifact the <em>edges disappear</em> — they become <code>consume</code>/<code>produce</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact</span><span class="w"> </span><span class="kn">import</span> <span class="n">Consume</span><span class="p">,</span> <span class="n">Produce</span><span class="p">,</span> <span class="n">ProduceCall</span><span class="p">,</span> <span class="n">produce</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">Question</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">Route</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="k">class</span><span class="w"> </span><span class="nc">Reply</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="nd">@produce</span><span class="p">(</span><span class="n">Route</span><span class="p">)</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">classify</span><span class="p">(</span><span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="n">question</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">trigger</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="k">if</span> <span class="n">question</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">question</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">Question</span><span class="p">):</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>    <span class="n">kind</span> <span class="o">=</span> <span class="s2">"billing"</span> <span class="k">if</span> <span class="s2">"invoice"</span> <span class="ow">in</span> <span class="n">question</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"general"</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>    <span class="n">call</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">Route</span><span class="p">(</span><span class="n">thread_id</span><span class="o">=</span><span class="n">question</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">kind</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"route:</span><span class="si">{</span><span class="n">question</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="nd">@produce</span><span class="p">(</span><span class="n">Reply</span><span class="p">)</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">answer</span><span class="p">(</span><span class="n">call</span><span class="p">:</span> <span class="n">ProduceCall</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">route</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">trigger</span>  <span class="c1"># this produce runs because a Route was created</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    <span class="k">if</span> <span class="n">route</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">route</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">Route</span><span class="p">):</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>    <span class="c1"># ... call the model with run-scoped input ...</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>    <span class="n">call</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">Reply</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"…"</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"reply:</span><span class="si">{</span><span class="n">route</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thread_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact</span><span class="w"> </span><span class="kn">import</span> <span class="n">Consume</span><span class="p">,</span> <span class="n">Context</span><span class="p">,</span> <span class="n">Runtime</span><span class="p">,</span> <span class="n">create_agent</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">answerer</span> <span class="o">=</span> <span class="n">create_agent</span><span class="p">(</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="s2">"answerer"</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">consumes</span><span class="o">=</span><span class="p">[</span><span class="n">Consume</span><span class="p">(</span><span class="n">Reply</span><span class="p">)],</span>       <span class="c1"># the "edge" from classify to answer</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">produces</span><span class="o">=</span><span class="p">[</span><span class="n">answer</span><span class="p">],</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">)</span>
+</code></pre></div>
+<p>Two things to notice, because they're the migration's real work:</p>
+<ul>
+<li><strong>Eligibility is a state decision, not a placement.</strong> The old graph said
+  "answer runs after classify". Here <code>answer</code> runs <em>because a <code>Route</code> exists</em> —
+  so a guard (<code>return None</code> when the input isn't ready) is the sequencing
+  mechanism, not an edge.</li>
+<li><strong>Stable ids.</strong> <code>f"route:{question.id}"</code> makes re-runs idempotent (§42) — the
+  same event twice never duplicates state. This replaces most hand-written
+  "already done?" bookkeeping.</li>
+</ul>
+<h2 id="3-state-dict-artifacts">3. State dict → artifacts<a class="headerlink" href="#3-state-dict-artifacts" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># before: one growing dict</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">state</span><span class="p">[</span><span class="s2">"facts"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"..."</span><span class="p">,</span> <span class="s2">"source"</span><span class="p">:</span> <span class="n">url</span><span class="p">})</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># after: typed artifacts + provenance</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">fact</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">Fact</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"..."</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">url</span><span class="p">))</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">fact</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="s2">"extracted_from"</span><span class="p">,</span> <span class="n">doc</span><span class="p">)</span>
+</code></pre></div>
+<p>Nothing is mutated in place: an update is a new version, so <code>context.diff(v1,
+v2)</code> is a real operation and provenance (<code>supported_by</code>/<code>derived_from</code>/…) is the
+same graph the runtime uses to decide what to re-run — not a logger bolted on.
+See <a href="../../examples/ledger/README.md"><code>examples/ledger</code></a> for the recompute argument
+made concrete.</p>
+<h2 id="4-checkpointing-threads-time-travel">4. Checkpointing, threads, time-travel<a class="headerlink" href="#4-checkpointing-threads-time-travel" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Persist conversations with <code>SessionStore(FileKVBackend(...))</code> +
+  <code>ChatAssistant</code> (<code>examples/support_copilot</code>, <code>examples/knowledge</code>).</li>
+<li>Fork an exploration with <code>context.branch()</code>, run different agents on each
+  fork, and <code>merge()</code> them back — with a real <code>MergeConflict</code> when both forks
+  touch the same artifact (<code>examples/forklab</code>).</li>
+<li>Reproduce a past state with <code>reactifact.replay</code> / <code>replay_context</code>; pin a run's
+  fingerprint with <code>reactifact.audit.context_hash</code> (<code>examples/fintech_audit</code>).</li>
+</ul>
+<h2 id="5-interrupts-human-in-the-loop">5. Interrupts → human-in-the-loop<a class="headerlink" href="#5-interrupts-human-in-the-loop" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># ask</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">"Approve the refund?"</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">"approve"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"approve:</span><span class="si">{</span><span class="n">qid</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># resume (from your HTTP handler / CLI)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">context</span><span class="o">.</span><span class="n">resume</span><span class="p">(</span><span class="n">question</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="s2">"yes"</span><span class="p">)</span>
+</code></pre></div>
+<p>The human is just another reaction (<code>PendingQuestion</code> is an artifact); tools can
+be gated the same way — see <code>examples/repo_agent</code> (a <code>@tool(destructive=True)</code>
+that only runs after an approval) and <code>examples/devops</code>.</p>
+<h2 id="6-rag-chain-sources">6. RAG chain → sources<a class="headerlink" href="#6-rag-chain-sources" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.quick</span><span class="w"> </span><span class="kn">import</span> <span class="n">rag</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">r</span> <span class="o">=</span> <span class="n">rag</span><span class="p">({</span><span class="s2">"docs"</span><span class="p">:</span> <span class="s2">"./docs"</span><span class="p">,</span> <span class="s2">"costs"</span><span class="p">:</span> <span class="s2">"./costs.csv"</span><span class="p">})</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">answer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">r</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">"what's the total gpu cost?"</span><span class="p">)</span>   <span class="c1"># answer.text, answer.sources</span>
+</code></pre></div>
+<p>For full control, compose the same pipeline by hand with <code>fan_out_sources</code> +
+<code>materialize_doc</code> and produce an <code>Answer</code> linked <code>supported_by</code> the documents
+(<code>examples/knowledge</code>, <code>examples/research</code>). Retrieval is a <code>Source</code> capability
+(filesystem/CSV/embeddings/web), not a hardcoded chain — swap the source, keep
+the agents.</p>
+<h2 id="7-tool-loops">7. Tool loops<a class="headerlink" href="#7-tool-loops" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Model decides which tool, one step at a time: <code>LLMAgent</code> / <code>HITLLMAgent</code>
+  (<code>examples/devops</code>).</li>
+<li>OpenAI-native <code>tools</code>/<code>tool_calls</code>: <code>reactifact.native_tool_use</code>
+  (composable functions), or <code>recipes.run_tool_loop</code> for a bounded, parallel,
+  mandatory-tool-aware loop.</li>
+<li>Budgets and honest failure come for free: <code>Budget(max_runs=…, max_tool_calls=…)</code>,
+  and a produce returns <code>None</code> instead of a confident guess (§59).</li>
+</ul>
+<h2 id="8-dont-go-all-or-nothing-interop">8. Don't go all-or-nothing (interop)<a class="headerlink" href="#8-dont-go-all-or-nothing-interop" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Call reactifact from a node.</strong> Your LangGraph node can build a <code>Context</code>, run
+  a <code>Runtime</code>, and return the result — move one auditable/calculating step at a
+  time.</li>
+<li><strong>Expose reactifact as MCP.</strong> <code>create_mcp_server(tools, context=ctx)</code> publishes
+  your <code>Tool</code>s (and read-only <code>context://artifacts/...</code> resources) so any MCP
+  client — Claude, another agent framework — can call the reactifact part.</li>
+<li><strong>Coexist by concern.</strong> Keep your orchestration where it works; use reactifact
+  where provenance, determinism, and auditability matter most (the
+  <a href="../../examples/fintech_audit/README.md">fintech_audit</a> shape).</li>
+</ul>
+<h2 id="9-ops-mapping">9. Ops mapping<a class="headerlink" href="#9-ops-mapping" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>reactifact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tracing</td>
+<td><code>Tracer(store=TraceStore(...))</code>, <code>LangfuseTracer</code>, <code>OTLPTracer</code>, <code>PostgresStore</code>; scrub with <code>RuntimeResources(redactor=…)</code></td>
+</tr>
+<tr>
+<td>sessions</td>
+<td><code>SessionStore</code> over <code>FileKVBackend</code>/<code>SQLiteKVBackend</code>/<code>PostgreSQLKVBackend</code></td>
+</tr>
+<tr>
+<td>budgets / limits</td>
+<td><code>Budget(max_runs, max_seconds, max_iterations, max_tool_calls)</code></td>
+</tr>
+<tr>
+<td>error policy</td>
+<td>fail-loud by default; <code>Runtime(isolate_errors=True, on_agent_error=…)</code> opts into partial progress</td>
+</tr>
+<tr>
+<td>per-request data</td>
+<td><code>Runtime.arun(request={...})</code> → <code>call.request</code> (no ContextVar plumbing)</td>
+</tr>
+<tr>
+<td>resource lifecycle</td>
+<td><code>RuntimeResources.scope(factory)</code> / <code>async with</code> (loop-safe clients)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-migration-checklist">10. Migration checklist<a class="headerlink" href="#10-migration-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] Every intermediate value is a <strong>typed <code>Artifact</code></strong>, not a dict/<code>TypedDict</code>.</li>
+<li>[ ] Each unit is a <code>Produce</code> that declares <code>consumes</code>/<code>produces</code>; no node calls
+      another directly.</li>
+<li>[ ] Eligibility is a guard (<code>return None</code>), not a scheduling order.</li>
+<li>[ ] Ids are <strong>stable and re-derivable</strong> (<code>f"answer:{qid}"</code>,
+      <code>effects.create_once(...)</code>, <code>effects.create_once_from(...)</code>).</li>
+<li>[ ] Derived artifacts <code>link(...)</code> to their inputs (provenance).</li>
+<li>[ ] Model calls go through <code>structured_llm</code>/<code>llm_reply</code> and return <code>None</code> on
+      failure — the caller shows an honest fallback, never a fake answer.</li>
+<li>[ ] A <code>Budget</code> is set for production runs.</li>
+<li>[ ] Human steps are <code>effects.ask</code>/<code>resume</code>, not a special case.</li>
+<li>[ ] Sessions use <code>SessionStore</code>; resources are built per loop
+      (<code>RuntimeResources.scope</code>).</li>
+<li>[ ] Tracing is wired (<code>Tracer(store=...)</code>), and <code>redactor=</code> is set if data is
+      sensitive.</li>
+</ul>
+<h2 id="11-gotchas">11. Gotchas<a class="headerlink" href="#11-gotchas" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>There is no <code>add_edge</code>.</strong> If you find yourself wanting one, the edge is a
+  <code>Consume(ProducedType)</code> on the downstream agent.</li>
+<li><strong><code>effects</code>, not <code>return patch</code>.</strong> Write <code>self.effects.*</code> and return <code>None</code>; the
+  runtime compiles the effect set into one atomic commit (<code>Produce</code> returning a
+  <code>Patch</code> is the low-level escape hatch, not the idiom).</li>
+<li><strong>Artifacts aren't messages.</strong> Model input is built from a <code>context.view(...)</code>
+  / consumed artifacts, not a free-floating string list.</li>
+<li><strong>Determinism is a habit.</strong> Use stable ids and keep timestamps/randomness out of
+  what you hash — <code>context_hash</code> then makes runs comparable
+  (<code>examples/fintech_audit</code>).</li>
+</ul>
+<h2 id="12-where-to-look-next">12. Where to look next<a class="headerlink" href="#12-where-to-look-next" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../port-matrix/">Port matrix</a> — canonical pattern → reactifact example.</li>
+<li><a href="../quickstart/">Quickstart</a> — the four <code>quick</code> cases in a few lines.</li>
+<li><a href="../scheduler-semantics/">Scheduler semantics</a> — the execution contract you're
+  moving onto.</li>
+<li><a href="../patterns/">Patterns</a> / <a href="../recipes/">Recipes</a> — reusable building blocks.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

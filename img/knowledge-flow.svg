@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500" role="img" aria-label="Diagram: UserQuery reaches two independent agent groups — search plus evidence_builder, which consume UserQuery and TypedDoc and produce Evidence, and table_resolver plus calculator, which consume UserQuery and Spreadsheet and produce Calculation. answer_builder consumes both Evidence and Calculation and produces Answer, which stays linked supported_by to each.">
+  <rect x="0" y="0" width="1000" height="500" fill="#ffffff"/>
+  <defs>
+    <marker id="k-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#14171c"/></marker>
+    <marker id="k-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e4572e"/></marker>
+    <marker id="k-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1e8e6b"/></marker>
+  </defs>
+
+  <!-- UserQuery -->
+  <rect x="370" y="14" width="260" height="56" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="500" y="38" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="#14171c">UserQuery</text>
+  <text x="500" y="56" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="#5b6472">"how much does gpu cost in total?"</text>
+
+  <path d="M430,70 L270,108" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#k-ink)"/>
+  <path d="M570,70 L730,108" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#k-ink)"/>
+
+  <!-- left agent group -->
+  <rect x="50" y="110" width="380" height="78" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="70" y="134" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">search_scout + evidence_builder</text>
+  <text x="70" y="153" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">consumes: UserQuery, TypedDoc</text>
+  <text x="70" y="169" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">produces: SourceRef, TypedDoc, Evidence</text>
+
+  <!-- right agent group -->
+  <rect x="570" y="110" width="380" height="78" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="590" y="134" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">table_resolver + calculator</text>
+  <text x="590" y="153" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">consumes: UserQuery, Spreadsheet</text>
+  <text x="590" y="169" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">produces: Spreadsheet, Calculation</text>
+
+  <path d="M240,188 L240,234" stroke="#e4572e" stroke-width="2.2" marker-end="url(#k-accent)"/>
+  <path d="M760,188 L760,234" stroke="#e4572e" stroke-width="2.2" marker-end="url(#k-accent)"/>
+
+  <!-- artifact chips -->
+  <rect x="110" y="238" width="260" height="58" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="240" y="263" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="#14171c">Evidence</text>
+  <text x="240" y="281" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#5b6472">guide/api.md + pricing/tiers.md</text>
+
+  <rect x="630" y="238" width="260" height="58" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="760" y="263" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="#14171c">Calculation</text>
+  <text x="760" y="281" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#5b6472">sum(gpu cost usd) = 3580</text>
+
+  <path d="M300,296 L420,338" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#k-ink)"/>
+  <path d="M700,296 L580,338" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#k-ink)"/>
+
+  <!-- answer_builder agent -->
+  <rect x="330" y="342" width="340" height="78" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="500" y="366" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">answer_builder</text>
+  <text x="500" y="385" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">consumes: Evidence, Calculation, Claim, ResearchTurn</text>
+  <text x="500" y="401" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">produces: Answer</text>
+
+  <path d="M500,420 L500,444" stroke="#e4572e" stroke-width="2.2" marker-end="url(#k-accent)"/>
+
+  <!-- Answer chip -->
+  <rect x="370" y="448" width="260" height="48" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="500" y="468" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="#14171c">Answer</text>
+  <text x="500" y="486" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#5b6472">"…total gpu cost: 3580"</text>
+
+  <path d="M400,344 C220,320 180,300 200,298" fill="none" stroke="#1e8e6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#k-teal)"/>
+  <path d="M600,344 C780,320 810,300 800,298" fill="none" stroke="#1e8e6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#k-teal)"/>
+  <text x="150" y="322" font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="#1e8e6b">supported_by</text>
+  <text x="795" y="322" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="#1e8e6b">supported_by</text>
+</svg>

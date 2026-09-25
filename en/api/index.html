@@ -1,0 +1,2912 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context">
+      
+      
+      
+        <link rel="canonical" href="https://bzdvdn.github.io/reactifact/en/api/">
+      
+      
+        <link rel="prev" href="../durability/">
+      
+      
+        <link rel="next" href="../../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/reactifact-hero.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>API - reactifact</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="reactifact" class="md-header__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            reactifact
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../why-reactifact/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why reactifact
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../migrating/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../comparison/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Comparison
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../scheduler-semantics/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Execution model
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../effects/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../design-notes/adaptive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="reactifact" class="md-nav__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    reactifact
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-reactifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why reactifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduler-semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branching & merge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../durability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Durability & resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-on-ramp-reactifactquick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick on-ramp (reactifact.quick)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context &amp; state
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#artifacts-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts &amp; changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agents-produces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agents &amp; produces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chat-layer-reactifactchat-reactifactweb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chat layer (reactifact.chat + reactifact.web)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualization-reactifactviz-python-m-reactifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visualization (reactifact.viz + python -m reactifact)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replay-reactifactreplay-55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replay (reactifact.replay, §55)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#branching-reactifactcontext-reactifactbranching-39-40" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branching (reactifact.context + reactifact.branching, §39-§40)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation-reactifacteval-56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation (reactifact.eval, §56)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structured-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompts-reactifactprompts-68" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompts (reactifact.prompts, §68)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources-reactifactsources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources (reactifact.sources)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#providers-reactifactproviders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Providers (reactifact.providers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes-reactifactrecipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes (reactifact.recipes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#text-rollback-helpers-reactifactrecipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text &amp; rollback helpers (reactifact.recipes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sessions-checkpoints-tracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sessions, checkpoints, tracing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-reactifacttesting-56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing (reactifact.testing, §56)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-reactifactmcp-mcp-extra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP (reactifact.mcp, mcp extra)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-generated reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/adaptive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adaptive scheduler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constitution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constitution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-on-ramp-reactifactquick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick on-ramp (reactifact.quick)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context &amp; state
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#artifacts-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts &amp; changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agents-produces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agents &amp; produces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chat-layer-reactifactchat-reactifactweb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chat layer (reactifact.chat + reactifact.web)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualization-reactifactviz-python-m-reactifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visualization (reactifact.viz + python -m reactifact)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replay-reactifactreplay-55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replay (reactifact.replay, §55)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#branching-reactifactcontext-reactifactbranching-39-40" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branching (reactifact.context + reactifact.branching, §39-§40)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation-reactifacteval-56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation (reactifact.eval, §56)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structured-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompts-reactifactprompts-68" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompts (reactifact.prompts, §68)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources-reactifactsources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources (reactifact.sources)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#providers-reactifactproviders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Providers (reactifact.providers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes-reactifactrecipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes (reactifact.recipes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#text-rollback-helpers-reactifactrecipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text &amp; rollback helpers (reactifact.recipes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sessions-checkpoints-tracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sessions, checkpoints, tracing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-reactifacttesting-56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing (reactifact.testing, §56)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-reactifactmcp-mcp-extra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP (reactifact.mcp, mcp extra)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bzdvdn/reactifact/edit/master/docs/en/api.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>Top-level symbols exported by <code>reactifact</code> (see <code>reactifact/__init__.py</code>). The format
+for each group: name — one-line role. Details live in the doc-strings of the
+modules — see <a href="../../reference/">the auto-generated reference</a> for those
+rendered directly from source (signatures, types, full docstring text) on
+the docs site, rather than copied here by hand.</p>
+<h2 id="stability">Stability<a class="headerlink" href="#stability" title="Permanent link">&para;</a></h2>
+<p>As of <code>0.4.0</code>, reactifact is pre-1.0 but no longer <code>rc</code> — the surface below is
+the stable contract, not a moving target.</p>
+<ul>
+<li><strong>Public API = every name in <code>reactifact.__all__</code></strong> (and each submodule's own
+  <code>__all__</code> — <code>reactifact.recipes</code>, <code>reactifact.providers</code>, <code>reactifact.viz</code>, <code>reactifact.eval</code>,
+  <code>reactifact.quick</code>, <code>reactifact.redaction</code>, <code>reactifact.audit</code>, …), which is exactly the set of symbols documented on this page. If it's
+  importable from <code>reactifact</code> but not in <code>__all__</code>, it's an internal detail with
+  no compatibility guarantee — e.g. <code>reactifact.relations.RelationGraph</code> and
+  <code>reactifact.commit_log.CommitLog</code> exist because <code>Context</code> was split into
+  smaller modules for readability, but neither is exported: <code>Context</code> is the
+  supported surface, they are not.</li>
+<li><strong>SemVer, pre-1.0 style</strong>: a minor bump (<code>0.4.0</code> → <code>0.5.0</code>) may add symbols
+  or, rarely, change behavior in a way <code>CHANGELOG.md</code> marks <code>Breaking</code> — pre-1.0
+  minors are where reactifact is still allowed to correct a design mistake. A
+  patch bump (<code>0.4.0</code> → <code>0.4.1</code>) never removes or renames a public symbol and
+  never changes documented behavior, only fixes bugs against it.</li>
+<li><strong>Every breaking change is called out in <code>CHANGELOG.md</code> under a <code>### Breaking</code>
+  heading</strong>, even in a pre-1.0 release — see <a href="../release/">release.md</a>. If you
+  only read one section before upgrading, read that one.</li>
+<li>Anything under <code>reactifact.cli.*</code> beyond the documented <code>python -m reactifact …</code>
+  subcommands, and anything in a module's tests-only helpers, is implementation
+  detail regardless of whether it happens to be importable.</li>
+</ul>
+<h2 id="quick-on-ramp-reactifactquick">Quick on-ramp (<code>reactifact.quick</code>)<a class="headerlink" href="#quick-on-ramp-reactifactquick" title="Permanent link">&para;</a></h2>
+<p>Thin sugar over the primitives below for the four common first tasks — every
+object exposes the real <code>.agent</code>/<code>.agents</code> and the run's <code>.context</code>, so it
+graduates to <code>Consume</code>/<code>Produce</code>/<code>Effects</code> with nothing to rewrite. See
+<a href="../quickstart/">Quickstart §0</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent(system, schema)</code></td>
+<td>one structured LLM call → one typed artifact</td>
+</tr>
+<tr>
+<td><code>rag(sources)</code></td>
+<td>retrieval → materialize → answer, with <code>supported_by</code> provenance</td>
+</tr>
+<tr>
+<td><code>tools_agent(system, tools, human=False)</code></td>
+<td>LLM + tools (<code>human=True</code> → HITL asks)</td>
+</tr>
+<tr>
+<td><code>chat_agent(agents)</code></td>
+<td>a configured <code>ChatAssistant</code> (in-memory store by default)</td>
+</tr>
+<tr>
+<td><code>Question</code> / <code>Doc</code> / <code>Answer</code></td>
+<td>the generic artifact models the facade uses</td>
+</tr>
+</tbody>
+</table>
+<h2 id="context-state">Context &amp; state<a class="headerlink" href="#context-state" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Context</code></td>
+<td>versioned working state; resources; queries; <code>latest(Model)</code>; announce; diff/rollback</td>
+</tr>
+<tr>
+<td><code>View</code></td>
+<td>result of a typed join query (<code>context.view(...)</code>)</td>
+</tr>
+<tr>
+<td><code>RuntimeResources</code></td>
+<td>providers + sources + app resources; <code>register(Type, instance)</code> / <code>get(Type)</code> / <code>require(Type)</code> / <code>has(Type)</code> for typed collaborators (<code>ResourceKey[T]</code> when two of one type); string <code>get</code>/<code>set</code> stay as the <code>additional</code> escape hatch; <code>redactor=</code> scrubs trace text; <code>trace_truncate=</code> caps artifact/response JSON kept in a trace (<code>None</code> = no clip); <code>await resources.aclose()</code> closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown</td>
+</tr>
+<tr>
+<td><code>ResourceKey[T]</code></td>
+<td>a typed handle for registering two resources of one type (primary/replica, per-tenant)</td>
+</tr>
+<tr>
+<td><code>ResourceScope</code> / <code>RuntimeResources.scope(factory)</code></td>
+<td><code>async with</code> builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring)</td>
+</tr>
+<tr>
+<td><code>current_request()</code></td>
+<td>the active turn's request mapping (same as <code>ProduceCall.request</code>)</td>
+</tr>
+<tr>
+<td><code>Commit</code>, <code>Read</code>, <code>Write</code></td>
+<td>version bookkeeping and recorded provenance ops</td>
+</tr>
+</tbody>
+</table>
+<h2 id="artifacts-changes">Artifacts &amp; changes<a class="headerlink" href="#artifacts-changes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Artifact</code></td>
+<td>the <code>(id, data)</code> pair; <code>data</code> is a pydantic model</td>
+</tr>
+<tr>
+<td><code>Patch</code></td>
+<td>the runtime's compiled change-set (transport); produces write <code>self.effects</code>, <code>Patch</code> is assembled by the runtime</td>
+</tr>
+<tr>
+<td><code>reactifact.operations</code> (<code>Create</code>/<code>Update</code>/<code>Delete</code>/<code>Link</code>/<code>Unlink</code>/<code>Relation</code>)</td>
+<td>the compiled operations a patch carries (§12)</td>
+</tr>
+<tr>
+<td><code>Create</code>, <code>Update</code>, <code>Delete</code>, <code>Link</code>, <code>Unlink</code>, <code>Relation</code></td>
+<td>op records from which patches are built</td>
+</tr>
+</tbody>
+</table>
+<h2 id="agents-produces">Agents &amp; produces<a class="headerlink" href="#agents-produces" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Agent</code></td>
+<td>thin container: <code>name</code>, <code>consumes</code>, <code>produces</code>, <code>concurrency_limit</code></td>
+</tr>
+<tr>
+<td><code>create_agent</code></td>
+<td>constructor-style Agent builder — no subclassing needed for plain containers</td>
+</tr>
+<tr>
+<td><code>Consume</code> / <code>consume</code></td>
+<td>declarative (or decorator) reaction declaration; <code>Consume.by_field</code> for scoped events; <code>wakes=False</code> reads as input without waking the agent; <code>debounce=True</code> collapses several same-generation events into one run</td>
+</tr>
+<tr>
+<td><code>reactifact.consume.CorrelatedConsume</code></td>
+<td>fires (and feeds inputs) only for a correlation key where every <code>require</code> type is present and every <code>forbid</code> type is absent — the mechanism behind <code>JoinConsume</code>/<code>AbsentConsume</code></td>
+</tr>
+<tr>
+<td><code>reactifact.consume.JoinConsume(*parts, key=…)</code></td>
+<td><code>CorrelatedConsume</code> factory: fires once every listed type exists for the same key</td>
+</tr>
+<tr>
+<td><code>reactifact.consume.AbsentConsume(type, absent_type=…, key=…)</code></td>
+<td><code>CorrelatedConsume</code> factory: fires for <code>type</code> only where no matching <code>absent_type</code> exists yet for the same key</td>
+</tr>
+<tr>
+<td><code>Produce</code> / <code>produce</code></td>
+<td>the work unit: writes <code>self.effects</code> (or <code>effects</code> slot in a decorated function) → <code>None</code>; model/Patch return is compiled too. Two canonical styles — subclass and <code>@produce</code> function (see <a href="../effects/">effects</a>); <code>reacts_to=(Type, …)</code> restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional <code>trigger</code> parameter gets the already-resolved triggering artifact instead of raw <code>event</code> — guaranteed non-<code>None</code> for a CREATED/UPDATED/STALE event when <code>reacts_to</code> is also set</td>
+</tr>
+<tr>
+<td><code>Trigger</code></td>
+<td>secondary (non-artifact) enter condition for a produce; <code>context_condition(artifact, context)</code> for conditions that need other artifacts (joins/correlation); <code>debounce</code> hint consumed by <code>Runtime</code></td>
+</tr>
+<tr>
+<td><code>StructuredGenerateAgent</code></td>
+<td>declarative LLM→schema→artifact agent (<code>schema</code>, <code>build_prompt</code>, <code>fallback</code>)</td>
+</tr>
+<tr>
+<td><code>LLMAgent</code></td>
+<td>blocking LLM+tools loop (<code>system</code>, <code>tools</code>, <code>max_steps</code>, <code>deferred_tool_groups</code>)</td>
+</tr>
+<tr>
+<td><code>HITLLMAgent</code></td>
+<td>LLM+tools loop that can pause for human answers (<code>max_asks</code>, resume reporting)</td>
+</tr>
+<tr>
+<td><code>ToolUse</code>, <code>ToolUseHITL</code></td>
+<td>the tool-loop produce; HITL variant waits for approval on execution</td>
+</tr>
+<tr>
+<td><code>DeferredToolGroup</code> (<code>reactifact.tool_use</code>)</td>
+<td>a tool group whose schemas stay out of the prompt until <code>ToolUse</code>'s built-in <code>load_tools</code> tool requests it (<code>LLMAgent</code>/<code>ToolUse</code> only, not the HITL variant)</td>
+</tr>
+<tr>
+<td><code>Tool</code>, <code>FunctionTool</code>, <code>tool</code>, <code>ToolOutput</code></td>
+<td>tool abstraction and registration</td>
+</tr>
+<tr>
+<td><code>ToolAnswer</code>, <code>Observation</code></td>
+<td>tool results and model observations (loop protocol)</td>
+</tr>
+<tr>
+<td><code>PendingQuestion</code></td>
+<td>HITL primitive: a paused ask waiting for a human answer, resumed via <code>self.effects.resume(...)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="runtime">Runtime<a class="headerlink" href="#runtime" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Runtime</code></td>
+<td>wakes agents on events; <code>run</code> / <code>arun</code> / <code>astream</code> (each takes <code>request=Mapping</code>); budget &amp; concurrency; <code>isolate_errors=True</code> + <code>on_agent_error(agent, event, exc)</code> to keep one agent's exception from aborting the whole run (default: propagates, §69)</td>
+</tr>
+<tr>
+<td><code>ProduceCall.request</code></td>
+<td>the turn's request mapping inside a produce (<code>Runtime.arun(request=…)</code> / <code>ChatAssistant.stream(request=…)</code>); empty when none was set</td>
+</tr>
+<tr>
+<td><code>Budget</code>, <code>RunOutcome</code>, <code>RunStats</code></td>
+<td>run limits and the final outcome/stats</td>
+</tr>
+<tr>
+<td><code>Event</code>, <code>EventType</code></td>
+<td>the wire format of "something changed" — <code>ARTIFACT_CREATED</code>/<code>UPDATED</code>/<code>DELETED</code>/<code>STALE</code></td>
+</tr>
+<tr>
+<td><code>EventHub</code>, <code>ProgressEvent</code></td>
+<td>progress/announce channel consumed by web UIs</td>
+</tr>
+<tr>
+<td><code>Scheduler</code></td>
+<td>filter → rank → LLM tie-break agent-selection policy, callable from the runtime each iteration (see <a href="../design-notes/adaptive/">design notes</a>)</td>
+</tr>
+<tr>
+<td><code>uncertainty_policy(...)</code></td>
+<td>builds the built-in hybrid <code>Scheduler</code> (filter → rank → LLM tie-break → top-k)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="chat-layer-reactifactchat-reactifactweb">Chat layer (reactifact.chat + reactifact.web)<a class="headerlink" href="#chat-layer-reactifactchat-reactifactweb" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ChatAssistant</code></td>
+<td>sessions + turn loop + history in one handle (<code>stream</code>/<code>invoke</code>/<code>history</code>); hooks: <code>agents</code>, <code>user_message</code>, <code>reply</code>, <code>session_state</code></td>
+</tr>
+<tr>
+<td><code>ChatEvent</code></td>
+<td>one transport-neutral frame; <code>kind</code> is a closed <code>Literal["session","status","message"]</code>, so the schema is introspectable</td>
+</tr>
+<tr>
+<td><code>run_message(runtime, text, *, user_message, reply)</code></td>
+<td>the turn building block: create input → stream statuses → terminal reply</td>
+</tr>
+<tr>
+<td><code>default_session_state(ctx, user_message)</code></td>
+<td>generic history reader (any artifact with <code>.text</code>)</td>
+</tr>
+<tr>
+<td><code>create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…)</code></td>
+<td>FastAPI <code>APIRouter</code> for the SSE contract (<code>/api/chat/stream</code>, <code>/api/runs/{id}</code>, <code>/api/health</code>) — needs the <code>web</code> extra. The wire <strong>vocabulary is configurable</strong> (rename kinds, filter, reshape payloads, emit a terminal frame); the event schema is published in the route's OpenAPI <code>responses</code></td>
+</tr>
+<tr>
+<td><code>reactifact.web.sse(event, data)</code></td>
+<td>one SSE frame</td>
+</tr>
+</tbody>
+</table>
+<h2 id="visualization-reactifactviz-python-m-reactifact">Visualization (reactifact.viz + python -m reactifact)<a class="headerlink" href="#visualization-reactifactviz-python-m-reactifact" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blueprint(agents)</code></td>
+<td>static map of consumes/produces as Mermaid <code>flowchart</code></td>
+</tr>
+<tr>
+<td><code>context_to_mermaid(context)</code></td>
+<td>live provenance graph of a context (artifacts + relations)</td>
+</tr>
+<tr>
+<td><code>trace_to_mermaid(trace)</code></td>
+<td>one run as a Mermaid <code>sequenceDiagram</code></td>
+</tr>
+<tr>
+<td><code>python -m reactifact graph\|context\|trace</code></td>
+<td>CLI printing the diagrams to stdout</td>
+</tr>
+<tr>
+<td><code>trace_provenance_to_mermaid(trace)</code></td>
+<td>a run's evidence graph (written artifacts + <code>patch.link</code> edges)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="replay-reactifactreplay-55">Replay (reactifact.replay, §55)<a class="headerlink" href="#replay-reactifactreplay-55" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ReplayLLM(recording, mode="record"\|"replay", inner=…)</code></td>
+<td>records every LLM call to JSONL, or replays them exactly; <code>ReplayMiss</code> on divergence</td>
+</tr>
+<tr>
+<td><code>ReplayMiss</code></td>
+<td>a replaying call did not match the recording</td>
+</tr>
+<tr>
+<td><code>verify_run(build, *, recording=None, repeat=2)</code></td>
+<td>runs <code>build(resources) -&gt; Context</code> <code>repeat</code> times under a recorded model <strong>and</strong> strict ids (<code>counter_ids</code>), returns a <code>ReproReport</code>; <code>ok</code> is False when the <code>context_hash</code> differs (real nondeterminism)</td>
+</tr>
+<tr>
+<td><code>counter_ids()</code></td>
+<td>a deterministic <code>id_factory</code> (<code>Model:0000</code>, <code>Model:0001</code>, …) for <code>RuntimeResources(id_factory=…)</code> — makes artifacts created without an explicit id reproducible</td>
+</tr>
+<tr>
+<td><code>replay_context(store, session_id, version=None)</code></td>
+<td>reconstructs a saved session's state at a commit</td>
+</tr>
+<tr>
+<td><code>replay_summary(context)</code></td>
+<td>compact state summary for the <code>replay</code> CLI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="branching-reactifactcontext-reactifactbranching-39-40">Branching (reactifact.context + reactifact.branching, §39-§40)<a class="headerlink" href="#branching-reactifactcontext-reactifactbranching-39-40" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Context.branch(name="")</code></td>
+<td>forks an isolated copy; records the base snapshot for three-way merge</td>
+</tr>
+<tr>
+<td><code>Context.merge(other, message=…)</code></td>
+<td>atomic three-way merge; <code>MergeConflict</code> on diverged artifacts</td>
+</tr>
+<tr>
+<td><code>MergeConflict</code></td>
+<td>raised when both sides changed an artifact differently since the fork</td>
+</tr>
+<tr>
+<td><code>BranchStore(KVBackend)</code></td>
+<td>persists branches as <code>branch:&lt;session&gt;:&lt;name&gt;</code> over a KV backend</td>
+</tr>
+<tr>
+<td><code>python -m reactifact branch …</code></td>
+<td>CLI: <code>list</code> / <code>save</code> / <code>merge</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="evaluation-reactifacteval-56">Evaluation (reactifact.eval, §56)<a class="headerlink" href="#evaluation-reactifacteval-56" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run_suite(cases, metrics)</code> / <code>run_case(case, metrics)</code></td>
+<td>execute cases and score the final contexts</td>
+</tr>
+<tr>
+<td><code>EvalCase</code> / <code>EvalResult</code> / <code>EvalReport</code> / <code>Metric</code></td>
+<td>case/score/report structures (<code>overall()</code>, <code>render()</code>, <code>to_dict()</code>)</td>
+</tr>
+<tr>
+<td><code>core_metrics</code></td>
+<td>the four non-generative metrics (answer/provenance/evidence/claim)</td>
+</tr>
+<tr>
+<td><code>answer_coverage()</code> · <code>calculation_correctness(values=…)</code> · <code>source_coverage()</code> · <code>confidence_calibration()</code></td>
+<td>ground-truth factories (skip when <code>expected</code> is missing)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="structured-output">Structured output<a class="headerlink" href="#structured-output" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)</code></td>
+<td>one structured call; <code>None</code> on honest failure; <code>validate(model)-&gt;bool</code> adds a domain-rule check retried like a parse failure, <code>repair(invalid_or_None, last_reply)-&gt;str</code> supplies the retry instruction; <code>on_error(reason, exc)</code> (<code>"no_provider"</code>|<code>"provider_error"</code>|<code>"parse_error"</code>|<code>"validation_error"</code>) to distinguish <em>why</em>, without changing the <code>None</code> contract</td>
+</tr>
+<tr>
+<td><code>json_schema_llm(context, json_schema, *, user, validate=…, repair=…, …)</code></td>
+<td>structured output against your own JSON Schema (dict or JSON string), returns a plain <code>dict</code>; same <code>validate</code>/<code>repair</code> retry hooks as <code>structured_llm</code></td>
+</tr>
+<tr>
+<td><code>StructuredLLM(schema, *, system=…, attempts=…, on_error=…)</code></td>
+<td>reusable instance; <code>.call(context, user)</code></td>
+</tr>
+<tr>
+<td><code>llm_reply(context, *, system, user, attempts=…, on_error=…)</code></td>
+<td>plain-text completion → <code>str</code> or <code>None</code> (single-text schema under the hood)</td>
+</tr>
+<tr>
+<td><code>parse_structured</code></td>
+<td>lenient JSON→model parser used internally</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prompts-reactifactprompts-68">Prompts (reactifact.prompts, §68)<a class="headerlink" href="#prompts-reactifactprompts-68" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PromptTemplate(template, *, defaults=…)</code></td>
+<td>strict <code>{var}</code> rendering: declared <code>variables</code>, <code>KeyError</code> on missing vars, model-attribute fields (<code>{question.text}</code>); <strong>identifier-shaped placeholders only</strong> — a literal JSON <code>{"name": …}</code> / <code>{}</code> in the prompt is left verbatim, no escaping; <code>.hash</code> is a stable sha256 of the template</td>
+</tr>
+<tr>
+<td><code>MessagesPrompt([(role, template), …])</code></td>
+<td>renders a chat sequence to <code>list[Message]</code>; <code>.hash</code> covers all rows</td>
+</tr>
+</tbody>
+</table>
+<h2 id="sources-reactifactsources">Sources (reactifact.sources)<a class="headerlink" href="#sources-reactifactsources" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Source</code></td>
+<td>ABC: <code>asearch(query, limit)</code> → list[SourceRef]</td>
+</tr>
+<tr>
+<td><code>SourceRef</code></td>
+<td>the shared atomic search result (ranked, scoped, stable id)</td>
+</tr>
+<tr>
+<td><code>FileSystemSource</code></td>
+<td>keyword/embedding search over local files</td>
+</tr>
+<tr>
+<td><code>CSVSource</code></td>
+<td>deterministic catalog/table search</td>
+</tr>
+<tr>
+<td><code>EmbeddingSource</code></td>
+<td>vector search over a prepared corpus</td>
+</tr>
+<tr>
+<td><code>WebSource</code></td>
+<td>discovery + lazy remote document resolution</td>
+</tr>
+</tbody>
+</table>
+<h2 id="providers-reactifactproviders">Providers (reactifact.providers)<a class="headerlink" href="#providers-reactifactproviders" title="Permanent link">&para;</a></h2>
+<p>Every provider lazily creates its <code>httpx.AsyncClient</code> and <strong>rebinds it to the
+current event loop</strong>, so one provider instance stays usable across repeated
+<code>asyncio.run(...)</code> and per-test loops (no <code>RuntimeError: Event loop is closed</code>);
+<code>aclose()</code> closes the client for the running loop. The same applies to
+<code>WebSource</code> and the OTLP/Langfuse sinks.</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LLMProvider</code>, <code>EmbeddingProvider</code></td>
+<td>the two contracts the core talks to</td>
+</tr>
+<tr>
+<td><code>ImageProvider</code>, <code>SpeechProvider</code>, <code>TranscriberProvider</code>, <code>VideoProvider</code></td>
+<td>media contracts</td>
+</tr>
+<tr>
+<td><code>OpenAICompatProvider</code>, <code>OpenAICompatEmbedder</code> + vendor factories (<code>openai_llm</code>, <code>anthropic_llm</code>, <code>deepseek_llm</code>, <code>groq_llm</code>, <code>mistral_llm</code>, <code>openrouter_llm</code>, <code>gemini_llm</code>, <code>ollama_llm</code>, <code>azure_llm</code>, …)</td>
+<td>20+ chat/embedder backends, all <code>retry_attempts=3</code> by default (429/5xx/transport errors, exponential backoff — never on 4xx)</td>
+</tr>
+<tr>
+<td><code>openrouter_embedder</code>, <code>openrouter_speech</code>, <code>groq_transcriber</code>, <code>together_embedder</code>, <code>fireworks_embedder</code>, <code>qwen_embedder</code>, <code>nvidia_embedder</code></td>
+<td>embeddings/TTS/STT for vendors whose non-chat endpoints are confirmed OpenAI-compatible (see <a href="../providers/">providers</a>)</td>
+</tr>
+<tr>
+<td><code>Message</code>, <code>Role</code></td>
+<td>one chat message; <code>role</code> is a closed <code>Literal</code> + <code>Message.system/user/assistant/tool</code> factories</td>
+</tr>
+<tr>
+<td><code>LLMRequest</code></td>
+<td>one completion: <code>messages</code> + <code>temperature</code>/<code>max_tokens</code> — <code>None</code> = provider default (call overrides provider, provider <code>None</code> = field omitted)</td>
+</tr>
+<tr>
+<td><code>LLMResponse</code>, <code>LLMResponseChunk</code></td>
+<td>one completion result / one streamed chunk returned by a provider</td>
+</tr>
+<tr>
+<td><code>*_from_env(**overrides)</code></td>
+<td><code>.env</code>-driven wiring that returns <code>None</code> when unconfigured</td>
+</tr>
+<tr>
+<td><code>from_env(**overrides)</code></td>
+<td>one-call selection: <code>OPENROUTER_API_KEY</code> first, else <code>OPENAI_BASE_URL</code>, else <code>None</code> — the two-branch default every example's local <code>build_llm()</code> hand-rolls</td>
+</tr>
+<tr>
+<td><code>FakeLLM</code>, <code>FakeEmbedder</code></td>
+<td>deterministic stand-ins for tests/demos</td>
+</tr>
+</tbody>
+</table>
+<h2 id="recipes-reactifactrecipes">Recipes (reactifact.recipes)<a class="headerlink" href="#recipes-reactifactrecipes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find(inputs, Model)</code> / <code>find_all(inputs, Model)</code></td>
+<td>typed lookup in a produce's <code>inputs</code> without <code>next(... isinstance ...)</code></td>
+</tr>
+<tr>
+<td><code>fan_out_sources(context, query, owner_id, …)</code></td>
+<td>idempotent fan-out search → refs + patch</td>
+</tr>
+<tr>
+<td><code>materialize_doc(context, ref_artifact, doc_factory, relation=…)</code></td>
+<td>lazy ref → document with provenance</td>
+</tr>
+<tr>
+<td><code>StatusMachine</code></td>
+<td>deterministic artifact lifecycle (<code>next_status</code>, <code>terminal</code>, <code>on_transition</code>, <code>query_id_field</code>/<code>status_field</code>)</td>
+</tr>
+<tr>
+<td><code>WindowSummarizer(message_type, artifact_type, summarize=…, build=…)</code></td>
+<td>periodic conversation-window summarization, idempotent by message count</td>
+</tr>
+<tr>
+<td><code>WindowPruner(message_type, keep=…)</code></td>
+<td>deletes messages older than the window; standalone-useful</td>
+</tr>
+<tr>
+<td><code>llm_summarizer(system=…)</code></td>
+<td>builds a <code>WindowSummarizer(summarize=…)</code> callback from a system prompt via <code>llm_reply</code></td>
+</tr>
+<tr>
+<td><code>run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)</code></td>
+<td>opt-in native tool-calling loop over <code>native_tool_use</code>: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; returns <code>ToolLoopResult</code> (text, transcript, <code>ToolObservation</code>s)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="text-rollback-helpers-reactifactrecipes">Text &amp; rollback helpers (reactifact.recipes)<a class="headerlink" href="#text-rollback-helpers-reactifactrecipes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keyword_score(text, query, *, stopwords=EN_STOPWORDS, use_stems=False)</code></td>
+<td>deterministic query-coverage scoring (English / Russian)</td>
+</tr>
+<tr>
+<td><code>stem_words(text)</code> / <code>stem(word)</code></td>
+<td>Russian-English token stemming without embedders</td>
+</tr>
+<tr>
+<td><code>EN_STOPWORDS</code></td>
+<td>the default English stop-word set</td>
+</tr>
+<tr>
+<td><code>changed_fields(old, new, *, ignore=())</code></td>
+<td>which fields actually changed (new <code>None</code> = not a change)</td>
+</tr>
+<tr>
+<td><code>earliest_stage(changed, *, field_stages, order)</code></td>
+<td>the first stage a change affects (change → rebuild)</td>
+</tr>
+<tr>
+<td><code>downstream_fields(target, *, field_stages, order)</code></td>
+<td>fields to reset when rebuilding from a stage</td>
+</tr>
+</tbody>
+</table>
+<h2 id="sessions-checkpoints-tracing">Sessions, checkpoints, tracing<a class="headerlink" href="#sessions-checkpoints-tracing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Session</code>, <code>SessionStore</code></td>
+<td>durable per-chat working memory across requests</td>
+</tr>
+<tr>
+<td><code>KVBackend</code>, <code>FileKVBackend</code>, <code>SQLiteKVBackend</code>, <code>PostgreSQLKVBackend</code></td>
+<td>key/value checkpoints backing sessions (<code>pg</code> extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an <code>asyncio.Lock</code></td>
+</tr>
+<tr>
+<td><code>CheckpointBackend</code>, <code>FileBackend</code>, <code>SQLiteBackend</code></td>
+<td>full-context checkpoints</td>
+</tr>
+<tr>
+<td><code>Tracer</code>, <code>CompositeTracer</code>, <code>AgentSpan</code>, <code>RunTrace</code>, <code>LLMCall</code>, <code>TraceStore</code></td>
+<td>tracing primitives (async sinks: <code>export</code>/<code>query</code>/<code>get</code>/<code>sessions</code>; <code>AgentSpan.started_at</code> powers the dashboard timeline)</td>
+</tr>
+<tr>
+<td><code>TraceColumn</code></td>
+<td>a configurable, artifact-derived table column for <code>create_trace_router(store, columns=[…])</code>: <code>label</code>, <code>field</code> (dotted path, list→first), <code>agent</code>, <code>type</code> (class or name), <code>direction</code> read/write/any, <code>index</code>, <code>scope</code> run/session, <code>default</code></td>
+</tr>
+<tr>
+<td><code>Tag</code>, <code>TagAssignment</code>, <code>TraceAnnotator</code>, <code>TraceStoreProtocol</code></td>
+<td>reviewer annotations: a tag vocabulary (<code>Tag</code>) and per-run tags + notes (<code>TagAssignment</code>, <code>RunTrace.annotations</code>); stores expose <code>list_tags</code>/<code>tag_runs</code>/<code>untag_runs</code>/<code>rename_tag</code>/<code>set_tag_color</code>/<code>delete_tag</code></td>
+</tr>
+<tr>
+<td><code>LangfuseTracer</code>, <code>OTLPTracer</code>, <code>PostgresStore</code></td>
+<td>external trace sinks — <code>OTLPTracer</code> is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), <code>LangfuseTracer</code> targets Langfuse specifically, Postgres supports async read+write and the full annotation API; the dashboard (<code>create_trace_router</code>) accepts any <code>TraceStoreProtocol</code> (SQLite or Postgres)</td>
+</tr>
+<tr>
+<td><code>create_trace_router(store)</code> (<code>reactifact.tracing.web</code>)</td>
+<td>FastAPI dashboard router: list/detail/sessions pages, tag facets + filtering, bulk tagging, tag-vocabulary management, URL-synced + saved views, sortable table, Tree/Timeline run view, in-trace search, raw JSON, JSON export</td>
+</tr>
+</tbody>
+</table>
+<h2 id="testing-reactifacttesting-56">Testing (reactifact.testing, §56)<a class="headerlink" href="#testing-reactifacttesting-56" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ScenarioLab</code></td>
+<td>scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/errors), <code>mode=</code> live/record/replay, fault injection (<code>fail(tool, …)</code>, <code>fail_resource(name_or_key, …)</code> — a string name or a typed <code>Type</code>/<code>ResourceKey</code>)</td>
+</tr>
+<tr>
+<td><code>ScenarioReport</code>, <code>ScenarioResult.report</code>, <code>Scenario.report</code></td>
+<td>token/latency/tool totals for a turn (or aggregated over a multi-turn scenario): <code>llm_calls</code>, <code>prompt_tokens</code>/<code>completion_tokens</code>/<code>total_tokens</code>, <code>tool_calls</code>, <code>spans</code>, <code>agents</code>, <code>errors</code>, <code>outcomes</code>, with <code>to_dict()</code> and <code>render()</code>. <code>result.llm</code> also exposes <code>prompt_tokens</code>/<code>completion_tokens</code>/<code>tokens</code></td>
+</tr>
+<tr>
+<td><code>capture(context, *, trace=…)</code></td>
+<td>freeze a <code>GoldenRun</code> — <code>context_hash</code> plus the trace's prompt hashes</td>
+</tr>
+<tr>
+<td><code>assert_golden(context, golden, *, trace=…)</code></td>
+<td>fail loudly when state (or, with <code>trace</code>, prompts) drifted</td>
+</tr>
+<tr>
+<td><code>replay_resources(recording, *, base=…)</code></td>
+<td>a <code>RuntimeResources</code> whose llm replays a recording — an offline regression on a real run</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcp-reactifactmcp-mcp-extra">MCP (reactifact.mcp, <code>mcp</code> extra)<a class="headerlink" href="#mcp-reactifactmcp-mcp-extra" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcp_stdio_tools(command, args)</code>, <code>mcp_http_tools(url)</code></td>
+<td>connect to an MCP server, yield its tools as <code>list[Tool]</code></td>
+</tr>
+<tr>
+<td><code>mcp_tools(session)</code>, <code>MCPTool</code></td>
+<td>wrap tools off an existing <code>mcp.ClientSession</code></td>
+</tr>
+<tr>
+<td><code>oauth_client_credentials(server_url, client_id=, client_secret=, issuer=)</code>, <code>InMemoryTokenStorage</code></td>
+<td><code>auth=</code> value for <code>mcp_http_tools</code> — OAuth's <code>client_credentials</code> grant (machine-to-machine, no browser/human consent)</td>
+</tr>
+<tr>
+<td><code>create_mcp_server(tools, context=...)</code></td>
+<td>expose <code>Tool</code>s (and, with <code>context=</code>, a <code>Context</code>'s artifacts) as an <code>mcp.server.mcpserver.MCPServer</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

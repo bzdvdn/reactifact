@@ -1,0 +1,2291 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context">
+      
+      
+      
+        <link rel="canonical" href="https://bzdvdn.github.io/reactifact/en/scheduler-semantics/">
+      
+      
+        <link rel="prev" href="../concepts/">
+      
+      
+        <link rel="next" href="../effects/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/reactifact-hero.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Execution model - reactifact</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#scheduler-semantics-the-execution-contract" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="reactifact" class="md-header__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            reactifact
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Execution model
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../why-reactifact/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why reactifact
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../migrating/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../comparison/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Comparison
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Execution model
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../effects/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../design-notes/adaptive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="reactifact" class="md-nav__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    reactifact
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-reactifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why reactifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution model
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-vocabulary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Vocabulary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-one-generation-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. One generation, step by step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-termination-and-quiescence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Termination and quiescence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-ordering-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Ordering guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-concurrency-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Concurrency guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-budget-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Budget semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-failure-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Failure semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-determinism-what-is-and-is-not-guaranteed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Determinism: what is and is not guaranteed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-explicit-non-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Explicit non-guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-map-to-code-and-constitution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Map to code and constitution
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branching & merge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../durability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Durability & resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-generated reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/adaptive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adaptive scheduler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constitution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constitution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-vocabulary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Vocabulary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-one-generation-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. One generation, step by step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-termination-and-quiescence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Termination and quiescence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-ordering-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Ordering guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-concurrency-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Concurrency guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-budget-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Budget semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-failure-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Failure semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-determinism-what-is-and-is-not-guaranteed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Determinism: what is and is not guaranteed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-explicit-non-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Explicit non-guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-map-to-code-and-constitution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Map to code and constitution
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bzdvdn/reactifact/edit/master/docs/en/scheduler-semantics.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="scheduler-semantics-the-execution-contract">Scheduler semantics — the execution contract<a class="headerlink" href="#scheduler-semantics-the-execution-contract" title="Permanent link">&para;</a></h1>
+<p>This page is the <strong>execution contract</strong> of <code>Runtime</code>: how a run decides <em>what</em>
+executes, in what <em>order</em>, and when it <em>stops</em>. Every statement here describes
+behavior that already exists in the implementation (constitution §21–§24,
+§41–§44, §54, §58–§59, §69) — it is a specification, not a roadmap.</p>
+<p>If the code and this page ever disagree, one of them is a bug. The tests in
+<code>tests/test_scheduler_semantics.py</code> pin the load-bearing claims so that a
+refactor that changes them fails CI instead of silently drifting this document.</p>
+<h2 id="1-vocabulary">1. Vocabulary<a class="headerlink" href="#1-vocabulary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Turn</strong></td>
+<td>One <code>Runtime.arun()</code> / <code>arun_once()</code> / <code>astream()</code> call. Bounded by a <code>Budget</code> and <code>max_iterations</code>.</td>
+</tr>
+<tr>
+<td><strong>Generation</strong> (iteration)</td>
+<td>One pass of the dispatch loop: drain events → match → schedule → run → commit.</td>
+</tr>
+<tr>
+<td><strong>Run</strong></td>
+<td>One agent execution inside a generation — the unit counted against <code>Budget.max_runs</code>.</td>
+</tr>
+<tr>
+<td><strong>Event</strong></td>
+<td>A derived record of a state change. Never authored by hand: committing an artifact create/update/delete <em>is</em> the event (<code>reactifact.events</code>).</td>
+</tr>
+<tr>
+<td><strong>Commit</strong></td>
+<td>One agent's compiled <code>Patch</code> applied to the <code>Context</code>, plus the reads it recorded.</td>
+</tr>
+</tbody>
+</table>
+<p>The runtime's job is to turn "what artifacts exist" into "what runs next". There
+is no pre-declared execution graph; the schedule is a function of state (§63).</p>
+<h2 id="2-one-generation-step-by-step">2. One generation, step by step<a class="headerlink" href="#2-one-generation-step-by-step" title="Permanent link">&para;</a></h2>
+<p>Implemented by <code>Runtime._arun_once_impl</code> (<code>reactifact/runtime.py</code>).</p>
+<ol>
+<li>
+<p><strong>Drain.</strong> <code>context.drain_events()</code> returns the queued events in FIFO
+   (emission) order and clears the queue. If the queue is empty, the generation
+   yields <strong>0 runs</strong> and the turn is over (quiescence, §3).</p>
+</li>
+<li>
+<p><strong>Match.</strong> For each event, each agent (in priority order) is asked
+   <code>agent.matching_triggers(event, context)</code>. A trigger matches on:</p>
+</li>
+<li>the <strong>event type</strong> (<code>artifact_created</code> / <code>updated</code> / <code>deleted</code> / <code>stale</code>),</li>
+<li><strong>exact artifact-type equality</strong> (not <code>issubclass</code>),</li>
+<li>an optional <code>condition(artifact)</code> and/or <code>context_condition(artifact, context)</code>
+     (the latter is what <code>CorrelatedConsume</code>/<code>JoinConsume</code>/<code>AbsentConsume</code> use to
+     correlate across types).</li>
+</ol>
+<p>A <code>Consume(wakes=False)</code> contributes no trigger — it feeds inputs only. If a
+   trigger's condition needs the artifact and it no longer resolves (deleted
+   earlier in the same generation, or in a prior generation), the trigger does
+   <strong>not</strong> match (<code>Trigger.matches</code>).</p>
+<ol>
+<li>
+<p><strong>Debounce.</strong> If <em>every</em> matching trigger for an agent on an event carries
+   <code>debounce=True</code>, the agent is collapsed: it gets at most <strong>one</strong> entry per
+   generation, and the <strong>last</strong> matching event in the drained batch wins. An
+   agent with a mix of debounced and non-debounced matches for that event is
+   treated as non-debounced. A collapsed run costs <strong>one</strong> against <code>max_runs</code>.
+   A debounced produce must read <code>inputs</code> (collected fresh from <code>Context</code>), not
+   <code>event</code> — "which one changed" is exactly what debouncing discards.</p>
+</li>
+<li>
+<p><strong>Order.</strong> Non-debounced work is collected in <code>(event order × agent priority)</code>
+   order; debounced entries are appended afterwards, then the whole list is
+   <strong>stable-sorted by <code>Agent.priority</code></strong> (ascending). So <code>priority</code> is the outer
+   ordering key, and ties keep insertion order.</p>
+</li>
+<li>
+<p><strong>Schedule (optional).</strong> If a <code>Scheduler</code> is configured,
+   <code>scheduler(context, work)</code> runs over the candidate list. The built-in
+   <code>uncertainty_policy</code> filters → ranks deterministically → optionally asks the
+   LLM to order the close top pair → optionally keeps top‑k. Two invariants are
+   baked in: an <strong>HITL-resume pin</strong> (a candidate that unblocks an answered
+   <code>PendingQuestion</code> is forced first) and a <strong>no-starvation fallback</strong> (filtering
+   never empties a non-empty candidate list).</p>
+</li>
+<li>
+<p><strong>Budget slice.</strong> Work is cut to the remaining <code>max_runs</code>. If none remain,
+   the outcome becomes <code>budget_runs_exceeded</code> and the generation stops. Note:
+   events were already drained in step 1 — work dropped by the budget is <strong>not</strong>
+   re-queued.</p>
+</li>
+<li>
+<p><strong>Dispatch.</strong> Agents run against the generation's <strong>snapshot</strong> (step 5 of
+   §4). With concurrency caps they run through a global <code>max_concurrency</code>
+   semaphore plus per-agent <code>concurrency_limit</code> tiers (global acquired first, in
+   a fixed order, to avoid deadlock). Each produce is given its own <code>Effects</code>
+   slot via a contextvar, so parallel produces never see each other's effects.</p>
+</li>
+<li>
+<p><strong>Collect.</strong> Results are gathered in <strong>work order</strong>, regardless of the order
+   in which tasks actually finished (<code>asyncio.gather</code> preserves input order).</p>
+</li>
+<li>
+<p><strong>Validate.</strong> Every <code>Create</code> in a result's patch is checked against that
+   agent's <code>produces</code> types and the <code>also_creates</code> they declare. An undeclared
+   type raises before anything is applied.</p>
+</li>
+<li>
+<p><strong>Commit.</strong> For each agent, its <code>Patch</code> is applied as one unit, operations in
+    order:</p>
+<ul>
+<li><code>Create</code> with an id that already exists becomes a <strong>refresh</strong> (new version
+  of the same entity), not a duplicate (§42);</li>
+<li><code>Update</code> whose data is unchanged is a <strong>no-op</strong> — no new version, no event
+  (so no-op patches never cascade, §41);</li>
+<li>bumping a version emits <code>ARTIFACT_STALE</code> for artifacts whose producing
+  commit read the old version (<code>Context.update</code> → <code>_dependents_of</code>).</li>
+</ul>
+<p>The generation returns the number of runs (every executed agent counts, even
+one whose patch was empty or that errored under isolation).</p>
+</li>
+</ol>
+<h2 id="3-termination-and-quiescence">3. Termination and quiescence<a class="headerlink" href="#3-termination-and-quiescence" title="Permanent link">&para;</a></h2>
+<p><code>Runtime._arun_impl</code> repeatedly runs generations. It stops when <strong>any</strong> of:</p>
+<ul>
+<li>a generation yields <strong>0 runs</strong> (no drained events, no agent matched, or all
+  remaining work was cut) → <code>completed</code>;</li>
+<li>the wall-clock deadline is reached → <code>budget_time_exceeded</code>;</li>
+<li><code>max_runs</code> is exhausted → <code>budget_runs_exceeded</code>;</li>
+<li>the iteration limit is hit → <code>iterations_exhausted</code>.</li>
+</ul>
+<p>There is <strong>no structural termination guarantee</strong>. A cycle (agent A creates <code>B</code>,
+agent B updates <code>A</code>) never quiesces on its own; only the budget stops it. This is
+deliberate: the framework does not run a cycle detector, and a reactive program
+that genuinely wants to keep reacting is allowed to. Budgets are the backstop.</p>
+<p>Because termination is budget-driven, a reactive program should always set a
+budget in production. <code>Budget(max_runs=…)</code> is the cheapest guard; <code>max_seconds</code>
+bounds a slow one.</p>
+<h2 id="4-ordering-guarantees">4. Ordering guarantees<a class="headerlink" href="#4-ordering-guarantees" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Events</strong> are processed in FIFO emission order.</li>
+<li><strong>Work and commit order</strong> follows <code>priority</code> (ascending, stable) and, within a
+  generation, is <strong>independent of task completion order</strong>.</li>
+<li><strong><code>Context.list_artifacts</code></strong> preserves insertion (creation) order, so a
+  caller's own stable sort on a coarse key (e.g. <code>updated_at</code>) breaks in creation
+  order.</li>
+<li><strong>Consequence:</strong> with deterministic produces and a fixed agent list, the
+  sequence of commits is deterministic <em>even under parallel dispatch</em> — the
+  interleaving of side effects is not, but the resulting state transitions are.</li>
+</ul>
+<h2 id="5-concurrency-guarantees">5. Concurrency guarantees<a class="headerlink" href="#5-concurrency-guarantees" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Snapshot isolation per generation.</strong> All agents in a generation read the
+  same pre-commit <code>Context</code>; none sees a sibling's writes from the same
+  generation. A changed read only becomes visible in the next generation.</li>
+<li><strong>Serialized commit.</strong> Patches are applied only after every worker in the
+  generation has finished — a generation is a barrier.</li>
+<li><strong>Bounded parallelism.</strong> <code>Runtime.max_concurrency</code> caps globally;
+  <code>Agent.concurrency_limit</code> caps a single agent (useful to throttle LLM-bound
+  produces separately from cheap I/O).</li>
+<li><strong>Isolated effect slots.</strong> One <code>Effects</code> slot per produce (a contextvar pushed
+  by the runtime) means concurrent produces cannot observe each other's pending
+  effects.</li>
+<li>Side effects inside a produce (LLM calls, network, disk) do run concurrently;
+  only their <strong>state changes</strong> are serialized.</li>
+</ul>
+<h2 id="6-budget-semantics">6. Budget semantics<a class="headerlink" href="#6-budget-semantics" title="Permanent link">&para;</a></h2>
+<p><code>Budget</code> (<code>reactifact/budget.py</code>) is per turn and reset by <code>_begin_turn</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Knob</th>
+<th>Enforced where</th>
+<th>On exhaustion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_runs</code></td>
+<td>work slicing + the match loop, in <code>_arun_once_impl</code></td>
+<td><code>budget_runs_exceeded</code></td>
+</tr>
+<tr>
+<td><code>max_seconds</code></td>
+<td><code>_budget_exhausted()</code>, between generations; also published to <code>resources.budget_deadline</code> for tool loops</td>
+<td><code>budget_time_exceeded</code></td>
+</tr>
+<tr>
+<td><code>max_iterations</code></td>
+<td>the <code>_arun_impl</code> loop bound</td>
+<td><code>iterations_exhausted</code></td>
+</tr>
+<tr>
+<td><code>max_tool_calls</code></td>
+<td>tool loops (<code>ToolUse</code>/<code>LLMAgent</code>), not the runtime core</td>
+<td>loop stops, honest answer</td>
+</tr>
+</tbody>
+</table>
+<p><code>arun(max_iterations=…)</code> is used only when the active budget does not set
+<code>max_iterations</code>; an explicit <code>Budget.max_iterations</code> wins.</p>
+<h2 id="7-failure-semantics">7. Failure semantics<a class="headerlink" href="#7-failure-semantics" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Fail loud by default</strong> (§69). An exception raised by an agent propagates out
+  of <code>arun()</code>/<code>astream()</code> and aborts the turn. Before it does, every sibling
+  already scheduled in that generation is allowed to finish (the runtime gathers
+  with <code>return_exceptions=True</code> and only then re-raises the first exception) — no
+  in-flight task is left running unawaited.</li>
+<li><strong><code>isolate_errors=True</code></strong> opts into resilience: the failing agent contributes
+  no patch, <code>on_agent_error(agent, event, exc)</code> fires (if set), the run
+  continues, and the failure is counted in <code>RunStats.errors</code>. Isolation is an
+  explicit product decision, not a default safety net.</li>
+<li><strong>Reentrancy.</strong> A <code>Runtime</code> instance is single-turn: a second concurrent
+  <code>arun</code>/<code>arun_once</code>/<code>astream</code> on the <em>same</em> instance raises <code>RuntimeError</code>
+  rather than racing on shared turn state. Use one <code>Runtime</code> per concurrent
+  request; they may share <code>Context.resources</code>.</li>
+<li><strong>Observability</strong> is delegated to <code>reactifact.tracing.RunTracer</code>: spans are
+  built per generation and the turn's <code>RunTrace</code> is delivered once at turn end
+  (<code>on_turn_end</code>). A failing sink or tracer never aborts the run — see
+  <a href="../observability/#tracing-never-fails-the-run">Tracing never fails the run</a>.</li>
+</ul>
+<h2 id="8-determinism-what-is-and-is-not-guaranteed">8. Determinism: what is and is not guaranteed<a class="headerlink" href="#8-determinism-what-is-and-is-not-guaranteed" title="Permanent link">&para;</a></h2>
+<p><strong>Guaranteed (given the same starting state, agents, and inputs):</strong></p>
+<ul>
+<li>events are derived from committed state — the causal chain cannot drift from
+  the state;</li>
+<li>a generation is a snapshot followed by an ordered, serialized commit;</li>
+<li>commit order is independent of completion order;</li>
+<li>unchanged updates and <code>create(id=existing)</code> produce no new version and no
+  event;</li>
+<li><code>Context.list_artifacts</code> order is insertion order.</li>
+</ul>
+<p><strong>Not guaranteed (must be controlled by the application to get reproducibility):</strong></p>
+<ul>
+<li>LLM/provider output (<code>from_env()</code> calls, tool results);</li>
+<li>wall-clock time — <code>Artifact.created_at</code>, <code>Event.timestamp</code>, span timing;</li>
+<li>auto-generated ids (<code>uuid4</code>) and anything seeded from randomness;</li>
+<li>iteration order of <code>set</code>/<code>dict</code> values <em>inside a produce's own logic</em> (reactifact's
+  own ordering is insertion-based, but user code is on its honor);</li>
+<li>the relative interleaving of concurrent side effects;</li>
+<li>a <code>Scheduler</code>'s LLM tie-break, when enabled (it reorders the top two
+  candidates).</li>
+</ul>
+<p>To make a run reproducible, drive the LLM through a recorded provider and treat
+time/ids as injected — <code>reactifact.replay</code> (<code>ReplayLLM</code>) replays recorded
+decisions deterministically; see <a href="../replay/">Replay</a>.</p>
+<h2 id="9-explicit-non-guarantees">9. Explicit non-guarantees<a class="headerlink" href="#9-explicit-non-guarantees" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Single process.</strong> The runtime schedules within one event loop; there is no
+  distributed execution and no cross-process exactly-once.</li>
+<li><strong>Crash durability at generation boundaries, not cross-process transactions.</strong>
+  With the default <code>session_save_policy="per_commit"</code>, the session is saved
+  after every generation, including its pending trigger queue: reopen the
+  session and call <code>arun()</code> to resume an interrupted run (at-least-once — a
+  produce that already committed may run again, so use stable ids). That is
+  resilience, not a distributed transaction.</li>
+<li><strong>No structural termination</strong> (§3) and <strong>no fairness across generations</strong> — the
+  no-starvation guarantee holds <em>within</em> one scheduling call, not across a whole
+  turn.</li>
+<li><strong>Budget cuts drop work.</strong> Once a generation is committed, its trigger batch
+  is consumed even if the budget meant only part of it ran. (An agent that
+  <em>raises</em> is different: the batch stays queued, so a retry re-runs it.)</li>
+</ul>
+<h2 id="10-map-to-code-and-constitution">10. Map to code and constitution<a class="headerlink" href="#10-map-to-code-and-constitution" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Code</th>
+<th>Constitution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Generation loop</td>
+<td><code>reactifact/runtime.py</code> <code>_arun_once_impl</code>, <code>_arun_impl</code></td>
+<td>§21, §23, §24</td>
+</tr>
+<tr>
+<td>Matching</td>
+<td><code>reactifact/triggers.py</code> <code>Trigger.matches</code>, <code>reactifact/agents.py</code> <code>matching_triggers</code></td>
+<td>§22</td>
+</tr>
+<tr>
+<td>Debounce / order / budget slice</td>
+<td><code>runtime.py</code> <code>_arun_once_impl</code></td>
+<td>§24, §58</td>
+</tr>
+<tr>
+<td>Scheduling policy</td>
+<td><code>reactifact/scheduler.py</code> <code>Scheduler</code></td>
+<td>§26</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td><code>runtime.py</code> <code>_dispatch</code></td>
+<td>§42, §58</td>
+</tr>
+<tr>
+<td>Atomic commit / idempotency</td>
+<td><code>runtime.py</code> <code>_commit_patches_to_apply</code>, <code>_apply_patch</code>; <code>context.py</code> <code>create</code>/<code>update</code></td>
+<td>§41, §42, §43</td>
+</tr>
+<tr>
+<td>Staleness</td>
+<td><code>context.py</code> <code>update</code> → <code>_dependents_of</code>, <code>stale_artifacts</code></td>
+<td>§43, §44</td>
+</tr>
+<tr>
+<td>Budget / outcomes</td>
+<td><code>reactifact/budget.py</code></td>
+<td>§58</td>
+</tr>
+<tr>
+<td>Failure model</td>
+<td><code>runtime.py</code> <code>_execute</code>, <code>_enter_turn</code></td>
+<td>§59, §69</td>
+</tr>
+<tr>
+<td>Observability</td>
+<td><code>reactifact/tracing/</code></td>
+<td>§54</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
