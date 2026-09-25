@@ -363,6 +363,33 @@ class Context:
         self._events = []
         return events
 
+    def pending_events(self) -> list[Event]:
+        """A snapshot of the queued events, without consuming them.
+
+        Non-destructive counterpart of `drain_events()` (which stays for
+        callers that explicitly want to flush the queue — tests, seeding).
+        The runtime reads a batch with this, schedules the generation, and
+        only calls `consume_events()` once the generation's patches are
+        committed: a generation that raises leaves its triggers queued
+        instead of silently dropping the consumers they would have woken, so
+        a retry re-runs the work rather than settling at zero runs on an
+        empty queue.
+        """
+        return list(self._events)
+
+    def consume_events(self, events: list[Event]) -> None:
+        """Removes a batch previously read with `pending_events()`.
+
+        Matching is by identity, not by count: events appended while the
+        generation ran — its commits' effects, staged for the *next*
+        generation — are preserved, and it stays correct even if a produce
+        drained or reordered the queue directly during the generation.
+        """
+        if not events:
+            return
+        consumed = {id(event) for event in events}
+        self._events = [event for event in self._events if id(event) not in consumed]
+
     def clone(self) -> Context:
         """Deep copy of this context's live state. See `reactifact.branching`."""
         from .branching import clone_context
@@ -583,6 +610,11 @@ class Context:
             "artifacts": {aid: art.to_dict() for aid, art in self._artifacts.items()},
             "relations": self._relations.to_dict(),
             "commits": self._log.to_dict(),
+            # Pending triggers, so an interrupted run resumes after a process
+            # restart instead of settling on an empty queue. `context_hash`
+            # deliberately excludes these (state, not provenance): the queue
+            # carries no artifact content, only "what still needs reacting to".
+            "events": [event.to_dict() for event in self._events],
             "fork_name": self._fork_name,
             "base": self._base.to_dict() if self._base is not None else None,
         }
@@ -597,6 +629,7 @@ class Context:
         ws._log = CommitLog.from_dict(
             d["commits"], version=d.get("version"), head_id=d.get("head_id")
         )
+        ws._events = [Event.from_dict(e) for e in d.get("events", [])]
         ws._fork_name = d.get("fork_name", "")
         ws._base = Context.from_dict(d["base"]) if d.get("base") is not None else None
         ws._recompute_stale()

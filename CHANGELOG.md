@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- **Sessions persist pending triggers, so an interrupted run resumes after a
+  process restart.** `Context.to_dict()`/`from_dict()` now carry the event
+  queue (`Event.to_dict`/`from_dict`), and a session-backed runtime saves once
+  at each generation boundary *after* consuming its batch — settled
+  generations included — so the saved queue is consistent: an already-consumed
+  trigger is not replayed, and one whose consumer never ran is. Reopening a
+  session and calling `arun()` continues from where it left off instead of
+  seeing an empty queue. At-least-once: a produce that had already committed
+  may run again, so use stable ids for idempotent produces. `context_hash`
+  still excludes the queue (it is transient state, not provenance).
+
+### Fixed
+
+- **A failing generation no longer silently drops its triggers.** The runtime
+  used to `drain_events()` at the start of a generation, so an agent exception
+  (default `isolate_errors=False`) — or any error during patch validation /
+  commit — left the artifacts created but their consumers unqueued: the next
+  `arun()` saw an empty queue and settled at zero runs, losing the work. The
+  queue is now read non-destructively (`Context.pending_events()`) and the
+  batch is consumed (`Context.consume_events()`) only after the generation's
+  patches are committed, so a retry re-runs the work. Events the commits
+  themselves emit (the next generation's triggers) are preserved. Paired with
+  the session-persisted queue above (see Added), this makes a crashed run
+  resume after a restart, not just retry in-process.
+
 ## [0.12.0] — 2026-09-25
 
 ### Added

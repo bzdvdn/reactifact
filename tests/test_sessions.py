@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Patch, Runtime, SessionStore
+from reactifact import Agent, Consume, Context, Patch, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 
 
@@ -204,8 +204,12 @@ async def _test_session_save_policy_per_commit_is_the_default(tmp_path):
     session.context.create(Question(text="hi"))
     await runtime.arun()
 
-    # Answer's commit, then Echoed's — one save each, the pre-existing behavior.
-    assert calls() == 2
+    # One save per generation boundary, after its trigger batch is consumed:
+    # Answer's commit, then Echoed's, then the settling generation that
+    # consumes Echoed's event with nothing left to react to. Persisting the
+    # settle (not just the commits) is what keeps the saved queue consistent,
+    # so a restart does not replay an already-consumed trigger.
+    assert calls() == 3
 
 
 def test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(tmp_path):
@@ -235,3 +239,64 @@ async def _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(
     # still durably persisted — deferring is not skipping.
     restored = await store.load_session("dave")
     assert restored.list_artifacts(Echoed)[0].data.text == "HI"
+
+
+def test_context_dict_roundtrip_keeps_pending_events():
+    ctx = Context()
+    ctx.create(Question(text="q"))
+
+    restored = Context.from_dict(ctx.to_dict())
+
+    pending = restored.pending_events()
+    assert len(pending) == 1
+    assert pending[0].artifact_type is Question
+    assert pending[0].type.value == "artifact_created"
+
+
+def test_session_restores_pending_events_after_restart(tmp_path):
+    asyncio.run(_test_session_restores_pending_events_after_restart(tmp_path))
+
+
+async def _test_session_restores_pending_events_after_restart(tmp_path):
+    """A trigger persisted before its consumer ran resumes after a restart."""
+    from reactifact.resources import RuntimeResources
+
+    backend = FileKVBackend(str(tmp_path / "sessions"))
+    store = SessionStore(backend)
+    session = await store.open("resume", resources=RuntimeResources())
+    session.context.create(Question(text="resume me"))
+    await session.save()  # the app persisted the user's message; no agent has run
+
+    # process restart: a fresh store and Context — only what was saved exists
+    session2 = await store.open("resume")
+    assert session2.context.list_artifacts(Answer) == []
+
+    runtime = Runtime(session2.context, agents=[SimpleAnswerer()], session=session2)
+    runs = await runtime.arun()
+
+    assert runs >= 1
+    assert session2.context.list_artifacts(Answer)[0].data.text == "RESUME ME"
+
+
+def test_settled_run_does_not_replay_on_restart(tmp_path):
+    asyncio.run(_test_settled_run_does_not_replay_on_restart(tmp_path))
+
+
+async def _test_settled_run_does_not_replay_on_restart(tmp_path):
+    """A completed run leaves no replayable triggers behind."""
+    from reactifact.resources import RuntimeResources
+
+    backend = FileKVBackend(str(tmp_path / "sessions"))
+    store = SessionStore(backend)
+    session = await store.open("settled", resources=RuntimeResources())
+    runtime = Runtime(session.context, agents=[SimpleAnswerer()], session=session)
+    session.context.create(Question(text="once"))
+    await runtime.arun()
+    assert len(session.context.list_artifacts(Answer)) == 1
+
+    session2 = await store.open("settled")
+    runtime2 = Runtime(session2.context, agents=[SimpleAnswerer()], session=session2)
+    runs = await runtime2.arun()
+
+    assert runs == 0
+    assert len(session2.context.list_artifacts(Answer)) == 1

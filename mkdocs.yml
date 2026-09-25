@@ -106,6 +106,7 @@ nav:
       - Visualization: en/viz.md
       - MCP: en/mcp.md
       - Observability: en/observability.md
+      - Durability & resume: en/durability.md
   - Reference:
       - API: en/api.md
       - Auto-generated reference: reference.md

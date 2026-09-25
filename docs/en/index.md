@@ -211,6 +211,9 @@ it's trimmed from.
 
 - [Observability](observability.md) — every run traces agent spans,
   reads/writes, LLM calls; offline dashboard, or ship to Langfuse/Postgres.
+- [Durability & resume](durability.md) — a session-backed run survives a
+  process restart; what "at-least-once" means and how to make produces
+  idempotent.
 - [Troubleshooting](troubleshooting.md) — "my agent didn't run" / "ran twice" /
   "the run stopped early" — organized by symptom, not by feature.
 - [Evaluation](eval.md) — multi-level scoring over the final `Context`

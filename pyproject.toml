@@ -152,3 +152,9 @@ python_version = "3.11"
 packages = ["reactifact", "examples"]
 strict = true
 warn_unused_ignores = true
+
+# pyright defaults its target to the interpreter it finds, which can resolve
+# below the 3.11 floor this package requires — making `StrEnum`/`datetime.UTC`
+# "unknown import symbol" and cascading into false positives on `RunOutcome`.
+[tool.pyright]
+pythonVersion = "3.11"

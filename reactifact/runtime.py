@@ -49,17 +49,19 @@ class Runtime:
         self.session = session
         self.budget = budget
         self.scheduler = scheduler
-        # "per_commit" (default): git-like persist after every single commit
-        # — the session survives a crash at the boundary of any agent
-        # generation, not just a whole turn. "per_turn": save once, after
-        # `arun()`/`astream()` (the whole run, every generation) fully
-        # completes — trades that finer crash-resilience granularity for one
-        # write per turn instead of one per commit (a multi-stage pipeline
-        # easily produces 5-10 commits per turn, each a full Context
-        # serialization through `session.save()`). Not read by `arun_once()`
-        # on its own (a single generation has no well-defined "turn"
-        # boundary) — only `arun()`/`astream()`'s own completion triggers the
-        # deferred save.
+        # "per_commit" (default): persist at every generation boundary, after
+        # that generation's trigger batch is consumed — so the session survives
+        # a crash between generations and the saved queue and artifacts commit
+        # as one consistent snapshot (including settled generations, which
+        # commit nothing but still consume a batch; see `_arun_once_impl`).
+        # "per_turn": save once, after `arun()`/`astream()` (the whole run,
+        # every generation) fully completes — trades that finer crash-resilience
+        # granularity for one write per turn instead of one per generation (a
+        # multi-stage pipeline easily produces several generations per turn,
+        # each a full Context serialization through `session.save()`). Not read
+        # by `arun_once()` on its own (a single generation has no well-defined
+        # "turn" boundary) — only `arun()`/`astream()`'s own completion triggers
+        # the deferred save.
         self.session_save_policy = session_save_policy
         # §69 "make illegal states visible" default: an agent's exception still
         # propagates out of arun()/astream() unless isolate_errors=True — opt in
@@ -193,7 +195,7 @@ class Runtime:
     async def _arun_once_impl(self, budget: Budget | None = None) -> int:
         if not self._turn_started:
             self._begin_turn(budget)
-        events = self.context.drain_events()
+        events = self.context.pending_events()
         if not events:
             return 0
         if self._budget_exhausted():
@@ -257,6 +259,26 @@ class Runtime:
         results = await self._dispatch(work)
         patches_to_apply, runs = self._get_patches_to_apply(results)
         await self._commit_patches_to_apply(patches_to_apply)
+        # Consume the triggers only now that the generation's patches are
+        # committed: `pending_events()` above is a peek, so a raise anywhere in
+        # dispatch/commit leaves the batch queued and a retry (another
+        # `runtime.arun()`) re-runs the work the exception would otherwise have
+        # silently dropped. Events appended by the commits themselves — the
+        # next generation's triggers — follow the batch and are preserved.
+        self.context.consume_events(events)
+        # Persist at the generation boundary, *after* the consume, so the saved
+        # queue is the at-rest one: this batch's triggers are gone and the next
+        # generation's (emitted by this one's commits) remain. Saving before the
+        # consume would persist already-processed triggers and replay them on
+        # reload; skipping the save would lose the fact that they were consumed
+        # — and a settled generation (matches nothing, commits nothing) still
+        # has to record that, or an event its state-dependent `Consume`
+        # condition didn't match yet would be replayed once the condition turns
+        # true (a HITL `resume`, say), running its consumer twice.
+        # (`session_save_policy="per_turn"` defers this to `_arun_impl`'s single
+        # save after the whole run completes instead.)
+        if self.session is not None and self.session_save_policy == "per_commit":
+            await self.session.save()
         return runs
 
     async def _dispatch(
@@ -350,7 +372,12 @@ class Runtime:
         return patches_to_apply, runs
 
     async def _commit_patches_to_apply(self, patches_to_apply: list[PatchWork]) -> None:
-        """Applies each patch as a commit: provenance, span writes, persistence."""
+        """Applies each patch as a commit: provenance and span writes.
+
+        Persistence is deliberately not here: the session is saved once per
+        generation in `_arun_once_impl`, after the trigger batch is consumed,
+        so the saved snapshot is queue-consistent (see the note there).
+        """
         for patch, agent, reads, span in patches_to_apply:
             commit = Commit(
                 author=agent.name,
@@ -363,14 +390,6 @@ class Runtime:
                 span.writes = self._trace.write_refs(patch, commit.writes)
                 span.relations = self._trace.relation_refs(patch)
             self.context.log_commit(commit)
-            if self.session is not None and self.session_save_policy == "per_commit":
-                # git-like persist after each commit: the session survives a crash
-                # at the boundary of any agent generation. Session backends are
-                # async-native (checkpoints.py) — a slow file/SQLite write yields
-                # to other concurrent agent runs instead of blocking a thread.
-                # (session_save_policy="per_turn" defers this to `_arun_impl`'s
-                # own single save after the whole run completes instead.)
-                await self.session.save()
 
     def _collect_reads(self, agent: Agent, event: Event) -> list[Read]:
         """Records consumed artifacts: the trigger event + inputs per consumes.

@@ -243,10 +243,10 @@ class ChatAssistant:
     yourself at real shutdown.
 
     `session_save_policy=` passes straight through to `Runtime` — `"per_turn"`
-    trades finer crash-resilience granularity (a save at every commit, the
-    default) for one `session.save()` per turn instead of one per commit,
-    worthwhile once a multi-stage pipeline routinely produces several commits
-    per turn (see `Runtime.__init__`'s own docstring for the trade-off).
+    trades finer crash-resilience granularity (a save at every generation
+    boundary, the default) for one `session.save()` per turn, worthwhile once a
+    multi-stage pipeline routinely produces several generations per turn (see
+    `Runtime.__init__`'s own docstring for the trade-off).
 
     `resources=`/`create_message=` may optionally take the current turn's
     `session_id` — `resources=lambda session_id: build_resources(session_id)`
@@ -305,7 +305,9 @@ class ChatAssistant:
         self._fallback_reply = fallback_reply
         self._isolate_errors = isolate_errors
         self._on_agent_error = on_agent_error
-        self._session_save_policy = session_save_policy
+        self._session_save_policy: Literal["per_commit", "per_turn"] = (
+            session_save_policy
+        )
         # Serializes concurrent turns on the *same* session_id (a double
         # submit, a client retry): without this, two overlapping stream()
         # calls both load the same starting state and the later save() wins,

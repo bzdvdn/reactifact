@@ -206,15 +206,18 @@ decisions deterministically; see [Replay](replay.md).
 
 - **Single process.** The runtime schedules within one event loop; there is no
   distributed execution and no cross-process exactly-once.
-- **Crash durability at commit boundaries, not cross-process transactions.**
-  With the default `session_save_policy="per_commit"`, a session can be resumed
-  from the last commit after a crash; that is resilience, not a distributed
-  transaction.
+- **Crash durability at generation boundaries, not cross-process transactions.**
+  With the default `session_save_policy="per_commit"`, the session is saved
+  after every generation, including its pending trigger queue: reopen the
+  session and call `arun()` to resume an interrupted run (at-least-once — a
+  produce that already committed may run again, so use stable ids). That is
+  resilience, not a distributed transaction.
 - **No structural termination** (§3) and **no fairness across generations** — the
   no-starvation guarantee holds *within* one scheduling call, not across a whole
   turn.
-- **Budget cuts drop work.** Once events are drained, work not run this
-  generation is not re-queued.
+- **Budget cuts drop work.** Once a generation is committed, its trigger batch
+  is consumed even if the budget meant only part of it ran. (An agent that
+  *raises* is different: the batch stays queued, so a retry re-runs it.)
 
 ## 10. Map to code and constitution
 
