@@ -101,6 +101,7 @@ nav:
       - Recipes: en/recipes.md
       - Patterns: en/patterns.md
       - Evaluation: en/eval.md
+      - Testing: en/testing.md
       - Branching & merge: en/branching.md
       - Replay: en/replay.md
       - Visualization: en/viz.md

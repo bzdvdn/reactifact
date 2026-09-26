@@ -15,11 +15,19 @@ from .assertions import (
     ErrorAssertions,
     LLMAssertions,
     PathAssertions,
+    RelationAssertions,
     ToolAssertions,
 )
 from .exceptions import AssertionFailure, ScenarioError, ScenarioSkip
 from .fault import ToolCallRecord, ToolCallRecorder, ToolFault
-from .golden import GoldenRun, assert_golden, capture, prompt_hashes, replay_resources
+from .golden import (
+    GoldenRun,
+    assert_golden,
+    assert_golden_file,
+    capture,
+    prompt_hashes,
+    replay_resources,
+)
 from .lab import Scenario, ScenarioLab, ScenarioReport, ScenarioResult
 from .mock import ResourceFault
 from .record import Mode, mode_from_env
@@ -33,6 +41,7 @@ __all__ = [
     "LLMAssertions",
     "Mode",
     "PathAssertions",
+    "RelationAssertions",
     "ResourceFault",
     "Scenario",
     "ScenarioCase",
@@ -46,6 +55,7 @@ __all__ = [
     "ToolCallRecorder",
     "ToolFault",
     "assert_golden",
+    "assert_golden_file",
     "capture",
     "collect",
     "mode_from_env",

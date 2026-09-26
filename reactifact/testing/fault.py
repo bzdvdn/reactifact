@@ -36,6 +36,7 @@ swallowing: an injected exception propagates normally there.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -49,16 +50,22 @@ if TYPE_CHECKING:
 
 @dataclass
 class ToolFault:
-    """A queued fault for one tool name.
+    """A queued fault *or stub* for one tool name.
 
-    `times=None` (default) raises on every call; `times=N` raises for the
+    `times=None` (default) applies on every call; `times=N` applies for the
     first `N` calls, then delegates to the real tool — the natural shape for
-    testing "fails then recovers on retry" behavior.
+    testing "fails then recovers on retry". `when(args)` narrows it to
+    matching calls; `delay` seconds are slept first (a slow-then-fail tool).
+    With `output` set the tool returns that `ToolOutput` instead of raising
+    (`error` is then unused) — a canned-response stub.
     """
 
     tool_name: str
-    error: BaseException | Callable[[], BaseException]
+    error: BaseException | Callable[[], BaseException] | None = None
     times: int | None = None
+    when: Callable[[dict[str, Any]], bool] | None = None
+    delay: float = 0.0
+    output: ToolOutput | None = None
 
 
 @dataclass
@@ -152,12 +159,24 @@ class _WrappedTool(Tool):
 
     async def execute(self, args: dict[str, Any]) -> ToolOutput:
         fault = self._fault
-        if fault is not None and (self._remaining is None or self._remaining > 0):
+        if (
+            fault is not None
+            and (fault.when is None or fault.when(args))
+            and (self._remaining is None or self._remaining > 0)
+        ):
             if self._remaining is not None:
                 self._remaining -= 1
+            if fault.delay:
+                await asyncio.sleep(fault.delay)
+            if fault.output is not None:
+                self._recorder.record(
+                    self.name, args, fault.output, fault.output.error or None
+                )
+                return fault.output
             err = fault.error() if callable(fault.error) else fault.error
-            self._recorder.record(self.name, args, None, str(err))
-            raise err
+            if err is not None:
+                self._recorder.record(self.name, args, None, str(err))
+                raise err
         try:
             output = await self._inner.execute(args)
         except Exception as exc:

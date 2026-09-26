@@ -31,6 +31,7 @@ from .exceptions import AssertionFailure
 if TYPE_CHECKING:
     from reactifact.budget import RunStats
     from reactifact.context import Context
+    from reactifact.patches import Relation
     from reactifact.streaming import ProgressEvent
     from reactifact.tracing.models import AgentSpan, LLMCall, RunTrace
 
@@ -138,9 +139,124 @@ class ArtifactAssertions(Generic[T]):
             )
         return data
 
+    def linked(
+        self, relation: str, target_type: type[BaseModel] | None = None
+    ) -> list[BaseModel]:
+        """Asserts the latest artifact has an outgoing `relation` link.
+
+        With `target_type`, at least one linked target must be an artifact of
+        that type. Returns the linked targets' data — the provenance assertion
+        a typed-artifact framework exists to make testable
+        (`Answer —supported_by→ Evidence`), rather than a `context.related`
+        call spelled out at every test site.
+        """
+        artifact = self._context.latest(self._type)
+        if artifact is None:
+            raise AssertionFailure(
+                f"expected an artifact of type {self._type.__name__!r} to link "
+                f"from, found none (context has: {self._present_types()})"
+            )
+        targets = self._context.related(artifact.id, relation)
+        wanted = f" to a {target_type.__name__}" if target_type is not None else ""
+        if target_type is not None:
+            targets = [a for a in targets if isinstance(a.data, target_type)]
+        if not targets:
+            outgoing = [
+                (r.relation, r.target_id)
+                for r in self._context.relations(source_id=artifact.id)
+            ]
+            raise AssertionFailure(
+                f"{self._type.__name__} {artifact.id!r} has no {relation!r} "
+                f"link{wanted} (its links: {outgoing})"
+            )
+        return [a.data for a in targets]
+
+    def links(self, relation: str | None = None) -> list[Relation]:
+        """Outgoing relations of the latest artifact (a measurement, not an
+        assertion) — pair it with your own check, or use `linked`/`RelationAssertions`."""
+        artifact = self._context.latest(self._type)
+        if artifact is None:
+            return []
+        return self._context.relations(source_id=artifact.id, relation=relation)
+
     def _present_types(self) -> str:
         names = sorted({type(a.data).__name__ for a in self._context.list_artifacts()})
         return ", ".join(names) if names else "(none)"
+
+
+class RelationAssertions:
+    """Assertions over the artifact graph's relations (`Context.relations()`).
+
+    `ArtifactAssertions` checks an artifact's *fields*; this checks the
+    *edges*: that provenance exists, that it doesn't, and how many. Any filter
+    left `None` is a wildcard.
+    """
+
+    def __init__(self, context: Context) -> None:
+        self._context = context
+
+    def all(self) -> list[Relation]:
+        return self._context.relations()
+
+    def _matching(
+        self,
+        source: str | None,
+        relation: str | None,
+        target: str | None,
+    ) -> list[Relation]:
+        return [
+            r
+            for r in self._context.relations()
+            if (source is None or r.source_id == source)
+            and (relation is None or r.relation == relation)
+            and (target is None or r.target_id == target)
+        ]
+
+    def has(
+        self,
+        *,
+        source: str | None = None,
+        relation: str | None = None,
+        target: str | None = None,
+    ) -> list[Relation]:
+        found = self._matching(source, relation, target)
+        if not found:
+            raise AssertionFailure(
+                f"expected a relation matching source={source!r} "
+                f"relation={relation!r} target={target!r}; present: "
+                f"{[(r.source_id, r.relation, r.target_id) for r in self.all()]}"
+            )
+        return found
+
+    def none(
+        self,
+        *,
+        source: str | None = None,
+        relation: str | None = None,
+        target: str | None = None,
+    ) -> None:
+        found = self._matching(source, relation, target)
+        if found:
+            raise AssertionFailure(
+                f"expected no relation matching source={source!r} "
+                f"relation={relation!r} target={target!r}, found: "
+                f"{[(r.source_id, r.relation, r.target_id) for r in found]}"
+            )
+
+    def count(
+        self,
+        *,
+        source: str | None = None,
+        relation: str | None = None,
+        target: str | None = None,
+    ) -> int:
+        return len(self._matching(source, relation, target))
+
+    def outgoing(self, source_id: str, relation: str | None = None) -> list[Relation]:
+        return self._context.relations(source_id=source_id, relation=relation)
+
+    def incoming(self, target_id: str, relation: str | None = None) -> list[Relation]:
+        return self._context.incoming(target_id, relation)
 
 
 class ToolAssertions:

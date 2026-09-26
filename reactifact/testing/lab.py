@@ -31,11 +31,13 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from reactifact.agents import Agent
+from reactifact.audit import context_hash
 from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
 from reactifact.resources import ResourceKey, RuntimeResources
 from reactifact.runtime import Runtime
 from reactifact.streaming import ProgressEvent, QueueEvent
+from reactifact.tools import ToolOutput
 from reactifact.tracing.models import RunTrace
 from reactifact.tracing.tracer import Tracer
 
@@ -45,10 +47,12 @@ from .assertions import (
     EventAssertions,
     LLMAssertions,
     PathAssertions,
+    RelationAssertions,
     ToolAssertions,
 )
 from .fault import FaultInstaller, ToolCallRecord, ToolCallRecorder, ToolFault
-from .mock import ResourceFault, ResourceFaultInstaller
+from .golden import GoldenRun, assert_golden, assert_golden_file
+from .mock import UNSET, ResourceFault, ResourceFaultInstaller
 from .record import Mode, wrap_llm
 
 T = TypeVar("T", bound=BaseModel)
@@ -218,6 +222,97 @@ class ScenarioResult:
     def errors(self) -> ErrorAssertions:
         return ErrorAssertions(self.trace, self.stats)
 
+    @property
+    def relations(self) -> RelationAssertions:
+        return RelationAssertions(self.context)
+
+    @property
+    def context_hash(self) -> str:
+        """The run's reproducible fingerprint (`reactifact.audit.context_hash`)."""
+        return context_hash(self.context)
+
+    def assert_golden(
+        self, target: GoldenRun | str | Path, *, update: bool | None = None
+    ) -> GoldenRun:
+        """Snapshot assertion over this turn — see `golden.assert_golden_file`.
+
+        `target` is a `GoldenRun` or a path. A missing file (or `update=True`/
+        `$REACTIFACT_GOLDEN_UPDATE=1`) records the snapshot instead of failing,
+        so the first run seeds it and later drift fails.
+        """
+        if isinstance(target, GoldenRun):
+            assert_golden(self.context, target, trace=self.trace)
+            return target
+        return assert_golden_file(self.context, target, trace=self.trace, update=update)
+
+    def explain(self) -> str:
+        """A human-readable dump of everything the run produced.
+
+        The debugging counterpart to the assertion groups: artifacts by type,
+        the relation graph, the agent path, tool/LLM calls and errors in one
+        string — what you want in a failing test's output, or a
+        `print(result.explain())` when a scenario surprises you.
+        """
+        return _render_explain(
+            context=self.context,
+            report=self.report,
+            path=self.path.all(),
+            calls=self.calls,
+            trace=self.trace,
+        )
+
+
+def _render_explain(
+    *,
+    context: Context,
+    report: ScenarioReport,
+    path: list[str],
+    calls: list[ToolCallRecord],
+    trace: RunTrace | None,
+) -> str:
+    """Shared body of `ScenarioResult.explain()`/`Scenario.explain()`."""
+    lines: list[str] = [report.render(), "", "artifacts:"]
+    by_type: dict[str, list[str]] = {}
+    for artifact in context.list_artifacts():
+        by_type.setdefault(type(artifact.data).__name__, []).append(
+            f"{artifact.id} v{artifact.version}"
+        )
+    if by_type:
+        for name in sorted(by_type):
+            lines.append(f"  {name}: {', '.join(by_type[name])}")
+    else:
+        lines.append("  (none)")
+
+    relations = context.relations()
+    lines.append("relations:")
+    if relations:
+        for rel in relations:
+            lines.append(f"  {rel.source_id} --{rel.relation}--> {rel.target_id}")
+    else:
+        lines.append("  (none)")
+
+    lines.append(f"path: {path}")
+    lines.append("tools:")
+    if calls:
+        for call in calls:
+            status = f"error: {call.error}" if call.error else "ok"
+            lines.append(f"  {call.tool}({call.args}) -> {status}")
+    else:
+        lines.append("  (none)")
+
+    llm = trace.llm_calls if trace is not None else []
+    lines.append(
+        f"llm: {len(llm)} call(s), {sum(c.prompt_tokens for c in llm)} in / "
+        f"{sum(c.completion_tokens for c in llm)} out"
+    )
+    errored = [
+        span for span in (trace.spans if trace is not None else []) if span.error
+    ]
+    lines.append(f"errors: {len(errored)}")
+    for span in errored:
+        lines.append(f"  {span.agent}: {span.error}")
+    return "\n".join(lines)
+
 
 class ScenarioLab:
     """Runs `agents` against seeded artifacts, once per `run()` call.
@@ -263,16 +358,46 @@ class ScenarioLab:
         error: BaseException | Callable[[], BaseException],
         *,
         times: int | None = None,
+        when: Callable[[dict[str, Any]], bool] | None = None,
+        delay: float = 0.0,
     ) -> None:
-        """Queues a fault for the next `run()`.
+        """Queues a fault for the next `run()`/`.turn()`.
 
         `tool_name` raises `error` (or the result of calling it, if callable —
         useful for a fresh exception instance per call) instead of executing.
         `times=None` (default) faults every call; `times=N` faults the first
-        `N` calls, then delegates to the real tool. Queued faults are consumed
-        by the next `run()` and don't carry over to the one after it.
+        `N` calls, then delegates to the real tool; `when(args)` narrows it to
+        matching calls; `delay` seconds are slept before raising (a
+        slow-then-fail tool). Queued faults are one-shot — consumed by the next
+        `run()`/`.turn()` only.
         """
-        self._faults.append(ToolFault(tool_name, error, times=times))
+        self._faults.append(
+            ToolFault(tool_name, error, times=times, when=when, delay=delay)
+        )
+
+    def stub_tool(
+        self,
+        tool_name: str,
+        *,
+        text: str = "",
+        error: str | None = None,
+        times: int | None = None,
+        when: Callable[[dict[str, Any]], bool] | None = None,
+        delay: float = 0.0,
+    ) -> None:
+        """Queues a canned-response stub for `tool_name` — the non-failing
+        counterpart of `fail()`: the tool returns `ToolOutput(text=..., error=...)`
+        instead of executing. Same `times`/`when`/`delay` semantics.
+        """
+        self._faults.append(
+            ToolFault(
+                tool_name,
+                times=times,
+                when=when,
+                delay=delay,
+                output=ToolOutput(text=text, error=error or ""),
+            )
+        )
 
     def fail_resource(
         self,
@@ -281,6 +406,8 @@ class ScenarioLab:
         *,
         method: str | None = None,
         times: int | None = None,
+        when: Callable[[tuple[Any, ...], dict[str, Any]], bool] | None = None,
+        delay: float = 0.0,
     ) -> None:
         """Queues a fault for a resource — the general-purpose analog of
         `fail()` for anything that isn't a tool.
@@ -294,12 +421,47 @@ class ScenarioLab:
         `.turn()`: `method=None` (default) fails every callable on it;
         naming one method (e.g. `"embed"`, `"search"`) faults only that
         method. `times=None` faults every call; `times=N` faults the first
-        `N`, then delegates to the real resource — same shape as `fail()`.
-        Raises `ScenarioError` at run time if `resource` doesn't match any
-        resource, or matches one that's `None` (nothing configured to fail).
+        `N`, then delegates; `when(args, kwargs)` narrows it to matching calls;
+        `delay` seconds are slept first. Raises `ScenarioError` at run time if
+        `resource` doesn't match any resource, or matches one that's `None`
+        (nothing configured to fail).
         """
         self._resource_faults.append(
-            ResourceFault(resource, error, method=method, times=times)
+            ResourceFault(
+                resource, error, method=method, times=times, when=when, delay=delay
+            )
+        )
+
+    def stub_resource(
+        self,
+        resource: str | type[Any] | ResourceKey[Any],
+        *,
+        returns: Any = UNSET,
+        side_effect: list[Any] | Callable[..., Any] | None = None,
+        method: str | None = None,
+        times: int | None = None,
+        when: Callable[[tuple[Any, ...], dict[str, Any]], bool] | None = None,
+        delay: float = 0.0,
+    ) -> None:
+        """Queues a stub for a resource — the non-failing counterpart of
+        `fail_resource()` for the same addressing (string name or typed key).
+
+        `returns` is returned on every stubbed call; or `side_effect` walks a
+        sequence/list (`unittest.mock` semantics: an item that is an
+        `Exception` raises, anything else is returned) or a callable called as
+        `side_effect(*args, **kwargs)`. `times`/`when`/`delay`/`method` behave
+        as on `fail_resource`.
+        """
+        self._resource_faults.append(
+            ResourceFault(
+                resource,
+                method=method,
+                times=times,
+                returns=returns,
+                side_effect=side_effect,
+                when=when,
+                delay=delay,
+            )
         )
 
     def _build_resources(self) -> RuntimeResources:
@@ -327,6 +489,12 @@ class ScenarioLab:
             context=context,
             max_iterations=max_iterations,
         )
+
+    def run_sync(self, *seed: Any, max_iterations: int = 100) -> ScenarioResult:
+        """Synchronous `run()` — mirrors `Runtime.run()`/`run_once()` for plain
+        (non-async) pytest tests. Uses `asyncio.run`, so it can't be called from
+        inside an already-running event loop."""
+        return asyncio.run(self.run(*seed, max_iterations=max_iterations))
 
     def scenario(self) -> Scenario:
         """Starts a multi-turn scenario: one `Context` reused across `.turn()`
@@ -464,6 +632,37 @@ class Scenario:
         self.all_calls.extend(result.calls)
         self.all_progress_events.extend(result.progress_events)
         return result
+
+    def turn_sync(self, *seed: Any, max_iterations: int = 100) -> ScenarioResult:
+        """Synchronous `turn()` — see `ScenarioLab.run_sync`."""
+        return asyncio.run(self.turn(*seed, max_iterations=max_iterations))
+
+    @property
+    def relations(self) -> RelationAssertions:
+        """Relations across every turn run so far (the shared `Context`)."""
+        return RelationAssertions(self.context)
+
+    def assert_golden(
+        self, target: GoldenRun | str | Path, *, update: bool | None = None
+    ) -> GoldenRun:
+        """Aggregate snapshot assertion across every turn run so far — see
+        `ScenarioResult.assert_golden`."""
+        trace = _combined_trace(self.all_traces)
+        if isinstance(target, GoldenRun):
+            assert_golden(self.context, target, trace=trace)
+            return target
+        return assert_golden_file(self.context, target, trace=trace, update=update)
+
+    def explain(self) -> str:
+        """Aggregate `explain()` across every turn run so far — see
+        `ScenarioResult.explain()`."""
+        return _render_explain(
+            context=self.context,
+            report=self.report,
+            path=self.path.all(),
+            calls=self.all_calls,
+            trace=_combined_trace(self.all_traces),
+        )
 
     @property
     def path(self) -> PathAssertions:

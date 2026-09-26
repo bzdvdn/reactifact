@@ -18,6 +18,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   seeing an empty queue. At-least-once: a produce that had already committed
   may run again, so use stable ids for idempotent produces. `context_hash`
   still excludes the queue (it is transient state, not provenance).
+- **`reactifact.testing` ergonomics: provenance assertions, sync API, golden
+  snapshots, `explain()`, an opt-in pytest plugin, and richer fault injection.**
+  - Provenance is now testable directly: `result.artifacts(Answer).linked(
+    "supported_by", Evidence)` and a `RelationAssertions` group
+    (`result.relations.has/none/count/outgoing/incoming`) assert on the
+    artifact graph's edges, not only artifact fields.
+  - `ScenarioLab.run_sync(...)` / `Scenario.turn_sync(...)` mirror the async API
+    (like `Runtime.run`), and `ScenarioResult.explain()` / `Scenario.explain()`
+    dump the whole run (artifacts, relations, path, tools, LLM, errors).
+  - Golden snapshots: `assert_golden_file(context, path)` seeds the snapshot
+    when it is missing (or `update=True`/`$REACTIFACT_GOLDEN_UPDATE=1`) and
+    fails on drift; `result.assert_golden(path)` / `scenario.assert_golden(path)`
+    wrap it, plus `result.context_hash`.
+  - Fault injection grew stubs and precision: `stub_tool`/`stub_resource`
+    (`returns`/`side_effect`, `unittest.mock`-style), and `fail`/
+    `fail_resource` gained `when(args)` and `delay` (slow-then-fail).
+  - Opt-in pytest plugin (`reactifact.testing.pytest_plugin` via
+    `pytest_plugins = [...]`): runs `async def` scenarios without
+    pytest-asyncio, maps `ScenarioSkip` to a skip, adds a `scenario_lab`
+    fixture defaulting `mode=` to `$REACTIFACT_SCENARIO_MODE`.
+  - Docs: a new [Testing](docs/en/testing.md) page (EN + RU) with the assertion
+    groups, fault/stub reference, record/replay, golden and the plugin.
 
 ### Fixed
 

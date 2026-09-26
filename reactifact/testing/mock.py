@@ -16,7 +16,9 @@ path (§59) kick in" primitive, for whatever `resources.llm`/`.embedder`/
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -26,26 +28,43 @@ from .exceptions import ScenarioError
 if TYPE_CHECKING:
     from reactifact.resources import ResourceKey, RuntimeResources
 
+#: Sentinel for `ResourceFault.returns` — "no stub return value was set", so a
+#: `returns=None` stub is distinguishable from "not stubbing the return".
+UNSET: Any = object()
+
 
 @dataclass
 class ResourceFault:
-    """A queued fault for one resource.
+    """A queued fault *or stub* for one resource.
 
     `resource` addresses it either by **string name** — `"llm"`, `"embedder"`,
     a source id (`resources.sources[id]`), or a name set via
     `resources.set(name, ...)` — or by a **typed key**: a class or a
-    `ResourceKey` registered with `resources.register(...)`. `method=None`
-    (default) fails every callable on the resource; naming one (e.g.
-    `"embed"`) faults only that method, leaving the rest of the resource
-    working normally. `times=None` faults every call; `times=N` faults the
-    first `N`, then delegates to the real resource — same shape as
-    `fault.ToolFault`.
+    `ResourceKey` registered with `resources.register(...)`.
+
+    Exactly one behaviour is picked, in this order:
+    - `side_effect`: a list (each call pops the next item — an `Exception`
+      raises, anything else is returned) or a callable
+      `(args, kwargs) -> value | Exception`.
+    - `returns`: the value to return on every faulted call.
+    - `error`: raise it (or the result of calling it) — the original behaviour.
+
+    `method=None` (default) intercepts every callable on the resource; naming
+    one (e.g. `"embed"`) touches only that method. `times=None` applies
+    forever; `times=N` applies for the first `N` calls, then delegates to the
+    real resource. `when(args, kwargs)` narrows it to matching calls.
+    `delay` seconds are slept before the fault/stub responds (async resources
+    yield; sync ones block — see `_FailingProxy`).
     """
 
     resource: str | type[Any] | ResourceKey[Any]
-    error: BaseException | Callable[[], BaseException]
+    error: BaseException | Callable[[], BaseException] | None = None
     method: str | None = None
     times: int | None = None
+    returns: Any = UNSET
+    side_effect: list[Any] | Callable[..., Any] | None = None
+    when: Callable[[tuple[Any, ...], dict[str, Any]], bool] | None = None
+    delay: float = 0.0
 
 
 def _get_resource(
@@ -86,9 +105,9 @@ def _set_resource(
 
 class _FailingProxy:
     """Wraps `inner`, intercepting `fault.method` (or every public callable,
-    if `method=None`) to raise `fault.error` instead of delegating, for the
-    fault's next `times` calls (or forever). Everything else — attributes,
-    other methods — passes straight through to `inner`.
+    if `method=None`) to raise/fault/return per the `ResourceFault` instead of
+    delegating, for the fault's next `times` calls (or forever). Everything
+    else — attributes, other methods — passes straight through to `inner`.
     """
 
     def __init__(self, inner: Any, fault: ResourceFault) -> None:
@@ -96,16 +115,39 @@ class _FailingProxy:
         object.__setattr__(self, "_fault", fault)
         object.__setattr__(self, "_remaining", fault.times)
 
-    def _take_error(self, name: str) -> BaseException | None:
+    def _evaluate(
+        self, name: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> tuple[bool, Any, float]:
+        """Returns `(delegate, value, delay)`.
+
+        `delegate=True` means call through to the real method. Otherwise
+        `value` is returned — unless it is an `Exception`, which is raised.
+        `delay` seconds are slept first, in the caller's execution model.
+        """
         fault: ResourceFault = object.__getattribute__(self, "_fault")
         if fault.method is not None and name != fault.method:
-            return None
+            return True, None, 0.0
+        if fault.when is not None and not fault.when(args, kwargs):
+            return True, None, 0.0
         remaining = object.__getattribute__(self, "_remaining")
+        if remaining is not None and remaining <= 0:
+            return True, None, 0.0
+        if fault.side_effect is None and fault.returns is UNSET and fault.error is None:
+            return True, None, 0.0
         if remaining is not None:
-            if remaining <= 0:
-                return None
             object.__setattr__(self, "_remaining", remaining - 1)
-        return fault.error() if callable(fault.error) else fault.error
+        if fault.side_effect is not None:
+            if isinstance(fault.side_effect, list):
+                if not fault.side_effect:
+                    return True, None, 0.0
+                value = fault.side_effect.pop(0)
+            else:
+                value = fault.side_effect(*args, **kwargs)
+            return False, value, fault.delay
+        if fault.returns is not UNSET:
+            return False, fault.returns, fault.delay
+        error = fault.error() if callable(fault.error) else fault.error
+        return False, error, fault.delay
 
     def __getattr__(self, name: str) -> Any:
         attr = getattr(object.__getattribute__(self, "_inner"), name)
@@ -115,9 +157,14 @@ class _FailingProxy:
         if inspect.isasyncgenfunction(attr):
 
             async def _failing_agen(*args: Any, **kwargs: Any) -> Any:
-                err = self._take_error(name)
-                if err is not None:
-                    raise err
+                delegate, value, delay = self._evaluate(name, args, kwargs)
+                if delay:
+                    await asyncio.sleep(delay)
+                if not delegate:
+                    if isinstance(value, BaseException):
+                        raise value
+                    yield value
+                    return
                 async for item in attr(*args, **kwargs):
                     yield item
 
@@ -126,17 +173,25 @@ class _FailingProxy:
         if inspect.iscoroutinefunction(attr):
 
             async def _failing_coro(*args: Any, **kwargs: Any) -> Any:
-                err = self._take_error(name)
-                if err is not None:
-                    raise err
+                delegate, value, delay = self._evaluate(name, args, kwargs)
+                if delay:
+                    await asyncio.sleep(delay)
+                if not delegate:
+                    if isinstance(value, BaseException):
+                        raise value
+                    return value
                 return await attr(*args, **kwargs)
 
             return _failing_coro
 
         def _failing_sync(*args: Any, **kwargs: Any) -> Any:
-            err = self._take_error(name)
-            if err is not None:
-                raise err
+            delegate, value, delay = self._evaluate(name, args, kwargs)
+            if delay:
+                time.sleep(delay)
+            if not delegate:
+                if isinstance(value, BaseException):
+                    raise value
+                return value
             return attr(*args, **kwargs)
 
         return _failing_sync

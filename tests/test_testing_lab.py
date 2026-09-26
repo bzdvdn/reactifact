@@ -348,3 +348,101 @@ def test_fail_covers_tools_registered_as_typed_resources():
     assert "typed tool down" in result.artifacts(Report).exists().text
     # wrapped in place, then restored on exit
     assert resources.require(DECISION_TOOLS)[0] is kubectl
+
+
+def test_run_sync_matches_the_async_api():
+    tool_calls.clear()
+    lab = ScenarioLab([K8sAgent()], resources=_resources)
+
+    result = lab.run_sync(Problem(text="check pods"))
+
+    assert result.artifacts(Report).exists().text == "pods: all good"
+    result.tools.called("kubectl")
+
+
+def test_turn_sync_matches_the_async_api():
+    tool_calls.clear()
+    lab = ScenarioLab(
+        [K8sAgent()],
+        resources=lambda: RuntimeResources(
+            llm=ScriptedLLM(
+                [
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"pods"}}',
+                    '{"type":"answer","text":"pods: all good"}',
+                ]
+            )
+        ),
+    )
+    convo = lab.scenario()
+
+    result = convo.turn_sync(Problem(text="check pods"))
+
+    assert result.artifacts(Report).exists().text == "pods: all good"
+    assert result.context is convo.context
+
+
+def test_explain_dumps_artifacts_path_tools_and_llm():
+    tool_calls.clear()
+    lab = ScenarioLab([K8sAgent()], resources=_resources)
+
+    text = lab.run_sync(Problem(text="check pods")).explain()
+
+    assert "scenario report" in text
+    assert "artifacts:" in text
+    assert "Report:" in text
+    assert "relations:" in text
+    assert "path:" in text and "k8s" in text
+    assert "kubectl(" in text
+    assert "llm:" in text
+
+
+def test_scenario_explain_aggregates_across_turns():
+    tool_calls.clear()
+    lab = ScenarioLab(
+        [K8sAgent()],
+        resources=lambda: RuntimeResources(
+            llm=ScriptedLLM(
+                [
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"pods"}}',
+                    '{"type":"answer","text":"pods: all good"}',
+                    '{"type":"tool_call","tool":"kubectl","args":{"resource":"nodes"}}',
+                    '{"type":"answer","text":"nodes: all good"}',
+                ]
+            )
+        ),
+    )
+    convo = lab.scenario()
+    convo.turn_sync(Problem(text="check pods"))
+    convo.turn_sync(Problem(text="check nodes"))
+
+    text = convo.explain()
+
+    assert "turns" in text
+    assert "kubectl(" in text
+
+
+def test_stub_tool_returns_a_canned_output():
+    tool_calls.clear()
+    lab = ScenarioLab([K8sAgent()], resources=_resources)
+    lab.stub_tool("kubectl", text="canned status")
+
+    result = lab.run_sync(Problem(text="check pods"))
+
+    call = result.tools.called("kubectl")[0]
+    assert call.output is not None and call.output.text == "canned status"
+    result.errors.none()
+    assert tool_calls.get("kubectl", []) == []  # the real tool never ran
+
+
+def test_fail_when_narrows_the_fault_to_matching_args():
+    tool_calls.clear()
+    lab = ScenarioLab([K8sAgent()], resources=_resources)
+    lab.fail(
+        "kubectl",
+        ConnectionError("only pods"),
+        when=lambda args: args["resource"] == "pods",
+    )
+
+    result = lab.run_sync(Problem(text="check pods"))
+
+    assert result.tools.called("kubectl")[0].error == "only pods"

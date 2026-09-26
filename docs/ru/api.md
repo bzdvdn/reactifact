@@ -243,11 +243,12 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `ScenarioLab` | scenario-харнесс: посев артефактов, прогон агентов, ассерты (артефакты/тулы/путь/ошибки), `mode=` live/record/replay, инъекция сбоев (`fail(tool, …)`, `fail_resource(name_or_key, …)` — строковое имя или типизированный `Type`/`ResourceKey`) |
+| `ScenarioLab`, `Scenario` | scenario-харнесс: посев артефактов, прогон агентов, ассерты (артефакты/тулы/путь/отношения/llm/ошибки/события), `mode=` live/record/replay. Инъекция сбоев **и заглушек**: `fail`/`stub_tool` (тулы) и `fail_resource`/`stub_resource` (любой ресурс по строковому имени или типизированному `Type`/`ResourceKey`), у каждого `times`/`when`/`delay`; у `stub_resource` — `returns`/`side_effect`. `run_sync`/`turn_sync` повторяют async-API для обычных тестов |
+| группы ассертов `ScenarioResult`, `Scenario` | `result.artifacts(Type)` (`.linked(relation, Type)` для провенанса), `result.relations` (`has`/`none`/`count`/`outgoing`/`incoming`), `result.tools`, `result.path`, `result.llm`, `result.errors`, `result.events`. `result.explain()` выводит весь прогон |
 | `ScenarioReport`, `ScenarioResult.report`, `Scenario.report` | итоги хода (или агрегат по многоходовому scenario): `llm_calls`, `prompt_tokens`/`completion_tokens`/`total_tokens`, `tool_calls`, `spans`, `agents`, `errors`, `outcomes`, с `to_dict()` и `render()`. `result.llm` также даёт `prompt_tokens`/`completion_tokens`/`tokens` |
-| `capture(context, *, trace=…)` | замораживает `GoldenRun` — `context_hash` плюс хеши промптов из трейса |
-| `assert_golden(context, golden, *, trace=…)` | громко падает при дрейфе состояния (и промптов, если передан `trace`) |
+| `capture(context, *, trace=…)`, `assert_golden(context, golden, *, trace=…)`, `assert_golden_file(context, path, *, trace=…, update=…)` | заморозка/сверка `GoldenRun`; файловый вариант **заводит** снапшот, если его нет (или `update`/`$REACTIFACT_GOLDEN_UPDATE`), а `ScenarioResult.assert_golden(path)`/`Scenario.assert_golden(path)` — обёртки над ним |
 | `replay_resources(recording, *, base=…)` | `RuntimeResources`, чей llm реплеит запись — офлайн-регресс на реальном прогоне |
+| `reactifact.testing.pytest_plugin` | opt-in pytest-плагин (`pytest_plugins = ["reactifact.testing.pytest_plugin"]`): гоняет `async def`-сценарии без pytest-asyncio, превращает `ScenarioSkip` в skip, даёт фикстуру-фабрику `scenario_lab` |
 
 ## MCP (reactifact.mcp, extra `mcp`)
 

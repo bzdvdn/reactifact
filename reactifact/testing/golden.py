@@ -20,9 +20,11 @@ golden fingerprint — a deterministic, offline regression on the real run.
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..audit import context_hash
 from .exceptions import AssertionFailure
@@ -32,6 +34,11 @@ if TYPE_CHECKING:
     from ..resources import RuntimeResources
     from ..tracing.models import RunTrace
 
+#: Set to a truthy value (1/true/yes/on) to make `assert_golden_file` rewrite a
+#: snapshot instead of comparing it — the "update snapshots" switch, like
+#: syrupy/pytest-snapshot.
+GOLDEN_UPDATE_ENV_VAR = "REACTIFACT_GOLDEN_UPDATE"
+
 
 @dataclass(frozen=True)
 class GoldenRun:
@@ -39,6 +46,44 @@ class GoldenRun:
 
     context_sha256: str
     prompt_hashes: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "context_sha256": self.context_sha256,
+            "prompt_hashes": list(self.prompt_hashes),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> GoldenRun:
+        return cls(
+            context_sha256=data["context_sha256"],
+            prompt_hashes=tuple(data.get("prompt_hashes", [])),
+        )
+
+    def save(self, path: str | Path) -> None:
+        """Writes the fingerprint as JSON (parents created on demand)."""
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def load(cls, path: str | Path) -> GoldenRun:
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+def _update_requested(update: bool | None) -> bool:
+    if update is not None:
+        return update
+    return os.environ.get(GOLDEN_UPDATE_ENV_VAR, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def prompt_hashes(trace: RunTrace) -> list[str]:
@@ -82,6 +127,29 @@ def assert_golden(
             )
 
 
+def assert_golden_file(
+    context: Context,
+    path: str | Path,
+    *,
+    trace: RunTrace | None = None,
+    update: bool | None = None,
+) -> GoldenRun:
+    """Path-aware snapshot assertion: writes the snapshot when it is missing
+    (or `update`/`$REACTIFACT_GOLDEN_UPDATE` is set), otherwise compares it.
+
+    The first run seeds the file, so a golden test is a one-liner and later
+    drift fails. Returns the `GoldenRun` now on disk.
+    """
+    target = Path(path)
+    if _update_requested(update) or not target.exists():
+        golden = capture(context, trace=trace)
+        golden.save(target)
+        return golden
+    golden = GoldenRun.load(target)
+    assert_golden(context, golden, trace=trace)
+    return golden
+
+
 def replay_resources(
     recording: str | Path,
     *,
@@ -102,8 +170,10 @@ def replay_resources(
 
 
 __all__ = [
+    "GOLDEN_UPDATE_ENV_VAR",
     "GoldenRun",
     "assert_golden",
+    "assert_golden_file",
     "capture",
     "prompt_hashes",
     "replay_resources",

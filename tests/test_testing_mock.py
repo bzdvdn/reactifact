@@ -12,6 +12,7 @@ behavior" pattern.
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 from pydantic import BaseModel
@@ -120,6 +121,65 @@ def test_proxy_error_factory_gets_a_fresh_exception_per_call():
     except RuntimeError as exc:
         assert exc is made[1]
     assert made[0] is not made[1]
+
+
+def test_proxy_returns_a_stub_value_instead_of_delegating():
+    fake = FakeResource()
+    proxy = _FailingProxy(fake, ResourceFault("r", returns="stub"))
+
+    assert proxy.sync_method(1) == "stub"
+    assert fake.sync_calls == []  # never reached the real resource
+
+
+def test_proxy_stub_returns_none_is_distinguishable_from_no_stub():
+    fake = FakeResource()
+    proxy = _FailingProxy(fake, ResourceFault("r", returns=None))
+
+    assert proxy.sync_method(1) is None
+    assert fake.sync_calls == []
+
+
+def test_proxy_side_effect_list_sequences_values_and_exceptions():
+    fake = FakeResource()
+    proxy = _FailingProxy(
+        fake, ResourceFault("r", side_effect=["a", RuntimeError("boom"), "b"])
+    )
+
+    assert proxy.sync_method(1) == "a"
+    with pytest.raises(RuntimeError, match="boom"):
+        proxy.sync_method(2)
+    assert proxy.sync_method(3) == "b"
+    # list exhausted -> delegates to the real resource
+    assert proxy.sync_method(4) == "sync:4"
+
+
+def test_proxy_when_narrows_the_fault_by_args():
+    fake = FakeResource()
+    proxy = _FailingProxy(
+        fake, ResourceFault("r", RuntimeError("boom"), when=lambda a, k: a == (7,))
+    )
+
+    assert proxy.sync_method(1) == "sync:1"  # non-matching -> delegates
+    with pytest.raises(RuntimeError, match="boom"):
+        proxy.sync_method(7)
+
+
+def test_proxy_delay_sleeps_before_faulting():
+    fake = FakeResource()
+    proxy = _FailingProxy(fake, ResourceFault("r", RuntimeError("boom"), delay=0.05))
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError):
+        proxy.sync_method(1)
+    assert time.monotonic() - started >= 0.05
+
+
+def test_proxy_stub_works_on_async_methods_too():
+    fake = FakeResource()
+    proxy = _FailingProxy(fake, ResourceFault("r", returns="async-stub"))
+
+    assert run(proxy.async_method(1)) == "async-stub"
+    assert fake.async_calls == []
 
 
 # --- ResourceFaultInstaller: white-box ---------------------------------------- #
@@ -333,3 +393,17 @@ def test_fail_resource_rejects_an_unregistered_typed_key():
 
     with pytest.raises(ScenarioError, match="no such resource"):
         run(lab.run(Problem(text="x")))
+
+
+def test_stub_resource_by_typed_key_returns_value_end_to_end():
+    resources = RuntimeResources(llm=ScriptedLLM([]))
+    real = FakeResource()
+    resources.register(CATALOG_KEY, real)
+    lab = ScenarioLab([CatalogAgent()], resources=resources)
+    lab.stub_resource(CATALOG_KEY, returns="stubbed catalog")
+
+    result = run(lab.run(Problem(text="x")))
+
+    assert result.artifacts(Reply).exists().text == "stubbed catalog"
+    result.errors.none()
+    assert real.sync_calls == []  # never delegated to the real resource

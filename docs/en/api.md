@@ -241,11 +241,12 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `ScenarioLab` | scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/errors), `mode=` live/record/replay, fault injection (`fail(tool, …)`, `fail_resource(name_or_key, …)` — a string name or a typed `Type`/`ResourceKey`) |
+| `ScenarioLab`, `Scenario` | scenario harness: seed artifacts, run agents, assert (artifacts/tools/path/relations/llm/errors/events), `mode=` live/record/replay. Fault **and stub** injection: `fail`/`stub_tool` (tools) and `fail_resource`/`stub_resource` (any resource by string name or typed `Type`/`ResourceKey`), each with `times`/`when`/`delay`; `stub_resource` supports `returns`/`side_effect`. `run_sync`/`turn_sync` mirror the async API for plain tests |
+| `ScenarioResult`, `Scenario` assertion groups | `result.artifacts(Type)` (`.linked(relation, Type)` for provenance), `result.relations` (`has`/`none`/`count`/`outgoing`/`incoming`), `result.tools`, `result.path`, `result.llm`, `result.errors`, `result.events`. `result.explain()` dumps the whole run |
 | `ScenarioReport`, `ScenarioResult.report`, `Scenario.report` | token/latency/tool totals for a turn (or aggregated over a multi-turn scenario): `llm_calls`, `prompt_tokens`/`completion_tokens`/`total_tokens`, `tool_calls`, `spans`, `agents`, `errors`, `outcomes`, with `to_dict()` and `render()`. `result.llm` also exposes `prompt_tokens`/`completion_tokens`/`tokens` |
-| `capture(context, *, trace=…)` | freeze a `GoldenRun` — `context_hash` plus the trace's prompt hashes |
-| `assert_golden(context, golden, *, trace=…)` | fail loudly when state (or, with `trace`, prompts) drifted |
+| `capture(context, *, trace=…)`, `assert_golden(context, golden, *, trace=…)`, `assert_golden_file(context, path, *, trace=…, update=…)` | freeze/compare a `GoldenRun`; the file variant **seeds** the snapshot when it is missing (or `update`/`$REACTIFACT_GOLDEN_UPDATE`), and `ScenarioResult.assert_golden(path)`/`Scenario.assert_golden(path)` wrap it |
 | `replay_resources(recording, *, base=…)` | a `RuntimeResources` whose llm replays a recording — an offline regression on a real run |
+| `reactifact.testing.pytest_plugin` | opt-in pytest plugin (`pytest_plugins = ["reactifact.testing.pytest_plugin"]`): runs `async def` scenarios without pytest-asyncio, maps `ScenarioSkip` to a skip, adds a `scenario_lab` factory fixture |
 
 ## MCP (reactifact.mcp, `mcp` extra)
 

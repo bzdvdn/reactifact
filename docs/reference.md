@@ -129,3 +129,17 @@ is in how it's used, not its bare signature.
 ### assert_golden
 
 ::: reactifact.testing.assert_golden
+
+### assert_golden_file
+
+::: reactifact.testing.assert_golden_file
+
+## Testing harness
+
+### ScenarioLab
+
+::: reactifact.testing.ScenarioLab
+
+### RelationAssertions
+
+::: reactifact.testing.RelationAssertions
