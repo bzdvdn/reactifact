@@ -23,15 +23,33 @@ def test_runs_every_status_and_reports_a_summary(capsys):
     code = main(["scenario", FIXTURE_MODULE])
     out = capsys.readouterr().out
 
-    assert code == 1  # a FAIL and an ERROR are both present
+    assert code == 1  # FAILs and an ERROR are both present
     assert "PASS  fixture: passes" in out
     assert "FAIL  fixture: fails" in out
-    assert "math is broken" in out
     assert "ERROR fixture: errors" in out
-    assert "RuntimeError: boom" in out
     assert "SKIP  fixture: skips" in out
     assert "no fixture configured" in out
-    assert "5 scenario(s): 2 passed, 1 failed, 1 errored, 1 skipped" in out
+    # pytest-style failure report: a FAILURES section, the failing frame from
+    # the user's file with its source line, the exception, and the run state
+    assert "FAILURES" in out
+    assert "scenario_cases.py" in out
+    assert 'assert 1 + 1 == 3, "math is broken"' in out
+    assert "E   AssertionError: math is broken" in out
+    assert "E   RuntimeError: boom" in out
+    assert "cli/scenario.py" not in out  # framework frames are filtered
+    assert "--- scenario state ---" in out  # "fails after a run" ran a ScenarioLab
+    assert "scenario report" in out
+    assert "6 scenario(s): 2 passed, 2 failed, 1 errored, 1 skipped" in out
+
+
+def test_no_state_flag_suppresses_the_run_dump(capsys):
+    code = main(["scenario", FIXTURE_MODULE, "-k", "fails after a run", "--no-state"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "AssertionFailure" in out
+    assert "--- scenario state ---" not in out
+    assert "scenario report" not in out
 
 
 def test_filter_selects_a_single_scenario_by_substring(capsys):
@@ -47,8 +65,8 @@ def test_filter_selects_a_single_scenario_by_substring(capsys):
 def test_exit_code_reflects_fail_or_error_presence(capsys):
     code = main(["scenario", FIXTURE_MODULE, "-k", "fixture:"])
     out = capsys.readouterr().out
-    assert "5 scenario(s)" in out
-    # code reflects the FAIL+ERROR present among all fixture scenarios
+    assert "6 scenario(s)" in out
+    # code reflects the FAILs+ERROR present among all fixture scenarios
     assert code == 1
 
     code = main(["scenario", FIXTURE_MODULE, "-k", "passes"])

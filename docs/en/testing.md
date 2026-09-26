@@ -181,6 +181,11 @@ reactifact scenario examples.repair.scenarios
 reactifact scenario examples.knowledge.scenarios --mode replay
 ```
 
+A failure is reported pytest-style: a `FAILURES` section, the failing frame
+from *your* code with its source line, the exception, and — when the scenario
+ran a `ScenarioLab` — the run state (`result.explain()`), so you debug from the
+terminal alone. `--no-state` omits the state dump.
+
 For *scoring* a pipeline's output (evidence quality, provenance grounding,
 calculation correctness) rather than asserting on behavior, see
 [Evaluation](eval.md).

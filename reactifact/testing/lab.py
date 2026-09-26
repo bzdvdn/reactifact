@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
@@ -260,6 +261,22 @@ class ScenarioResult:
             calls=self.calls,
             trace=self.trace,
         )
+
+
+_CURRENT_RESULT: ContextVar[ScenarioResult | None] = ContextVar(
+    "reactifact_scenario_result", default=None
+)
+
+
+def current_result() -> ScenarioResult | None:
+    """The most recent `ScenarioResult` this task produced.
+
+    Set by `ScenarioLab.run()`/`Scenario.turn()`; lets tooling (the
+    `reactifact scenario` CLI's failure report) show the run state when a
+    *later* assertion in the scenario raises. Scoped to the running task, so
+    it never leaks between separate `asyncio.run()` scenarios.
+    """
+    return _CURRENT_RESULT.get()
 
 
 def _render_explain(
@@ -564,13 +581,15 @@ async def _execute_turn(
         progress_events = _drain_events(progress_queue)
         context.unsubscribe(progress_queue)
 
-    return ScenarioResult(
+    result = ScenarioResult(
         context=context,
         stats=runtime.last_stats,
         trace=tracer.trace,
         calls=recorder.calls,
         progress_events=progress_events,
     )
+    _CURRENT_RESULT.set(result)
+    return result
 
 
 def _combined_trace(traces: list[RunTrace]) -> RunTrace | None:

@@ -38,6 +38,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
     `pytest_plugins = [...]`): runs `async def` scenarios without
     pytest-asyncio, maps `ScenarioSkip` to a skip, adds a `scenario_lab`
     fixture defaulting `mode=` to `$REACTIFACT_SCENARIO_MODE`.
+  - The `reactifact scenario` CLI renders failures pytest-style: a `FAILURES`
+    section, the failing frame from the user's code with its source line, the
+    exception, and the run state (`ScenarioResult.explain()`, tracked via the
+    new `reactifact.testing.current_result()`); `--no-state` omits the dump.
   - Docs: a new [Testing](docs/en/testing.md) page (EN + RU) with the assertion
     groups, fault/stub reference, record/replay, golden and the plugin.
 

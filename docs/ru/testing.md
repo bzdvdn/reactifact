@@ -182,5 +182,10 @@ reactifact scenario examples.repair.scenarios
 reactifact scenario examples.knowledge.scenarios --mode replay
 ```
 
+Падение выводится в духе pytest: секция `FAILURES`, падающий фрейм из *вашего*
+кода с исходной строкой, исключение и — если сценарий гонял `ScenarioLab` —
+состояние прогона (`result.explain()`), так что отлаживать можно прямо из
+терминала. `--no-state` убирает дамп состояния.
+
 Для *оценки* вывода пайплайна (качество evidence, provenance grounding,
 корректность вычислений), а не проверки поведения, см. [Evaluation](eval.md).

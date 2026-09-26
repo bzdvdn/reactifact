@@ -28,7 +28,7 @@ from .golden import (
     prompt_hashes,
     replay_resources,
 )
-from .lab import Scenario, ScenarioLab, ScenarioReport, ScenarioResult
+from .lab import Scenario, ScenarioLab, ScenarioReport, ScenarioResult, current_result
 from .mock import ResourceFault
 from .record import Mode, mode_from_env
 from .registry import ScenarioCase, collect, scenario
@@ -58,6 +58,7 @@ __all__ = [
     "assert_golden_file",
     "capture",
     "collect",
+    "current_result",
     "mode_from_env",
     "prompt_hashes",
     "replay_resources",
