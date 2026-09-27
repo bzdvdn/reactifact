@@ -48,6 +48,7 @@ from .runtime import Runtime
 from .session import Session, SessionStore
 from .tools import FunctionTool, Tool, ToolOutput, tool
 from .triggers import Trigger
+from .types import register as register_type
 
 __version__ = "0.12.0"
 
@@ -98,5 +99,6 @@ __all__ = [
     "create_agent",
     "current_request",
     "produce",
+    "register_type",
     "tool",
 ]

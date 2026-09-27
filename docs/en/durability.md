@@ -77,6 +77,35 @@ async def summarize(call):
   back and re-runs it. `per_commit` (default) saves at every generation boundary
   instead.
 
+## Schema evolution
+
+A persisted artifact's type is stored as a string (`Artifact.data_type`, the
+`data_type` of a compiled `Create`/`Update`, `Event.artifact_type`) — by default
+the Python qualified name, so renaming or moving a model would break loading old
+sessions and recordings. `reactifact.types` decouples the persisted identity
+from Python's module layout:
+
+```python
+from reactifact import register_type
+
+register_type(
+    Answer,
+    type_id="answer",                                   # written from now on
+    aliases=["nikard_ai.artifacts.contract.Answer"],    # what old payloads carry
+    migrate=lambda d: {**d, "prose": d.pop("text", "")},  # a field rename
+)
+```
+
+- `type_id_of(model)` — the id written on save: an explicit `type_id`, a
+  `TYPE_ID` classvar, else the qualified name (nothing changes until you opt in).
+- `resolve(type_id)` — the class on load: registry → alias → import by qualified
+  name, so pre-registry payloads keep loading.
+- `migrate` runs on the raw dict before validation (field renames, defaults).
+
+This covers artifacts, commit operations and events — a whole session's state
+*and* its pending trigger queue — so an upgrade that renames/moves a model no
+longer breaks resume, replay or golden snapshots.
+
 ## Resume vs. replay
 
 Two different operations, often confused:

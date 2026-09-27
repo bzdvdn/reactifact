@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import importlib
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
+
+from .types import TypeNotFoundError, resolve, type_id_of
 
 
 class EventType(StrEnum):
@@ -30,15 +31,12 @@ class Event:
     def to_dict(self) -> dict[str, Any]:
         """Serializes the event for durable persistence.
 
-        `artifact_type` may be a class (importable by qualified name) or a
-        plain string; both round-trip through `from_dict`. Mirrors the
-        qualified-name convention `operations.operation_from_dict` uses for
-        artifact payloads.
+        `artifact_type` may be a class or a plain string; a class is written as
+        its stable type id (`reactifact.types`), a string is kept as-is. Both
+        round-trip through `from_dict`.
         """
         if isinstance(self.artifact_type, type):
-            type_name = (
-                f"{self.artifact_type.__module__}.{self.artifact_type.__qualname__}"
-            )
+            type_name = type_id_of(self.artifact_type)
         else:
             type_name = str(self.artifact_type)
         return {
@@ -53,13 +51,12 @@ class Event:
         name = d["artifact_type"]
         artifact_type: type | str
         try:
-            module_name, _, class_name = name.rpartition(".")
-            artifact_type = getattr(importlib.import_module(module_name), class_name)
-        except (ImportError, AttributeError, ValueError):
-            # A type that isn't importable in this process (e.g. defined in
-            # `__main__`) falls back to its name: matching by `Consume(Type)`
-            # won't bind it, but the queue still round-trips instead of
-            # refusing to load.
+            artifact_type = resolve(name)
+        except TypeNotFoundError:
+            # A type that isn't registered or importable in this process (e.g.
+            # defined in `__main__`) falls back to its name: matching by
+            # `Consume(Type)` won't bind it, but the queue still round-trips
+            # instead of refusing to load.
             artifact_type = name
         event = cls(
             type=EventType(d["type"]),

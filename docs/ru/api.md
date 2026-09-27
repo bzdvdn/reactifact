@@ -66,6 +66,7 @@
 | Символ | Роль |
 | --- | --- |
 | `Artifact` | пара `(id, data)`; `data` — модель pydantic |
+| `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | стабильная персистентная идентичность типа: переименование/перенос модели больше не ломает загрузку старых сессий/коммитов/событий. `type_id_of`/`resolve`/`migrate_payload`; дефолтный id — qualified name |
 | `Patch` | скомпилированный набор изменений рантайма (транспорт); produces пишут `self.effects`, `Patch` собирает рантайм |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | скомпилированные операции, которые несёт патч (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | записи операций, из которых строятся патчи |

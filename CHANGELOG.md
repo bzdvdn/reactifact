@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Stable artifact type identity (schema evolution).** `reactifact.types`
+  decouples the persisted type string from Python's module layout:
+  `register_type(Model, type_id=…, aliases=[…], migrate=…)` makes a model
+  rename/move — or a field rename — no longer break loading old sessions,
+  commits, events or recordings. `type_id_of` / `resolve` / `migrate_payload`;
+  the default id stays the qualified name and pre-registry payloads keep
+  loading, so it is fully backward compatible. Applies to `Artifact.data_type`,
+  `Create`/`Update.data_type` and `Event.artifact_type`.
 - **Multi-turn conversations on typed artifacts.** `reactifact.recipes.
   conversation` adds `Conversation` — generic over *your* message model (any
   model with `role`/`text`; `ConversationMessage` is a ready default) — with

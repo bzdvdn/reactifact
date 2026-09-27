@@ -78,6 +78,35 @@ async def summarize(call):
   ход и перезапускает его. `per_commit` (дефолт) сохраняется на каждой границе
   поколения.
 
+## Эволюция схемы
+
+Тип сохранённого артефакта хранится строкой (`Artifact.data_type`, `data_type`
+у скомпилированных `Create`/`Update`, `Event.artifact_type`) — по умолчанию это
+Python qualified name, поэтому переименование/перенос модели ломает загрузку
+старых сессий и записей. `reactifact.types` отвязывает персистентную идентичность
+от структуры модулей:
+
+```python
+from reactifact import register_type
+
+register_type(
+    Answer,
+    type_id="answer",                                   # что пишется с этого момента
+    aliases=["nikard_ai.artifacts.contract.Answer"],    # что несут старые payload'ы
+    migrate=lambda d: {**d, "prose": d.pop("text", "")},  # переименование поля
+)
+```
+
+- `type_id_of(model)` — id, который пишется при сохранении: явный `type_id`,
+  classvar `TYPE_ID`, иначе qualified name (ничего не меняется, пока не включите).
+- `resolve(type_id)` — класс при загрузке: реестр → алиас → импорт по qualified
+  name, поэтому дореестровые payload'ы продолжают грузиться.
+- `migrate` выполняется над raw-dict до валидации (переименования полей, дефолты).
+
+Это покрывает артефакты, операции коммитов и события — состояние всей сессии
+*и* очередь отложенных триггеров — так что апгрейд с переименованием/переносом
+модели больше не ломает resume, replay и golden-снапшоты.
+
 ## Resume vs. replay
 
 Две разные операции, которые часто путают:

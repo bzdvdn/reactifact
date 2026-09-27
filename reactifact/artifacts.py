@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import importlib
 import uuid
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
+
+from .types import migrate_payload, resolve, type_id_of
 
 TData = TypeVar("TData", bound=BaseModel)
 ArtifactType = type[BaseModel]
@@ -31,12 +32,6 @@ def compute_dict_diff(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any
     return diff
 
 
-def _import_class(full_name: str) -> Any:
-    module_name, class_name = full_name.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, class_name)
-
-
 class Artifact(Generic[TData]):
     """Wrapper around a Pydantic model with versioning."""
 
@@ -48,7 +43,10 @@ class Artifact(Generic[TData]):
     ):
         self.id = id or str(uuid.uuid4())
         self.data = data
-        self.data_type = f"{type(data).__module__}.{type(data).__qualname__}"
+        # Stable type id (reactifact.types): a registered `type_id`/`TYPE_ID`
+        # classvar, else the qualified name — so a rename/move can be tolerated
+        # via aliases instead of breaking a persisted session/replay.
+        self.data_type = type_id_of(type(data))
         self.created_at = datetime.now(UTC)
         self.updated_at = self.created_at
         self.created_by_commit = created_by_commit
@@ -136,14 +134,19 @@ class Artifact(Generic[TData]):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Artifact[Any]:
-        model_class = _import_class(d["data_type"])
-        data = model_class.model_validate(d["data"])
+        data_type = d["data_type"]
+        model_class = resolve(data_type)
+        data: Any = model_class.model_validate(migrate_payload(data_type, d["data"]))
         artifact = cls(
             data=data, id=d["id"], created_by_commit=d.get("created_by_commit")
         )
         artifact.created_at = datetime.fromisoformat(d["created_at"])
         artifact.updated_at = datetime.fromisoformat(d["updated_at"])
-        artifact._history = [model_class.model_validate(h) for h in d["history"]]
+        history: list[Any] = [
+            model_class.model_validate(migrate_payload(data_type, h))
+            for h in d["history"]
+        ]
+        artifact._history = history
         # Older payloads predate the explicit counter — fall back to history len.
         artifact._version = int(d.get("version", len(artifact._history)))
         return artifact

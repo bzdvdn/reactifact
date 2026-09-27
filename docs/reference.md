@@ -130,6 +130,16 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.budget.BudgetTracker
 
+## Schema types
+
+### register
+
+::: reactifact.types.register
+
+### resolve
+
+::: reactifact.types.resolve
+
 ## Golden runs
 
 ### capture

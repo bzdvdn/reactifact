@@ -8,15 +8,10 @@ rarely touch them directly (they write `self.effects.*` instead).
 
 from __future__ import annotations
 
-import importlib
 from dataclasses import dataclass
 from typing import Any
 
-
-def _import_class(full_name: str) -> Any:
-    module_name, class_name = full_name.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, class_name)
+from .types import migrate_payload, resolve, type_id_of
 
 
 @dataclass
@@ -42,9 +37,7 @@ class Create(Operation):
 
     def __post_init__(self) -> None:
         if not self.data_type and hasattr(self.data, "__class__"):
-            self.data_type = (
-                f"{self.data.__class__.__module__}.{self.data.__class__.__qualname__}"
-            )
+            self.data_type = type_id_of(type(self.data))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -64,7 +57,7 @@ class Update(Operation):
 
     def __post_init__(self) -> None:
         if not self.data_type and hasattr(self.new_data, "__class__"):
-            self.data_type = f"{self.new_data.__class__.__module__}.{self.new_data.__class__.__qualname__}"
+            self.data_type = type_id_of(type(self.new_data))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -155,13 +148,22 @@ class Unlink(Operation):
 def operation_from_dict(d: dict[str, Any]) -> Operation:
     op_type = d["type"]
     if op_type == "create":
-        model_class = _import_class(d["data_type"])
-        data = model_class.model_validate(d["data"])
-        return Create(data=data, id=d.get("id"), artifact_id=d.get("artifact_id"))
+        data_type = d["data_type"]
+        model_class = resolve(data_type)
+        data = model_class.model_validate(migrate_payload(data_type, d["data"]))
+        return Create(
+            data=data,
+            id=d.get("id"),
+            artifact_id=d.get("artifact_id"),
+            data_type=data_type,
+        )
     elif op_type == "update":
-        model_class = _import_class(d["data_type"])
-        new_data = model_class.model_validate(d["data"])
-        return Update(artifact_id=d["artifact_id"], new_data=new_data)
+        data_type = d["data_type"]
+        model_class = resolve(data_type)
+        new_data = model_class.model_validate(migrate_payload(data_type, d["data"]))
+        return Update(
+            artifact_id=d["artifact_id"], new_data=new_data, data_type=data_type
+        )
     elif op_type == "delete":
         return Delete(artifact_id=d["artifact_id"])
     elif op_type == "link":

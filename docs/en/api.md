@@ -63,6 +63,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `Artifact` | the `(id, data)` pair; `data` is a pydantic model |
+| `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | stable persisted type identity: a rename/move of a model no longer breaks loading old sessions/commits/events. `type_id_of`/`resolve`/`migrate_payload`; default id is the qualified name |
 | `Patch` | the runtime's compiled change-set (transport); produces write `self.effects`, `Patch` is assembled by the runtime |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | op records from which patches are built |
