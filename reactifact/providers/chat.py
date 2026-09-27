@@ -46,6 +46,7 @@ class OpenAICompatProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
         retry_attempts: int = 3,
+        stream_usage: bool = True,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -59,6 +60,10 @@ class OpenAICompatProvider(LLMProvider):
         self._proxy = proxy
         self.temperature = temperature
         self.max_tokens = max_tokens
+        #: Ask for a terminal usage chunk in streaming (`stream_options:
+        #: {"include_usage": true}`), so a token/cost budget can count it. Set
+        #: `False` for a vendor that rejects the field.
+        self.stream_usage = stream_usage
         #: complete()-only retry budget for transient failures (429/5xx/
         #: connection errors, see providers/_retry.py); 1 disables retrying.
         self.retry_attempts = retry_attempts
@@ -89,6 +94,11 @@ class OpenAICompatProvider(LLMProvider):
             ],
             "stream": stream,
         }
+        if stream and self.stream_usage:
+            # Ask for a terminal usage chunk so streaming can be budgeted.
+            # Vendors that don't support the field either ignore it or are
+            # configured with `stream_usage=False`.
+            payload["stream_options"] = {"include_usage": True}
         if temperature is not None:
             payload["temperature"] = temperature
         model = request.extra.get("model") or self.model
@@ -142,10 +152,11 @@ class OpenAICompatProvider(LLMProvider):
                 if not data:
                     continue
                 chunk_ = json.loads(data)
-                delta = chunk_["choices"][0].get("delta", {})
-                text = delta.get("content")
-                if text:
-                    yield LLMResponseChunk(text=text)
+                usage = chunk_.get("usage")
+                choices = chunk_.get("choices") or []
+                text = choices[0].get("delta", {}).get("content") if choices else None
+                if text or usage:
+                    yield LLMResponseChunk(text=text or "", usage=usage)
 
     async def aclose(self) -> None:
         await self._http.aclose()

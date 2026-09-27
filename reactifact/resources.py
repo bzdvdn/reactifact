@@ -9,8 +9,9 @@ from .providers import EmbeddingProvider, LLMProvider
 from .sources import Source
 
 if TYPE_CHECKING:
-    from .budget import Budget
+    from .budget import Budget, BudgetTracker
     from .context_builder import ContextBuilder
+    from .pricing import Pricer
     from .redaction import Redactor
 
 T = TypeVar("T")
@@ -53,11 +54,16 @@ class RuntimeResources:
         redactor: Redactor | None = None,
         trace_truncate: int | None = 1500,
         id_factory: IdFactory | None = None,
+        pricer: Pricer | None = None,
         **additional: Any,
     ):
         self.llm = llm
         self.embedder = embedder
         self.sources = sources or {}
+        # Applies `Budget.max_cost`: `(model, prompt_tokens, completion_tokens)
+        # -> cost`. `None` (default) makes a cost limit inert — the framework
+        # ships no built-in prices on purpose (see `reactifact.pricing`).
+        self.pricer = pricer
         # Injected id source for artifacts created without an explicit id
         # (`None` = the uuid default). A deterministic factory
         # (`reactifact.replay.counter_ids`) makes an unmodified app's
@@ -95,9 +101,12 @@ class RuntimeResources:
         # the caller, owns these): the active Budget and its wall-clock
         # deadline, read back by ToolUse's own inner loop (§ tool_use.py) to
         # enforce the tool-call/time budget between its own round-trips, not
-        # just at the top-level Runtime._budget_exhausted check.
+        # just at the top-level Runtime._budget_exhausted check. `budget_tracker`
+        # is the per-turn token/cost counters (set only when the budget tracks
+        # tokens/cost), read the same way.
         self.budget: Budget | None = None
         self.budget_deadline: float | None = None
+        self.budget_tracker: BudgetTracker | None = None
 
     def get_source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)

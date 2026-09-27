@@ -71,6 +71,37 @@ def test_anthropic_stream_text_deltas():
     assert [c.text for c in chunks] == ["ку", "ку"]
 
 
+def test_anthropic_stream_terminal_chunk_carries_usage():
+    sse = (
+        'event: message_start\ndata: {"type":"message_start",'
+        '"message":{"usage":{"input_tokens":6}}}\n\n'
+        "event: content_block_delta\n"
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ку"}}\n\n'
+        'event: message_delta\ndata: {"type":"message_delta",'
+        '"usage":{"output_tokens":4}}\n\n'
+        'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+    )
+    provider = AnthropicProvider(
+        api_key="test-key",
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=sse.encode(),
+                headers={"content-type": "text/event-stream"},
+            )
+        ),
+    )
+
+    async def collect():
+        return [
+            c async for c in provider.stream(LLMRequest(messages=[Message.user("hi")]))
+        ]
+
+    chunks = asyncio.run(collect())
+    assert [c.text for c in chunks] == ["ку", ""]
+    assert chunks[-1].usage == {"prompt_tokens": 6, "completion_tokens": 4}
+
+
 def test_anthropic_payload_shape():
     provider = make_provider()
     payload = provider._payload(

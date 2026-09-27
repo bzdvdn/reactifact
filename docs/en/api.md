@@ -94,7 +94,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69) |
 | `ProduceCall.request` | the turn's request mapping inside a produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
-| `Budget`, `RunOutcome`, `RunStats` | run limits and the final outcome/stats |
+| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | run limits (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) and the final outcome/usage stats. Token/cost limits count LLM usage without a tracer; cost needs an injected `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | the wire format of "something changed" — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | progress/announce channel consumed by web UIs |
 | `Scheduler` | filter → rank → LLM tie-break agent-selection policy, callable from the runtime each iteration (see [design notes](design-notes/adaptive.md)) |

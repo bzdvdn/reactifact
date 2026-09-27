@@ -146,6 +146,7 @@ class GeminiProvider(LLMProvider):
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
         model = request.extra.get("model") or self.model
+        usage: dict[str, Any] | None = None
         async with self._get_client().stream(
             "POST",
             f"{self.base_url}/{_model_path(model)}:streamGenerateContent?alt=sse",
@@ -162,6 +163,12 @@ class GeminiProvider(LLMProvider):
                     blob = _json(data)
                 except ValueError:
                     continue
+                meta = blob.get("usageMetadata")
+                if meta:
+                    usage = {
+                        "prompt_tokens": meta.get("promptTokenCount", 0),
+                        "completion_tokens": meta.get("candidatesTokenCount", 0),
+                    }
                 for part in (
                     (blob.get("candidates") or [{}])[0]
                     .get("content", {})
@@ -170,6 +177,8 @@ class GeminiProvider(LLMProvider):
                     text = part.get("text")
                     if text:
                         yield LLMResponseChunk(text=text)
+        if usage:
+            yield LLMResponseChunk(text="", usage=usage)
 
     async def aclose(self) -> None:
         await self._http.aclose()

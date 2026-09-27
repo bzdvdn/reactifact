@@ -151,9 +151,17 @@ bounds a slow one.
 | `max_seconds` | `_budget_exhausted()`, between generations; also published to `resources.budget_deadline` for tool loops | `budget_time_exceeded` |
 | `max_iterations` | the `_arun_impl` loop bound | `iterations_exhausted` |
 | `max_tool_calls` | tool loops (`ToolUse`/`LLMAgent`), not the runtime core | loop stops, honest answer |
+| `max_tokens` | `_budget_exhausted()` between generations + tool loops (via `resources.budget_tracker`); counted from every LLM response's usage, tracer-independent | `budget_tokens_exceeded` |
+| `max_cost` | same, from `RuntimeResources(pricer=…)` | `budget_cost_exceeded` (inert without a pricer) |
 
 `arun(max_iterations=…)` is used only when the active budget does not set
 `max_iterations`; an explicit `Budget.max_iterations` wins.
+
+Token/cost budgets stop the *next* generation or loop step, not the in-flight
+call — so a run can overshoot by at most one call, same as `max_seconds`. They
+need no tracer: the runtime installs its own usage counter (`BudgetLLM`) for the
+turn when the budget tracks tokens/cost. Cost needs an injected `Pricer`
+(`reactifact.pricing`); the framework ships no built-in price table on purpose.
 
 ## 7. Failure semantics
 

@@ -68,6 +68,46 @@ def test_stream_chunks_aggregate():
     assert [c.text for c in chunks] == ["ку", "ку"]
 
 
+def test_stream_payload_asks_for_usage():
+    provider = build_provider()
+    streaming = provider._payload(
+        LLMRequest(messages=[Message.user("hi")]), stream=True
+    )
+    assert streaming["stream_options"] == {"include_usage": True}
+    non_stream = provider._payload(
+        LLMRequest(messages=[Message.user("hi")]), stream=False
+    )
+    assert "stream_options" not in non_stream
+
+
+def test_stream_terminal_chunk_carries_usage():
+    sse = (
+        'data: {"choices": [{"delta": {"content": "ку"}}]}\n\n'
+        'data: {"choices": [], "usage": {"prompt_tokens": 4, "completion_tokens": 2}}\n\n'
+        "data: [DONE]\n\n"
+    )
+    provider = OpenAICompatProvider(
+        base_url="https://llm.example/v1",
+        model="test-model",
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=sse.encode(),
+                headers={"content-type": "text/event-stream"},
+            )
+        ),
+    )
+
+    async def collect():
+        return [
+            c async for c in provider.stream(LLMRequest(messages=[Message.user("hi")]))
+        ]
+
+    chunks = asyncio.run(collect())
+    assert [c.text for c in chunks] == ["ку", ""]
+    assert chunks[-1].usage == {"prompt_tokens": 4, "completion_tokens": 2}
+
+
 def test_payload_includes_model_and_format():
     provider = build_provider()
     payload = provider._payload(

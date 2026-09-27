@@ -157,9 +157,18 @@
 | `max_seconds` | `_budget_exhausted()`, между поколениями; также публикуется в `resources.budget_deadline` для tool-циклов | `budget_time_exceeded` |
 | `max_iterations` | граница цикла `_arun_impl` | `iterations_exhausted` |
 | `max_tool_calls` | tool-циклы (`ToolUse`/`LLMAgent`), не ядро рантайма | цикл останавливается, честный ответ |
+| `max_tokens` | `_budget_exhausted()` между поколениями + tool-циклы (через `resources.budget_tracker`); считается из usage каждого ответа LLM, независимо от трейсера | `budget_tokens_exceeded` |
+| `max_cost` | то же, из `RuntimeResources(pricer=…)` | `budget_cost_exceeded` (инертен без pricer) |
 
 `arun(max_iterations=…)` используется только когда активный бюджет не задаёт
 `max_iterations`; явный `Budget.max_iterations` побеждает.
+
+Бюджеты на токены/стоимость останавливают *следующий* шаг поколения/цикла, а не
+текущий вызов — поэтому прогон может перебрать максимум на один вызов, как и
+`max_seconds`. Трейсер им не нужен: рантайм ставит собственный счётчик usage
+(`BudgetLLM`) на ход, когда бюджет отслеживает токены/стоимость. Для стоимости
+нужен инжектированный `Pricer` (`reactifact.pricing`); встроенную таблицу цен
+фреймворк сознательно не поставляет.
 
 ## 7. Семантика ошибок
 

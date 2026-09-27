@@ -212,11 +212,14 @@ class ToolUse(_ToolLoopBase):
         # slow provider could blow well past the time budget before the
         # runtime ever gets a chance to see it.
         deadline = context.resources.budget_deadline
+        tracker = context.resources.budget_tracker
         executed = 0
         context.announce("Deciding next action…", kind="agent", agent=self.name)
         for _ in range(self.max_steps):
             if deadline is not None and time.monotonic() >= deadline:
                 break  # time budget exhausted — fall through to the forced answer
+            if tracker is not None and tracker.exhausted(budget) is not None:
+                break  # token/cost budget exhausted — fall through to the answer
             available = self._available_tools(loaded_groups)
             decision = await structured_llm(
                 context,
@@ -625,6 +628,21 @@ class ToolUseHITL(_ToolLoopBase):
         tool_history = [o for o in history if o.source == "tool"]
         budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
+        tracker = context.resources.budget_tracker
+        if tracker is not None and tracker.exhausted(budget) is not None:
+            self.effects.create(
+                Observation(
+                    query_id=qid,
+                    step=len(history) + 1,
+                    text=(
+                        "Token/cost budget exhausted; "
+                        "answer based on the available data."
+                    ),
+                    source="tool",
+                    agent=self.name,
+                )
+            )
+            return None
         if max_tool_calls is not None and len(tool_history) >= max_tool_calls:
             self.effects.create(
                 Observation(

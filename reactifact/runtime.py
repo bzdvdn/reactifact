@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Callable, Mapping
 from typing import Any, Literal, cast
 
 from .agents import Agent
-from .budget import Budget, RunOutcome, RunStats
+from .budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
 from .commit import Commit, Read, Write
 from .context import Context
 from .effects import Effects, current_effects, reset_effects, set_effects
@@ -97,6 +97,11 @@ class Runtime:
         # internal loop calls `_arun_once_impl` directly (unguarded — it is
         # already inside the guarded region, not a second concurrent call).
         self._in_turn = False
+        # Per-turn LLM usage counters and the wrapper installed to fill them
+        # (see `_begin_turn`/`_end_turn_resources`). Only set when the active
+        # budget tracks tokens/cost.
+        self._tracker: BudgetTracker | None = None
+        self._original_llm: Any | None = None
 
     def _enter_turn(self) -> None:
         if self._in_turn:
@@ -134,10 +139,49 @@ class Runtime:
         # otherwise never see it until the whole produce() returns).
         self.context.resources.budget = self._active_budget
         self.context.resources.budget_deadline = self._deadline
+        # Token/cost budgets need LLM usage counted even when tracing is off
+        # (`RecordingLLM` is tracer-gated at `tracing/tracer.py`), so install
+        # our own accounting wrapper for the turn and restore the original at
+        # its end (`_end_turn_resources`).
+        self._tracker = None
+        self._original_llm = None
+        if (
+            self._active_budget is not None
+            and self._active_budget.max_cost is not None
+            and self.context.resources.pricer is None
+        ):
+            logger.warning(
+                "Budget.max_cost is set but RuntimeResources.pricer is None; "
+                "cost is not tracked and the limit is inert."
+            )
+        if (
+            self._active_budget is not None
+            and self._active_budget.tracks_llm_usage
+            and self.context.resources.llm is not None
+        ):
+            self._tracker = BudgetTracker()
+            self._original_llm = self.context.resources.llm
+            self.context.resources.llm = BudgetLLM(
+                self._original_llm,
+                self._tracker,
+                pricer=self.context.resources.pricer,
+            )
+        self.context.resources.budget_tracker = self._tracker
         self._turn_started = True
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else ""
         )
+
+    def _end_turn_resources(self) -> None:
+        """Undoes `_begin_turn`'s accounting wrap and closes the turn.
+
+        Called from the public turn entry points (`arun`/`arun_once`); idempotent
+        if no wrapper was installed.
+        """
+        if self._original_llm is not None:
+            self.context.resources.llm = self._original_llm
+            self._original_llm = None
+        self._turn_started = False
 
     def _budget_exhausted(self) -> bool:
         if self._deadline is not None and time.monotonic() >= self._deadline:
@@ -150,6 +194,11 @@ class Runtime:
         ):
             self.outcome = RunOutcome.BUDGET_RUNS_EXCEEDED
             return True
+        if self._tracker is not None:
+            exceeded = self._tracker.exhausted(self._active_budget)
+            if exceeded is not None:
+                self.outcome = exceeded
+                return True
         return False
 
     def _validate_patch_types(self, patch: Patch, agent: Agent) -> None:
@@ -190,6 +239,7 @@ class Runtime:
         finally:
             if token is not None:
                 reset_request(token)
+            self._end_turn_resources()
             self._exit_turn()
 
     async def _arun_once_impl(self, budget: Budget | None = None) -> int:
@@ -485,6 +535,7 @@ class Runtime:
         finally:
             if token is not None:
                 reset_request(token)
+            self._end_turn_resources()
             self._exit_turn()
 
     async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
@@ -506,12 +557,16 @@ class Runtime:
         else:
             if self.outcome == RunOutcome.COMPLETED:
                 self.outcome = RunOutcome.ITERATIONS_EXHAUSTED
+        tracker = self._tracker
         self.last_stats = RunStats(
             runs=total_runs,
             iterations=limit,
             outcome=self.outcome,
             duration=time.monotonic() - self._turn_started_at,
             errors=self._errors_used,
+            prompt_tokens=tracker.prompt_tokens if tracker is not None else 0,
+            completion_tokens=tracker.completion_tokens if tracker is not None else 0,
+            cost=tracker.cost if tracker is not None else 0.0,
         )
         if total_runs == 0:
             self._warn_no_runs()

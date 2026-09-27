@@ -24,7 +24,7 @@ of the names you see by default even though they were always cheap to import
 from .agents import Agent, create_agent
 from .artifacts import Artifact
 from .branching import MergeConflict
-from .budget import Budget, RunOutcome, RunStats
+from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .consume import Consume, consume
 from .context import Context, View
 from .effects import Effects, Handle
@@ -55,6 +55,7 @@ __all__ = [
     "Agent",
     "Artifact",
     "Budget",
+    "BudgetTracker",
     "Consume",
     "Context",
     "Create",

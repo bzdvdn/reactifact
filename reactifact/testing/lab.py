@@ -35,6 +35,7 @@ from reactifact.agents import Agent
 from reactifact.audit import context_hash
 from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
+from reactifact.pricing import Pricer, cost_of
 from reactifact.resources import ResourceKey, RuntimeResources
 from reactifact.runtime import Runtime
 from reactifact.streaming import ProgressEvent, QueueEvent
@@ -104,6 +105,7 @@ class ScenarioReport:
     llm_calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cost: float = 0.0
     duration_ms: float = 0.0
     errors: int = 0
     outcomes: list[str] = field(default_factory=list)
@@ -122,6 +124,7 @@ class ScenarioReport:
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
+            "cost": self.cost,
             "duration_ms": self.duration_ms,
             "errors": self.errors,
             "outcomes": list(self.outcomes),
@@ -139,6 +142,7 @@ class ScenarioReport:
                 f"{self.prompt_tokens} in / {self.completion_tokens} out"
                 f" / {self.total_tokens} total",
             ),
+            ("cost", f"{self.cost:.6g}"),
             ("duration", f"{self.duration_ms:.1f} ms"),
             ("errors", str(self.errors)),
             ("outcomes", ", ".join(self.outcomes) or "—"),
@@ -155,6 +159,7 @@ def _scenario_report(
     *,
     turns: int | None = None,
     errors: int | None = None,
+    pricer: Pricer | None = None,
 ) -> ScenarioReport:
     """Builds a `ScenarioReport` off one or more run traces + recorded calls."""
     spans = [span for trace in traces for span in trace.spans]
@@ -163,6 +168,12 @@ def _scenario_report(
     for trace in traces:
         if trace.outcome and trace.outcome not in outcomes:
             outcomes.append(trace.outcome)
+    cost = 0.0
+    if pricer is not None:
+        cost = sum(
+            cost_of(pricer, call.model, call.prompt_tokens, call.completion_tokens)
+            for call in llm
+        )
     return ScenarioReport(
         turns=len(traces) if turns is None else turns,
         spans=len(spans),
@@ -171,6 +182,7 @@ def _scenario_report(
         llm_calls=len(llm),
         prompt_tokens=sum(call.prompt_tokens for call in llm),
         completion_tokens=sum(call.completion_tokens for call in llm),
+        cost=round(cost, 6),
         duration_ms=round(sum(trace.duration_ms for trace in traces), 1),
         errors=(sum(1 for span in spans if span.error) if errors is None else errors),
         outcomes=outcomes,
@@ -201,7 +213,13 @@ class ScenarioResult:
         errors = None
         if not traces and self.stats is not None:
             errors = self.stats.errors
-        return _scenario_report(traces, self.calls, turns=1, errors=errors)
+        return _scenario_report(
+            traces,
+            self.calls,
+            turns=1,
+            errors=errors,
+            pricer=self.context.resources.pricer,
+        )
 
     @property
     def tools(self) -> ToolAssertions:
@@ -711,4 +729,6 @@ class Scenario:
     @property
     def report(self) -> ScenarioReport:
         """Aggregate `ScenarioReport` across every turn run so far."""
-        return _scenario_report(self.all_traces, self.all_calls)
+        return _scenario_report(
+            self.all_traces, self.all_calls, pricer=self.context.resources.pricer
+        )

@@ -79,6 +79,10 @@ class LLMResponse:
 class LLMResponseChunk:
     text: str
     finish_reason: str | None = None
+    #: Token usage, when the provider reports it on a streaming chunk (usually
+    #: the terminal one). `None` for providers/endpoints that don't — such a
+    #: stream is then not counted by a token/cost budget.
+    usage: dict[str, Any] | None = None
 
 
 class LLMProvider(ABC):

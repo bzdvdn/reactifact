@@ -161,6 +161,33 @@ def test_stream_yields_deltas():
     assert [c.text for c in chunks] == ["ку", "ку"]
 
 
+def test_stream_terminal_chunk_carries_usage():
+    sse = (
+        'data: {"candidates": [{"content": {"parts": [{"text": "ку"}]}}]}\n\n'
+        'data: {"candidates": [], "usageMetadata": {"promptTokenCount": 8, '
+        '"candidatesTokenCount": 5}}\n\n'
+    )
+    provider = GeminiProvider(
+        api_key="k",
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=sse.encode(),
+                headers={"content-type": "text/event-stream"},
+            )
+        ),
+    )
+
+    async def collect():
+        return [
+            c async for c in provider.stream(LLMRequest(messages=[Message.user("hi")]))
+        ]
+
+    chunks = asyncio.run(collect())
+    assert [c.text for c in chunks] == ["ку", ""]
+    assert chunks[-1].usage == {"prompt_tokens": 8, "completion_tokens": 5}
+
+
 def test_gemini_image_provider():
     provider = GeminiImageProvider(
         api_key="k",

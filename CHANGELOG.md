@@ -8,6 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Token and cost budgets.** `Budget` gains `max_tokens` (total prompt +
+  completion over the turn) and `max_cost`, with `RunOutcome.budget_tokens_
+  exceeded` / `budget_cost_exceeded`. Usage is counted by the runtime itself
+  (`BudgetLLM` + `BudgetTracker`), independent of tracing — which is optional
+  — so `RunStats` now reports `prompt_tokens`/`completion_tokens`/`cost` even
+  without a tracer. Streaming is counted too: `LLMResponseChunk` carries an
+  optional `usage` (the OpenAI-compatible base asks for it via
+  `stream_options`, and Anthropic/Gemini surface it), and a token/cost budget
+  stops the *next* generation or tool-loop step — an in-flight call may
+  overshoot by one, like `max_seconds`. Cost needs an injected
+  `RuntimeResources(pricer=…)` (`reactifact.pricing`); the framework ships no
+  built-in price table on purpose. `ScenarioReport` gained `cost` (computed
+  from the same pricer).
 - **Sessions persist pending triggers, so an interrupted run resumes after a
   process restart.** `Context.to_dict()`/`from_dict()` now carry the event
   queue (`Event.to_dict`/`from_dict`), and a session-backed runtime saves once

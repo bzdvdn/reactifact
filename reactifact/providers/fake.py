@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import AsyncIterator
+from typing import Any
 
 from .contracts import (
     EmbeddingProvider,
@@ -15,14 +16,21 @@ from .contracts import (
 
 
 class FakeLLM(LLMProvider):
-    def __init__(self, response: str = "This is a fake response."):
+    def __init__(
+        self,
+        response: str = "This is a fake response.",
+        usage: dict[str, Any] | None = None,
+    ):
         self.response = response
+        self.usage = usage or {}
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
-        return LLMResponse(text=self.response)
+        return LLMResponse(text=self.response, usage=dict(self.usage))
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
         yield LLMResponseChunk(text=self.response)
+        if self.usage:
+            yield LLMResponseChunk(text="", usage=dict(self.usage))
 
 
 class FakeEmbedder(EmbeddingProvider):

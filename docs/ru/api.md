@@ -97,7 +97,7 @@
 | --- | --- |
 | `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69) |
 | `ProduceCall.request` | request-маппинг хода внутри produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
-| `Budget`, `RunOutcome`, `RunStats` | лимиты запуска и итог/статистика |
+| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | лимиты запуска (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) и итог/статистика usage. Лимиты токенов/стоимости считают usage LLM без трейсера; для стоимости нужен инжектированный `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | проводной формат «что-то изменилось» — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | канал прогресса/announce, который потребляют web-UI |
 | `Scheduler` | политика выбора агента filter → rank → LLM tie-break, вызывается рантаймом на каждой итерации (см. [design notes](../en/design-notes/adaptive.md), пока только на английском) |

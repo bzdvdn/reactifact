@@ -128,6 +128,8 @@ class AnthropicProvider(LLMProvider):
         return await with_retry(_call, attempts=self.retry_attempts)
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
+        prompt_tokens = 0
+        completion_tokens = 0
         async with self._get_client().stream(
             "POST",
             f"{self.base_url}/messages",
@@ -144,11 +146,26 @@ class AnthropicProvider(LLMProvider):
                     blob = json.loads(data)
                 except ValueError:
                     continue
-                if blob.get("type") == "content_block_delta":
+                blob_type = blob.get("type")
+                if blob_type == "message_start":
+                    usage = blob.get("message", {}).get("usage", {})
+                    prompt_tokens = int(usage.get("input_tokens") or 0)
+                elif blob_type == "content_block_delta":
                     delta = blob.get("delta", {})
                     text = delta.get("text")
                     if text:
                         yield LLMResponseChunk(text=text)
+                elif blob_type == "message_delta":
+                    usage = blob.get("usage", {})
+                    completion_tokens = int(usage.get("output_tokens") or 0)
+        if prompt_tokens or completion_tokens:
+            yield LLMResponseChunk(
+                text="",
+                usage={
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+            )
 
     async def aclose(self) -> None:
         await self._http.aclose()
