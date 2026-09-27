@@ -108,6 +108,7 @@ async def main() -> None:
             else:
                 print("\n(продолжаю…)")
 
+        session.context.compact(keep_commits=500)  # bound a long session's history
         await session.save()
 
 

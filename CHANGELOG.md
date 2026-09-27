@@ -8,6 +8,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Multi-turn conversations on typed artifacts.** `reactifact.recipes.
+  conversation` adds `Conversation` — generic over *your* message model (any
+  model with `role`/`text`; `ConversationMessage` is a ready default) — with
+  `create_turn`/`add_message`/`transcript`/`turn_count`/`conversation_state`,
+  so apps stop hand-rolling a chat log and a prompt builder. For the common
+  case of *separate* question/answer types, `Transcript` + `MessageSpec`
+  render several typed turns (with per-type role and an optional renderer for a
+  non-text assistant payload) into one `Message` list, leaving the artifacts
+  untouched. `ChatMemory` on
+  `ChatAssistant` wires bounded memory: `keep` (prune the raw thread via
+  `WindowPruner`), `summarize`+`summary_type` (a growing digest via
+  `RollingDigestSummarizer`), and `compact_commits` (`Context.compact` — bounds
+  history without touching artifacts, safe for correlated/typed messages). The
+  `repair`/`devops`/`knowledge` examples use `compact_commits` to bound
+  long-lived sessions. Docs: a new [Multi-turn & chat](docs/en/chat.md) page
+  (EN + RU) mapping the LangGraph pieces to reactifact, plus a minimal offline
+  [`examples/chat`](examples/chat) demo of the single-model recipe.
 - **Context compaction.** `Context.compact(keep_commits=…, keep_versions=…)`
   bounds a long-lived session: it collapses commits older than the last
   `keep_commits` into a baseline snapshot (and optionally trims each artifact's

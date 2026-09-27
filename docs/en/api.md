@@ -105,6 +105,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state` |
+| `ChatMemory` | optional bounded memory for `ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts) |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |
@@ -210,6 +211,8 @@ current event loop**, so one provider instance stays usable across repeated
 | `StatusMachine` | deterministic artifact lifecycle (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count |
 | `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful |
+| `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | multi-turn conversation generic over a message model (yours, or the default `ConversationMessage`): append turns, render the thread to provider `Message`s (`turn_count` / `conversation_state` helpers) |
+| `Transcript` / `MessageSpec` | read-only view for apps with *separate* types per side (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): merges typed turns by role into one `Message` list (`messages` / `state`) |
 | `llm_summarizer(system=…)` | builds a `WindowSummarizer(summarize=…)` callback from a system prompt via `llm_reply` |
 | `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in native tool-calling loop over `native_tool_use`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; returns `ToolLoopResult` (text, transcript, `ToolObservation`s) |
 

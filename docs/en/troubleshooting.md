@@ -70,12 +70,28 @@ won't show up as one.
 
 - Check `runtime.outcome` (`RunOutcome`, §58) after `arun()`/`astream()`
   (also on `runtime.last_stats.outcome`):
-  `budget_runs_exceeded`/`budget_time_exceeded`/`iterations_exhausted` mean a
-  `Budget` limit was hit, not a bug — `completed` means the run genuinely
-  settled (a generation produced nothing further to react to).
+  `budget_runs_exceeded`/`budget_time_exceeded`/`budget_tokens_exceeded`/
+  `budget_cost_exceeded`/`iterations_exhausted` mean a `Budget` limit was hit,
+  not a bug — `completed` means the run genuinely settled (a generation
+  produced nothing further to react to). `budget_tokens_exceeded`/
+  `budget_cost_exceeded` stop the *next* generation, so the last LLM call may
+  have pushed slightly past the cap; `RunStats.total_tokens`/`.cost` show what
+  was actually spent (`cost` stays 0 without an injected `pricer`).
 - If the outcome is `completed` sooner than expected, that's usually the
   actual reactive model working as designed: nothing further became eligible.
   Go back to "My agent never ran" above for *that* agent specifically.
+
+## "The session/context keeps growing"
+
+A long-lived session keeps every commit and artifact version — by design, since
+that's what makes it auditable and replayable. Bound it between turns:
+
+- `context.compact(keep_commits=50, keep_versions=2)` collapses old commit
+  history into a baseline snapshot and trims per-artifact history
+  ([Durability & resume](durability.md)); `version`/`head_id`/`context_hash` are
+  preserved, but `checkout`/`diff` below the baseline then refuse.
+- Old *artifacts* (e.g. out-of-window messages) are a separate concern — use the
+  memory recipes (`WindowPruner`, `RollingDigestSummarizer`, [Recipes](recipes.md)).
 
 ## "The scheduler picked/dropped an agent I didn't expect" (if you use `scheduler=`)
 
@@ -112,10 +128,12 @@ This isn't a failure case — it's what provenance is for (§15, §34):
 
 Once you know *what* happened, `reactifact.testing.ScenarioLab` lets you pin
 it down without depending on a live LLM or a live run: seed the exact
-artifacts, run to completion, and assert on the result
-(`.artifacts(...)`/`.tools`/`.path`/`.errors`); `lab.fail(tool_name, error)`
-and `lab.fail_resource(...)` inject the specific failure you're chasing; a
-`ReplayLLM`-recorded model response makes a flaky provider's output
-deterministic across reruns. There's no dedicated guide yet — start from the
-`reactifact.testing` module docstring and the worked examples in
-`examples/repair/scenarios/` and `examples/knowledge/scenarios/`.
+artifacts, run to completion, and assert on the result — artifacts (including
+provenance, via `.artifacts(Type).linked(...)`/`.relations`), tools, path,
+errors. `lab.fail(tool_name, error)`/`lab.stub_tool(...)` and
+`lab.fail_resource(...)`/`lab.stub_resource(...)` inject the specific failure
+or canned response you're chasing; `result.explain()` dumps the run state; a
+`ReplayLLM`-recorded model response (or a golden snapshot) makes a flaky
+provider's output deterministic across reruns. See [Testing](testing.md) and
+the worked examples in `examples/repair/scenarios/` and
+`examples/knowledge/scenarios/`.

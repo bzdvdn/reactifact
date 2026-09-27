@@ -120,6 +120,16 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.recipes.run_tool_loop
 
+## Budgets
+
+### Budget
+
+::: reactifact.budget.Budget
+
+### BudgetTracker
+
+::: reactifact.budget.BudgetTracker
+
 ## Golden runs
 
 ### capture

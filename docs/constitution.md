@@ -758,6 +758,14 @@ context.rollback(v7)
 context.snapshot()
 ```
 
+History is bounded, not hoarded forever: a long-lived session collapses old
+commits into a baseline snapshot (`Context.compact(keep_commits=…,
+keep_versions=…)`), preserving the absolute version/head — so `context_hash` is
+unchanged — while dropping the operations behind them and trimming each
+artifact's retained version history. Like squashing git history it is
+irreversible: `checkout`/`diff` below the baseline are refused
+(`Context.compacted_at` reports it).
+
 The initial implementation may use SQLite or another simple persistence layer.
 
 Do not prematurely build a distributed database.
@@ -2137,28 +2145,31 @@ An Agent must not receive artifacts it is not allowed to see.
 
 Budget belongs to Runtime, not directly to the LLM.
 
-Possible dimensions:
-
-```text
-tokens
-time
-tool calls
-network requests
-money
-parallel agents
-```
-
-Example:
+Shipped dimensions (`reactifact.budget.Budget`):
 
 ```python
 Budget(
-    max_tokens=100_000,
-    max_time=120,
-    max_tool_calls=30,
+    max_runs=...,          # agent runs
+    max_iterations=...,    # loop generations
+    max_seconds=...,       # wall clock
+    max_tool_calls=...,    # tool executions (LLM agents)
+    max_tokens=...,        # total prompt + completion over the turn
+    max_cost=...,          # over the turn, via an injected Pricer
 )
 ```
 
-The runtime may terminate or downgrade expensive strategies.
+Exhaustion is an outcome, not an exception (`RunOutcome`):
+`budget_runs_exceeded`, `budget_time_exceeded`, `budget_tokens_exceeded`,
+`budget_cost_exceeded`, `iterations_exhausted`. The runtime may terminate or
+downgrade expensive strategies.
+
+Token/cost usage is counted by the runtime itself — a `BudgetTracker` filled by
+a `BudgetLLM` proxy over `resources.llm` — independent of tracing, which is
+optional; `RunStats` reports the totals. Streaming is counted too (a chunk's
+`usage`, when the provider reports it). A call is allowed to finish: the budget
+stops the *next* generation or loop step, so a run can overshoot by at most one
+call. Cost needs an injected `Pricer` (`reactifact.pricing`); the framework
+ships no built-in price table.
 
 ---
 
@@ -3091,7 +3102,7 @@ Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
 | GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
 | Agent contract (Produce / Consume containers) | §10-§13, §63 | implemented; `Consume(wakes=False)` reads a type as input without waking on it (the declarative alternative to a hand-synced `Agent.triggers=` override); `Consume(debounce=True)` collapses several same-generation events into one run, costing one against `Budget(max_runs=...)`; `reactifact.consume.CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across two artifact types by a shared key (join / absence-gate) instead of one type's own matching instances alone |
-| Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69) |
+| Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
 | HITL (approvals, questions) | §60 | implemented (`PendingQuestion`, `InterruptPatch`) |
@@ -3099,6 +3110,8 @@ Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Structured-data calculation | §29, §33, §67 | implemented (`CSVSource → Spreadsheet → Calculation`) |
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
 | Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
+| Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent produces); a failed generation keeps its triggers for a retry |
+| Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
 | Produce authoring — Effects (§24) | §12, §24 | implemented — `self.effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function), both taking exactly one argument, `call: ProduceCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects` — replaced the earlier individually-recognized `(context, inputs, event=None)`/by-name-sniffed parameters, one discoverable object instead of a growing parameter list); `.trigger` (the artifact behind `.event`) is a guaranteed non-`None` live artifact when the produce also declares `reacts_to=(Type, …)` — which itself restricts *which* triggering event a produce runs on, for an agent whose several produces don't all care about the same one; `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
@@ -3108,7 +3121,7 @@ Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
 | Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which produce/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
 | Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`, `examples/adaptive`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
-| Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault injection, record/replay, `reactifact scenario` CLI) |
+| Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault **and stub** injection, record/replay, `reactifact scenario` CLI); provenance assertions (`ArtifactAssertions.linked`, `result.relations`), sync `run_sync`/`turn_sync`, golden snapshots (`assert_golden_file`), `result.explain()`, and an opt-in pytest plugin (`reactifact.testing.pytest_plugin`) |
 | MCP integration | — (post-constitution addition) | implemented — `reactifact.mcp`: `mcp_stdio_tools`/`mcp_http_tools` (HTTP with optional auth `headers=`) consume an external server's tools as ordinary `Tool`s; `create_mcp_server` exposes reactifact `Tool`s and, with `context=`, read-only `Context` resources, as an MCP server. Verified over the real protocol (in-memory transport) |
 
 Demos shipped in the repo (not in the wheel):

@@ -36,6 +36,13 @@ keep reappearing across agent codebases and the bundled examples:
   conversation memory: periodic summarization + pruning as two plain
   `Produce`s, domain owns the summarizer callback and the summary artifact
   shape (§27, §37) — see `recipes.memory`;
+- `Conversation` / `ConversationMessage` / `add_message` / `create_turn` /
+  `transcript` — a canonical multi-turn conversation (an append helper + a
+  renderer to provider `Message`s), generic over *your* message model (any
+  model with `role`/`text`; `ConversationMessage` is the default). For an app
+  that already has separate question/answer types, `Transcript` + `MessageSpec`
+  render several typed turns into one `Message` list instead (§27, §37) — see
+  `recipes.conversation`;
 - `RollingDigestSummarizer` / `llm_digest_summarizer` — the other bounded-
   memory shape: one growing digest that folds in whatever falls out of the
   raw window (instead of `WindowSummarizer`'s per-round checkpoints), and
@@ -56,6 +63,17 @@ Extend by adding a module here (the package stays import-surface-flat).
 from __future__ import annotations
 
 from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup
+from .conversation import (
+    Conversation,
+    ConversationMessage,
+    MessageSpec,
+    Transcript,
+    add_message,
+    conversation_state,
+    create_turn,
+    transcript,
+    turn_count,
+)
 from .identity import SeedIdentity
 from .inputs import find, find_all
 from .memory import (
@@ -78,8 +96,11 @@ from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
 
 __all__ = [
     "ApprovalGate",
+    "Conversation",
+    "ConversationMessage",
     "EN_STOPWORDS",
     "EphemeralCleanup",
+    "MessageSpec",
     "PlanExecute",
     "PrefixedEphemeralCleanup",
     "ReflectionLoop",
@@ -90,9 +111,13 @@ __all__ = [
     "StatusMachine",
     "ToolLoopResult",
     "ToolObservation",
+    "Transcript",
     "WindowPruner",
     "WindowSummarizer",
+    "add_message",
     "changed_fields",
+    "conversation_state",
+    "create_turn",
     "downstream_fields",
     "earliest_stage",
     "fan_out_sources",
@@ -107,4 +132,6 @@ __all__ = [
     "run_tool_loop",
     "stem",
     "stem_words",
+    "transcript",
+    "turn_count",
 ]

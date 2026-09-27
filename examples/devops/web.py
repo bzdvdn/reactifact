@@ -30,9 +30,10 @@ from examples.devops.models import ChatReply, UserMsg
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, RuntimeResources, SessionStore
-from reactifact.chat import ChatAssistant
+from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import openai_llm, openrouter_llm
+from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import TraceColumn, Tracer, TraceStore
 from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
@@ -90,17 +91,17 @@ def terminal_reply(ctx: Any, msg_id: str) -> dict[str, Any]:
     return {"reply": reply.data.text if reply else FALLBACK_REPLY, "waiting": False}
 
 
-def session_state(ctx: Any) -> dict:
-    msgs: list[dict] = [
-        {"role": "user", "text": m.data.text, "at": m.created_at.isoformat()}
-        for m in ctx.list_artifacts(UserMsg)
+#: The chat thread is two artifact types; `Transcript` merges them by role.
+_TRANSCRIPT = Transcript(
+    [
+        MessageSpec(UserMsg, "user"),
+        MessageSpec(ChatReply, "assistant"),
     ]
-    for r in ctx.list_artifacts(ChatReply):
-        msgs.append(
-            {"role": "assistant", "text": r.data.text, "at": r.created_at.isoformat()}
-        )
-    msgs.sort(key=lambda item: item["at"])
-    return {"messages": msgs}
+)
+
+
+def session_state(ctx: Any) -> dict:
+    return _TRANSCRIPT.state(ctx)
 
 
 def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
@@ -125,6 +126,8 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         budget=Budget(max_runs=200, max_tool_calls=12),
         tracer=lambda: Tracer(store=trace_store),
         status_kinds=("status", "agent"),
+        # Bound a long-lived session's commit history (artifacts untouched).
+        memory=ChatMemory(compact_commits=500),
     )
 
     app = FastAPI(title="devops-ai (reactifact)")

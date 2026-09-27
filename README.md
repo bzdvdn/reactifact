@@ -294,6 +294,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
 - `medic-lab` — hypothesis laboratory: competing hypotheses scored, HITL steering, honest report.
 - `devops` — HITL tool agents + LLM tool router + trace dashboard.
 - `repair` — budget-aware replanning (chat/data in Russian by design).
+- `chat` — minimal offline single-model multi-turn conversation (`Conversation` + bounded `ChatMemory`).
 - `forklab` — deterministic branch & merge: two strategies on their own forks, three-way merge.
 - `ledger` — offline proof of reactive recompute: edit one fact, only its real `Consume`rs re-run.
 - `llm_ladder` — the workflow from one LLM call to state-changing patches (3 levels).

@@ -24,7 +24,7 @@ from examples.repair.services import Catalog
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Context, RuntimeResources, SessionStore
-from reactifact.chat import ChatAssistant
+from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import (
     embedder_from_env,
@@ -32,6 +32,7 @@ from reactifact.providers import (
     openai_llm,
     openrouter_llm,
 )
+from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import TraceColumn, Tracer, TraceStore
 from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
@@ -88,20 +89,21 @@ def terminal_reply(ctx: Context, msg_id: str) -> dict:
     }
 
 
+#: The chat thread is two artifact types; `Transcript` merges them by role
+#: (the merge/sort/`role` mapping apps otherwise hand-roll).
+_TRANSCRIPT = Transcript(
+    [
+        MessageSpec(UserMsg, "user"),
+        MessageSpec(ChatReply, "assistant"),
+    ]
+)
+
+
 def session_state(ctx: Context) -> dict:
-    msgs: list[dict] = [
-        {"role": "user", "text": m.data.text, "at": m.created_at.isoformat()}
-        for m in ctx.list_artifacts(UserMsg)
-    ]
-    replies: list[dict] = [
-        {"role": "assistant", "text": r.data.text, "at": r.created_at.isoformat()}
-        for r in ctx.list_artifacts(ChatReply)
-    ]
-    turns = sorted(msgs + replies, key=lambda item: item["at"])
     projects = ctx.list_artifacts(Project)
     project = projects[0].data if projects else None
     return {
-        "messages": turns,
+        "messages": _TRANSCRIPT.state(ctx)["messages"],
         "stage": project.stage if project else "",
         "approved": project.approved if project else False,
         "plan": [s.model_dump() for s in project.plan] if project else [],
@@ -137,6 +139,9 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         budget=Budget(max_runs=200),
         max_concurrency=2,
         tracer=lambda: Tracer(store=trace_store),
+        # Bound a long-lived session's commit history (artifacts untouched, so
+        # the UserMsg/ChatReply `query_id` correlation stays intact).
+        memory=ChatMemory(compact_commits=500),
     )
 
     app = FastAPI(title="repair-ai (reactifact)")

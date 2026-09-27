@@ -148,6 +148,7 @@ async def main() -> None:
                 else:
                     print("\n(failed to assemble an answer)")
 
+        session.context.compact(keep_commits=500)  # bound a long session's history
         await session.save()
 
 

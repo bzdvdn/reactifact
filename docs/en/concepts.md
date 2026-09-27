@@ -185,8 +185,10 @@ Why this matters:
 
 ## Supporting pieces
 
-- **`Budget` / `RunOutcome` / `RunStats`** — limit runs, iterations, and time;
-  on budget decline the runtime stops and reports the reason.
+- **`Budget` / `RunOutcome` / `RunStats`** — limit runs, iterations, wall-clock,
+  tool calls, and LLM tokens/cost; on exhaustion the runtime stops and reports
+  the outcome (`RunStats` carries the token/cost totals; cost needs an injected
+  `pricer`).
 - **`Event` / `EventType`** — the wire format of "something changed"; agents are
   woken by artifacts' create/update events, and the announce mechanism emits
   `status` events on the way to the UI. `ARTIFACT_STALE` fires automatically
@@ -197,4 +199,5 @@ Why this matters:
   is the two-artifact form (needed for joins/correlation); `debounce` is the
   hint `Runtime` reads to collapse repeat events into one run.
 - **`Session` / `SessionStore`** — durable, per-chat working memory across
-  requests, backed by a KV checkpoint (file or SQLite).
+  requests, backed by a KV checkpoint (file or SQLite); `Context.compact(...)`
+  bounds a long session's history.

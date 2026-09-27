@@ -127,6 +127,21 @@ uv run python ./examples/repair/web.py
 uv run python ./examples/repair/chat.py
 ```
 
+## `chat` — минимальный одно-модельный многоходовой разговор (офлайн)
+
+**Что показывает:** простую форму multi-turn в ~80 строк — одна модель
+сообщения (`ConversationMessage`), которую пишут обе стороны. `Conversation`
+записывает ходы (`create_turn`) и рендерит поток (`transcript`/`state`);
+`ChatMemory` с `keep=` ограничивает его (`WindowPruner`) — всё через
+`ChatAssistant`. Без LLM и API-ключа (отвечает детерминированный echo-агент).
+Гетерогенная форма (разные типы на вопрос/ответ) — в примерах
+`repair`/`devops`/`knowledge`, через `Transcript`/`MessageSpec` — см.
+[Multi-turn и чат](chat.md).
+
+```bash
+.venv/bin/python -m examples.chat.main
+```
+
 ## `forklab` — ветвление и слияние (§39-§40)
 
 **Что показывает:** детерминированное исследование альтернативных состояний —

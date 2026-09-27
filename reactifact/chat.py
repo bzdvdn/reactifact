@@ -21,17 +21,20 @@ import logging
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
+    Awaitable,
     Callable,
     Mapping,
     Sequence,
 )
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from .agents import Agent
+from .agents import Agent, create_agent
 from .budget import Budget
+from .consume import Consume
 from .context import Context
 from .events import Event
 from .resources import RuntimeResources
@@ -227,6 +230,61 @@ def _call_create_message(
 # --- the canonical chat assistant ----------------------------------------- #
 
 
+def _digest_build(
+    summary_type: type[BaseModel], build: Callable[[str], BaseModel] | None
+) -> Callable[[str], BaseModel]:
+    """How `ChatMemory` turns digest text into the `summary_type` artifact.
+
+    Uses the explicit `build` when given, else `summary_type(text=…)` if the
+    model has a `text` field — otherwise it's a configuration error.
+    """
+    if build is not None:
+        return build
+    if "text" not in set(getattr(summary_type, "model_fields", {})):
+        raise ValueError(
+            f"{summary_type.__name__} has no `text` field; pass "
+            "ChatMemory.build_summary"
+        )
+
+    def _build(text: str) -> BaseModel:
+        return summary_type(text=text)
+
+    return _build
+
+
+@dataclass
+class ChatMemory:
+    """Bounded multi-turn memory policy for `ChatAssistant` (optional).
+
+    Each field is independent; set at least one.
+
+    - `keep`: raw `message_type` artifacts beyond the last N are pruned
+      (`WindowPruner`).
+    - `summarize` + `summary_type`: instead of dropping the pruned messages,
+      fold them into one growing digest (`RollingDigestSummarizer`) — the
+      callback is `(ctx, previous_digest_text, stale_artifacts) -> str | None`.
+      `build_summary` builds the digest artifact from that text; it defaults to
+      `summary_type(text=…)` when the model has a `text` field.
+    - `compact_commits`: after each turn, `Context.compact(keep_commits=…)`
+      bounds the commit log (the history, not the working artifacts). This is
+      the safe choice when messages are correlated/typed rather than a plain
+      role/text log (e.g. a `query_id`-linked user/assistant pair): it never
+      removes an artifact, so it can't desync the transcript.
+
+    `message_type` (needed for `keep`/`summarize`) is any model with
+    `role`/`text`; for compaction-only it isn't needed at all, so
+    `ChatMemory(compact_commits=…)` is a complete policy on its own.
+    """
+
+    message_type: type[BaseModel] | None = None
+    keep: int | None = None
+    summarize: Callable[[Context, str, list[Any]], Awaitable[str | None]] | None = None
+    summary_type: type[BaseModel] | None = None
+    build_summary: Callable[[str], BaseModel] | None = None
+    digest_id: str = "digest"
+    compact_commits: int | None = None
+
+
 class ChatAssistant:
     """Session-persisted chat over the runtime, for the canonical contract.
 
@@ -290,6 +348,7 @@ class ChatAssistant:
         isolate_errors: bool = False,
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
+        memory: ChatMemory | None = None,
     ):
         self.store = store
         self._agents = agents
@@ -308,6 +367,7 @@ class ChatAssistant:
         self._session_save_policy: Literal["per_commit", "per_turn"] = (
             session_save_policy
         )
+        self._memory = memory
         # Serializes concurrent turns on the *same* session_id (a double
         # submit, a client retry): without this, two overlapping stream()
         # calls both load the same starting state and the later save() wins,
@@ -347,10 +407,45 @@ class ChatAssistant:
             session_id, resources=_resolve_with_session(self._resources, session_id)
         )
 
+    def _memory_agents(self) -> list[Agent]:
+        """The bounded-memory agent implied by `memory=`, or none."""
+        memory = self._memory
+        if memory is None:
+            return []
+        from .recipes.memory import RollingDigestSummarizer, WindowPruner
+
+        produce: Any
+        if memory.summarize is not None:
+            if memory.message_type is None or memory.summary_type is None:
+                raise ValueError(
+                    "ChatMemory.summarize needs message_type and summary_type"
+                )
+            produce = RollingDigestSummarizer(
+                message_type=memory.message_type,
+                artifact_type=memory.summary_type,
+                summarize=memory.summarize,
+                build=_digest_build(memory.summary_type, memory.build_summary),
+                window=memory.keep if memory.keep is not None else 8,
+                digest_id=memory.digest_id,
+            )
+        elif memory.keep is not None:
+            if memory.message_type is None:
+                raise ValueError("ChatMemory.keep needs message_type")
+            produce = WindowPruner(memory.message_type, keep=memory.keep)
+        else:
+            return []  # compaction-only: no message-level memory agent
+        return [
+            create_agent(
+                "memory",
+                consumes=[Consume(memory.message_type)],
+                produces=[produce],
+            )
+        ]
+
     def _build_runtime(self, session: Session) -> Runtime:
         return Runtime(
             session.context,
-            agents=list(_resolve(self._agents)),
+            agents=[*_resolve(self._agents), *self._memory_agents()],
             session=session,
             budget=self._budget,
             max_concurrency=self._max_concurrency,
@@ -418,6 +513,9 @@ class ChatAssistant:
                     yield event
             finally:
                 try:
+                    memory = self._memory
+                    if memory is not None and memory.compact_commits is not None:
+                        session.context.compact(keep_commits=memory.compact_commits)
                     await session.save()  # persist the conversation after the turn
                 except Exception:
                     logger.exception(
@@ -473,6 +571,7 @@ __all__ = [
     "ChatAssistant",
     "ChatEvent",
     "ChatEventKind",
+    "ChatMemory",
     "default_session_state",
     "run_message",
 ]

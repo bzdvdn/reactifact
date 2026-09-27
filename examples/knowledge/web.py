@@ -35,8 +35,9 @@ from examples.knowledge.models import (
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, SessionStore
-from reactifact.chat import ChatAssistant
+from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
+from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.web import create_chat_router
 
 ROOT = Path(__file__).resolve().parent
@@ -82,22 +83,27 @@ def terminal_reply(ctx: Any, msg_id: str) -> dict:
     return {"reply": FALLBACK_REPLY, "waiting": False, "sources": []}
 
 
-def session_state(ctx: Any) -> dict:
-    msgs: list[dict] = [
-        {"role": "user", "text": m.data.text, "at": m.created_at.isoformat()}
-        for m in ctx.list_artifacts(UserQuery)
+def _answer_text(answer: Any) -> str:
+    """Assistant render: the answer prose plus a trailing Sources block."""
+    text = answer.text
+    if answer.sources:
+        text += "\n\nSources:\n" + "\n".join(f"• {s}" for s in answer.sources)
+    return text
+
+
+#: The thread is three artifact types; `Transcript` merges them by role and
+#: renders the `Answer` side (prose + sources) via `MessageSpec.render`.
+_TRANSCRIPT = Transcript(
+    [
+        MessageSpec(UserQuery, "user"),
+        MessageSpec(ChatReply, "assistant"),
+        MessageSpec(Answer, "assistant", render=_answer_text),
     ]
-    for r in ctx.list_artifacts(ChatReply):
-        msgs.append(
-            {"role": "assistant", "text": r.data.text, "at": r.created_at.isoformat()}
-        )
-    for a in ctx.list_artifacts(Answer):
-        text = a.data.text
-        if a.data.sources:
-            text += "\n\nSources:\n" + "\n".join(f"• {s}" for s in a.data.sources)
-        msgs.append({"role": "assistant", "text": text, "at": a.created_at.isoformat()})
-    msgs.sort(key=lambda item: item["at"])
-    return {"messages": msgs}
+)
+
+
+def session_state(ctx: Any) -> dict:
+    return _TRANSCRIPT.state(ctx)
 
 
 def _build_assistant(llm: Any = _UNSET, store_dir: str | None = None) -> ChatAssistant:
@@ -113,6 +119,8 @@ def _build_assistant(llm: Any = _UNSET, store_dir: str | None = None) -> ChatAss
         resources=lambda: build_resources(llm=llm),
         budget=Budget(max_runs=200),
         max_concurrency=4,
+        # Bound a long-lived session's commit history (artifacts untouched).
+        memory=ChatMemory(compact_commits=500),
     )
 
 

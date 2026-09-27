@@ -108,6 +108,7 @@
 | Символ | Роль |
 | --- | --- |
 | `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state` |
+| `ChatMemory` | необязательная ограниченная память для `ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты) |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
@@ -213,6 +214,8 @@ OTLP/Langfuse-приёмников.
 | `StatusMachine` | детерминированный жизненный цикл артефакта (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений |
 | `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе |
+| `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | многоходовой разговор, обобщённый над моделью сообщения (вашей или дефолтной `ConversationMessage`): добавлять ходы, рендерить поток в провайдерские `Message` (хелперы `turn_count` / `conversation_state`) |
+| `Transcript` / `MessageSpec` | read-only view для приложений с *разными* типами на стороны (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): сливает типизированные ходы по ролям в один `Message`-список (`messages` / `state`) |
 | `llm_summarizer(system=…)` | строит колбэк `WindowSummarizer(summarize=…)` из системного промпта через `llm_reply` |
 | `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in цикл native tool-calling поверх `native_tool_use`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`) |
 
