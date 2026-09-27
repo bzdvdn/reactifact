@@ -453,6 +453,34 @@ class Context:
         """History: an ordered chain of commits from the oldest to head."""
         return self._log.history()
 
+    def compact(self, *, keep_commits: int, keep_versions: int | None = None) -> int:
+        """Bounds memory: squash old commit history into a baseline snapshot.
+
+        Keeps the last `keep_commits` commits replayable and collapses
+        everything older into a baseline; the absolute `version`/`head_id` and
+        therefore `context_hash` are unchanged (this is the history of *how*
+        state got here, not the state). With `keep_versions`, each artifact's
+        retained version history is also trimmed to its last `keep_versions`
+        (0 drops it) — `Artifact.version` itself does not change.
+
+        Irreversible, like squashing git history: `checkout`/`diff` below the
+        resulting baseline raise, and provenance for artifacts last written
+        before it is no longer available. Call it between turns. Returns the
+        number of commits collapsed.
+        """
+        dropped = self._log.compact(keep_commits)
+        if keep_versions is not None:
+            for artifact in self._artifacts.values():
+                artifact.trim_history(keep_versions)
+        if dropped:
+            self._recompute_stale()
+        return dropped
+
+    @property
+    def compacted_at(self) -> int:
+        """Highest version collapsed into the baseline (0 = never compacted)."""
+        return self._log.baseline_version
+
     def diff(self, version_a: int, version_b: int) -> dict[str, Any]:
         """State delta between two Context versions.
 
@@ -460,6 +488,11 @@ class Context:
         The diff compares the versioned state (commits); artifacts created directly
         outside commits (the "working tree") do not participate.
         """
+        if version_a < self._log.baseline_version:
+            raise ValueError(
+                f"cannot diff from version {version_a}: history below the "
+                f"compaction baseline ({self._log.baseline_version}) was discarded"
+            )
         if not (0 <= version_a <= version_b <= self._log.version):
             raise ValueError(
                 f"Invalid versions: {version_a}..{version_b} (head={self._log.version})"
@@ -576,6 +609,11 @@ class Context:
             raise ValueError(
                 f"Invalid checkout version: {version} (head={self._log.version})"
             )
+        if version < self._log.baseline_version:
+            raise ValueError(
+                f"cannot checkout version {version}: history below the "
+                f"compaction baseline ({self._log.baseline_version}) was discarded"
+            )
         touched: set[str] = set()
         for commit in self._log.commits_from(version):
             for op in commit.operations:
@@ -610,6 +648,7 @@ class Context:
             "artifacts": {aid: art.to_dict() for aid, art in self._artifacts.items()},
             "relations": self._relations.to_dict(),
             "commits": self._log.to_dict(),
+            "commit_baseline": self._log.to_baseline_dict(),
             # Pending triggers, so an interrupted run resumes after a process
             # restart instead of settling on an empty queue. `context_hash`
             # deliberately excludes these (state, not provenance): the queue
@@ -627,7 +666,10 @@ class Context:
             ws._artifacts[aid] = artifact
         ws._relations = RelationGraph.from_dict(d.get("relations", []))
         ws._log = CommitLog.from_dict(
-            d["commits"], version=d.get("version"), head_id=d.get("head_id")
+            d["commits"],
+            version=d.get("version"),
+            head_id=d.get("head_id"),
+            baseline=d.get("commit_baseline"),
         )
         ws._events = [Event.from_dict(e) for e in d.get("events", [])]
         ws._fork_name = d.get("fork_name", "")

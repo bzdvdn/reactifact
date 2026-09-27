@@ -89,6 +89,30 @@ Two different operations, often confused:
 
 The first is execution; the second is audit.
 
+## Bounding a long-lived context
+
+A session that lives for many turns keeps every commit and every artifact
+version forever — memory (and `to_dict`) grows without bound. `Context.compact`
+bounds it the way `git` squashes history:
+
+```python
+session.context.compact(keep_commits=50, keep_versions=2)
+```
+
+It collapses every commit older than the last `keep_commits` into a baseline
+snapshot and (with `keep_versions`) trims each artifact's retained version
+history. The absolute `version`/`head_id` are preserved, so `context_hash`,
+commit version numbers and resumes are unaffected.
+
+Two honest consequences:
+
+- **It is irreversible.** `checkout`/`diff` below the resulting baseline raise
+  (`Context.compacted_at` reports it), and provenance for artifacts last written
+  before the baseline is gone — the operations that produced them were collapsed.
+- **It does not evict artifacts.** To drop old artifacts (e.g. out-of-window
+  messages), use the memory recipes (`WindowPruner`, `RollingDigestSummarizer`,
+  [Recipes](recipes.md)); `compact` bounds the *history*, not the working set.
+
 ## Related
 
 - [Execution model](scheduler-semantics.md) — the generation loop and its

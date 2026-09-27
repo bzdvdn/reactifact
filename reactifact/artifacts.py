@@ -55,6 +55,11 @@ class Artifact(Generic[TData]):
         self._history: list[
             TData
         ] = []  # previous data versions (excluding the current one)
+        #: Absolute version counter — bumped by `update()`, independent of
+        #: `len(_history)`. `compact(keep_versions=…)` trims `_history` but must
+        #: not change `version` (it is part of `context_hash` and of commit
+        #: `Write`s), so it is tracked separately.
+        self._version = 0
         # Memoized to_dict(), keyed by version: re-derived on every save()
         # otherwise (session persistence saves after every commit, §reactifact.session)
         # even though most artifacts in a large context are unchanged since the
@@ -65,7 +70,21 @@ class Artifact(Generic[TData]):
         """Saves the current version to history and replaces the data."""
         self._history.append(self.data)
         self.data = new_data
+        self._version += 1
         self.updated_at = datetime.now(UTC)
+
+    def trim_history(self, keep: int) -> None:
+        """Keeps only the last `keep` previous versions (0 drops them all).
+
+        `version` (and so `context_hash`) is unaffected — only the ability to
+        inspect older versions via `history`/`get_all_versions`/`diff` is
+        bounded. Used by `Context.compact`.
+        """
+        if keep < 0:
+            raise ValueError("keep must be >= 0")
+        if len(self._history) > keep:
+            self._history = self._history[-keep:] if keep else []
+            self._dict_cache = None
 
     @property
     def history(self) -> list[TData]:
@@ -75,7 +94,7 @@ class Artifact(Generic[TData]):
     @property
     def version(self) -> int:
         """Current version (0 – original, 1 – after the first update, etc.)"""
-        return len(self._history)
+        return self._version
 
     def get_all_versions(self) -> list[TData]:
         """Returns all data versions, including the current one, from oldest to newest."""
@@ -106,6 +125,7 @@ class Artifact(Generic[TData]):
             "id": self.id,
             "data_type": self.data_type,
             "data": self.data.model_dump(mode="json"),
+            "version": self._version,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "history": [v.model_dump(mode="json") for v in self._history],
@@ -124,6 +144,8 @@ class Artifact(Generic[TData]):
         artifact.created_at = datetime.fromisoformat(d["created_at"])
         artifact.updated_at = datetime.fromisoformat(d["updated_at"])
         artifact._history = [model_class.model_validate(h) for h in d["history"]]
+        # Older payloads predate the explicit counter — fall back to history len.
+        artifact._version = int(d.get("version", len(artifact._history)))
         return artifact
 
     def __repr__(self) -> str:

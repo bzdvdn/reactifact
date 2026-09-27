@@ -53,7 +53,7 @@
 
 | Символ | Роль |
 | --- | --- |
-| `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback |
+| `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` для ограничения истории (`compacted_at`) |
 | `View` | результат типа-запроса (`context.view(...)`) |
 | `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `trace_truncate=` ограничивает JSON артефактов/ответов в трейсе (`None` — без обрезки); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении |
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |

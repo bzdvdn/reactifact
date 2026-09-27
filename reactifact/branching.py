@@ -57,6 +57,7 @@ def clone_context(source: Context) -> Context:
             created_by_commit=artifact.created_by_commit,
         )
         new_artifact._history = [v.model_copy(deep=True) for v in artifact._history]
+        new_artifact._version = artifact._version
         new_artifact.created_at = artifact.created_at
         new_artifact.updated_at = artifact.updated_at
         new_ws._artifacts[artifact.id] = new_artifact

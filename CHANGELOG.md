@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Context compaction.** `Context.compact(keep_commits=…, keep_versions=…)`
+  bounds a long-lived session: it collapses commits older than the last
+  `keep_commits` into a baseline snapshot (and optionally trims each artifact's
+  retained version history). The absolute `version`/`head_id` are preserved, so
+  `context_hash`, commit version numbers and pending-trigger resume are
+  unchanged. It is irreversible — `checkout`/`diff` below the baseline raise
+  (`Context.compacted_at` reports it) — and it does not evict artifacts (the
+  memory recipes still own that). `Artifact` gained an absolute `version`
+  counter decoupled from `len(history)` so trimming history never changes
+  `context_hash`; the baseline is persisted in `Context.to_dict`/`from_dict`,
+  copied by `clone`/`branch`, and `CommitLog` replays correctly across it.
 - **Token and cost budgets.** `Budget` gains `max_tokens` (total prompt +
   completion over the turn) and `max_cost`, with `RunOutcome.budget_tokens_
   exceeded` / `budget_cost_exceeded`. Usage is counted by the runtime itself

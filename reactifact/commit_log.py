@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from .artifacts import Artifact
 from .commit import Commit
 from .patches import Create, Delete, Link, Relation, Unlink, Update
 from .relations import RelationKey
@@ -41,6 +42,10 @@ class CommitLog:
         "_dependents",
         "_producing_read_ids",
         "_dict_cache",
+        "_baseline",
+        "_baseline_relations",
+        "_baseline_version",
+        "_baseline_head_id",
     )
 
     def __init__(self) -> None:
@@ -54,6 +59,15 @@ class CommitLog:
         # once appended (writes/reads/operations never change afterward), so
         # this can never go stale — see `to_dict()`.
         self._dict_cache: dict[str, dict[str, Any]] = {}
+        # Compaction baseline (see `compact()`): the state as of
+        # `_baseline_version`, replacing every commit at or before it. Absolute
+        # `_version`/`_head_id` are preserved; `_commits` holds only the
+        # retained tail, so a commit's position is `context_version -
+        # _baseline_version - 1`.
+        self._baseline: dict[str, Artifact[Any]] | None = None
+        self._baseline_relations: dict[RelationKey, Relation] | None = None
+        self._baseline_version: int = 0
+        self._baseline_head_id: str | None = None
 
     @property
     def version(self) -> int:
@@ -109,13 +123,22 @@ class CommitLog:
         return len(self._commits)
 
     def commits_from(self, index: int) -> list[Commit]:
-        """Commits at `index` and after (used by `checkout` to find what a
-        rollback would undo)."""
-        return self._commits[index:]
+        """Commits after context version `index` (used by `checkout` to find
+        what a rollback would undo); baseline-aware."""
+        return self._commits[max(0, index - self._baseline_version) :]
 
     def commits_upto(self, upto_version: int) -> list[Commit]:
-        """Commits before `upto_version` (used by the replay methods)."""
-        return self._commits[:upto_version]
+        """Commits up to and including `upto_version` (used by the replay
+        methods); baseline-aware."""
+        limit = upto_version - self._baseline_version
+        if limit <= 0:
+            return []
+        return self._commits[:limit]
+
+    @property
+    def baseline_version(self) -> int:
+        """Highest context version collapsed into the baseline (0 = none)."""
+        return self._baseline_version
 
     def producing_commit(self, artifact_id: str) -> Commit | None:
         """The last commit that wrote the artifact (create or update)."""
@@ -130,16 +153,60 @@ class CommitLog:
         """
         return set(self._dependents.get(artifact_id, ()))
 
+    def compact(self, keep_commits: int) -> int:
+        """Collapses every commit older than the last `keep_commits` into a
+        baseline snapshot.
+
+        Absolute `_version`/`_head_id` are preserved, so `context_hash` and
+        version numbers are unchanged; only the operation history of old
+        commits is dropped. Returns the number of commits removed.
+        Irreversible: replaying/rewinding to a version below the baseline stops
+        being exact (see `Context.compact`).
+        """
+        if keep_commits < 0:
+            raise ValueError("keep_commits must be >= 0")
+        cutoff = self._version - keep_commits
+        if cutoff <= self._baseline_version:
+            return 0
+        baseline_state = self.replay_state(cutoff)
+        baseline_relations = self.replay_relations(cutoff)
+        head_at = self._head_at(cutoff)
+        self._baseline = {
+            aid: Artifact(data=data, id=aid) for aid, data in baseline_state.items()
+        }
+        self._baseline_relations = baseline_relations
+        dropped = cutoff - self._baseline_version
+        self._baseline_version = cutoff
+        self._baseline_head_id = head_at
+        del self._commits[:dropped]
+        self._rebuild_indices()
+        live_ids = {c.id for c in self._commits}
+        self._dict_cache = {
+            cid: d for cid, d in self._dict_cache.items() if cid in live_ids
+        }
+        return dropped
+
+    def _head_at(self, version: int) -> str | None:
+        """Head commit id as of `version` (baseline-aware)."""
+        if version <= 0:
+            return None
+        if version <= self._baseline_version:
+            return self._baseline_head_id
+        return self._commits[version - self._baseline_version - 1].id
+
     def truncate(self, version: int) -> None:
         """Rolls the log back to `version`: drops later commits, moves head.
 
-        `version=0` means "before any commit" (no head).
+        `version=0` means "before any commit" (no head). Refuses to rewind
+        below the compaction baseline (that history was discarded).
         """
-        if version == 0:
-            self._head_id = None
-        else:
-            self._head_id = self._commits[version - 1].id
-        del self._commits[version:]
+        if version < self._baseline_version:
+            raise ValueError(
+                f"cannot rewind to version {version}: history below the "
+                f"compaction baseline ({self._baseline_version}) was discarded"
+            )
+        self._head_id = self._head_at(version)
+        del self._commits[max(0, version - self._baseline_version) :]
         self._version = version
         self._rebuild_indices()
         live_ids = {c.id for c in self._commits}
@@ -148,9 +215,20 @@ class CommitLog:
         }
 
     def replay_state(self, upto_version: int) -> dict[str, Any]:
-        """Replays the artifact state by applying commits up to and including
-        the version."""
+        """Replays the artifact state up to and including `upto_version`.
+
+        Baseline-aware: starts from the compacted snapshot when one exists.
+        For `upto_version` below the baseline the baseline state is returned
+        (the exact pre-baseline state is no longer reconstructable).
+        """
         state: dict[str, Any] = {}
+        if self._baseline is not None:
+            state = {
+                aid: art.data.model_copy(deep=True)
+                for aid, art in self._baseline.items()
+            }
+            if upto_version <= self._baseline_version:
+                return state
         for commit in self.commits_upto(upto_version):
             for op in commit.operations:
                 if isinstance(op, Create) and op.artifact_id is not None:
@@ -162,8 +240,13 @@ class CommitLog:
         return state
 
     def replay_relations(self, upto_version: int) -> dict[RelationKey, Relation]:
-        """Replays the link graph from commits up to and including the version."""
+        """Replays the link graph up to and including `upto_version`;
+        baseline-aware (same caveat as `replay_state`)."""
         relations: dict[RelationKey, Relation] = {}
+        if self._baseline_relations is not None:
+            relations = dict(self._baseline_relations)
+            if upto_version <= self._baseline_version:
+                return relations
         for commit in self.commits_upto(upto_version):
             for op in commit.operations:
                 if isinstance(op, Link):
@@ -185,6 +268,18 @@ class CommitLog:
         clone._commits = copy.deepcopy(self._commits)
         clone._version = self._version
         clone._head_id = self._head_id
+        clone._baseline = (
+            {aid: copy.deepcopy(art) for aid, art in self._baseline.items()}
+            if self._baseline is not None
+            else None
+        )
+        clone._baseline_relations = (
+            dict(self._baseline_relations)
+            if self._baseline_relations is not None
+            else None
+        )
+        clone._baseline_version = self._baseline_version
+        clone._baseline_head_id = self._baseline_head_id
         # Deep-copied commits are new objects — re-derive the indices instead
         # of copying dicts that would still point at the originals.
         clone._rebuild_indices()
@@ -193,6 +288,19 @@ class CommitLog:
         # the cache over instead of re-serializing on the clone's first save.
         clone._dict_cache = dict(self._dict_cache)
         return clone
+
+    def to_baseline_dict(self) -> dict[str, Any] | None:
+        """Serializes the compaction baseline (`None` when never compacted)."""
+        if self._baseline is None:
+            return None
+        return {
+            "version": self._baseline_version,
+            "head_id": self._baseline_head_id,
+            "artifacts": {aid: art.to_dict() for aid, art in self._baseline.items()},
+            "relations": [
+                rel.to_dict() for rel in (self._baseline_relations or {}).values()
+            ],
+        }
 
     def to_dict(self) -> list[dict[str, Any]]:
         """Serializes the commit chain, memoized per commit id.
@@ -219,14 +327,32 @@ class CommitLog:
         *,
         version: int | None,
         head_id: str | None,
+        baseline: dict[str, Any] | None = None,
     ) -> CommitLog:
         log = cls()
         log._commits = [Commit.from_dict(cd) for cd in commits]
-        log._version = version if version is not None else len(log._commits)
+        if baseline is not None:
+            log._baseline = {
+                aid: Artifact.from_dict(art_dict)
+                for aid, art_dict in baseline["artifacts"].items()
+            }
+            log._baseline_relations = {
+                (rel["source_id"], rel["relation"], rel["target_id"]): Relation(
+                    rel["source_id"], rel["relation"], rel["target_id"]
+                )
+                for rel in baseline.get("relations", [])
+            }
+            log._baseline_version = int(baseline["version"])
+            log._baseline_head_id = baseline.get("head_id")
+        log._version = (
+            version
+            if version is not None
+            else log._baseline_version + len(log._commits)
+        )
         log._head_id = (
             head_id
             if head_id is not None
-            else (log._commits[-1].id if log._commits else None)
+            else (log._commits[-1].id if log._commits else log._baseline_head_id)
         )
         log._rebuild_indices()
         return log

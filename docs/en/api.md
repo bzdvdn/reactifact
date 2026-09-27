@@ -50,7 +50,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Context` | versioned working state; resources; queries; `latest(Model)`; announce; diff/rollback |
+| `Context` | versioned working state; resources; queries; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` to bound history (`compacted_at`) |
 | `View` | result of a typed join query (`context.view(...)`) |
 | `RuntimeResources` | providers + sources + app resources; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` for typed collaborators (`ResourceKey[T]` when two of one type); string `get`/`set` stay as the `additional` escape hatch; `redactor=` scrubs trace text; `trace_truncate=` caps artifact/response JSON kept in a trace (`None` = no clip); `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown |
 | `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
