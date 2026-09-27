@@ -149,9 +149,15 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `run_suite(cases, metrics)` / `run_case(case, metrics)` | execute cases and score the final contexts |
-| `EvalCase` / `EvalResult` / `EvalReport` / `Metric` | case/score/report structures (`overall()`, `render()`, `to_dict()`) |
+| `EvalCase` / `EvalResult` / `EvalReport` / `Metric` | case/score/report structures (`overall()`, `aggregate()`, `passed()`, `render()`, `to_dict()`) |
 | `core_metrics` | the four non-generative metrics (answer/provenance/evidence/claim) |
 | `answer_coverage()` · `calculation_correctness(values=…)` · `source_coverage()` · `confidence_calibration()` | ground-truth factories (skip when `expected` is missing) |
+| `Dataset` / `Example` | versioned examples (`from_file`/`from_list`, `.json`/`.jsonl`, content-hash `version`) |
+| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…)` / `aevaluate` | run a target over every example and score it; `target` returns a `Context`, `ScenarioResult`, outputs mapping or `RunResult` |
+| `from_metric(name, metric_fn)` | wrap a scoring metric into an `Evaluator` |
+| `trajectory_match(mode, *, steps=…, reference_key=…)` | match a run's path (`strict`/`unordered`/`subset`/`superset`) over `agents`/`events`/`reads`/`writes` |
+| `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | LLM-as-judge evaluators (`continuous`/`choices`/`include_reference`) |
+| `summary_pass_rate(threshold)` / `summary_mean(key)` · `assert_eval(report, …)` | suite-level aggregators and the CI gate |
 
 ## Structured output
 

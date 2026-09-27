@@ -66,15 +66,108 @@ suite overall: 1.000
 возвращает `None` и попадает в **skipped** (`EvalResult.skipped`), а не в тихий
 ноль.
 
+## Оценка по датасету
+
+Кроме оценки одного готового `Context`, `reactifact.eval` прогоняет **датасет**
+через **target** и оценивает каждый пример — офлайн-цикл оценки, без hosted-
+хранилища:
+
+```python
+from reactifact.eval import (
+    Dataset, evaluate, from_metric, judge_correctness, summary_pass_rate,
+)
+
+dataset = Dataset.from_file("evals/qa.json")       # или from_list / .jsonl
+report = evaluate(
+    dataset,
+    target=lambda inputs: my_pipeline(**inputs),   # Context | ScenarioResult | {outputs} | RunResult
+    evaluators={
+        "present": from_metric("answer_present", answer_present),
+        "coverage": from_metric("coverage", answer_coverage()),
+        "correctness": judge_correctness(llm),      # LLM-as-judge
+    },
+    summary=[summary_pass_rate(0.8)],
+)
+report.assert_passed({"correctness": 0.7})          # CI-гейт (бросает EvalFailure)
+```
+
+`Example` несёт `inputs` (уходят в target), опциональный `reference_outputs`
+(используется только эвалуаторами) и `metadata`; `id` выводится из содержимого,
+поэтому `Dataset.version` привязывает прогон к ревизии датасета. Target может
+вернуть `Context`, `ScenarioResult` из `reactifact.testing` (читается через
+`.context`/`.trace`), обычный mapping выходов или `RunResult`. `evaluate` идёт
+по примерам последовательно в порядке датасета (`max_concurrency=N` —
+параллелит I/O-bound target'ы).
+
+## Эвалуаторы
+
+`Evaluator` — любой callable `EvalInput -> Feedback | bool | float |
+{key: score} | list | None`; `None` **пропускает** метрику (нет грёд-труса /
+неприменимо — а не тихий ноль). `EvalInput` даёт пример, извлечённые `outputs`
+и — для прогонов reactifact — итоговые `context` и `trace`. `from_metric`
+заворачивает любую метрику скоринга в эвалуатор:
+
+```python
+evaluators = {
+    "grounded": from_metric("provenance_grounded", provenance_grounded),
+    "calc": from_metric("calc", calculation_correctness(values=(5480, 3580))),
+}
+```
+
+`trajectory_match(mode, steps=…)` сравнивает **путь** прогона с
+`example.reference_outputs["trajectory"]` — типизированный аналог сопоставления
+траекторий сообщений. `steps` — `"agents"` (путь агентов), `"events"`,
+`"reads"`/`"writes"` (`"create:Answer"`, …) или свой `EvalInput -> list[str]`:
+
+| Режим | Смысл |
+| --- | --- |
+| `strict` | те же шаги в том же порядке |
+| `unordered` | тот же мультимножество шагов |
+| `subset` | actual ⊆ expected (без лишних шагов) |
+| `superset` | expected ⊆ actual (минимум обязательных шагов) |
+
+## LLM-as-judge
+
+Для субъективного качества детерминированной метрики нет — LLM оценивает
+вывод по рубрике. `llm_judge` превращает любой `LLMProvider` в `Evaluator`,
+т.е. судья — просто ещё один вызов модели: он сочетается с
+`CachingLLM`/бюджетом/метриками и подменяется в тестах через `FakeLLM`:
+
+```python
+from reactifact.eval import judge_correctness, judge_faithfulness, judge_relevance
+
+judge_correctness(llm, continuous=True, choices=[0.0, 0.5, 1.0])   # по эталону
+judge_relevance(llm)        # без эталона: отвечает ли на вопрос?
+judge_faithfulness(llm)     # без эталона: обосновано ли контекстом?
+```
+
+Судью просят о строгом JSON (`{"score": …, "comment": …}`); парсинг терпимый
+(ищет первый JSON-объект, затем число/булево). `continuous` даёт float 0..1;
+`choices` притягивает к фиксированной шкале; `include_reference` форматирует
+эталонные выходы в промпт.
+
+## Гейт и summary
+
+`EvalReport.aggregate()` — среднее по ключу метрики; `passed(…)` /
+`assert_passed(…)` (или модульный `assert_eval`) — CI-гейт: порог для ключа,
+который не измерил ни один кейс, **не** выполняется. Summary-эвалуаторы
+(`summary_pass_rate(threshold)`, `summary_mean(key)`) агрегируют по всему
+сюиту в `EvalReport.summary`.
+
 ## Типы
 
 - `Metric` — один измеренный 0..1 скор с весами `weight`.
 - `EvalCase` — имя + `run() -> Context` + опциональный `expected`.
 - `EvalResult` (на кейс) / `EvalReport` (сюит) — `overall()` (взвешенное
-  среднее), `to_dict()`, `render()`.
+  среднее), `aggregate()`, `passed()`, `to_dict()`, `render()`.
+- `Example` / `Dataset` — версионируемые примеры + загрузка JSON/JSONL.
+- `EvalInput` / `Feedback` / `Evaluator` — входы и вердикт эвалуатора.
+- `RunResult` — нормализованный результат target'а (`outputs` + context/trace).
+- `EvalFailure` — бросается гейтом (наследник `AssertionError`).
 
 ## Куда смотреть
 
-End-to-end тесты в `tests/test_eval.py` оценивают калькуляционный вопрос demo
-`knowledge` офлайн (без LLM) и проверяют полностью обоснованный отчёт — ту же
-форму можно направить на любой пример.
+`tests/test_eval.py` оценивает калькуляционный вопрос demo `knowledge` офлайн
+(без LLM); `tests/test_eval_dataset.py`, `test_eval_trajectory.py` и
+`test_eval_judge.py` покрывают цикл по датасету, сопоставление траекторий и
+судью (`FakeLLM`, возвращающий JSON).

@@ -66,15 +66,109 @@ harness needs no domain imports — the domain stays out of the framework.
 truth returns `None` and is reported as **skipped** (`EvalResult.skipped`), never
 as a silent zero.
 
+## Dataset evaluation
+
+Beyond scoring one already-built `Context`, `reactifact.eval` runs a **dataset**
+through a **target** and scores every example — the offline-evaluation loop,
+with no hosted store:
+
+```python
+from reactifact.eval import (
+    Dataset, evaluate, from_metric, judge_correctness, summary_pass_rate,
+)
+
+dataset = Dataset.from_file("evals/qa.json")       # or from_list / .jsonl
+report = evaluate(
+    dataset,
+    target=lambda inputs: my_pipeline(**inputs),   # Context | ScenarioResult | {outputs} | RunResult
+    evaluators={
+        "present": from_metric("answer_present", answer_present),
+        "coverage": from_metric("coverage", answer_coverage()),
+        "correctness": judge_correctness(llm),      # P2: LLM-as-judge
+    },
+    summary=[summary_pass_rate(0.8)],
+)
+report.assert_passed({"correctness": 0.7})          # CI gate (raises EvalFailure)
+```
+
+`Example` carries `inputs` (fed to the target), optional `reference_outputs`
+(used only by evaluators) and `metadata`; its `id` is content-derived, so
+`Dataset.version` pins a run to a dataset revision. A target may return a
+`Context`, a `ScenarioResult` from `reactifact.testing` (read via `.context`/
+`.trace`), a plain outputs mapping, or a `RunResult`. `evaluate` runs examples
+sequentially in dataset order (`max_concurrency=N` parallelizes I/O-bound
+targets).
+
+## Evaluators
+
+An `Evaluator` is any callable `EvalInput -> Feedback | bool | float |
+{key: score} | list | None`; `None` **skips** (no ground truth / not applicable
+— never a silent zero). `EvalInput` exposes the example, the extracted
+`outputs`, and — for reactifact runs — the final `context` and `trace`.
+`from_metric` wraps any scoring metric into an evaluator:
+
+```python
+evaluators = {
+    "grounded": from_metric("provenance_grounded", provenance_grounded),
+    "calc": from_metric("calc", calculation_correctness(values=(5480, 3580))),
+}
+```
+
+`trajectory_match(mode, steps=…)` compares the **path** a run took against
+`example.reference_outputs["trajectory"]` — the typed-graph analogue of
+message-trajectory matching. `steps` is `"agents"` (the agent path),
+`"events"`, `"reads"`/`"writes"` (`"create:Answer"`, …) or a custom
+`EvalInput -> list[str]`:
+
+| Mode | Meaning |
+| --- | --- |
+| `strict` | same steps, same order |
+| `unordered` | same multiset of steps |
+| `subset` | actual ⊆ expected (no unexpected steps) |
+| `superset` | expected ⊆ actual (at least the required steps) |
+
+## LLM-as-judge
+
+For subjective quality there is no deterministic metric; an LLM grades the
+output against a rubric. `llm_judge` turns any `LLMProvider` into an
+`Evaluator`, so a judge is just another model call — it composes with
+`CachingLLM`/budget/metrics and is faked in tests with `FakeLLM`:
+
+```python
+from reactifact.eval import judge_correctness, judge_faithfulness, judge_relevance
+
+judge_correctness(llm, continuous=True, choices=[0.0, 0.5, 1.0])   # reference-based
+judge_relevance(llm)        # reference-free: does it answer the question?
+judge_faithfulness(llm)     # reference-free: grounded in the context?
+```
+
+The judge is asked for strict JSON (`{"score": …, "comment": …}`); parsing is
+tolerant (scans for the first JSON object, then a number/boolean). `continuous`
+yields a 0..1 float; `choices` snaps to a fixed scale; `include_reference`
+formats the reference outputs into the prompt (reference-based grading).
+
+## Gate & summary
+
+`EvalReport.aggregate()` is the mean per metric key; `passed(…)` /
+`assert_passed(…)` (or module-level `assert_eval`) is the CI gate — a threshold
+for a key no case measured is **not** met. Summary evaluators
+(`summary_pass_rate(threshold)`, `summary_mean(key)`) aggregate across the whole
+suite into `EvalReport.summary`.
+
 ## Types
 
 - `Metric` — one measured 0..1 score with a reporting `weight`.
 - `EvalCase` — name + a `run() -> Context` + optional `expected` ground truth.
 - `EvalResult` (per case) / `EvalReport` (suite) — `overall()` (weighted mean),
-  `to_dict()`, `render()`.
+  `aggregate()`, `passed()`, `to_dict()`, `render()`.
+- `Example` / `Dataset` — versioned evaluation examples + JSON/JSONL loading.
+- `EvalInput` / `Feedback` / `Evaluator` — an evaluator's inputs and verdict.
+- `RunResult` — a normalized target result (`outputs` + optional context/trace).
+- `EvalFailure` — raised by the gate (`AssertionError` subclass).
 
 ## Where to look
 
-The end-to-end tests in `tests/test_eval.py` evaluate the `knowledge`
-calculation question offline (no LLM) and assert a fully grounded, computed
-report — the same shape you can point at any example pipeline.
+`tests/test_eval.py` scores the `knowledge` calculation question offline (no
+LLM); `tests/test_eval_dataset.py`, `test_eval_trajectory.py` and
+`test_eval_judge.py` cover the dataset loop, trajectory matching and the judge
+(a `FakeLLM` returning JSON).

@@ -152,9 +152,15 @@
 | Символ | Роль |
 | --- | --- |
 | `run_suite(cases, metrics)` / `run_case(case, metrics)` | выполнить кейсы и скорить итоговые контексты |
-| `EvalCase` / `EvalResult` / `EvalReport` / `Metric` | структуры кейс/скор/отчёт (`overall()`, `render()`, `to_dict()`) |
+| `EvalCase` / `EvalResult` / `EvalReport` / `Metric` | структуры кейс/скор/отчёт (`overall()`, `aggregate()`, `passed()`, `render()`, `to_dict()`) |
 | `core_metrics` | четыре не генеративные метрики (answer/provenance/evidence/claim) |
 | `answer_coverage()` · `calculation_correctness(values=…)` · `source_coverage()` · `confidence_calibration()` | фабрики с грёд-трусом (skip при отсутствии `expected`) |
+| `Dataset` / `Example` | версионируемые примеры (`from_file`/`from_list`, `.json`/`.jsonl`, content-hash `version`) |
+| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…)` / `aevaluate` | прогон target по каждому примеру со скорингом; `target` возвращает `Context`, `ScenarioResult`, mapping выходов или `RunResult` |
+| `from_metric(name, metric_fn)` | обернуть метрику скоринга в `Evaluator` |
+| `trajectory_match(mode, *, steps=…, reference_key=…)` | сопоставить путь прогона (`strict`/`unordered`/`subset`/`superset`) по `agents`/`events`/`reads`/`writes` |
+| `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | эвалуаторы LLM-as-judge (`continuous`/`choices`/`include_reference`) |
+| `summary_pass_rate(threshold)` / `summary_mean(key)` · `assert_eval(report, …)` | агрегаторы по сюиту и CI-гейт |
 
 ## Структурный вывод
 

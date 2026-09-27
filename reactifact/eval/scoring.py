@@ -1,4 +1,4 @@
-"""reactifact.eval — multi-level evaluation harness (§56).
+"""Scoring core of `reactifact.eval` (§56) — the deterministic, LLM-free metrics.
 
 Because state is structured, evaluation is not only `answer == expected`: it
 separates *evidence quality*, *claim verification*, *provenance grounding*,
@@ -12,7 +12,9 @@ harness runs a case, collects its metrics, and renders a weighted report.
 
 All metrics are deterministic and LLM-free. They match artifact *classes by
 name* (`Answer`, `Evidence`, …) so the harness needs no domain imports — the
-domain stays out of the framework.
+domain stays out of the framework. The dataset/experiment layer
+(`reactifact.eval.evaluate`, `Dataset`, trajectory + LLM-judge evaluators)
+builds on this core; see the package docstring.
 """
 
 from __future__ import annotations
@@ -21,7 +23,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .context import Context
+from ..context import Context
+
+
+class EvalFailure(AssertionError):
+    """Raised by `EvalReport.assert_passed`/`assert_eval` when a gate is unmet.
+
+    Subclasses `AssertionError`, so a pytest test that calls
+    `report.assert_passed()` fails the ordinary way (and, via `reactifact.testing`,
+    with the rendered report inlined in the message).
+    """
 
 
 @dataclass(frozen=True)
@@ -63,18 +74,82 @@ class EvalResult:
 
 @dataclass
 class EvalReport:
-    """The whole suite: one `EvalResult` per case."""
+    """The whole suite: one `EvalResult` per case, plus optional summary metrics.
+
+    `summary` holds dataset-level metrics (pass rate, mean of a key, …)
+    produced by summary evaluators (`reactifact.eval.summary_*`), which by
+    definition cannot be computed per example.
+    """
 
     results: list[EvalResult] = field(default_factory=list)
+    summary: list[Metric] = field(default_factory=list)
 
     def overall(self) -> float:
         if not self.results:
             return 0.0
         return sum(r.overall() for r in self.results) / len(self.results)
 
+    def by_key(self, key: str) -> list[float]:
+        """Every score recorded under metric `key`, across all cases."""
+        return [m.score for r in self.results for m in r.metrics if m.name == key]
+
+    def aggregate(self) -> dict[str, float]:
+        """Mean score per metric key across the suite (missing keys omitted)."""
+        keys = sorted({m.name for r in self.results for m in r.metrics})
+        return {
+            key: round(sum(vals) / len(vals), 4)
+            for key in keys
+            if (vals := self.by_key(key))
+        }
+
+    def passed(
+        self,
+        thresholds: float | Mapping[str, float] | None = None,
+        *,
+        overall: float | None = None,
+    ) -> bool:
+        """Whether the suite clears the given bars (the CI/regression gate).
+
+        `thresholds` is either a single float applied to `overall()`, or a
+        mapping of metric key -> minimum *aggregate* (a threshold for a key no
+        case measured is **not** met — an unmeasured metric must not silently
+        pass). `overall=` adds an explicit bar on the suite mean.
+        """
+        if overall is not None and self.overall() < overall:
+            return False
+        if thresholds is None:
+            return True
+        if isinstance(thresholds, (int, float)):
+            return self.overall() >= float(thresholds)
+        aggregate = self.aggregate()
+        return all(
+            aggregate.get(key, float("-inf")) >= bar for key, bar in thresholds.items()
+        )
+
+    def assert_passed(
+        self,
+        thresholds: float | Mapping[str, float] | None = None,
+        *,
+        overall: float | None = None,
+    ) -> EvalReport:
+        """`passed(...)` or raise `EvalFailure` with the rendered report."""
+        if not self.passed(thresholds, overall=overall):
+            raise EvalFailure("eval thresholds not met\n\n" + self.render())
+        return self
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "overall": round(self.overall(), 4),
+            "aggregate": self.aggregate(),
+            "summary": [
+                {
+                    "name": m.name,
+                    "score": round(m.score, 4),
+                    "weight": m.weight,
+                    "note": m.note,
+                }
+                for m in self.summary
+            ],
             "cases": [
                 {
                     "case": r.case,
@@ -106,6 +181,13 @@ class EvalReport:
             for name in r.skipped:
                 lines.append(f"    {name:<28}      — skipped (no ground truth)")
         lines.append(f"\nsuite overall: {self.overall():.3f}")
+        if self.summary:
+            lines.append("summary:")
+            for m in self.summary:
+                entry = f"    {m.name:<28} {m.score:6.3f}"
+                if m.note:
+                    entry += f"  {m.note}"
+                lines.append(entry)
         return "\n".join(lines)
 
 
@@ -231,7 +313,7 @@ def answer_coverage(
     """Coverage of the expected answer text by the actual answer (0..1)."""
 
     def _score(context: Context, expected: Mapping[str, Any] | None) -> float | None:
-        from .recipes import keyword_score
+        from ..recipes import keyword_score
 
         if expected is None or expected.get(expected_key) is None:
             return None
@@ -302,6 +384,7 @@ core_metrics: dict[str, MetricFn] = {
 
 __all__ = [
     "EvalCase",
+    "EvalFailure",
     "EvalReport",
     "EvalResult",
     "Metric",

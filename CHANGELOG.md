@@ -22,6 +22,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `reactifact_relations_total{relation}`), and `RuntimeResources.metrics` is a
   no-op-until-configured sink so a produce can record app-specific signals
   (`call.context.resources.metrics.increment("route_total", route=…)`).
+- **Dataset evaluation and LLM-as-judge.** `reactifact.eval` grows from the
+  deterministic metric core (§56) into a full offline-evaluation layer, with no
+  hosted store. `Dataset`/`Example` hold `inputs` + optional
+  `reference_outputs`/`metadata` (content-hashed `version`, `.json`/`.jsonl`
+  loading); `evaluate(dataset, target, evaluators, summary=…)` runs a target
+  over every example — the target may return a `Context`, a
+  `reactifact.testing.ScenarioResult` (read via `.context`/`.trace`), an
+  outputs mapping or a `RunResult` — and scores it. An `Evaluator` is any
+  callable `EvalInput -> Feedback | bool | float | {key: score} | list | None`
+  (`None` skips, never a silent zero); `from_metric` wraps the scoring metrics,
+  `trajectory_match(mode, steps=…)` matches a run's typed path
+  (`strict`/`unordered`/`subset`/`superset` over `agents`/`events`/`reads`/
+  `writes`). `llm_judge` (plus `judge_correctness`/`judge_relevance`/
+  `judge_faithfulness`) turns any `LLMProvider` into a judge with tolerant JSON
+  parsing, `continuous` scores, `choices` snapping and reference-based grading —
+  composable with `CachingLLM`/budget/metrics and faked with `FakeLLM`.
+  `EvalReport` gains `aggregate()`/`passed()`/`assert_passed()` (the CI gate,
+  `EvalFailure`), summary evaluators (`summary_pass_rate`, `summary_mean`) and
+  `assert_eval`. `reactifact.eval` is now a package; the existing
+  `EvalCase`/`run_suite` metrics API is unchanged.
 - **Provider resilience: exact LLM cache and failover.** `reactifact.cache.
   CachingLLM` keys every `complete()` by the whole request (model, messages,
   temperature, …) and answers a repeat without calling the provider — no
