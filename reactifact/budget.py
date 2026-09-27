@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .cache import is_cache_hit
 from .pricing import Pricer, cost_of
 from .providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 
@@ -144,7 +145,8 @@ class BudgetLLM(LLMProvider):
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
         response = await self._inner.complete(request)
-        self._account(response.usage)
+        if not is_cache_hit(response):
+            self._account(response.usage)
         return response
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:

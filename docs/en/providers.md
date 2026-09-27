@@ -153,6 +153,32 @@ and retries 429/5xx and transport errors with exponential backoff via
 since retrying a misconfiguration just delays the real error. Pass
 `retry_attempts=1` to disable.
 
+**Failover.** `RouterLLM([primary, secondary, …])` calls providers in order and
+falls back on failure — a provider outage, a rate limit, or a missing key while
+another provider works. Any exception falls back by default; `should_fallback=`
+narrows it (e.g. `retryable_only` skips a 4xx, which would repeat everywhere).
+Only `complete()` fails over — `stream()` uses the first provider. An
+`on_fallback(provider, exc)` callback fires before moving on.
+
+**Exact cache.** `CachingLLM(provider)` keys every `complete()` by the whole
+request (model, messages, temperature, …) and answers a repeat without calling
+the provider — no tokens, no latency; `cache=KVCache(FileKVBackend(…))` makes it
+survive restarts. A hit is marked (`raw={"reactifact_cache": "hit"}`) and
+`BudgetLLM` does **not** charge it. Deliberately not semantic (an approximate
+match would answer a different question), and `stream()` is not cached.
+
+```python
+from reactifact.cache import CachingLLM, KVCache
+from reactifact.checkpoints import SQLiteKVBackend
+from reactifact.routing import RouterLLM, retryable_only
+
+resources.llm = CachingLLM(                     # cache outermost
+    RouterLLM([openrouter_llm(), groq_llm()],   # failover in the middle
+              should_fallback=retryable_only),
+    cache=KVCache(SQLiteKVBackend("llm-cache.db")),
+)
+```
+
 **HTTP client lifecycle.** Every provider opens an `httpx.AsyncClient` lazily
 and owns it — nothing in the runtime closes it for you. Call
 `await resources.aclose()` (`RuntimeResources`) yourself at real shutdown (a

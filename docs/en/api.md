@@ -199,6 +199,8 @@ current event loop**, so one provider instance stays usable across repeated
 | `LLMRequest` | one completion: `messages` + `temperature`/`max_tokens` — `None` = provider default (call overrides provider, provider `None` = field omitted) |
 | `LLMResponse`, `LLMResponseChunk` | one completion result / one streamed chunk returned by a provider |
 | `*_from_env(**overrides)` | `.env`-driven wiring that returns `None` when unconfigured |
+| `CachingLLM`, `KVCache` (`reactifact.cache`) | exact cache for `complete()`: a repeated request is answered without the provider (`cache=` to persist), a hit is not charged to the budget; not semantic, `stream()` uncached |
+| `RouterLLM`, `retryable_only` (`reactifact.routing`) | provider failover: try providers in order, fall back on failure (`should_fallback=`/`on_fallback=`); only `complete()` |
 | `from_env(**overrides)` | one-call selection: `OPENROUTER_API_KEY` first, else `OPENAI_BASE_URL`, else `None` — the two-branch default every example's local `build_llm()` hand-rolls |
 | `FakeLLM`, `FakeEmbedder` | deterministic stand-ins for tests/demos |
 

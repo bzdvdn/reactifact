@@ -155,6 +155,33 @@ IMAGE_MODEL=google/gemini-2.0-flash-exp:free
 неправильной настройки только откладывает реальную ошибку. `retry_attempts=1`
 отключает ретраи.
 
+**Failover.** `RouterLLM([primary, secondary, …])` вызывает провайдеров по
+порядку и переходит к следующему при сбое — недоступность провайдера, лимит
+запросов или отсутствующий ключ, пока другой работает. По умолчанию падение
+любого исключения запускает fallback; `should_fallback=` сужает это (напр.
+`retryable_only` пропускает 4xx, который повторится у всех). Fallback только у
+`complete()` — `stream()` использует первого провайдера. Колбэк
+`on_fallback(provider, exc)` вызывается перед переходом.
+
+**Точный кэш.** `CachingLLM(provider)` ключует каждый `complete()` по всему
+запросу (model, messages, temperature, …) и отвечает на повтор без вызова
+провайдера — без токенов и задержки; `cache=KVCache(FileKVBackend(…))` делает
+его переживающим рестарт. Хит помечается (`raw={"reactifact_cache": "hit"}`), и
+`BudgetLLM` его **не** списывает. Сознательно не семантический (приближённое
+совпадение ответило бы на другой вопрос), `stream()` не кэшируется.
+
+```python
+from reactifact.cache import CachingLLM, KVCache
+from reactifact.checkpoints import SQLiteKVBackend
+from reactifact.routing import RouterLLM, retryable_only
+
+resources.llm = CachingLLM(                     # кэш снаружи
+    RouterLLM([openrouter_llm(), groq_llm()],   # failover в середине
+              should_fallback=retryable_only),
+    cache=KVCache(SQLiteKVBackend("llm-cache.db")),
+)
+```
+
 **Жизненный цикл HTTP-клиента.** Каждый провайдер лениво открывает
 `httpx.AsyncClient` и владеет им — рантайм ничего не закрывает сам. Вызывайте
 `await resources.aclose()` (`RuntimeResources`) сами при реальном завершении

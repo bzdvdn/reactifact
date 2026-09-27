@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Provider resilience: exact LLM cache and failover.** `reactifact.cache.
+  CachingLLM` keys every `complete()` by the whole request (model, messages,
+  temperature, …) and answers a repeat without calling the provider — no
+  tokens, no latency; an optional `KVCache` over any `KVBackend` persists it.
+  A hit is marked (`raw={"reactifact_cache": "hit"}`) so `BudgetLLM` does not
+  charge it. Deliberately not semantic (an approximate match would answer a
+  different question) and `stream()` is uncached. `reactifact.routing.
+  RouterLLM` tries providers in order and falls back on failure
+  (`should_fallback=` — e.g. `retryable_only` — and `on_fallback=`); only
+  `complete()` fails over. Both are drop-in provider wrappers, composable:
+  `resources.llm = CachingLLM(RouterLLM([openrouter_llm(), groq_llm()]))`.
 - **Stable artifact type identity (schema evolution).** `reactifact.types`
   decouples the persisted type string from Python's module layout:
   `register_type(Model, type_id=…, aliases=[…], migrate=…)` makes a model

@@ -202,6 +202,8 @@ OTLP/Langfuse-приёмников.
 | `LLMRequest` | одна генерация: `messages` + `temperature`/`max_tokens` — `None` = дефолт провайдера (вызов перекрывает провайдера, провайдер `None` = поле не отправляется) |
 | `LLMResponse`, `LLMResponseChunk` | результат одной генерации / один поточный чанк, возвращаемые провайдером |
 | `*_from_env(**overrides)` | подключение из `.env`; возвращает `None`, если не настроено |
+| `CachingLLM`, `KVCache` (`reactifact.cache`) | точный кэш `complete()`: повторный запрос отвечается без провайдера (`cache=` — для персистентности), хит не списывается бюджетом; не семантический, `stream()` не кэшируется |
+| `RouterLLM`, `retryable_only` (`reactifact.routing`) | failover провайдеров: пробует по порядку, переходит при сбое (`should_fallback=`/`on_fallback=`); только `complete()` |
 | `from_env(**overrides)` | выбор в один вызов: сперва `OPENROUTER_API_KEY`, иначе `OPENAI_BASE_URL`, иначе `None` — тот самый двухветочный дефолт, что каждый пример вручную собирает в своём `build_llm()` |
 | `FakeLLM`, `FakeEmbedder` | детерминированные заглушки для тестов/демо |
 
