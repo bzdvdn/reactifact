@@ -121,7 +121,7 @@ assistant = ChatAssistant(
 ([Устойчивость и resume](durability.md)), а не рабочий набор, и не требует
 `message_type`, поэтому `ChatMemory(compact_commits=…)` — самодостаточная
 политика (безопасный выбор, когда сообщения коррелированы/типизированы, а не
-плоский role/text лог, напр. ходы `Question`/`FinalResponse` как в NikaRD).
+плоский role/text лог, напр. отдельные типы `Question`/`Answer`).
 
 ## Ходы с человеком в цикле
 

@@ -202,6 +202,58 @@ runtime = Runtime(
 поэтому не требует установки дополнительного extra. Передайте `headers=` для
 коллектора, требующего авторизацию.
 
+## Метрики (Prometheus)
+
+Трейсы отвечают «что было в *этом* прогоне»; метрики — «как дела у прогонов в
+целом», это то, по чему строят алерты. `reactifact.metrics` не тянет
+зависимостей сверх ядра: in-process коллектор, `Tracer`, который его заполняет,
+и `/metrics`-роутер.
+
+```python
+from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
+
+metrics = Metrics()
+runtime = Runtime(ctx, agents=AGENTS, tracer=MetricsTracer(metrics))
+app.include_router(create_metrics_router(metrics))   # GET /metrics
+```
+
+На каждый завершённый ход записывается: `reactifact_runs_total{outcome}`,
+`reactifact_budget_exceeded_total{outcome}`, `reactifact_agent_runs_total{
+agent,status}`, `reactifact_agent_latency_seconds{agent}`,
+`reactifact_llm_calls_total{provider,model,agent}`,
+`reactifact_llm_tokens_total{kind,provider,model}`,
+`reactifact_llm_errors_total{provider,model}` и — при
+`MetricsTracer(metrics, pricer=…)` — `reactifact_llm_cost_total{provider,model}`.
+
+Прямо из reads/writes/edges спана получаются **околодоменные** счётчики без кода
+приложения — `reactifact_artifacts_written_total{type,op}`,
+`reactifact_artifacts_read_total{type}`, `reactifact_relations_total{relation}` —
+то есть какие бы типы артефактов и связи приложение ни использовало (напр.
+пара `Answer`/`Evidence` и `supported_by`), они появляются сами.
+
+Для сигналов приложения (маршрут, отказ, источник) пишите их из produce через
+`RuntimeResources.metrics` — это no-op sink, пока не сконфигурирован, поэтому
+проверять на `None` не нужно:
+
+```python
+metrics = Metrics()
+runtime = Runtime(
+    Context(resources=RuntimeResources(metrics=metrics)),
+    agents=AGENTS,
+    tracer=MetricsTracer(metrics),
+)
+
+# внутри produce, в точке решения:
+call.context.resources.metrics.increment("route_total", route=route)
+call.context.resources.metrics.observe("docs_found", len(docs), source=source)
+```
+
+`Metrics.render()` выдаёт Prometheus text exposition напрямую (без
+`prometheus_client`), поэтому `create_metrics_router` просто отдаёт его;
+`MetricsTracer` также композируется с сенками (`tracer=[TraceStore(…),
+MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят только
+**меняющие состояние** агенты, поэтому settle-поколение не считается.
+
 ## Модель эмиссии
 
 - Спаны эмитят только **меняющие состояние** агенты (чистый read/verify-produce

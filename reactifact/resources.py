@@ -3,7 +3,15 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Protocol,
+    TypeVar,
+    cast,
+    overload,
+)
 
 from .providers import EmbeddingProvider, LLMProvider
 from .sources import Source
@@ -19,6 +27,28 @@ T = TypeVar("T")
 #: Mints an artifact id from its model/type name — injectable for deterministic
 #: runs (`reactifact.replay.counter_ids`). `None` keeps the uuid default.
 IdFactory = Callable[[str], str]
+
+
+class MetricsSink(Protocol):
+    """A metrics sink a produce can record domain counters/observations into.
+
+    Satisfied structurally by `reactifact.metrics.Metrics` (no import needed
+    here). `RuntimeResources.metrics` defaults to a no-op, so
+    `call.context.resources.metrics.increment(...)` is always safe.
+    """
+
+    def increment(self, name: str, value: float = 1.0, **labels: Any) -> None: ...
+    def observe(self, name: str, value: float, **labels: Any) -> None: ...
+
+
+class _NullMetrics:
+    """No-op `MetricsSink` (the default when none is configured)."""
+
+    def increment(self, name: str, value: float = 1.0, **labels: Any) -> None:
+        pass
+
+    def observe(self, name: str, value: float, **labels: Any) -> None:
+        pass
 
 
 class ResourceKey(Generic[T]):
@@ -55,11 +85,16 @@ class RuntimeResources:
         trace_truncate: int | None = 1500,
         id_factory: IdFactory | None = None,
         pricer: Pricer | None = None,
+        metrics: MetricsSink | None = None,
         **additional: Any,
     ):
         self.llm = llm
         self.embedder = embedder
         self.sources = sources or {}
+        # A domain metrics sink (`reactifact.metrics.Metrics` satisfies the
+        # protocol). Defaults to a no-op, so a produce can always call
+        # `call.context.resources.metrics.increment("my_domain_total", ...)`.
+        self.metrics: MetricsSink = metrics if metrics is not None else _NullMetrics()
         # Applies `Budget.max_cost`: `(model, prompt_tokens, completion_tokens)
         # -> cost`. `None` (default) makes a cost limit inert — the framework
         # ships no built-in prices on purpose (see `reactifact.pricing`).

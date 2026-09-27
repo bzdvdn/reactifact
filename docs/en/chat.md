@@ -118,7 +118,7 @@ source messages. `compact_commits` is orthogonal — it bounds the *history*
 (see [Durability & resume](durability.md)), not the working set, and needs no
 `message_type`, so `ChatMemory(compact_commits=…)` is a complete policy on its
 own (the safe choice when messages are correlated/typed rather than a plain
-role/text log, e.g. NikaRD-style `Question`/`FinalResponse` turns).
+role/text log, e.g. separate `Question`/`Answer` artifact types).
 
 ## Human-in-the-loop turns
 

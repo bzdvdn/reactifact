@@ -200,6 +200,58 @@ OTLP/HTTP JSON payload directly over `httpx` (already a core dependency), so
 this needs no extra to install. Pass `headers=` for a collector that
 requires auth.
 
+## Metrics (Prometheus)
+
+Traces answer "what happened in *this* run"; metrics answer "how are runs doing
+overall" — the numbers you alert on. `reactifact.metrics` has no dependency
+beyond the core: an in-process collector plus a `Tracer` that fills it, and a
+`/metrics` router.
+
+```python
+from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
+
+metrics = Metrics()
+runtime = Runtime(ctx, agents=AGENTS, tracer=MetricsTracer(metrics))
+app.include_router(create_metrics_router(metrics))   # GET /metrics
+```
+
+It records, per finished turn: `reactifact_runs_total{outcome}`,
+`reactifact_budget_exceeded_total{outcome}`, `reactifact_agent_runs_total{
+agent,status}`, `reactifact_agent_latency_seconds{agent}`,
+`reactifact_llm_calls_total{provider,model,agent}`,
+`reactifact_llm_tokens_total{kind,provider,model}`,
+`reactifact_llm_errors_total{provider,model}`, and — with
+`MetricsTracer(metrics, pricer=…)` — `reactifact_llm_cost_total{provider,model}`.
+
+Straight from the span's reads/writes/edges you also get **domain-adjacent**
+counters with no app code — `reactifact_artifacts_written_total{type,op}`,
+`reactifact_artifacts_read_total{type}`, `reactifact_relations_total{relation}`
+— so whatever artifact types and relations the app uses (e.g. an
+`Answer`/`Evidence` pair and `supported_by`) show up automatically.
+
+For app-specific signals (a route, a refusal, a source), record them from a
+produce through `RuntimeResources.metrics` — a no-op sink until configured, so
+there is no `None` to check:
+
+```python
+metrics = Metrics()
+runtime = Runtime(
+    Context(resources=RuntimeResources(metrics=metrics)),
+    agents=AGENTS,
+    tracer=MetricsTracer(metrics),
+)
+
+# inside a produce, at the decision point:
+call.context.resources.metrics.increment("route_total", route=route)
+call.context.resources.metrics.observe("docs_found", len(docs), source=source)
+```
+
+`Metrics.render()` emits the Prometheus text exposition directly (no
+`prometheus_client`), so `create_metrics_router` just serves it; `MetricsTracer`
+also composes with the sinks (`tracer=[TraceStore(…), MetricsTracer(metrics)]`).
+As with traces, only **state-changing** agents emit spans, so a settle-only
+generation isn't counted.
+
 ## Emission model
 
 - Only **state-changing** agents emit spans (a pure read/verify produce emits

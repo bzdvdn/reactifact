@@ -91,7 +91,7 @@ from reactifact import register_type
 register_type(
     Answer,
     type_id="answer",                                   # written from now on
-    aliases=["nikard_ai.artifacts.contract.Answer"],    # what old payloads carry
+    aliases=["old.pkg.Answer"],                         # what old payloads carry
     migrate=lambda d: {**d, "prose": d.pop("text", "")},  # a field rename
 )
 ```

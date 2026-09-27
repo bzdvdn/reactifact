@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Prometheus metrics, dependency-free.** `reactifact.metrics` adds a tiny
+  in-process collector (`Metrics`) and a `MetricsTracer` that fills it from the
+  tracing hook, plus `create_metrics_router` serving `GET /metrics` (the `web`
+  extra). Counters: run/budget outcomes, agent runs, LLM calls/tokens/errors
+  and (with `MetricsTracer(metrics, pricer=…)`) cost; histograms: agent/LLM
+  latency. `Metrics.render()` emits the Prometheus text exposition directly —
+  no `prometheus_client` dependency — and `MetricsTracer` composes with the
+  existing sinks (`tracer=[TraceStore(…), MetricsTracer(metrics)]`). Span
+  reads/writes/edges also give domain-adjacent counters
+  (`reactifact_artifacts_written_total{type,op}`,
+  `reactifact_artifacts_read_total{type}`,
+  `reactifact_relations_total{relation}`), and `RuntimeResources.metrics` is a
+  no-op-until-configured sink so a produce can record app-specific signals
+  (`call.context.resources.metrics.increment("route_total", route=…)`).
 - **Provider resilience: exact LLM cache and failover.** `reactifact.cache.
   CachingLLM` keys every `complete()` by the whole request (model, messages,
   temperature, …) and answers a repeat without calling the provider — no

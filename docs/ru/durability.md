@@ -92,7 +92,7 @@ from reactifact import register_type
 register_type(
     Answer,
     type_id="answer",                                   # что пишется с этого момента
-    aliases=["nikard_ai.artifacts.contract.Answer"],    # что несут старые payload'ы
+    aliases=["old.pkg.Answer"],                         # что несут старые payload'ы
     migrate=lambda d: {**d, "prose": d.pop("text", "")},  # переименование поля
 )
 ```
