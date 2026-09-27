@@ -101,6 +101,7 @@ nav:
       - Recipes: en/recipes.md
       - Patterns: en/patterns.md
       - Evaluation: en/eval.md
+      - Agent skills: en/skills.md
       - Testing: en/testing.md
       - Multi-turn & chat: en/chat.md
       - Branching & merge: en/branching.md

@@ -8,6 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Agent skills for building with reactifact.** The package ships official
+  Agent Skills in `reactifact/skills/<name>/SKILL.md` (version-matched, since
+  they live in the package), installed into a project with
+  `python -m reactifact skills install [--target agents|claude|both]` (also
+  `skills list` / `skills show`). Eight skills cover the paradigm end to end:
+  `reactifact` (mental model, invariants, working loop, routing, mistakes),
+  `reactifact-agents` (produce/consume/effects/provenance), `reactifact-llm`
+  (structured output, LLMAgent/HITL, tools, budgets), `reactifact-rag`
+  (sources, `fan_out_sources`, recipes), `reactifact-testing`,
+  `reactifact-eval`, `reactifact-observability`, and
+  `reactifact-from-langchain`. Each has a workflow plus `references/` for
+  lookup; every runnable code block is executed in CI by `tests/test_skills.py`
+  (`# not-run` marks illustrative fragments), so the examples cannot rot. A
+  root `AGENTS.md` points library contributors at the skills and the repo
+  commands.
 - **Prometheus metrics, dependency-free.** `reactifact.metrics` adds a tiny
   in-process collector (`Metrics`) and a `MetricsTracer` that fills it from the
   tracing hook, plus `create_metrics_router` serving `GET /metrics` (the `web`

@@ -46,6 +46,7 @@ def test_build_parser_registers_every_subcommand():
         "replay",
         "branch",
         "scenario",
+        "skills",
     }
 
 

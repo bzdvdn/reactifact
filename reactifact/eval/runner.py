@@ -149,7 +149,14 @@ async def _evaluate_one(
     evaluators: Sequence[tuple[str, Evaluator]],
     extract: Extractor,
 ) -> tuple[EvalResult, EvalInput]:
-    raw = target(example.inputs)
+    # A sync target (e.g. `ScenarioLab.run_sync`, which calls `asyncio.run`) must
+    # not run on the event loop `evaluate` already owns — run it in a worker
+    # thread; an async target is awaited directly. Either may still return an
+    # awaitable, which we await here.
+    if inspect.iscoroutinefunction(target):
+        raw = target(example.inputs)
+    else:
+        raw = await asyncio.to_thread(target, example.inputs)
     if inspect.isawaitable(raw):
         raw = await raw
     run = _normalize_run(raw, extract)

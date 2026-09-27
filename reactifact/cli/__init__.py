@@ -8,12 +8,14 @@ Subcommands:
     replay   deterministic state replay of a saved session
     branch   persistent forks over a KV backend
     scenario run reactifact.testing scenarios (separate from pytest)
+    skills   list/install the bundled agent skills
 
 Examples:
 
     python -m reactifact graph examples.knowledge.agents
     python -m reactifact context examples/knowledge/sessions/traces.sqlite3
     python -m reactifact trace traces.db
+    python -m reactifact skills install --target both
 
 Everything prints Mermaid source to stdout — paste it into GitHub, Notion or
 mermaid.live.
@@ -25,7 +27,7 @@ import argparse
 import sys
 
 from .. import __version__
-from . import branch, context, graph, replay, scenario, trace
+from . import branch, context, graph, replay, scenario, skills, trace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    for module in (graph, context, trace, replay, branch, scenario):
+    for module in (graph, context, trace, replay, branch, scenario, skills):
         module.add_parser(sub)
 
     return parser
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  reactifact replay  <sessions.sqlite3>  deterministic replay")
         print("  reactifact branch  <path> <session> <action>  persistent forks")
         print("  reactifact scenario <module>  run reactifact.testing scenarios\n")
+        print("  reactifact skills  install   add agent skills to your project\n")
         print("Run 'reactifact <command> --help' for details, or try an example:")
         print("  uv run python ./examples/llm_ladder/level1.py")
         parser.print_help()

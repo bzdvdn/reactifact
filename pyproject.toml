@@ -99,7 +99,7 @@ reactifact = "reactifact.__main__:main"
 packages = { find = { where = ["."], include = ["reactifact*"], exclude = ["examples*", "tests*"] } }
 
 [tool.setuptools.package-data]
-reactifact = ["py.typed"]
+reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
 
 [tool.pytest.ini_options]
