@@ -23,6 +23,7 @@ devops/
 │                      #   ansible_run) — simulated output, no real systems
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
 ├── safety.py          # runnable guardrail demo (no LLM/network)
+├── online_eval.py     # online-eval: score served runs + the ops evaluators
 ├── prompts.py         # per-specialist system prompts
 ├── produce/
 │   ├── router.py      #   UserMsg → the right *Problem (structured routing)
@@ -37,6 +38,7 @@ devops/
 .venv/bin/python examples/devops/web.py      # SSE UI + trace dashboard on :8000
 .venv/bin/python examples/devops/chat.py     # interactive CLI
 .venv/bin/python examples/devops/safety.py   # guardrails demo (no LLM needed)
+.venv/bin/python examples/devops/online_eval.py  # online-eval demo (no LLM needed)
 ```
 
 Without an LLM key the tool router and specialists fall back to deterministic
@@ -172,6 +174,35 @@ before routing. Run `python examples/devops/safety.py` to see all of it —
 custom decision, redaction, an end-to-end block, and the flag metric — with no
 LLM or network. The full reference is in
 [docs/en/safety.md](../../docs/en/safety.md).
+
+## Online evaluation
+
+The trace dashboard stores every run, so the assistant can **score its own
+traffic**. `online_eval.py` defines two trace-level evaluators (no `Context`
+needed — a trace is truncated) and wires `reactifact.eval.online` to the same
+store:
+
+```python
+def routed() -> Evaluator:            # produced a specialist problem or a reply
+    def evaluate(eval_input: EvalInput) -> float:
+        written = eval_input.outputs.get("artifacts", {})
+        return 1.0 if set(written) & {"K8sProblem", "GitlabProblem",
+                                      "AnsibleProblem", "ChatReply"} else 0.0
+    evaluate.__name__ = "routed"
+    return evaluate
+```
+
+`web.py` mounts `create_online_eval_router(build_evaluator(trace_store))`, so
+`POST /api/evals/run` samples the latest runs, scores them and tags passes
+`eval` / failures `eval:failed` — findable in the traces table next to the run.
+For exact scoring (LLM judges over full text) pass `context_source(run_fn)`
+instead of the default `trace_source()`; for sampling and cost, set
+`sample_rate`/`limit` and wrap the provider in `CachingLLM`.
+
+```bash
+python examples/devops/online_eval.py          # offline demo, shows tags
+reactifact eval examples/devops/traces.db      # score a real store from the CLI
+```
 
 ## Trace dashboard
 

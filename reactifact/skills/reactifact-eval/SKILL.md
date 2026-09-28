@@ -132,8 +132,29 @@ key no case measured is **not** met. Summary evaluators
 suite. `report.render()` prints a readable report; `report.to_dict()` is a
 CI/log artifact.
 
+## Online evaluation
+
+To score **live** runs rather than a dataset, sample them from a `TraceStore`
+and reuse the same evaluators — results land as tags on the run plus metrics:
+
+```python
+# not-run: illustrative — see references/online.md
+from reactifact.eval import OnlineEvalConfig, OnlineEvaluator, output_present
+
+OnlineEvaluator(
+    store,
+    OnlineEvalConfig(evaluators={"present": output_present()}, sample_rate=0.1),
+).run_forever(interval_seconds=300)
+```
+
+A trace is truncated, so `trace_source()` (default) scores what the `RunTrace`
+carries and skips the rest; `context_source(run_fn)` rebuilds the full `Context`
+for exact metrics/judges. Details in `references/online.md`.
+
 ## Where to look
 
+- `references/online.md` — scoring live runs from a `TraceStore` (sampling,
+  trace vs rehydrated `Context`, tags, metrics, CLI/router).
 - `docs/en/eval.md` for the full harness.
 - Structure/behaviour tests (not quality) belong to the `reactifact-testing`
   skill.

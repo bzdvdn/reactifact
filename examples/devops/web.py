@@ -29,11 +29,13 @@ from examples.devops.agents import (
 )
 from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
+from examples.devops.online_eval import build_evaluator
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, RuntimeResources, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
+from reactifact.eval import create_online_eval_router
 from reactifact.providers import openai_llm, openrouter_llm
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import TraceColumn, Tracer, TraceStore
@@ -70,7 +72,7 @@ AGENTS = [RouteAgent(), K8sAgent(), GitlabAgent(), AnsibleAgent(), RenderAgent()
 GUARDRAILS = devops_guardrail_policy()
 
 
-def _resources(llm) -> RuntimeResources:
+def _resources(llm: Any) -> RuntimeResources:
     return RuntimeResources(llm=llm, guardrails=GUARDRAILS)
 
 
@@ -103,7 +105,7 @@ def create_message(ctx: Any, text: str) -> str:
         if decision.action == "redact" and isinstance(decision.data, UserMsg)
         else UserMsg(text=text, session_id="")
     )
-    return ctx.create(message).id
+    return str(ctx.create(message).id)
 
 
 def terminal_reply(ctx: Any, msg_id: str) -> dict[str, Any]:
@@ -125,11 +127,13 @@ _TRANSCRIPT = Transcript(
 )
 
 
-def session_state(ctx: Any) -> dict:
+def session_state(ctx: Any) -> dict[str, Any]:
     return _TRANSCRIPT.state(ctx)
 
 
-def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
+def create_app(
+    db: Any = None, llm: Any = None, store_dir: str | None = None
+) -> FastAPI:
     """App factory. `llm` and `store_dir` — for tests; by default the
     providers come from .env (OpenRouter·DeepSeek)."""
     active_llm = llm if llm is not None else build_llm()
@@ -187,6 +191,10 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         )
     )
     app.include_router(create_chat_router(assistant))
+    # Quality monitoring over the same store: POST /api/evals/run scores the
+    # latest traces with examples/devops/online_eval.py, tagging them eval /
+    # eval:failed. The trace dashboard above then shows the results.
+    app.include_router(create_online_eval_router(build_evaluator(trace_store)))
 
     web_dir = ROOT / "web"
     if web_dir.exists():

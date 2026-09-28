@@ -8,6 +8,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Online evaluation over live traces.** `reactifact.eval.online` scores
+  *finished* runs sampled from a `TraceStore` with the same `Evaluator`s as
+  offline evaluation, writing the verdicts back as tags (pass → `eval`, fail →
+  `eval:failed`) for the dashboard, plus metrics
+  (`reactifact_online_eval_runs_total`, `reactifact_online_eval_score`).
+  `OnlineEvalConfig` controls sampling (`sample_rate`/`strategy`/`seed`),
+  filters, tags and `reference_fn`; `online_evaluate(store, config)` runs one
+  batch and `OnlineEvaluator` schedules it (`run_once`, `run_forever`,
+  `on_report`). Because a trace is truncated, the **source** decides what is
+  scoreable: `trace_source()` scores the `RunTrace` itself (typed path via
+  `trajectory_match`, `output_present`, `no_errors`; unusable metrics are
+  skipped, never a false zero), while `context_source(run_fn)` rehydrates the
+  full `Context` for exact text/`core_metrics`/judge scoring. Ships a FastAPI
+  router (`create_online_eval_router`: run/report/summary, lazy import) and the
+  CLI `python -m reactifact eval <traces.db>`. Docs in `docs/en|ru/eval.md` and
+  the `reactifact-eval` skill. The `devops` example demonstrates it:
+  `examples/devops/online_eval.py` scores served runs with trace-level
+  `routed`/`routed_to` evaluators and `web.py` mounts
+  `create_online_eval_router` next to the trace dashboard.
 - **Trust & safety: guardrails, authorization and quota.** Three opt-in,
   library-level layers on `RuntimeResources`, acting on typed artifacts and
   resource access (deterministic, testable) rather than around model messages.

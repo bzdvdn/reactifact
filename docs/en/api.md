@@ -158,6 +158,10 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `trajectory_match(mode, *, steps=…, reference_key=…)` | match a run's path (`strict`/`unordered`/`subset`/`superset`) over `agents`/`events`/`reads`/`writes` |
 | `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | LLM-as-judge evaluators (`continuous`/`choices`/`include_reference`) |
 | `summary_pass_rate(threshold)` / `summary_mean(key)` · `assert_eval(report, …)` | suite-level aggregators and the CI gate |
+| `OnlineEvaluator(store, config, metrics=, on_report=)` · `online_evaluate(store, config, metrics=)` · `OnlineEvalConfig` | score live runs sampled from a `TraceStore`; `run_once()` / `run_forever(interval)` |
+| `trace_source()` · `context_source(run_fn)` · `output_present(key)` · `no_errors()` | what to score from a run: the trace itself, a rehydrated `Context`, its outputs, its spans |
+| `create_online_eval_router(evaluator)` | FastAPI router: `POST /api/evals/run`, `GET /api/evals/report`, `GET /api/evals/summary` |
+| `python -m reactifact eval <traces.db>` | CLI: online-evaluate runs (tags the results, `--evaluators trace\|judge\|all`) |
 
 ## Structured output
 

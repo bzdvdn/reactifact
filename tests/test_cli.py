@@ -47,6 +47,7 @@ def test_build_parser_registers_every_subcommand():
         "branch",
         "scenario",
         "skills",
+        "eval",
     }
 
 

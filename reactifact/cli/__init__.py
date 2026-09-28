@@ -9,6 +9,7 @@ Subcommands:
     branch   persistent forks over a KV backend
     scenario run reactifact.testing scenarios (separate from pytest)
     skills   list/install the bundled agent skills
+    eval     online-evaluate runs from a trace store
 
 Examples:
 
@@ -27,7 +28,7 @@ import argparse
 import sys
 
 from .. import __version__
-from . import branch, context, graph, replay, scenario, skills, trace
+from . import branch, context, eval, graph, replay, scenario, skills, trace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    for module in (graph, context, trace, replay, branch, scenario, skills):
+    for module in (graph, context, trace, replay, branch, scenario, skills, eval):
         module.add_parser(sub)
 
     return parser
@@ -69,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  reactifact branch  <path> <session> <action>  persistent forks")
         print("  reactifact scenario <module>  run reactifact.testing scenarios\n")
         print("  reactifact skills  install   add agent skills to your project\n")
+        print("  reactifact eval    <traces.db>  online-evaluate finished runs\n")
         print("Run 'reactifact <command> --help' for details, or try an example:")
         print("  uv run python ./examples/llm_ladder/level1.py")
         parser.print_help()

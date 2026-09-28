@@ -90,11 +90,16 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 прода требует тикета `CHG-`) и редактирование секретов, подключаемые к
 `RuntimeResources` одной строкой — ops-политика блокирует инъекции и
 неподтверждённые прод-изменения, редактирует PII/секреты и проверяет сырой ввод.
-Отдельное демо (без LLM и сети):
+А ещё он оценивает собственный трафик: `online_eval.py` сэмплирует обслуженные
+прогоны из трейс-стора (`trace_source`, кастомные `routed`/`routed_to`), тегирует
+прошедшие `eval` / проваленные `eval:failed`, а `web.py` монтирует
+`create_online_eval_router` (`POST /api/evals/run`). Отдельные демо (без LLM и
+сети):
 
 ```bash
 uv run python ./examples/devops/web.py      # SSE UI + трейс-дашборд
 uv run python ./examples/devops/safety.py   # кастомные guardrails, end-to-end
+uv run python ./examples/devops/online_eval.py   # online-eval по прогонам
 ```
 
 ## `incident_commander` — полный харнесс, собранный воедино

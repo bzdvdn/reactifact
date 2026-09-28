@@ -90,11 +90,16 @@ trust & safety layer: `guardrails.py` defines a **custom** guardrail (a
 destructive production change must cite a `CHG-` ticket) plus secret
 redaction, wired onto `RuntimeResources` in one line — the ops policy blocks
 injection and unapproved prod changes, redacts PII/secrets, and screens the
-raw input too. Run the standalone demo (no LLM, no network):
+raw input too. And it scores its own traffic: `online_eval.py` samples served
+runs from the trace store (`trace_source`, custom `routed`/`routed_to`
+evaluators), tags passes `eval` / failures `eval:failed`, and `web.py` mounts
+`create_online_eval_router` (`POST /api/evals/run`). Run the standalone demos
+(no LLM, no network):
 
 ```bash
 uv run python ./examples/devops/web.py      # SSE UI + trace dashboard
 uv run python ./examples/devops/safety.py   # custom guardrails, end to end
+uv run python ./examples/devops/online_eval.py   # online-eval over served runs
 ```
 
 ## `incident_commander` — a full harness, composed

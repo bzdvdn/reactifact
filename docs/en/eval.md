@@ -155,6 +155,56 @@ for a key no case measured is **not** met. Summary evaluators
 (`summary_pass_rate(threshold)`, `summary_mean(key)`) aggregate across the whole
 suite into `EvalReport.summary`.
 
+## Online evaluation
+
+The same evaluators can score **live** runs instead of a curated dataset:
+`reactifact.eval.online` samples finished runs from a `TraceStore`, scores them,
+and writes the verdicts back as tags (the reviewer-annotation channel the
+dashboard already reads) plus metrics.
+
+```python
+from reactifact.eval import (
+    OnlineEvalConfig, OnlineEvaluator, judge_relevance, output_present,
+)
+from reactifact.tracing import TraceStore
+
+store = TraceStore("traces.db")
+evaluator = OnlineEvaluator(
+    store,
+    OnlineEvalConfig(
+        evaluators={"present": output_present(), "relevance": judge_relevance(llm)},
+        sample_rate=0.1,            # score 10% of matching runs
+        tag="eval", failure_tag="eval:failed",
+    ),
+    metrics=metrics,                # any reactifact.metrics.Metrics
+)
+await evaluator.run_once()          # one batch
+# or, in a FastAPI lifespan task:
+await evaluator.run_forever(interval_seconds=300)
+```
+
+A trace is a **summary** — artifact data and LLM messages are truncated for
+storage — so a source decides what is scoreable:
+
+- `trace_source()` (default): scores the `RunTrace` itself — the run's typed
+  path (`trajectory_match`), and `output_present`/`no_errors` over the outputs
+  and spans. A metric that needs data the trace no longer carries is **skipped**.
+- `context_source(run_fn)`: the app rebuilds the full `Context` for a run id, so
+  `core_metrics`, `from_metric(...)` and judges see complete data.
+- `OnlineEvalConfig.reference_fn(run)` supplies per-run ground truth (e.g. an
+  expected trajectory) when scoring a reference-based metric.
+
+`sample_rate`/`strategy`/`seed` choose which runs (reproducible under a `seed`);
+`on_report` observes each batch. FastAPI apps can mount
+`create_online_eval_router(evaluator)` — `POST /api/evals/run`,
+`GET /api/evals/report`, `GET /api/evals/summary` — and the CLI scores a store
+in one command:
+
+```bash
+reactifact eval traces.db --sample 1.0
+reactifact eval traces.db --evaluators judge --provider openai:gpt-4o-mini
+```
+
 ## Types
 
 - `Metric` — one measured 0..1 score with a reporting `weight`.

@@ -154,6 +154,58 @@ judge_faithfulness(llm)     # без эталона: обосновано ли �
 (`summary_pass_rate(threshold)`, `summary_mean(key)`) агрегируют по всему
 сюиту в `EvalReport.summary`.
 
+## Online-оценка
+
+Те же эвалуаторы могут оценивать **живые** прогоны вместо подготовленного
+датасета: `reactifact.eval.online` сэмплирует завершённые прогоны из
+`TraceStore`, скорит их и записывает вердикты обратно тегами (канал
+ревьюерских аннотаций, который дашборд уже читает) плюс метриками.
+
+```python
+from reactifact.eval import (
+    OnlineEvalConfig, OnlineEvaluator, judge_relevance, output_present,
+)
+from reactifact.tracing import TraceStore
+
+store = TraceStore("traces.db")
+evaluator = OnlineEvaluator(
+    store,
+    OnlineEvalConfig(
+        evaluators={"present": output_present(), "relevance": judge_relevance(llm)},
+        sample_rate=0.1,            # оценить 10% подходящих прогонов
+        tag="eval", failure_tag="eval:failed",
+    ),
+    metrics=metrics,                # любой reactifact.metrics.Metrics
+)
+await evaluator.run_once()          # один батч
+# или в lifespan-задаче FastAPI:
+await evaluator.run_forever(interval_seconds=300)
+```
+
+Трейс — это **сводка**: данные артефактов и сообщения LLM усекаются при
+сохранении, поэтому источник решает, что вообще можно оценить:
+
+- `trace_source()` (по умолчанию): оценивает сам `RunTrace` — путь прогона
+  (`trajectory_match`) и `output_present`/`no_errors` по выводам и спанам.
+  Метрика, которой нужны данные, которых в трейсе уже нет, помечается
+  **skipped**.
+- `context_source(run_fn)`: приложение восстанавливает полный `Context` по id
+  прогона, поэтому `core_metrics`, `from_metric(...)` и судьи видят полные
+  данные.
+- `OnlineEvalConfig.reference_fn(run)` даёт грёд-трус на прогон (напр.
+  ожидаемую траекторию) для метрик, которым нужен эталон.
+
+`sample_rate`/`strategy`/`seed` выбирают прогоны (воспроизводимо при заданном
+`seed`); `on_report` наблюдает каждый батч. FastAPI-приложение может
+смонтировать `create_online_eval_router(evaluator)` — `POST /api/evals/run`,
+`GET /api/evals/report`, `GET /api/evals/summary` — а CLI оценивает стор одной
+командой:
+
+```bash
+reactifact eval traces.db --sample 1.0
+reactifact eval traces.db --evaluators judge --provider openai:gpt-4o-mini
+```
+
 ## Типы
 
 - `Metric` — один измеренный 0..1 скор с весами `weight`.

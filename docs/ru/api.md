@@ -161,6 +161,10 @@
 | `trajectory_match(mode, *, steps=…, reference_key=…)` | сопоставить путь прогона (`strict`/`unordered`/`subset`/`superset`) по `agents`/`events`/`reads`/`writes` |
 | `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | эвалуаторы LLM-as-judge (`continuous`/`choices`/`include_reference`) |
 | `summary_pass_rate(threshold)` / `summary_mean(key)` · `assert_eval(report, …)` | агрегаторы по сюиту и CI-гейт |
+| `OnlineEvaluator(store, config, metrics=, on_report=)` · `online_evaluate(store, config, metrics=)` · `OnlineEvalConfig` | оценка живых прогонов из `TraceStore`; `run_once()` / `run_forever(interval)` |
+| `trace_source()` · `context_source(run_fn)` · `output_present(key)` · `no_errors()` | что оценивать: сам трейс, восстановленный `Context`, выводы, спаны |
+| `create_online_eval_router(evaluator)` | FastAPI-роутер: `POST /api/evals/run`, `GET /api/evals/report`, `GET /api/evals/summary` |
+| `python -m reactifact eval <traces.db>` | CLI: online-оценка прогонов (теги результатов, `--evaluators trace\|judge\|all`) |
 
 ## Структурный вывод
 
