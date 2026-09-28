@@ -293,7 +293,7 @@ not estimated — name the source and column it came from.
   `body` is just a string you prepend to a `structured_llm`/`llm_reply`
   prompt. The `knowledge` demo's `cost-reporting` skill
   (`examples/knowledge/skills/`) is the canonical instance — see its
-  [README](../../examples/knowledge/README.md#skills--instructions-loaded-by-the-situation-not-the-graph).
+  [README](https://github.com/bzdvdn/reactifact/blob/master/examples/knowledge/README.md#skills--instructions-loaded-by-the-situation-not-the-graph).
 - **Scope**: this covers the instructions half of Claude's Skills format —
   frontmatter + procedural markdown. It does not cover the other half —
   bundled executable scripts a skill can ship and have the model run. That's

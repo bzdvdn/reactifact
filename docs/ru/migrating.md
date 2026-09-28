@@ -117,7 +117,7 @@ fact.link("extracted_from", doc)
 Ничего не мутируется на месте: update — это новая версия, поэтому
 `context.diff(v1, v2)` — реальная операция, а провенанс
 (`supported_by`/`derived_from`/…) — тот же граф, которым рантайм решает, что
-перезапускать, а не логгер сбоку. См. [`examples/ledger`](../../examples/ledger/README.md)
+перезапускать, а не логгер сбоку. См. [`examples/ledger`](https://github.com/bzdvdn/reactifact/tree/master/examples/ledger)
 — аргумент про пересчёт, сделанный наглядно.
 
 ## 4. Checkpointing, потоки, time-travel
@@ -180,7 +180,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
   reactifact-часть.
 - **Сосуществуйте по задаче.** Оставьте оркестрацию там, где она работает;
   применяйте reactifact там, где важнее всего провенанс, детерминизм и
-  аудируемость (форма [fintech_audit](../../examples/fintech_audit/README.md)).
+  аудируемость (форма [fintech_audit](https://github.com/bzdvdn/reactifact/tree/master/examples/fintech_audit)).
 
 ## 9. Ops-отображение
 

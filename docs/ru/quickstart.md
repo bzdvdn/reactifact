@@ -58,7 +58,7 @@ qa.context    # артефакты/провенанс последнего ask()
 [Patterns](patterns.md).
 
 Удобнее ноутбук? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
-— [`examples/quickstart.ipynb`](../../examples/quickstart.ipynb) проходит те же четыре кейса, по умолчанию офлайн.
+— [`examples/quickstart.ipynb`](https://github.com/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb) проходит те же четыре кейса, по умолчанию офлайн.
 
 Свои модели артефактов — фасад параметризован, а не захардкожен:
 

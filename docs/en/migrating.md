@@ -115,7 +115,7 @@ fact.link("extracted_from", doc)
 Nothing is mutated in place: an update is a new version, so `context.diff(v1,
 v2)` is a real operation and provenance (`supported_by`/`derived_from`/…) is the
 same graph the runtime uses to decide what to re-run — not a logger bolted on.
-See [`examples/ledger`](../../examples/ledger/README.md) for the recompute argument
+See [`examples/ledger`](https://github.com/bzdvdn/reactifact/tree/master/examples/ledger) for the recompute argument
 made concrete.
 
 ## 4. Checkpointing, threads, time-travel
@@ -176,7 +176,7 @@ the agents.
   client — Claude, another agent framework — can call the reactifact part.
 - **Coexist by concern.** Keep your orchestration where it works; use reactifact
   where provenance, determinism, and auditability matter most (the
-  [fintech_audit](../../examples/fintech_audit/README.md) shape).
+  [fintech_audit](https://github.com/bzdvdn/reactifact/tree/master/examples/fintech_audit) shape).
 
 ## 9. Ops mapping
 

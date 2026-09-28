@@ -1,6 +1,6 @@
 # Ветвление и слияние (§39-§40)
 
-> Живой пример: [`examples/forklab`](../../examples/forklab/README.md) —
+> Живой пример: [`examples/forklab`](https://github.com/bzdvdn/reactifact/tree/master/examples/forklab) —
 > детерминированное демо «две стратегии: форк → слияние → оценка», с флагом
 > `--conflict`, показывающим явный конфликт и политику его разрешения.
 

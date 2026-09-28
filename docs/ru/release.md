@@ -47,6 +47,32 @@ Changelog). При бампе версии:
   [effects](effects.md)). `InterruptPatch`, `Patch.merge_existing_patch` и
   `Patch.to_dict` удалены.
 
+## Критерии релиза
+
+Что должно быть верно перед выпуском — и конкретно планка выхода из pre-1.0 и
+релиза **1.0.0**:
+
+- [ ] `uv run python -m pytest -q` зелёный, покрытие не ниже порога
+      `fail_under` (а `reactifact/quota.py`, `metrics.py`, `eval/` — не в хвосте).
+- [ ] `uv run python -m mypy` и `uv run python -m ruff check` /
+      `ruff format --check` чисты.
+- [ ] `uv run --group docs mkdocs build --strict` чист (это проверяет CI).
+- [ ] Публичная поверхность не менялась иначе, чем фиксируют freeze-тест
+      (`tests/test_public_api.py`) и §Стабильность `docs/ru/api.md`; любое
+      переименование/удаление имеет запись `### Breaking` и окно депрекейшена.
+- [ ] Wheel-smoke проходит в чистой venv (`uv build`, импорт, CLI).
+- [ ] `CHANGELOG.md` переносит `[Unreleased]` под `## [X.Y.Z] — <дата>`.
+- [ ] Версии в `pyproject.toml` и `reactifact/__init__.py` совпадают.
+
+**Критерии 1.0** (всё выше, плюс):
+
+- [ ] Два подряд минорных релиза без записи `### Breaking`.
+- [ ] Каждый задокументированный `__all__` подмодуля зафиксирован freeze-тестом
+      и отражён в `docs/ru/api.md`.
+- [ ] У поверхностей safety/eval/observability (guardrails, authz, quota, eval,
+      online eval, metrics, tracing) есть документация и тесты.
+- [ ] В контракт не протекают гарантии уровня `rc`/`Unreleased`.
+
 ## Цикл релиза
 
 ```bash

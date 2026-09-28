@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-09-28
+
 ### Added
 
 - **Online evaluation over live traces.** `reactifact.eval.online` scores
@@ -193,6 +195,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
     new `reactifact.testing.current_result()`); `--no-state` omits the dump.
   - Docs: a new [Testing](docs/en/testing.md) page (EN + RU) with the assertion
     groups, fault/stub reference, record/replay, golden and the plugin.
+
+### Changed
+
+- **Docs build is now strict in CI, and the public API is frozen.**
+  `mkdocs build --strict` runs as its own CI job (the `docs` dependency group),
+  and every out-of-`docs_dir` link (to `examples/**`, the root `README.md` /
+  `CHANGELOG.md`) now points at absolute GitHub URLs. `tests/test_public_api.py`
+  pins `reactifact.__all__` and each core submodule's `__all__`, so an export
+  can only change deliberately; `docs/en|ru/api.md` §Stability documents the
+  freeze, the deprecation window and the 1.0 checklist in `release.md`.
+- **OTLP docs cover LangSmith and SigNoz.** The `OTLPTracer` section in
+  `docs/en|ru/observability.md` gained copy-paste recipes (endpoints/headers)
+  for LangSmith's OTLP ingestion and SigNoz (self-hosted and Cloud) — no code
+  change, the tracer already targets any OTLP/HTTP collector. `quota.py`
+  coverage rose 85% → 100%.
 
 ### Fixed
 

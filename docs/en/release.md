@@ -74,6 +74,33 @@ above. A few changes worth knowing if you're crossing them (see also
   [effects](effects.md)). `InterruptPatch`, `Patch.merge_existing_patch` and
   `Patch.to_dict` were removed.
 
+## Release checklist
+
+What must be true before cutting a release — and, specifically, the bar for
+leaving pre-1.0 and shipping **1.0.0**:
+
+- [ ] `uv run python -m pytest -q` is green, coverage ≥ the `fail_under` floor
+      (and `reactifact/quota.py`, `metrics.py`, `eval/` not the tail).
+- [ ] `uv run python -m mypy` and `uv run python -m ruff check` /
+      `ruff format --check` are clean.
+- [ ] `uv run --group docs mkdocs build --strict` is clean (CI enforces it).
+- [ ] The public surface is unchanged except as the freeze test
+      (`tests/test_public_api.py`) and `docs/en/api.md` §Stability record; any
+      rename/removal has a `### Breaking` changelog entry and a deprecation
+      window behind it.
+- [ ] The wheel smoke job passes in a clean venv (`uv build`, import, CLI).
+- [ ] `CHANGELOG.md` moves `[Unreleased]` under `## [X.Y.Z] — <date>`.
+- [ ] `pyproject.toml` and `reactifact/__init__.py` versions match.
+
+**1.0 criteria** (all of the above, plus):
+
+- [ ] Two consecutive minor releases with no `### Breaking` entry.
+- [ ] Every documented submodule `__all__` is pinned by the freeze test and
+      reflected in `docs/en/api.md`.
+- [ ] The safety/eval/observability surfaces (guardrails, authz, quota, eval,
+      online eval, metrics, tracing) each have usage docs and tests.
+- [ ] No `rc`/`Unreleased`-only guarantees leak into the contract.
+
 ## The release loop
 
 ```bash

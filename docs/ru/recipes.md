@@ -296,7 +296,7 @@ not estimated — name the source and column it came from.
   обычная строка, которую вы добавляете в промпт `structured_llm`/
   `llm_reply`. Skill `cost-reporting` из демо `knowledge`
   (`examples/knowledge/skills/`) — канонический пример — см. его
-  [README](../../examples/knowledge/README.md#skills--instructions-loaded-by-the-situation-not-the-graph)
+  [README](https://github.com/bzdvdn/reactifact/blob/master/examples/knowledge/README.md#skills--instructions-loaded-by-the-situation-not-the-graph)
   (на английском).
 - **Границы**: здесь реализована инструкционная половина формата Claude
   Skills — frontmatter + процедурный markdown. Вторая половина — бандл

@@ -14,7 +14,13 @@ from reactifact import (
     create_agent,
 )
 from reactifact.authz import Principal
-from reactifact.providers.contracts import LLMRequest, Message
+from reactifact.providers.contracts import (
+    LLMProvider,
+    LLMRequest,
+    LLMResponse,
+    LLMResponseChunk,
+    Message,
+)
 from reactifact.quota import Quota, QuotaLLM, QuotaTracker
 from reactifact.structured import structured_llm
 
@@ -125,3 +131,84 @@ def test_runtime_without_quota_is_unaffected():
     asyncio.run(runtime.arun())
     assert runtime.outcome == RunOutcome.COMPLETED
     assert len(ctx.list_artifacts(Sentiment)) == 1
+
+
+class _CacheHitLLM(LLMProvider):
+    """A provider that answers every call from the cache (never charged)."""
+
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        return LLMResponse(text="cached", raw={"reactifact_cache": "hit"})
+
+    async def stream(self, request):
+        yield LLMResponseChunk(text="cached")
+
+
+def test_tracker_tokens_and_cost_limits():
+    tokens = QuotaTracker(Quota(max_tokens=5))
+    tokens.record("k", tokens=5)
+    assert tokens.exceeded("k") is not None
+    assert tokens.exceeded("k").limit == "max_tokens"  # type: ignore[union-attr]
+
+    cost = QuotaTracker(Quota(max_cost=0.5))
+    cost.record("k", cost=0.6)
+    exceeded = cost.exceeded("k")
+    assert exceeded is not None and exceeded.limit == "max_cost"
+
+
+def test_tracker_reset_all_keys():
+    tracker = QuotaTracker(Quota(max_calls=1))
+    tracker.record("a", calls=1)
+    tracker.record("b", calls=1)
+    tracker.reset()
+    assert tracker.exceeded("a") is None
+    assert tracker.exceeded("b") is None
+
+
+def test_tracker_usage_opens_a_fresh_window():
+    now = [0.0]
+    tracker = QuotaTracker(Quota(max_tokens=10, window_seconds=5), clock=lambda: now[0])
+    tracker.record("k", tokens=3)
+    assert tracker.usage("k").tokens == 3
+    now[0] = 6.0
+    assert tracker.usage("k").tokens == 0  # the window rolled over
+
+
+def test_quota_llm_charges_with_a_pricer():
+    tracker = QuotaTracker(Quota(max_cost=10.0))
+    llm = QuotaLLM(
+        FakeLLM("ok", usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        tracker,
+        key="k",
+        pricer=lambda model, prompt, completion: 0.02,
+    )
+    asyncio.run(llm.complete(LLMRequest(messages=[Message.user("hi")])))
+    assert tracker.usage("k").cost == 0.02
+
+
+def test_quota_llm_does_not_charge_a_cache_hit():
+    tracker = QuotaTracker(Quota(max_calls=1))
+    llm = QuotaLLM(_CacheHitLLM(), tracker, key="k")
+    asyncio.run(llm.complete(LLMRequest(messages=[Message.user("hi")])))
+    assert tracker.usage("k").calls == 0
+
+
+def test_quota_llm_stream_counts_call_and_usage():
+    tracker = QuotaTracker(Quota(max_tokens=100))
+    llm = QuotaLLM(
+        FakeLLM("hi", usage={"prompt_tokens": 4, "completion_tokens": 2}),
+        tracker,
+        key="k",
+    )
+
+    async def drain():
+        return [chunk async for chunk in llm.stream(LLMRequest(messages=[]))]
+
+    chunks = asyncio.run(drain())
+    assert chunks
+    assert tracker.usage("k").calls == 1
+    assert tracker.usage("k").tokens == 6
+
+
+def test_quota_llm_forwards_attributes():
+    llm = QuotaLLM(FakeLLM("forwarded"), QuotaTracker(Quota()), key="k")
+    assert llm.response == "forwarded"

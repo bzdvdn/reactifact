@@ -8,25 +8,36 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-As of `0.4.0`, reactifact is pre-1.0 but no longer `rc` — the surface below is
-the stable contract, not a moving target.
+reactifact is pre-1.0 (`0.13.x`) but not `rc` — the surface below is the stable
+contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
+pins every `__all__` listed here, so a new export has to be added deliberately
+(and documented on this page), never by accident.
 
 - **Public API = every name in `reactifact.__all__`** (and each submodule's own
-  `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`, `reactifact.eval`,
-  `reactifact.quick`, `reactifact.redaction`, `reactifact.audit`, …), which is exactly the set of symbols documented on this page. If it's
+  `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
+  `reactifact.eval`, `reactifact.tracing`, `reactifact.quick`,
+  `reactifact.redaction`, `reactifact.audit`, …), which is exactly the set of
+  symbols documented on this page and pinned by the freeze test. If it's
   importable from `reactifact` but not in `__all__`, it's an internal detail with
   no compatibility guarantee — e.g. `reactifact.relations.RelationGraph` and
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.4.0` → `0.5.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.13.0` → `0.14.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
-  patch bump (`0.4.0` → `0.4.1`) never removes or renames a public symbol and
+  patch bump (`0.13.0` → `0.13.1`) never removes or renames a public symbol and
   never changes documented behavior, only fixes bugs against it.
+- **Deprecation**: a symbol on its way out stays importable and keeps working
+  for at least one minor release; it is marked deprecated in the docstring and
+  `CHANGELOG.md` (with the replacement) before any removal, and removal only
+  happens in a minor release under a `### Breaking` heading.
 - **Every breaking change is called out in `CHANGELOG.md` under a `### Breaking`
   heading**, even in a pre-1.0 release — see [release.md](release.md). If you
   only read one section before upgrading, read that one.
+- **1.0 means this page stops moving**: the [release checklist](release.md#release-checklist)
+  is the bar for leaving pre-1.0; after that, SemVer 1.x applies (no
+  breaking change in a minor).
 - Anything under `reactifact.cli.*` beyond the documented `python -m reactifact …`
   subcommands, and anything in a module's tests-only helpers, is implementation
   detail regardless of whether it happens to be importable.

@@ -202,6 +202,39 @@ runtime = Runtime(
 поэтому не требует установки дополнительного extra. Передайте `headers=` для
 коллектора, требующего авторизацию.
 
+**LangSmith** принимает OTLP и маппит конвенции `gen_ai.*`:
+
+```python
+OTLPTracer(
+    endpoint="https://api.smith.langchain.com/otel/v1/traces",
+    headers={
+        "x-api-key": os.environ["LANGSMITH_API_KEY"],
+        "Langsmith-Project": "my-project",   # опционально (по умолчанию "default")
+    },
+)
+```
+
+Self-hosted LangSmith: `https://<your-host>/api/v1/otel/v1/traces` с теми же
+заголовками.
+
+**SigNoz** принимает OTLP/HTTP напрямую — self-hosted без ключа:
+
+```python
+# self-hosted
+OTLPTracer(endpoint="http://<signoz-host>:4318/v1/traces")
+# SigNoz Cloud
+OTLPTracer(
+    endpoint="https://ingest.<region>.signoz.cloud:443/v1/traces",
+    headers={"signoz-ingestion-key": os.environ["SIGNOZ_INGESTION_KEY"]},
+)
+```
+
+То же работает с Jaeger, Tempo, Honeycomb, Datadog и локальным
+`otel-collector`. Чтобы разослать в несколько бэкендов сразу — или
+редактировать данные на самом коллекторе — направьте `endpoint` на
+OpenTelemetry Collector; `RuntimeResources.redactor` уже вырезает текст трейсов
+до выхода из процесса.
+
 ## Метрики (Prometheus)
 
 Трейсы отвечают «что было в *этом* прогоне»; метрики — «как дела у прогонов в

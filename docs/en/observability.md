@@ -200,6 +200,39 @@ OTLP/HTTP JSON payload directly over `httpx` (already a core dependency), so
 this needs no extra to install. Pass `headers=` for a collector that
 requires auth.
 
+**LangSmith** ingests OTLP and maps the `gen_ai.*` conventions:
+
+```python
+OTLPTracer(
+    endpoint="https://api.smith.langchain.com/otel/v1/traces",
+    headers={
+        "x-api-key": os.environ["LANGSMITH_API_KEY"],
+        "Langsmith-Project": "my-project",   # optional (default: "default")
+    },
+)
+```
+
+Self-hosted LangSmith uses `https://<your-host>/api/v1/otel/v1/traces` with the
+same headers.
+
+**SigNoz** takes OTLP/HTTP directly — no key self-hosted:
+
+```python
+# self-hosted
+OTLPTracer(endpoint="http://<signoz-host>:4318/v1/traces")
+# SigNoz Cloud
+OTLPTracer(
+    endpoint="https://ingest.<region>.signoz.cloud:443/v1/traces",
+    headers={"signoz-ingestion-key": os.environ["SIGNOZ_INGESTION_KEY"]},
+)
+```
+
+The same works for Jaeger, Tempo, Honeycomb, Datadog and a local
+`otel-collector`. To fan out to several back ends at once — or to redact
+before export at the collector — point `endpoint` at an OpenTelemetry Collector
+and let it route; `RuntimeResources.redactor` already strips trace text before
+it leaves the process (see [Redacting sensitive data](#redacting-sensitive-data)).
+
 ## Metrics (Prometheus)
 
 Traces answer "what happened in *this* run"; metrics answer "how are runs doing

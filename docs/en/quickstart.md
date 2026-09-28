@@ -57,7 +57,7 @@ hand-written pipeline below builds. When the facade no longer fits, drop to
 [Patterns](patterns.md) for the full model.
 
 Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
-— [`examples/quickstart.ipynb`](../../examples/quickstart.ipynb) walks the same four cases, offline by default.
+— [`examples/quickstart.ipynb`](https://github.com/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb) walks the same four cases, offline by default.
 
 Bring your own artifact models — the facade is parameterized, not fixed:
 

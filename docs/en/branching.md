@@ -1,6 +1,6 @@
 # Branching & merge (§39-§40)
 
-> Live walkthrough: [`examples/forklab`](../../examples/forklab/README.md) —
+> Live walkthrough: [`examples/forklab`](https://github.com/bzdvdn/reactifact/tree/master/examples/forklab) —
 > a deterministic two-strategy fork → merge → evaluate demo, with a `--conflict`
 > flag showing an explicit conflict and a policy resolving it.
 

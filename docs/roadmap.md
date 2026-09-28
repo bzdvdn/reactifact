@@ -1,13 +1,15 @@
 # Roadmap
 
-reactifact is pre-1.0 (`0.12.x`), one maintainer. This page is the honest
-current state of "what's next" — not a wishlist. See [CHANGELOG.md](../CHANGELOG.md)
+reactifact is pre-1.0 (`0.13.x`), one maintainer. This page is the honest
+current state of "what's next" — not a wishlist. See
+[CHANGELOG.md](https://github.com/bzdvdn/reactifact/blob/master/CHANGELOG.md)
 for what's already shipped, release by release.
 
 ## Now
 
 - API is stabilizing around the primitives in the README's
-  ["Core primitives"](../README.md#core-primitives) section
+  ["Core primitives"](https://github.com/bzdvdn/reactifact/blob/master/README.md#core-primitives)
+  section
   (`Context`, `Artifact`, `Effects`, `Patch`, `Agent`, `Source`, `Provenance`).
   `0.5.0` already trimmed the public surface down to this set.
 - MCP support (`reactifact.mcp`, shipped in `0.6.1`) is the newest primitive —
