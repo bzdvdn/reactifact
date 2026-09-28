@@ -107,6 +107,7 @@ mutate state or call agents directly, and turn those into the model above —
 | Write/review produces, consumes, effects, provenance | `reactifact-agents` | `references/consume.md`, `references/effects.md` |
 | Add an LLM step, structured output, tools, budget | `reactifact-llm` | `references/providers.md`, `references/tools.md` |
 | Retrieve from files/CSV/web/embeddings, RAG, fan-out | `reactifact-rag` | `references/sources.md` |
+| Guardrails, authorization/scopes, per-tenant quota | this skill | `references/trust-and-safety.md` |
 | Test/debug a pipeline deterministically | `reactifact-testing` | — |
 | Score quality over a dataset, CI gate | `reactifact-eval` | — |
 | Traces, metrics, sessions, durability, CLI/viz | `reactifact-observability` | — |

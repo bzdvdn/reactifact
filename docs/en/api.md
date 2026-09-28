@@ -250,6 +250,15 @@ current event loop**, so one provider instance stays usable across repeated
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI dashboard router: list/detail/sessions pages, tag facets + filtering, bulk tagging, tag-vocabulary management, URL-synced + saved views, sortable table, Tree/Timeline run view, in-trace search, raw JSON, JSON export |
 | `Metrics`, `MetricsTracer`, `create_metrics_router` (`reactifact.metrics`) | dependency-free Prometheus metrics: counters/histograms (`runs_total`, `agent_runs_total`, `llm_calls_total`, `llm_tokens_total`, `llm_cost_total`, `artifacts_written_total`, `relations_total`, latencies…) filled from the tracer hook; `render()` emits the text exposition, `create_metrics_router` serves `GET /metrics`. `RuntimeResources(metrics=…)` exposes the same sink to produces (defaults to a no-op) |
 
+## Trust & safety (reactifact.guardrails / reactifact.authz / reactifact.quota, §57)
+
+| Symbol | Role |
+| --- | --- |
+| `GuardrailPolicy` · `PIIGuardrail` · `InjectionGuardrail` · `DenyListGuardrail` · `SizeGuardrail` · `PatternGuardrail` · `GuardrailViolation` | artifact-boundary checks on agent-produced data; `on_violation="block"|"flag"`, PII redaction via any `Redactor` |
+| `Principal` · `PermissionPolicy` · `AuthorizationError` | capability-based authz on `run` / `create` / `update` / `delete` / `execute` |
+| `Quota` · `QuotaTracker` · `QuotaLLM` · `QuotaExceeded` | cross-turn per-principal token/cost/call limits (`RunOutcome.QUOTA_EXCEEDED`) |
+| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`quota_key` | opt-in wiring; off by default |
+
 ## Testing (reactifact.testing, §56)
 
 | Symbol | Role |

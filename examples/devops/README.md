@@ -21,6 +21,8 @@ devops/
 │                      #   AnsibleAgent (HITLLMAgent), RenderAgent
 ├── tools.py           # fake tools (kubectl_get, gitlab_search/pipeline,
 │                      #   ansible_run) — simulated output, no real systems
+├── guardrails.py      # trust & safety: custom guardrails + the ops policy
+├── safety.py          # runnable guardrail demo (no LLM/network)
 ├── prompts.py         # per-specialist system prompts
 ├── produce/
 │   ├── router.py      #   UserMsg → the right *Problem (structured routing)
@@ -32,8 +34,9 @@ devops/
 ## Run
 
 ```bash
-.venv/bin/python examples/devops/web.py     # SSE UI + trace dashboard on :8000
-.venv/bin/python examples/devops/chat.py    # interactive CLI
+.venv/bin/python examples/devops/web.py      # SSE UI + trace dashboard on :8000
+.venv/bin/python examples/devops/chat.py     # interactive CLI
+.venv/bin/python examples/devops/safety.py   # guardrails demo (no LLM needed)
 ```
 
 Without an LLM key the tool router and specialists fall back to deterministic
@@ -120,6 +123,55 @@ specialist declaring that wiring itself (see `reactifact/llm_agent.py`).
 `render` fans in every `*Report` type into one `ChatReply`; a mandatory tool
 parameter that the router never captured is what forces the ask in the first
 place, not a manual "if missing, ask" branch anywhere in this demo's own code.
+
+## Trust & safety — custom guardrails
+
+The ops assistant is a good place for guardrails: users ask for dangerous
+things, and the artifacts that carry their request are typed, so a rule is
+plain Python. `guardrails.py` defines a **custom** one — a destructive change
+to production must cite a change ticket:
+
+```python
+from dataclasses import dataclass
+from typing import Any
+from reactifact import Context
+from reactifact.guardrails import GuardrailDecision
+
+
+@dataclass
+class ProductionChangeGuardrail:
+    name: str = "production_change"
+
+    def check(self, data: Any, context: Context) -> GuardrailDecision:
+        text = getattr(data, "text", "")
+        if not (DESTRUCTIVE.search(text) and PROD.search(text)):
+            return GuardrailDecision(guardrail=self.name)
+        if TICKET.search(text):                       # approved change
+            return GuardrailDecision(guardrail=self.name)
+        return GuardrailDecision(                        # defer to the policy
+            action="violation",
+            reason="destructive change to production requires a CHG-… ticket",
+            guardrail=self.name,
+        )
+```
+
+A guardrail is just `name` + `check(data, context)`. Returning `violation`
+defers the verdict to the policy (`on_violation="block"` raises
+`GuardrailViolation`, `"flag"` records a metric and lets it through); returning
+`redact` rewrites the data (see `SecretRedactionGuardrail`). The policy mixes
+custom and built-in guardrails and is wired in one line — `chat.py` and
+`web.py` both do this:
+
+```python
+resources = RuntimeResources(llm=llm, guardrails=devops_guardrail_policy())
+```
+
+Guardrails run on *produced* artifacts; `web.py`'s `create_message` screens the
+raw input too (`screen(policy, ctx, text)`) so an unsafe request is refused
+before routing. Run `python examples/devops/safety.py` to see all of it —
+custom decision, redaction, an end-to-end block, and the flag metric — with no
+LLM or network. The full reference is in
+[docs/en/safety.md](../../docs/en/safety.md).
 
 ## Trace dashboard
 

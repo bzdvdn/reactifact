@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from examples.devops.agents import (
     AnsibleAgent,
     GitlabAgent,
@@ -7,7 +8,19 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
-from examples.devops.models import ChatReply, GitlabReport, K8sReport, UserMsg
+from examples.devops.guardrails import (
+    ProductionChangeGuardrail,
+    SecretRedactionGuardrail,
+    devops_guardrail_policy,
+    screen,
+)
+from examples.devops.models import (
+    ChatReply,
+    GitlabReport,
+    K8sProblem,
+    K8sReport,
+    UserMsg,
+)
 from examples.devops.tools import CALLS
 from reactifact import (
     Budget,
@@ -16,6 +29,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
 )
+from reactifact.guardrails import GuardrailViolation
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 
 
@@ -166,3 +180,69 @@ def test_k8s_agent_asks_namespace_and_continues():
     assert len(replies) == 1
     assert "CrashLoopBackOff" in replies[0].data.text
     assert CALLS["kubectl_get"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Trust & safety — custom guardrails in the devops demo
+# --------------------------------------------------------------------------- #
+
+
+def test_custom_guardrail_blocks_prod_change_without_ticket():
+    ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
+    ctx.create(UserMsg(text="delete the prod pods"))
+    with pytest.raises(GuardrailViolation):
+        asyncio.run(Runtime(ctx, agents=[RouteAgent()]).arun())
+    assert ctx.list_artifacts(K8sProblem) == []
+
+
+def test_custom_guardrail_allows_a_ticketed_change():
+    ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
+    ctx.create(UserMsg(text="delete the prod pods CHG-1042"))
+    asyncio.run(Runtime(ctx, agents=[RouteAgent()]).arun())
+    assert ctx.list_artifacts(K8sProblem)
+
+
+def test_custom_guardrail_decision_defers_to_policy():
+    guardrail = ProductionChangeGuardrail()
+    ctx = Context(resources=RuntimeResources())
+    blocked = guardrail.check(K8sProblem(text="drop the production database"), ctx)
+    assert blocked.action == "violation"
+    allowed = guardrail.check(K8sProblem(text="drop the production db CHG-7"), ctx)
+    assert allowed.action == "allow"
+
+
+def test_secret_redaction_guardrail_rewrites_the_model():
+    ctx = Context(resources=RuntimeResources())
+    decision = SecretRedactionGuardrail().check(
+        UserMsg(text="token=abc123 and password: hunter2"), ctx
+    )
+    assert decision.action == "redact"
+    assert "abc123" not in decision.data.text
+    assert "hunter2" not in decision.data.text
+    assert "[REDACTED]" in decision.data.text
+
+
+def test_builtin_pii_guardrail_redacts_a_produced_problem():
+    ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
+    ctx.create(UserMsg(text="pods crash, mail me at ops@corp.com"))
+    asyncio.run(Runtime(ctx, agents=[RouteAgent()]).arun())
+    problem = ctx.list_artifacts(K8sProblem)[0]
+    assert "[REDACTED:email]" in problem.data.text
+
+
+def test_screen_refuses_an_unsafe_raw_input():
+    ctx = Context(resources=RuntimeResources())
+    decision = screen(devops_guardrail_policy(), ctx, "wipe the prod cluster pods")
+    assert decision.action == "block"
+    assert decision.guardrail == "production_change"
+
+
+def test_flag_policy_allows_and_does_not_raise():
+    ctx = Context(
+        resources=RuntimeResources(
+            guardrails=devops_guardrail_policy(on_violation="flag")
+        )
+    )
+    ctx.create(UserMsg(text="delete the prod pods"))
+    asyncio.run(Runtime(ctx, agents=[RouteAgent()]).arun())
+    assert ctx.list_artifacts(K8sProblem)

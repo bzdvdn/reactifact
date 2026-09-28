@@ -252,6 +252,15 @@ OTLP/Langfuse-приёмников.
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда |
 | `Metrics`, `MetricsTracer`, `create_metrics_router` (`reactifact.metrics`) | Prometheus-метрики без зависимостей: счётчики/гистограммы (`runs_total`, `agent_runs_total`, `llm_calls_total`, `llm_tokens_total`, `llm_cost_total`, `artifacts_written_total`, `relations_total`, латентности…) из трейс-хука; `render()` выдаёт text exposition, `create_metrics_router` отдаёт `GET /metrics`. `RuntimeResources(metrics=…)` открывает тот же sink produce'ам (по умолчанию no-op) |
 
+## Trust & safety (reactifact.guardrails / reactifact.authz / reactifact.quota, §57)
+
+| Символ | Роль |
+| --- | --- |
+| `GuardrailPolicy` · `PIIGuardrail` · `InjectionGuardrail` · `DenyListGuardrail` · `SizeGuardrail` · `PatternGuardrail` · `GuardrailViolation` | проверки на границе артефактов для данных от агентов; `on_violation="block"|"flag"`, редактирование PII через любой `Redactor` |
+| `Principal` · `PermissionPolicy` · `AuthorizationError` | authz по capabilities на `run` / `create` / `update` / `delete` / `execute` |
+| `Quota` · `QuotaTracker` · `QuotaLLM` · `QuotaExceeded` | межходовые лимиты токенов/стоимости/вызовов на principal (`RunOutcome.QUOTA_EXCEEDED`) |
+| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`quota_key` | опциональная обвязка; по умолчанию выключено |
+
 ## Тестирование (reactifact.testing, §56)
 
 | Символ | Роль |

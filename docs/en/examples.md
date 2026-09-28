@@ -85,10 +85,16 @@ uv run python ./examples/medic_lab/main.py    # serves uvicorn automatically
 **What it shows:** `HITLLMAgent` + LLM **tool router** (routing is a separate
 structured step, `StructuredLLM`), HITL-approved mutations for Kubernetes,
 GitLab, Ansible (each is a fateful operation the LLM cannot dream up on its
-own); trace dashboard with the `create_trace_router` UI.
+own); trace dashboard with the `create_trace_router` UI. It also carries the
+trust & safety layer: `guardrails.py` defines a **custom** guardrail (a
+destructive production change must cite a `CHG-` ticket) plus secret
+redaction, wired onto `RuntimeResources` in one line — the ops policy blocks
+injection and unapproved prod changes, redacts PII/secrets, and screens the
+raw input too. Run the standalone demo (no LLM, no network):
 
 ```bash
-uv run python ./examples/devops/web.py
+uv run python ./examples/devops/web.py      # SSE UI + trace dashboard
+uv run python ./examples/devops/safety.py   # custom guardrails, end to end
 ```
 
 ## `incident_commander` — a full harness, composed

@@ -25,6 +25,8 @@ class RunOutcome(StrEnum):
     BUDGET_TIME_EXCEEDED = "budget_time_exceeded"
     BUDGET_TOKENS_EXCEEDED = "budget_tokens_exceeded"
     BUDGET_COST_EXCEEDED = "budget_cost_exceeded"
+    #: The principal's cross-turn quota is spent (`reactifact.quota`).
+    QUOTA_EXCEEDED = "quota_exceeded"
 
 
 class Budget(BaseModel):

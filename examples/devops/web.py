@@ -14,6 +14,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -26,6 +27,7 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
+from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -64,9 +66,12 @@ FALLBACK_REPLY = "Failed to assemble the answer. Try rephrasing the question."
 
 AGENTS = [RouteAgent(), K8sAgent(), GitlabAgent(), AnsibleAgent(), RenderAgent()]
 
+#: Guardrails for the running assistant (see examples/devops/guardrails.py).
+GUARDRAILS = devops_guardrail_policy()
+
 
 def _resources(llm) -> RuntimeResources:
-    return RuntimeResources(llm=llm)
+    return RuntimeResources(llm=llm, guardrails=GUARDRAILS)
 
 
 def create_message(ctx: Any, text: str) -> str:
@@ -78,7 +83,27 @@ def create_message(ctx: Any, text: str) -> str:
         qid = question.data.notes.get("query_id") or ""
         problem = ctx.get(qid)
         return getattr(problem.data, "query_id", "") if problem else ""
-    return ctx.create(UserMsg(text=text, session_id="")).id
+
+    # Guardrails run on *produced* artifacts; screen the raw input here so an
+    # unsafe request is refused before it is routed (and before any agent runs).
+    decision = screen(GUARDRAILS, ctx, text)
+    if decision.action == "block":
+        msg_id = f"refused:{uuid4().hex[:8]}"
+        ctx.create(
+            ChatReply(
+                query_id=msg_id,
+                text=f"Request refused by a guardrail ({decision.guardrail}): "
+                f"{decision.reason}",
+            ),
+            id=f"reply:{msg_id}",
+        )
+        return msg_id
+    message = (
+        decision.data
+        if decision.action == "redact" and isinstance(decision.data, UserMsg)
+        else UserMsg(text=text, session_id="")
+    )
+    return ctx.create(message).id
 
 
 def terminal_reply(ctx: Any, msg_id: str) -> dict[str, Any]:

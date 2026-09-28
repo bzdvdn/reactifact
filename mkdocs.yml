@@ -102,6 +102,7 @@ nav:
       - Patterns: en/patterns.md
       - Evaluation: en/eval.md
       - Agent skills: en/skills.md
+      - Trust & safety: en/safety.md
       - Testing: en/testing.md
       - Multi-turn & chat: en/chat.md
       - Branching & merge: en/branching.md

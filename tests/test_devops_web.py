@@ -202,3 +202,18 @@ def test_traces_ui_and_api(tmp_path):
     assert run_page.status_code == 200
     assert "reactifact" in run_page.text
     assert "Evidence graph" in run_page.text
+
+
+def test_sse_refuses_unsafe_request_via_guardrail(tmp_path):
+    """A destructive prod request is refused before any agent runs."""
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "delete the prod pods", "session_id": "s6"},
+    ) as response:
+        body = "".join(response.iter_text())
+    assert "refused by a guardrail" in body
+    assert "production_change" in body

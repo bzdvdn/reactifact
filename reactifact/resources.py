@@ -13,7 +13,10 @@ from typing import (
     overload,
 )
 
+from .authz import AuthorizationError, Authorizer, Principal
+from .guardrails import GuardrailPolicy
 from .providers import EmbeddingProvider, LLMProvider
+from .quota import QuotaTracker
 from .sources import Source
 
 if TYPE_CHECKING:
@@ -86,6 +89,10 @@ class RuntimeResources:
         id_factory: IdFactory | None = None,
         pricer: Pricer | None = None,
         metrics: MetricsSink | None = None,
+        principal: Principal | None = None,
+        authorizer: Authorizer | None = None,
+        guardrails: GuardrailPolicy | None = None,
+        quota: QuotaTracker | None = None,
         **additional: Any,
     ):
         self.llm = llm
@@ -95,6 +102,21 @@ class RuntimeResources:
         # protocol). Defaults to a no-op, so a produce can always call
         # `call.context.resources.metrics.increment("my_domain_total", ...)`.
         self.metrics: MetricsSink = metrics if metrics is not None else _NullMetrics()
+        # Who this run acts for, and the policy that gates what it may do
+        # (`reactifact.authz`). Both `None` by default: with no authorizer every
+        # action is allowed, so authz is opt-in and non-breaking. Enforced by
+        # the runtime on agent runs and artifact writes, by the tool loop on
+        # tool execution, and available to produces as
+        # `resources.require_authorized(action, resource)`.
+        self.principal = principal
+        self.authorizer = authorizer
+        # Artifact-boundary guardrails (`reactifact.guardrails`), applied to
+        # every agent-produced Create/Update before it is committed. `None`
+        # disables them.
+        self.guardrails = guardrails
+        # Cross-turn, per-principal usage limits (`reactifact.quota`). `None`
+        # disables quota enforcement.
+        self.quota = quota
         # Applies `Budget.max_cost`: `(model, prompt_tokens, completion_tokens)
         # -> cost`. `None` (default) makes a cost limit inert — the framework
         # ships no built-in prices on purpose (see `reactifact.pricing`).
@@ -145,6 +167,28 @@ class RuntimeResources:
 
     def get_source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)
+
+    # ---- authorization (#57) ---------------------------------------------- #
+
+    def authorize(self, action: str, resource: str) -> bool:
+        """Whether the current principal may `action` on `resource`.
+
+        `True` when no authorizer is configured (authz is opt-in).
+        """
+        if self.authorizer is None:
+            return True
+        return self.authorizer.authorize(self.principal, action, resource)
+
+    def require_authorized(self, action: str, resource: str) -> None:
+        """`authorize` or raise `AuthorizationError` — the produce-side gate."""
+        if not self.authorize(action, resource):
+            raise AuthorizationError(action, resource, self.principal)
+
+    def quota_key(self) -> str:
+        """The key a `QuotaTracker` counts against: the principal, else the run."""
+        if self.principal is not None:
+            return self.principal.id
+        return "default"
 
     # ---- typed resources (#2) --------------------------------------------- #
 

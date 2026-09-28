@@ -20,9 +20,11 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
+from examples.devops.guardrails import devops_guardrail_policy
 from examples.devops.models import ChatReply, UserMsg
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
 from reactifact.checkpoints import FileKVBackend
+from reactifact.guardrails import GuardrailViolation
 from reactifact.providers import openai_llm, openrouter_llm
 
 
@@ -54,7 +56,7 @@ async def main() -> None:
             "LLM is not configured — agents won't be able to answer. Set OPENROUTER_API_KEY."
         )
 
-    resources = RuntimeResources(llm=llm)
+    resources = RuntimeResources(llm=llm, guardrails=devops_guardrail_policy())
     store = SessionStore(FileKVBackend(str(ROOT / "sessions")))
     session = await store.open("devops", resources=resources)
     print("New session" if not session.loaded else "Session restored")
@@ -82,9 +84,13 @@ async def main() -> None:
 
         msg = session.context.create(UserMsg(text=text, session_id="devops"))
 
-        async for event in runtime.astream():
-            if event.kind in ("status", "agent"):
-                print(f"   {event.message}")
+        try:
+            async for event in runtime.astream():
+                if event.kind in ("status", "agent"):
+                    print(f"   {event.message}")
+        except GuardrailViolation as exc:
+            print(f"\nRequest refused by a guardrail: {exc}\n")
+            continue
 
         replies = [
             r

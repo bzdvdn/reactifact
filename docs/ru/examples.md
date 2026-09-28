@@ -85,10 +85,16 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 **Что показывает:** `HITLLMAgent` + LLM-**роутер инструментов** (маршрутизация —
 отдельный структурный шаг, `StructuredLLM`), мутации Kubernetes/GitLab/Ansible с
 подтверждением человеком (каждая — необратимая операция, которую LLM не может
-выдумать сам); трейс-дашборд на `create_trace_router`.
+выдумать сам); трейс-дашборд на `create_trace_router`. Плюс слой trust & safety:
+`guardrails.py` определяет **кастомный** guardrail (деструктивное изменение
+прода требует тикета `CHG-`) и редактирование секретов, подключаемые к
+`RuntimeResources` одной строкой — ops-политика блокирует инъекции и
+неподтверждённые прод-изменения, редактирует PII/секреты и проверяет сырой ввод.
+Отдельное демо (без LLM и сети):
 
 ```bash
-uv run python ./examples/devops/web.py
+uv run python ./examples/devops/web.py      # SSE UI + трейс-дашборд
+uv run python ./examples/devops/safety.py   # кастомные guardrails, end-to-end
 ```
 
 ## `incident_commander` — полный харнесс, собранный воедино

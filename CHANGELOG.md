@@ -8,6 +8,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Trust & safety: guardrails, authorization and quota.** Three opt-in,
+  library-level layers on `RuntimeResources`, acting on typed artifacts and
+  resource access (deterministic, testable) rather than around model messages.
+  `reactifact.guardrails.GuardrailPolicy` runs ordered checks on every
+  agent-produced `Create`/`Update`: `PIIGuardrail` (redacts via any `Redactor`),
+  `InjectionGuardrail`, `DenyListGuardrail`, `SizeGuardrail`, the generic
+  `PatternGuardrail`, with `on_violation="block"` (raises `GuardrailViolation`)
+  or `"flag"` (records `reactifact_guardrail_triggered_total`). `reactifact.
+  authz` adds a `Principal` + capability-based `PermissionPolicy`, enforced by
+  the runtime on `run`/`create`/`update`/`delete`, by the tool loop on
+  `execute`, and available to produces via `resources.require_authorized(...)`;
+  denial raises `AuthorizationError`. `reactifact.quota` adds cross-turn,
+  per-principal usage limits (`Quota`/`QuotaTracker`/`QuotaLLM`) — checked at
+  turn start (`RunOutcome.QUOTA_EXCEEDED`) and counted through the turn, with
+  cache hits free and a pluggable `QuotaStore` (in-process by default). All off
+  by default; docs in `docs/en/safety.md` and the `reactifact` skill's
+  `references/trust-and-safety.md`. The `devops` example demonstrates it:
+  `examples/devops/guardrails.py` defines a custom guardrail (a destructive
+  production change must cite a `CHG-` ticket) plus secret redaction, wired
+  onto `RuntimeResources` and screening the raw input in `web.py`; run
+  `examples/devops/safety.py` for an end-to-end, no-LLM demo.
 - **Agent skills for building with reactifact.** The package ships official
   Agent Skills in `reactifact/skills/<name>/SKILL.md` (version-matched, since
   they live in the package), installed into a project with

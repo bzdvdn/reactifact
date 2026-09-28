@@ -107,12 +107,16 @@ class _ToolLoopBase(Produce[ToolAnswer]):
         tool_id: str,
         args: dict[str, Any],
         *,
+        context: Context,
         allow_destructive: bool = False,
     ) -> str:
         tool = tools.get(tool_id)
         if tool is None:
             available = ", ".join(tools)
             return f"Unknown tool '{tool_id}'. Available: {available}"
+        # Authz: a principal may be denied executing a tool. Denial raises (it is
+        # not an agent bug to swallow), propagating like a guardrail violation.
+        context.resources.require_authorized("execute", tool_id)
         if tool.destructive and not allow_destructive:
             return f"Tool '{tool_id}' is destructive and not offered to the LLM."
         try:
@@ -248,7 +252,9 @@ class ToolUse(_ToolLoopBase):
             context.announce(
                 f"Calling tool '{decision.tool}'…", kind="agent", tool=decision.tool
             )
-            result = await self._run_tool(available, decision.tool, decision.args)
+            result = await self._run_tool(
+                available, decision.tool, decision.args, context=context
+            )
             executed += 1
             history.append(
                 f"tool_call: {decision.tool}({json.dumps(decision.args, ensure_ascii=False)})\n"
@@ -454,7 +460,7 @@ class ToolUseHITL(_ToolLoopBase):
             )
             if approved:
                 result = await self._run_tool(
-                    self.tools, tool_id, args, allow_destructive=True
+                    self.tools, tool_id, args, context=context, allow_destructive=True
                 )
             else:
                 result = f"Tool '{tool_id}' call was not approved by the user."
@@ -660,7 +666,9 @@ class ToolUseHITL(_ToolLoopBase):
         context.announce(
             f"Calling tool '{decision.tool}'…", kind="agent", tool=decision.tool
         )
-        result = await self._run_tool(self.tools, decision.tool, decision.args)
+        result = await self._run_tool(
+            self.tools, decision.tool, decision.args, context=context
+        )
         self.effects.create(
             Observation(
                 query_id=qid,

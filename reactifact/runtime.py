@@ -11,7 +11,9 @@ from .commit import Commit, Read, Write
 from .context import Context
 from .effects import Effects, current_effects, reset_effects, set_effects
 from .events import Event
+from .guardrails import GuardrailViolation
 from .patches import Create, Delete, Link, Patch, Unlink, Update
+from .quota import QuotaLLM
 from .request import reset_request, set_request
 from .scheduler import Scheduler
 from .session import Session
@@ -102,6 +104,8 @@ class Runtime:
         # budget tracks tokens/cost.
         self._tracker: BudgetTracker | None = None
         self._original_llm: Any | None = None
+        #: Set when the principal's cross-turn quota is already spent.
+        self._quota_exceeded = False
 
     def _enter_turn(self) -> None:
         if self._in_turn:
@@ -145,6 +149,7 @@ class Runtime:
         # its end (`_end_turn_resources`).
         self._tracker = None
         self._original_llm = None
+        self._quota_exceeded = False
         if (
             self._active_budget is not None
             and self._active_budget.max_cost is not None
@@ -167,6 +172,21 @@ class Runtime:
                 pricer=self.context.resources.pricer,
             )
         self.context.resources.budget_tracker = self._tracker
+        # Cross-turn quota: check the principal now (so an exhausted key stops
+        # before any work) and count this turn's LLM usage into the tracker.
+        quota = self.context.resources.quota
+        if quota is not None:
+            if quota.exceeded(self.context.resources.quota_key()) is not None:
+                self._quota_exceeded = True
+            if self.context.resources.llm is not None:
+                if self._original_llm is None:
+                    self._original_llm = self.context.resources.llm
+                self.context.resources.llm = QuotaLLM(
+                    self.context.resources.llm,
+                    quota,
+                    key=self.context.resources.quota_key(),
+                    pricer=self.context.resources.pricer,
+                )
         self._turn_started = True
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else ""
@@ -186,6 +206,9 @@ class Runtime:
     def _budget_exhausted(self) -> bool:
         if self._deadline is not None and time.monotonic() >= self._deadline:
             self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
+            return True
+        if self._quota_exceeded:
+            self.outcome = RunOutcome.QUOTA_EXCEEDED
             return True
         if (
             self._active_budget is not None
@@ -225,6 +248,57 @@ class Runtime:
                     f"Agent '{agent.name}' created artifact of type {type(op.data).__name__}, "
                     f"which is not declared in produces: {[t.__name__ for t in allowed_types]}"
                 )
+
+    def _enforce_authorization(self, patch: Patch) -> None:
+        """Gates each Create/Update/Delete against the principal's policy (§57)."""
+        resources = self.context.resources
+        if resources.authorizer is None:
+            return
+        for op in patch.operations:
+            if isinstance(op, Create):
+                resources.require_authorized("create", type(op.data).__name__)
+            elif isinstance(op, Update):
+                resources.require_authorized("update", type(op.new_data).__name__)
+            elif isinstance(op, Delete):
+                resources.require_authorized(
+                    "delete", getattr(op, "data_type", "") or "artifact"
+                )
+
+    def _apply_guardrails(self, patch: Patch) -> Patch:
+        """Checks/rewrites each Create/Update; blocks the turn on a violation (§57)."""
+        policy = self.context.resources.guardrails
+        if policy is None:
+            return patch
+        metrics = self.context.resources.metrics
+        for op in patch.operations:
+            if isinstance(op, Create):
+                data = op.data
+            elif isinstance(op, Update):
+                data = op.new_data
+            else:
+                continue
+            decision = policy.evaluate(data, self.context)
+            if decision.action == "allow":
+                continue
+            resource = type(data).__name__
+            metrics.increment(
+                "reactifact_guardrail_triggered_total",
+                guardrail=decision.guardrail or "guardrail",
+                action=decision.action,
+                type=resource,
+            )
+            if decision.action == "redact" and decision.data is not None:
+                if isinstance(op, Create):
+                    op.data = decision.data
+                else:
+                    op.new_data = decision.data
+                continue
+            if decision.action in ("redact", "flag"):
+                continue
+            raise GuardrailViolation(
+                decision.guardrail or "guardrail", decision.reason, resource
+            )
+        return patch
 
     async def arun_once(
         self,
@@ -418,6 +492,8 @@ class Runtime:
                 continue
             span = self._trace.record_span(agent, event, reads, latency)
             self._validate_patch_types(patch, agent)
+            self._enforce_authorization(patch)
+            patch = self._apply_guardrails(patch)
             patches_to_apply.append((patch, agent, reads, span))
         return patches_to_apply, runs
 
@@ -478,6 +554,9 @@ class Runtime:
         progress.
         """
         agent, event, reads = item
+        # Authz: a principal may be denied running a given agent. Denial is not
+        # an agent bug, so it always propagates (not swallowed by isolate_errors).
+        self.context.resources.require_authorized("run", agent.name)
         started = time.monotonic()
         task = asyncio.current_task()
         self._trace.register_task(task, agent.name)
