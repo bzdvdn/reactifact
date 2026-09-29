@@ -75,6 +75,17 @@ asyncio.run(runtime.arun())
 See `docs/en/chat.md` for `Conversation`, `Transcript`, `ChatMemory` and
 compaction.
 
+## Persisted type identity
+
+A saved artifact's type is a string — by default the model's **qualified name**
+(`module.Qualname`), written automatically and resolved by import on load. You
+do **not** call anything to register a type; a module-level `BaseModel`
+round-trips as-is. Reach for `reactifact.register_type`/a `TYPE_ID` classvar only
+to pin a stable id when you **rename or move** a model, to keep old ids loading
+via `aliases`, or to add a `migrate` hook for a field rename. A model that is not
+importable in a new process (`__main__`, a notebook, a class inside a function,
+`pydantic.create_model`) is the one case that *needs* an explicit `type_id`.
+
 ## Determinism
 
 Given the same seeds and the same LLM responses, a run is reproducible: the

@@ -111,6 +111,7 @@ mutate state or call agents directly, and turn those into the model above —
 | Test/debug a pipeline deterministically | `reactifact-testing` | — |
 | Score quality over a dataset, CI gate | `reactifact-eval` | — |
 | Traces, metrics, sessions, durability, CLI/viz | `reactifact-observability` | — |
+| Call or serve another agent over A2A (Agent2Agent) | `reactifact.a2a` | `docs/en/a2a.md` |
 | Port LangChain/LangGraph code | `reactifact-from-langchain` | — |
 
 Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,

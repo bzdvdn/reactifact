@@ -6,6 +6,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- **A2A (Agent2Agent) client and server.** `reactifact.a2a` speaks the A2A
+  JSON-RPC binding (v0.3 shape) in both directions, with no new dependency (the
+  client uses `httpx`; the server, FastAPI from the `web` extra, is imported
+  lazily). Client: `A2AClient` (Agent Card, `message/send`, `message/stream`,
+  `tasks/get`, `tasks/cancel`) and `A2AAgentTool`/`a2a_tool` — a reactifact
+  `Tool` so an `LLMAgent` can delegate to a remote agent. `remote_agent(...)` /
+  `A2ARemoteProduce` — a remote agent as a **first-class scheduled node** (the
+  analogue of LangGraph's `A2ARemoteGraph`): it consumes a local artifact, calls
+  `message/send`, produces a local artifact, and maps a remote `input-required`
+  to a local `PendingQuestion` (resume continues the same remote task). Server:
+  `create_a2a_router(agents, ...)` builds an Agent Card (skills from each
+  agent's `produces`) and a JSON-RPC endpoint where a `Task` is one conversation
+  — a `message/send` seeds via `create_message`, runs the agents to a fixpoint,
+  and replies via `reply`; a paused HITL run maps to `input-required` and the
+  next message with the same `taskId` resumes it; `message/stream` emits the
+  working task and a status update per `context.announce()` progress event over
+  SSE. Docs in `docs/en|ru/a2a.md`. Verified against the **official `a2a-sdk`
+  client** (the SDK resolves our Agent Card and gets a completed task from
+  `message/send`); `a2a-sdk` is a test-only dependency (its own `a2a` group),
+  the runtime stays on `httpx` + FastAPI. The `examples/a2a` app demonstrates it
+  end to end (serve, call directly, schedule as a node, HITL) with no LLM or
+  network.
+
+### Docs
+
+- `durability.md` (EN + RU) states plainly that artifact types do **not** need
+  registering — the persisted id is the qualified name by default, resolved by
+  import on load. It lists the only three reasons to `register_type` (rename/
+  move, aliases, migration), notes the `TYPE_ID` classvar shortcut, and calls
+  out the one caveat: a model that is not importable in a new process
+  (`__main__`, a notebook, `<locals>`, `pydantic.create_model`) needs an
+  explicit `type_id`.
+
 ## [0.13.0] — 2026-09-28
 
 ### Added

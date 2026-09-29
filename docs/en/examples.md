@@ -102,6 +102,22 @@ uv run python ./examples/devops/safety.py   # custom guardrails, end to end
 uv run python ./examples/devops/online_eval.py   # online-eval over served runs
 ```
 
+## `a2a` — an agent served over A2A, and called back
+
+**What it shows:** the Agent2Agent protocol in both directions — a reactifact
+agent exposed as an A2A server (`create_a2a_router`: Agent Card + JSON-RPC), and
+a client that calls it directly (`A2AClient`) as well as schedules the remote
+agent as a **local node** (`remote_agent`), including a remote `input-required`
+surface as a local `PendingQuestion`. Deterministic and offline (in-process over
+`httpx.ASGITransport`; no LLM, no network).
+
+```bash
+uv run python -m examples.a2a.demo
+```
+
+Details: [`examples/a2a`](https://github.com/bzdvdn/reactifact/blob/master/examples/a2a/README.md)
+and [A2A docs](a2a.md).
+
 ## `incident_commander` — a full harness, composed
 
 **What it shows:** every harness-level building block wired together in one

@@ -52,6 +52,9 @@ pg = [
 mcp = [
     "mcp>=2.2",
 ]
+a2a = [
+    "a2a-sdk>=1.0",
+]
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
@@ -80,6 +83,9 @@ pg = [
 ]
 mcp = [
     "mcp>=2.2",
+]
+a2a = [
+    "a2a-sdk>=1.0",
 ]
 docs = [
     "mkdocs>=1.6",

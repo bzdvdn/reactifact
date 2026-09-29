@@ -102,6 +102,22 @@ uv run python ./examples/devops/safety.py   # кастомные guardrails, end
 uv run python ./examples/devops/online_eval.py   # online-eval по прогонам
 ```
 
+## `a2a` — агент, выставленный по A2A, и вызов обратно
+
+**Что показывает:** протокол Agent2Agent в обе стороны — reactifact-агент,
+выставленный как A2A-сервер (`create_a2a_router`: Agent Card + JSON-RPC), и
+клиент, который зовёт его напрямую (`A2AClient`), а также планирует удалённого
+агента как **локальный узел** (`remote_agent`), включая удалённый
+`input-required` как локальный `PendingQuestion`. Детерминированно и офлайн
+(in-process через `httpx.ASGITransport`; без LLM и сети).
+
+```bash
+uv run python -m examples.a2a.demo
+```
+
+Детали: [`examples/a2a`](https://github.com/bzdvdn/reactifact/blob/master/examples/a2a/README.md)
+и [доки A2A](a2a.md).
+
 ## `incident_commander` — полный харнесс, собранный воедино
 
 **Что показывает:** все харнесс-уровневые блоки, собранные в одном сценарии

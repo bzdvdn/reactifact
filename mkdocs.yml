@@ -109,6 +109,7 @@ nav:
       - Replay: en/replay.md
       - Visualization: en/viz.md
       - MCP: en/mcp.md
+      - A2A: en/a2a.md
       - Observability: en/observability.md
       - Durability & resume: en/durability.md
   - Reference:

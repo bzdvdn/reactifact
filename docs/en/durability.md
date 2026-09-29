@@ -81,9 +81,19 @@ async def summarize(call):
 
 A persisted artifact's type is stored as a string (`Artifact.data_type`, the
 `data_type` of a compiled `Create`/`Update`, `Event.artifact_type`) — by default
-the Python qualified name, so renaming or moving a model would break loading old
-sessions and recordings. `reactifact.types` decouples the persisted identity
-from Python's module layout:
+the Python qualified name (`module.Qualname`). **You do not have to register
+anything**: on save the id is derived automatically, and on load `resolve`
+imports the qualified name back, so a normal module-level model round-trips with
+no boilerplate. `reactifact.types` exists only to decouple that stored identity
+from Python's module layout when you want to.
+
+Registration matters in three cases:
+
+- **Renames or moves** — a stable `type_id` keeps old sessions/recordings
+  loadable after a model is renamed or moved between modules.
+- **Aliases** — payloads carrying a *previous* id keep resolving.
+- **Schema migration** — a `migrate` hook renames fields / fills defaults before
+  validation.
 
 ```python
 from reactifact import register_type
@@ -96,11 +106,22 @@ register_type(
 )
 ```
 
-- `type_id_of(model)` — the id written on save: an explicit `type_id`, a
-  `TYPE_ID` classvar, else the qualified name (nothing changes until you opt in).
+When you only need a stable id (no aliases/migration), a `TYPE_ID` classvar on
+the model is enough — no call needed. Call `register_type` at import time, next
+to the model.
+
+- `type_id_of(model)` — the id written on save: a registered `type_id`, a
+  `TYPE_ID` classvar, else the qualified name.
 - `resolve(type_id)` — the class on load: registry → alias → import by qualified
   name, so pre-registry payloads keep loading.
 - `migrate` runs on the raw dict before validation (field renames, defaults).
+
+**The one real caveat**: a qualified name is only loadable if the class is
+importable in the *new* process. A model defined in `__main__`, in a notebook
+cell, inside a function (`<locals>`), or built with `pydantic.create_model` is
+not — its id will not resolve on resume/replay. Give such a model an explicit
+`type_id` (and a real module to live in); `resolve`'s error names the id it
+could not find and points at `register`.
 
 This covers artifacts, commit operations and events — a whole session's state
 *and* its pending trigger queue — so an upgrade that renames/moves a model no
