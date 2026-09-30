@@ -242,7 +242,7 @@ it's trimmed from.
 
 **See it run**
 
-- [Examples](examples.md) — fourteen working applications you can run.
+- [Examples](examples.md) — twenty-three working applications you can run.
 - [Port matrix](port-matrix.md) — which classic LangGraph/CrewAI/DSPy pattern
   maps to which example.
 - [Design notes](design-notes/adaptive.md) — deeper rationale for the

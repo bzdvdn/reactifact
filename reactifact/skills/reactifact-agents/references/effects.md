@@ -47,6 +47,23 @@ call.effects.resume(question, resolution="approved")
 resolved question and calls `resume`. `reactifact.recipes.ApprovalGate` wraps
 the common "sign off before finalizing" shape.
 
+## Outbound side effects (outbox)
+
+Never do external I/O — send an email, call a webhook — inside a produce. Record
+the intent; a `Runtime(dispatcher=...)` performs it once after the commit:
+
+```python
+# not-run: illustrative
+call.effects.act("notify", key=f"notify:{order_id}:email", payload={"to": email})
+```
+
+`act` writes a `PendingAction` under the stable id `action:{key}` (so retries and
+merges never create a second one), and returns `None` if it already exists. The
+dispatcher gets `(context, action)`; mark it done by having the runtime record
+`dispatched` (or have the dispatcher raise — the action is marked `failed`).
+Replay reads the record back without re-sending it. See
+`reactifact-observability` for the replay side.
+
 ## Reading current effects
 
 `call.effects` is available inside a produce. Outside it, the module-level

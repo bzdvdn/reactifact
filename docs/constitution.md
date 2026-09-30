@@ -1742,6 +1742,20 @@ for the same source.
 
 Artifacts should have stable identities. In core, this is unconditional: `SourceRef.stable_id()` derives an id from `sha1(source_id:locator)`, so re-running a Source against the same locator resolves to the same Artifact rather than creating a duplicate.
 
+Idempotency covers the *state*, not the environment: a repeated produce
+would still re-send an email. The shipped split is an **outbox**. A produce
+records an intent artifact — `self.effects.act(kind=..., key=..., payload=...)`
+creates a `PendingAction` under the stable id `action:{key}` — and the runtime
+performs it *after the commit*, once per id, through `Runtime(dispatcher=...)`.
+The produce never does the I/O itself. Replay reconstructs the record without
+running the runtime (so it never re-sends); a retried produce re-derives the
+same id and `effects.act` returns `None`; two branches that independently reach
+the same action share the id and merge to one intent (§40) — the `dispatched`
+side wins, so a merge never re-sends an already-sent action — while divergent
+payloads under one id are an explicit `MergeConflict`. The dispatcher receives
+`idempotency_key`, so the residual at-least-once window (crash after the send,
+before the `dispatched` commit) is closed on the external system's side.
+
 ---
 
 # 43. Staleness
@@ -2083,6 +2097,11 @@ Why did the agent produce this answer?
 ```
 
 to be answered concretely.
+
+Replay is **state reconstruction, not re-execution**: it walks the commit
+chain and rebuilds the Context without running agents, so outbound side effects
+recorded as `PendingAction`s (§42) are read back as state, not re-sent.
+`replay_summary` reports their dispatched/pending/failed counts.
 
 ---
 
@@ -3110,6 +3129,7 @@ Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Structured-data calculation | §29, §33, §67 | implemented (`CSVSource → Spreadsheet → Calculation`) |
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
 | Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
+| Outbound side effects (outbox) | §42, §55, §60 | implemented — `effects.act(kind=..., key=..., payload=...)` records a `PendingAction` intent under a stable id; `Runtime(dispatcher=...)` performs it after the commit, once per id, and records `dispatched`/`failed` as state; `runtime.flush_pending_actions()` drains after a `merge()`; replay reconstructs the record without re-sending; `replay` CLI reports dispatched/pending/failed |
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent produces); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
@@ -3147,8 +3167,10 @@ Plus canonical ports of classic agent-framework patterns (`reflection`,
 `map_reduce`, `supervisor`, `summarize`, `time_travel`, `plan_execute`, each
 runnable offline as `python -m examples.<name>.main`; see
 [port-matrix](en/port-matrix.md)), `forklab` (branch/merge, §39-40), `ledger`
-(reactive recompute, §42-44), and `adaptive` (hybrid scheduling) — fifteen
-example applications total.
+(reactive recompute, §42-44), `outbox` (outbound side effects as
+`PendingAction`s, §42), and `adaptive` (hybrid scheduling). The repository ships
+**twenty-three** example applications under `examples/` in total — the full
+catalog is in [Examples](en/examples.md).
 
 Roadmap direction: domain connectors as examples, the evidence graph is now in
 the trace UI (§34, §54), an evaluation harness landed (§56), the testing

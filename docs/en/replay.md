@@ -89,5 +89,11 @@ python -m reactifact replay sessions.sqlite3 --session demo --diagram
 ```
 
 Prints the replayed state summary (`version · artifacts · relations · pending
-questions`, breakdown by artifact type) and, with `--diagram`, the provenance
-graph as Mermaid. `--version` replays to a specific commit.
+questions`, breakdown by artifact type; a `dispatched / pending / failed` line
+when the run used the outbox, §42) and, with `--diagram`, the provenance graph
+as Mermaid. `--version` replays to a specific commit.
+
+Replay is **state reconstruction, not re-execution**: it never runs the runtime,
+so a recorded `PendingAction` (an email, a webhook) is read back as state and
+never re-sent. That is the point — you can explain *why* the agent acted without
+acting again.

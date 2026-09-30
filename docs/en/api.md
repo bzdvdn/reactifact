@@ -99,12 +99,14 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput` | tool abstraction and registration |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `self.effects.resume(...)` |
+| `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the produce; `None` if it already exists |
+| `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 
 ## Runtime
 
 | Symbol | Role |
 | --- | --- |
-| `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69) |
+| `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69); `dispatcher=async (context, action)` drains the `PendingAction` outbox after each commit (once per stable id, keeping the turn alive until it is empty); `on_dispatch_error(action, exc)` fires when the dispatcher raises (the action is marked `failed` and the exception propagates); `flush_pending_actions()` drains without a generation (e.g. after `merge()`) |
 | `ProduceCall.request` | the turn's request mapping inside a produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
 | `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | run limits (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) and the final outcome/usage stats. Token/cost limits count LLM usage without a tracer; cost needs an injected `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | the wire format of "something changed" — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
@@ -143,7 +145,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `verify_run(build, *, recording=None, repeat=2)` | runs `build(resources) -> Context` `repeat` times under a recorded model **and** strict ids (`counter_ids`), returns a `ReproReport`; `ok` is False when the `context_hash` differs (real nondeterminism) |
 | `counter_ids()` | a deterministic `id_factory` (`Model:0000`, `Model:0001`, …) for `RuntimeResources(id_factory=…)` — makes artifacts created without an explicit id reproducible |
 | `replay_context(store, session_id, version=None)` | reconstructs a saved session's state at a commit |
-| `replay_summary(context)` | compact state summary for the `replay` CLI |
+| `replay_summary(context)` | compact state summary for the `replay` CLI — includes `dispatched_actions` / `pending_actions` / `failed_actions` (replay never re-sends them) |
 
 ## Branching (reactifact.context + reactifact.branching, §39-§40)
 

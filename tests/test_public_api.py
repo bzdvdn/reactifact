@@ -40,6 +40,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "MergeConflict",
             "Message",
             "Patch",
+            "PendingAction",
             "PendingQuestion",
             "Produce",
             "ProduceCall",

@@ -243,7 +243,7 @@ print("supported_by:", evidence.data.text)  # провенанс, который
 
 **Посмотреть в деле**
 
-- [Examples](examples.md) — четырнадцать работающих приложений, которые можно запустить.
+- [Examples](examples.md) — двадцать три работающих приложения, которые можно запустить.
 - [Port matrix](port-matrix.md) — какой классический паттерн LangGraph/CrewAI/DSPy
   соответствует какому примеру.
 - [Design notes](design-notes/adaptive.md) — более глубокое обоснование

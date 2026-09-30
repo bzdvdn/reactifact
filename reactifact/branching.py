@@ -33,6 +33,7 @@ from .artifacts import Artifact
 from .checkpoints import KVBackend
 from .commit import Commit
 from .context import Context
+from .interrupt import PendingAction
 from .patches import Create, Delete, Link, Operation, Update
 
 
@@ -110,10 +111,22 @@ def merge_context_from(target: Context, other: Context) -> None:
 
 
 def _data_sig(artifact: Artifact[Any] | None) -> Any:
-    """Canonical signature of an artifact's current data (None = absent)."""
+    """Canonical signature of an artifact's current data (None = absent).
+
+    A `PendingAction`'s dispatch bookkeeping (`status`/`dispatched_at`/`error`)
+    is *not* part of the intent: two branches that recorded the same action
+    differ only in whether one had already sent it, which must converge rather
+    than raise `MergeConflict`. A change to `kind`/`idempotency_key`/`payload`
+    is still a real divergence.
+    """
     if artifact is None:
         return None
-    return artifact.data.model_dump(mode="json")
+    data = artifact.data
+    if isinstance(data, PendingAction):
+        return data.model_dump(
+            mode="json", include={"kind", "idempotency_key", "payload"}
+        )
+    return data.model_dump(mode="json")
 
 
 def _kind_short(signature: Any) -> str:
@@ -156,6 +169,20 @@ def merge_contexts(
         st = _data_sig(target_art)
         so = _data_sig(other_art)
         if st == so:
+            # Same intent. `PendingAction` dispatch bookkeeping is excluded
+            # from the signature (§42), so if either side already dispatched
+            # it, the `dispatched` side wins — a merge must never resurrect an
+            # already-sent action into `pending` and re-send it (whichever
+            # branch happens to be the merge target).
+            if (
+                target_art is not None
+                and other_art is not None
+                and isinstance(target_art.data, PendingAction)
+                and target_art.data.status != "dispatched"
+                and other_art.data.status == "dispatched"
+            ):
+                pending[artifact_id] = other_art.data.model_copy(deep=True)
+                operations.append(Update(artifact_id, other_art.data))
             continue
         if st == sb or so == sb:
             if so == sb:

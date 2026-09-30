@@ -46,6 +46,25 @@ if handle is None:
 self.effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
+## Внешние эффекты: `act` (outbox)
+
+`create`/`update`/`link`/`ask` меняют *состояние*. Письмо, webhook, деплой
+меняют *мир* и не должны повториться при replay или retry. Запишите намерение —
+runtime выполнит его после коммита:
+
+```python
+self.effects.act(
+    "notify", key=f"notify:{order_id}:email", payload={"to": email}
+)
+```
+
+`act` создаёт `PendingAction` под стабильным id `action:{key}` (поэтому retry
+или ветка, пришедшая к тому же действию, не создают второе). Produce
+**не** выполняет I/O сам: передайте `Runtime(dispatcher=...)`, и runtime
+вызовет его один раз на закоммиченное намерение, записав `dispatched`/`failed`.
+Полный диспетчер — в [паттернах — Outbox](patterns.md#outbox-внешние-side-effects),
+контракт at-least-once — в [durability](durability.md).
+
 ## Три слоя
 
 | Слой | Что это | Кто пишет |

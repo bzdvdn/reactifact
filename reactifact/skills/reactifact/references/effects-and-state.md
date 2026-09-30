@@ -92,3 +92,11 @@ Given the same seeds and the same LLM responses, a run is reproducible: the
 runtime is a fixpoint over a set of enabled triggers. For tests and evals this
 means you can record LLM calls once (`ReplayLLM`) and assert on the *artifacts*
 afterwards — see the `reactifact-testing` and `reactifact-eval` skills.
+
+## Outbound side effects
+
+State changes replay; the *world* does not. Never send an email or call a
+webhook inside a produce — record it with `effects.act(kind, key=..., payload=...)`
+and let `Runtime(dispatcher=...)` perform it once after the commit. The stable id
+(`action:{key}`) makes retries and merged branches converge on one action, and
+state replay never re-sends it.

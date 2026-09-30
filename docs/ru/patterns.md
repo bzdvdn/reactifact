@@ -13,6 +13,7 @@
 | Возвращай `None` при отсутствии модели / неудачном парсинге, показывай честный fallback | Подставляй «уверенно звучащий» канонический ответ при сбое LLM-вызова | Детерминированная работа остаётся детерминированной; сбой генерации должен быть виден, а не замаскирован |
 | Держи `next_status`/скоринг чистыми функциями `(context, key) -> ...` | Подмешивай LLM-вызовы или побочные эффекты в `StatusMachine.next_status` | Чистые функции тестируются без runtime |
 | Используй `Runtime(isolate_errors=True, on_agent_error=...)` только когда осознанно решил, что частичный прогресс приемлем | Ставь `isolate_errors` по умолчанию, чтобы заглушить исключения | По умолчанию — fail-loud (§69); изоляция ошибок — явное продуктовое решение, а не страховка |
+| Записывай внешний side effect через `effects.act(...)`, а I/O делай в `Runtime(dispatcher=...)` | Отправляй письмо / дёргай webhook прямо в `produce()` | Намерение — закоммиченное состояние: replay, retry и merge не могут пере-отправить его (§42) |
 
 Каждая строка ссылается на полный паттерн ниже.
 
@@ -52,6 +53,67 @@ return None
 (`if context.get(id) is not None: return None`) не давал produce спрашивать
 снова, пока вопрос ещё не отвечен — тот же идиом идемпотентности, что и у
 `effects.create_once`.
+
+## Outbox: внешние side effects
+
+Produce никогда не должен сам выполнять внешний I/O — отправлять письмо,
+дёргать webhook, деплоить. Он записывает **намерение**, а runtime выполняет его
+один раз после коммита намерения:
+
+```python
+from reactifact import PendingAction, Runtime
+
+
+class Notify(Produce[Receipt]):
+    artifact_type = Receipt
+
+    async def produce(self, call: ProduceCall) -> None:
+        order = call.trigger
+        # стабильный ключ из содержания -> идемпотентные перезапуски и merge
+        self.effects.act(
+            "notify",
+            key=f"notify:{order.data.id}:email",
+            payload={"to": order.data.email, "order": order.data.id},
+        )
+        self.effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
+        return None
+
+
+async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
+    if action.data.kind == "notify":
+        await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
+
+
+runtime = Runtime(ctx, agents=[Notifier()], dispatcher=dispatch)
+```
+
+Runtime дренирует каждый закоммиченный, но ещё не отправленный `PendingAction`
+после коммита поколения (и держит ход живым, пока outbox не пуст), помечая
+каждый `dispatched` — или `failed` (и пробрасывая исключение), если диспетчер
+упал. Диспетчер должен быть идемпотентен по `action.data.idempotency_key`,
+потому что возобновление — at-least-once ([durability](durability.md)).
+
+Почему это надёжно:
+
+- **Replay** реконструирует состояние, не запуская runtime, поэтому никогда не
+  пере-отправляет; CLI `replay` печатает счётчики `dispatched / pending /
+  failed`.
+- **Retry** пересобирает тот же id, поэтому `effects.act` возвращает `None` —
+  второго намерения нет. Два produce в одной генерации (snapshot isolation)
+  оба не видят намерения, но outbox дедуплицирует на drain.
+- **Ветки**, независимо пришедшие к одному действию, делят id и merge'атся в
+  одно намерение; сторона со статусом `dispatched` побеждает, какой бы из
+  веток ни была цель merge, поэтому merge никогда не пере-отправляет уже
+  отправленное. Расходящаяся payload под одним id поднимает `MergeConflict`.
+- **Merge — чистое состояние**: он никогда не диспатчит. Вызовите
+  `await runtime.flush_pending_actions()` после merge, если новый триггер не
+  запустит runtime.
+- **Эксплуатация**: фонового relay нет — следующий `arun()` дренирует outbox, а
+  `flush_pending_actions()` дренирует его без поколения (вызывайте на старте и
+  периодически своим таймером). Падающий диспетчер помечает действие `failed`
+  (увеличивая `attempts`), вызывает `Runtime(on_dispatch_error=...)` и
+  пробрасывает исключение; `retry_action(id)` возвращает его в очередь.
+  Backoff/retry-политика — на стороне приложения или диспетчера.
 
 ## Инструментальные агенты: LLM + инструменты (блокирующий или HITL)
 

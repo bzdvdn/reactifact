@@ -32,6 +32,7 @@ from pydantic import BaseModel
 
 from .audit import context_hash
 from .context import Context
+from .interrupt import PendingAction
 from .providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
@@ -258,12 +259,18 @@ def replay_summary(context: Context) -> dict[str, Any]:
     for artifact in artifacts:
         tname = artifact.data.__class__.__name__
         by_type[tname] = by_type.get(tname, 0) + 1
+    action_status: dict[str, int] = {}
+    for action in context.list_artifacts(PendingAction):
+        action_status[action.data.status] = action_status.get(action.data.status, 0) + 1
     return {
         "version": context.version,
         "artifacts": len(artifacts),
         "by_type": by_type,
         "relations": len(context.relations()),
         "pending_questions": len(context.pending_questions()),
+        "pending_actions": action_status.get("pending", 0),
+        "dispatched_actions": action_status.get("dispatched", 0),
+        "failed_actions": action_status.get("failed", 0),
     }
 
 

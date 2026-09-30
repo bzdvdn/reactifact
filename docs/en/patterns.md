@@ -13,6 +13,7 @@ each is concretely instantiated in `examples/`.
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
 | Keep `next_status`/scoring functions pure `(context, key) -> ...` | Mix LLM calls or side effects into a `StatusMachine.next_status` | Pure functions are unit-testable without a runtime |
 | Use `Runtime(isolate_errors=True, on_agent_error=...)` only when you've decided partial progress is acceptable | Reach for `isolate_errors` as a default to silence exceptions | Default is fail-loud (§69) — isolating errors is an explicit product decision, not a safety net |
+| Record an outbound side effect with `effects.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `produce()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
 
 Each row links to the fuller pattern below.
 
@@ -52,6 +53,66 @@ ask), pass `id=` to `effects.ask(...)` so a guard
 (`if context.get(id) is not None: return None`) can stop the produce from
 asking again while the question is still unanswered — the same idempotency
 idiom as `effects.create_once`.
+
+## Outbox: external side effects
+
+A produce should never perform external I/O itself — send an email, call a
+webhook, deploy. It records the **intent** and the runtime performs it, once,
+after the intent is committed:
+
+```python
+from reactifact import PendingAction, Runtime
+
+
+class Notify(Produce[Receipt]):
+    artifact_type = Receipt
+
+    async def produce(self, call: ProduceCall) -> None:
+        order = call.trigger
+        # stable, content-derived key -> idempotent re-runs and merges
+        self.effects.act(
+            "notify",
+            key=f"notify:{order.data.id}:email",
+            payload={"to": order.data.email, "order": order.data.id},
+        )
+        self.effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
+        return None
+
+
+async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
+    if action.data.kind == "notify":
+        await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
+
+
+runtime = Runtime(ctx, agents=[Notifier()], dispatcher=dispatch)
+```
+
+The runtime dispatches every committed-but-undispatched `PendingAction` after a
+generation commits (and keeps the turn alive until the outbox is empty), marking
+each `dispatched` — or `failed` (then re-raising) if the dispatcher throws. A
+failing dispatcher must be idempotent on `action.data.idempotency_key`, because
+resume is at-least-once ([durability](durability.md)).
+
+Why it holds up:
+
+- **Replay** reconstructs state without running the runtime, so it never
+  re-sends; the `replay` CLI reports `dispatched / pending / failed` counts.
+- **Retries** re-derive the same id, so `effects.act` returns `None` — no second
+  intent. Two produces in one generation (snapshot isolation) both see nothing,
+  but the outbox dedupes at drain.
+- **Branches** that independently reach the same action share the id and merge
+  to one intent; a `dispatched` side wins whichever branch is the merge target,
+  so a merge never re-sends an already-sent action. Divergent payloads under one
+  id raise `MergeConflict`.
+- **Merge is pure state**: it never dispatches. Call
+  `await runtime.flush_pending_actions()` after a merge if no new trigger will
+  run.
+- **Operations**: there is no background relay — the next `arun()` drains the
+  outbox, and `flush_pending_actions()` drains it without a generation (call it
+  on startup and periodically from your own timer). A failing dispatcher marks
+  the action `failed` (bumping `attempts`), fires
+  `Runtime(on_dispatch_error=...)`, and re-raises; `retry_action(id)` re-arms
+  it. Backoff/retry policy belongs to the application or the dispatcher.
 
 ## Tool agents: LLM + tools (blocking or HITL)
 

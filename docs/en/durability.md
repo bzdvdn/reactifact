@@ -63,10 +63,24 @@ async def summarize(call):
 
 ## What is *not* covered
 
-- **External side effects.** An email, a file write, a third-party API call
-  inside a produce can be repeated by a retry. The framework cannot make those
-  exactly-once — guard them with your own idempotency key. (`call.request` is
-  available for a correlation id; see `reactifact.request`.)
+- **External side effects inside a produce.** An email, a file write, or a
+  third-party API call made *directly* in a produce can be repeated by a retry.
+  Do not do that — record an intent instead: `self.effects.act(kind=..., key=...,
+  payload=...)` writes a `PendingAction` and `Runtime(dispatcher=...)` performs
+  it once after the intent commits (see the outbox pattern in
+  [Patterns](patterns.md#outbox-external-side-effects)). The framework still
+  cannot make the I/O *itself* exactly-once — the dispatcher must be idempotent
+  on `idempotency_key` (passed through in `action.data`), which closes the
+  residual at-least-once window. (`call.request` is available for a correlation
+  id; see `reactifact.request`.)
+- **No background relay.** The framework never runs a process that keeps
+  retrying the outbox on its own: the next `arun()` drains committed actions,
+  and `flush_pending_actions()` drains them without a generation — call it on
+  startup and periodically (in your app's own timer) so an action committed
+  just before a crash is not stranded. Retry policy is the application's: a
+  failing dispatcher marks the action `failed` (bumping `attempts`), fires
+  `Runtime(on_dispatch_error=...)` if set, and re-raises; `context.retry_action(
+  id)` re-arms it.
 - **In-flight work.** A produce that was mid-flight at the crash is simply
   re-run; only committed generations are durable.
 - **Budgets reset per run.** `Budget` counters (`max_runs`, `max_seconds`) are
@@ -76,6 +90,31 @@ async def summarize(call):
   is saved once at the end of a turn, so a crash mid-turn rolls the whole turn
   back and re-runs it. `per_commit` (default) saves at every generation boundary
   instead.
+
+## Outbox in production
+
+The outbox primitive is safe by construction, but it is a **library feature,
+not a delivery service**: it runs no relay and invents no retry policy. To ship
+outbound effects (email, webhooks, payments) in production you own four things:
+
+1. **An idempotent dispatcher.** Pass `action.data.idempotency_key` to the
+   external system so the at-least-once window (a crash between the send and the
+   `dispatched` commit) is closed on the far side. Never mint a new key on a
+   retry.
+2. **A drain.** Call `flush_pending_actions()` on startup and periodically from
+   your own timer, so an action committed just before a crash is not stranded.
+   The next `arun()` drains too — but only if a turn actually runs.
+3. **A retry policy.** A failing dispatcher marks the action `failed` (bumping
+   `attempts`) and re-raises; wrap your dispatcher with your own retry/backoff,
+   and/or hook `Runtime(on_dispatch_error=...)` to alert and
+   `context.retry_action(id)` to re-arm. Backoff is deliberately not in the
+   runtime.
+4. **Observability.** Query `context.list_artifacts(PendingAction)` (or the
+   `replay` CLI) for `failed` and long-pending actions and alert on them.
+
+With those four in place it is production-ready; if you want the framework
+itself to keep retrying with no app timer, that is a broker/relay — out of scope
+by design (§75). `examples/outbox` shows the dispatcher-level retry wrapper.
 
 ## Schema evolution
 

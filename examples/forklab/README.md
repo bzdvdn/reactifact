@@ -85,3 +85,7 @@ The same pattern is a natural fit for a real hypothesis lab: `medic-lab` today
 tag-routes hypotheses via `hypothesis_id`; it could be rewritten on top of
 `branch()` so each hypothesis is a genuine fork, and the report merges the
 surviving findings (§39).
+
+See also `examples/outbox`: the same branch/merge, but the thing that merges is
+an outbound side effect that must fire exactly once (`effects.act(...)` a
+`PendingAction`, then `Runtime(dispatcher=...)`, §42).

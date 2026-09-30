@@ -1,6 +1,6 @@
 # Examples
 
-Sixteen working applications ship in `examples/` (in-repo, not packaged). They
+Twenty-three working applications ship in `examples/` (in-repo, not packaged) — the ones below, the canonical ports and `llm_ladder`. They
 are the reference implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
 examples are split into a `produce/` package (stages) + thin
@@ -201,6 +201,24 @@ branch/merge.
 
 ```bash
 uv run python -m examples.ledger.main
+```
+
+## `outbox` — one intent, one send (§42)
+
+**What it shows:** an external side effect (a notification) recorded as
+`PendingAction` *state* by the produce and performed by `Runtime(dispatcher=...)`
+only after the commit — so replay, retries and merged branches reconstruct the
+decision without repeating the action. Seven cases, all offline and deterministic
+(§67): commit→dispatch, re-derivation (stable key → no resend), two producers in
+one generation (drain dedupes), two merged branches (merge is clean, delivery
+once), replay (state rebuilt, nothing re-sent), a failing dispatcher
+(`failed` is state → `retry_action` re-arms), and an app-owned retry wrapper
+around the dispatcher (backoff lives in the app). The honest caveat — delivery
+is still at-least-once, so the dispatcher must honor `idempotency_key` — is
+stated rather than hidden. No LLM.
+
+```bash
+.venv/bin/python -m examples.outbox.main
 ```
 
 ## `fintech_audit` — auditable, reproducible answer

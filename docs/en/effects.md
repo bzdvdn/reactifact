@@ -47,6 +47,25 @@ surprise:
 self.effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
+## Outbound side effects: `act` (the outbox)
+
+`create`/`update`/`link`/`ask` change *state*. An email, a webhook, a deploy
+changes the *world* and must not be repeated by a replay or retry. Record the
+intent and let the runtime perform it after the commit:
+
+```python
+self.effects.act(
+    "notify", key=f"notify:{order_id}:email", payload={"to": email}
+)
+```
+
+`act` creates a `PendingAction` under the stable id `action:{key}` (so a retry
+or a branch that reaches the same action produces no second one). The produce
+must **not** do the I/O; pass `Runtime(dispatcher=...)` and the runtime calls it
+once per committed intent, recording `dispatched`/`failed`. See
+[patterns — Outbox](patterns.md#outbox-external-side-effects) for the full
+dispatcher, and [durability](durability.md) for the at-least-once contract.
+
 ## The three-layer picture
 
 | Layer | What it is | Who writes it |

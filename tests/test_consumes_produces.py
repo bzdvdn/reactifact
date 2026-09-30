@@ -106,7 +106,7 @@ def test_create_of_an_undeclared_type_is_rejected_even_without_also_creates():
     ctx = Context()
     runtime = Runtime(ctx, agents=[UndeclaredMultiAgent()])
     ctx.create(Input(text="hello"))
-    with pytest.raises(ValueError, match="not declared in produces"):
+    with pytest.raises(ValueError, match="not declared in produces.*also_creates"):
         asyncio.run(runtime.arun())
 
 

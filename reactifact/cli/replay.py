@@ -35,6 +35,16 @@ async def _cmd_replay(args: argparse.Namespace) -> int:
         f"artifacts: {summary['artifacts']} · relations: {summary['relations']} · "
         f"pending questions: {summary['pending_questions']}"
     )
+    if (
+        summary["dispatched_actions"]
+        or summary["pending_actions"]
+        or summary["failed_actions"]
+    ):
+        print(
+            f"actions: {summary['dispatched_actions']} dispatched · "
+            f"{summary['pending_actions']} pending · "
+            f"{summary['failed_actions']} failed"
+        )
     for tname, count in sorted(summary["by_type"].items()):
         print(f"  {tname}: {count}")
     if args.verify is not None or args.hash:

@@ -19,6 +19,7 @@
 | Plan-and-execute (канонический порт) | LangChain/AutoGPT | `recipes.PlanExecute` — рецепт владеет порядком/гейтингом/идемпотентным re-entry/детекцией завершения (поддерживает несколько целей одновременно), домен даёт `plan`/`execute_step`/`finish` | `plan_execute` (`main.py` вручную, `main_recipe.py` на рецепте) |
 | Eval-driven разработка (DSPy) | DSPy | многоуровневые метрики `reactifact.eval` (§56) | `examples` + тесты |
 | Бюджет инструментов / честность сбоя | — | `Budget` + детерминированные фолбэки, пути `None` (§59) | `devops`, `repair` |
+| Внешние side effects / идемпотентная доставка (outbox) | Temporal, Celery | `effects.act(...)` записывает `PendingAction`; `Runtime(dispatcher=...)` выполняет его один раз после коммита (§42) | `outbox` |
 
 Всё выше работает **офлайн** (детерминированные фолбэки) и, с моделью через
 `.env`, использует настоящий LLM — см. `docs/ru/effects.md` о ментальной модели

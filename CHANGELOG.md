@@ -30,9 +30,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   the runtime stays on `httpx` + FastAPI. The `examples/a2a` app demonstrates it
   end to end (serve, call directly, schedule as a node, HITL) with no LLM or
   network.
+- **Outbox for outbound side effects.** A produce no longer performs external
+  I/O (a notification, a webhook, a deploy) directly:
+  `effects.act(kind=..., key=..., payload=...)` records a `PendingAction`
+  intent under a stable id (`action:{key}`), and `Runtime(dispatcher=...)`
+  performs every committed-but-undispatched action **after** the commit — once
+  per stable id, recording `dispatched` (or `failed`, then re-raising) as state.
+  `flush_pending_actions()` drains it without a generation (e.g. after
+  `merge()`); the runtime keeps a turn alive until the outbox is empty. Replay
+  reconstructs the record without running the runtime, so it never re-sends; a
+  retried produce re-derives the same id and creates no second intent; two
+  branches that reach the same action share the id and merge to one — dispatch
+  bookkeeping (`status`/`dispatched_at`/`error`) is excluded from the three-way
+  merge signature, so a mixed dispatched/pending pair converges instead of
+  raising `MergeConflict` — and the `dispatched` side wins whichever branch is
+  the merge target, so a merge never re-sends an already-sent action — while a
+  changed `kind`/`key`/`payload` still conflicts. `PendingAction` and `Context.pending_actions()`/
+  `mark_dispatched()`/`mark_failed()`/`retry_action()` are exported;
+  `replay_summary` and `python -m reactifact replay` report
+  `dispatched`/`pending`/`failed` action counts. Delivery remains at-least-once
+  (a crash between the send and the `dispatched` commit re-runs it), so the
+  dispatcher must honor `idempotency_key` — stated, not hidden. The offline
+  `examples/outbox` demo walks seven cases: commit→dispatch, re-derivation,
+  same-generation duplicate, merged branches, replay, failure→retry, and an
+  app-owned retry wrapper around the dispatcher. A failed dispatch bumps
+  `PendingAction.attempts` and fires `Runtime(on_dispatch_error=action, exc)`
+  before re-raising; `retry_action` resets `attempts`. The framework runs **no
+  background relay** — the next `arun()` or an explicit
+  `flush_pending_actions()` drains the outbox, and retry/backoff policy stays
+  with the application (deliberately not a workflow engine).
 
 ### Docs
 
+- `patterns.md` (EN + RU) gains an **Outbox: external side effects** recipe,
+  and `effects.md`/`durability.md`/`replay.md`/`api.md` (EN + RU) document
+  `effects.act`/`PendingAction`/`Runtime(dispatcher=...)`; the
+  `reactifact`/`reactifact-agents`/`reactifact-observability` skills are
+  updated too. `durability.md` (EN + RU) also gains an **Outbox in production**
+  checklist (idempotent dispatcher, periodic drain, app-owned retry,
+  observability), stating that the framework ships no relay by design. The example count is now stated once (**twenty-three**) across
+  `examples.md`, `index.md` and `quickstart.md` (EN + RU) and the constitution's
+  demo list, replacing the disagreeing subset counts (14/15/16/17).
 - `durability.md` (EN + RU) states plainly that artifact types do **not** need
   registering — the persisted id is the qualified name by default, resolved by
   import on load. It lists the only three reasons to `register_type` (rename/

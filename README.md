@@ -245,6 +245,7 @@ by hand. Run it yourself: `uv run python -m examples.ledger.main`.
 - **Provenance** — every derived artifact links to what produced it
   (`Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→ Doc`).
 - **HITL** — humans as `effects.ask(...)` → `PendingQuestion`, answered via `effects.resume(...)` like any agent.
+- **Outbox** — outbound side effects as `effects.act(...)` → `PendingAction`, performed once *after* the commit by `Runtime(dispatcher=...)`; safe across replay, retries and merged branches.
 
 ## In the box
 
@@ -282,7 +283,7 @@ uv run python ./examples/devops/web.py         # HITL ops assistant + trace dash
 ```
 
 Classic-pattern ports run as one-liners too:
-`python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute,adaptive,ledger}.main`.
+`python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute,adaptive,ledger,outbox}.main`.
 
 Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
 — `examples/quickstart.ipynb` covers the four `quick` cases (`agent`/`rag`/`tools_agent`/`chat_agent`), offline by default.
@@ -297,6 +298,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
 - `chat` — minimal offline single-model multi-turn conversation (`Conversation` + bounded `ChatMemory`).
 - `forklab` — deterministic branch & merge: two strategies on their own forks, three-way merge.
 - `ledger` — offline proof of reactive recompute: edit one fact, only its real `Consume`rs re-run.
+- `outbox` — one intent, one send: `effects.act(...)` + `Runtime(dispatcher=...)`, safe across replays, retries and merged branches (§42).
 - `llm_ladder` — the workflow from one LLM call to state-changing patches (3 levels).
 - `adaptive` — hybrid scheduler: rule filters + deterministic rank + LLM tie-break + `rank_limit`.
 - `{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute}` — canonical ports (see [port-matrix](docs/en/port-matrix.md)).

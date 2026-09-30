@@ -108,7 +108,10 @@ tree/commit chain for branching and time travel.
   replays it without the network, raising `ReplayMiss` on divergence.
   `replay_summary(context)` reports what a run would replay.
 - `python -m reactifact replay <sessions.sqlite3>` does a deterministic state
-  replay of a saved session.
+  replay of a saved session. It never re-runs the runtime, so recorded outbound
+  side effects (`PendingAction`, dispatched by `Runtime(dispatcher=...)`) are
+  read back — never re-sent; the summary prints `dispatched / pending / failed`
+  action counts.
 - Branching forks a session's state (`BranchStore` over a KV backend);
   `python -m reactifact branch <path> <session> <action>` manages forks.
 

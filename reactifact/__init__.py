@@ -29,7 +29,7 @@ from .consume import Consume, consume
 from .context import Context, View
 from .effects import Effects, Handle
 from .events import Event, EventType
-from .interrupt import PendingQuestion
+from .interrupt import PendingAction, PendingQuestion
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
 from .produce import Produce, ProduceCall, produce
 from .providers import (
@@ -73,6 +73,7 @@ __all__ = [
     "Message",
     "MergeConflict",
     "Patch",
+    "PendingAction",
     "PendingQuestion",
     "Produce",
     "ProduceCall",

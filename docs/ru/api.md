@@ -103,12 +103,14 @@ reactifact всё ещё pre-1.0 (`0.13.x`), но не `rc` — поверхно
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput` | абстракция и регистрация инструментов |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `self.effects.resume(...)` |
+| `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
+| `PendingAction` | записанный внешний side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); выполняется один раз через `Runtime(dispatcher=...)`, затем `dispatched` / `failed` (`retry_action` возвращает в очередь) |
 
 ## Runtime
 
 | Символ | Роль |
 | --- | --- |
-| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69) |
+| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69); `dispatcher=async (context, action)` дренирует outbox `PendingAction` после каждого коммита (один раз на стабильный id, удерживая ход живым, пока outbox не пуст); `on_dispatch_error(action, exc)` срабатывает, когда диспетчер падает (действие помечается `failed`, исключение пробрасывается); `flush_pending_actions()` дренирует без поколения (например, после `merge()`) |
 | `ProduceCall.request` | request-маппинг хода внутри produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
 | `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | лимиты запуска (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) и итог/статистика usage. Лимиты токенов/стоимости считают usage LLM без трейсера; для стоимости нужен инжектированный `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | проводной формат «что-то изменилось» — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
@@ -147,7 +149,7 @@ reactifact всё ещё pre-1.0 (`0.13.x`), но не `rc` — поверхно
 | `verify_run(build, *, recording=None, repeat=2)` | прогоняет `build(resources) -> Context` `repeat` раз под записанной моделью **и** строгими id (`counter_ids`), возвращает `ReproReport`; `ok=False`, если `context_hash` разошёлся (реальная недетерминированность) |
 | `counter_ids()` | детерминированный `id_factory` (`Model:0000`, `Model:0001`, …) для `RuntimeResources(id_factory=…)` — делает артефакты без явного id воспроизводимыми |
 | `replay_context(store, session_id, version=None)` | восстанавливает состояние сохранённой сессии на коммите |
-| `replay_summary(context)` | компактная сводка состояния для CLI `replay` |
+| `replay_summary(context)` | компактная сводка состояния для CLI `replay` — включает `dispatched_actions` / `pending_actions` / `failed_actions` (replay никогда их не пере-отправляет) |
 
 ## Ветвление (reactifact.context + reactifact.branching, §39-§40)
 

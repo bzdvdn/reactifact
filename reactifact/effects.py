@@ -216,6 +216,33 @@ class Effects:
             id=id,
         )
 
+    def act(
+        self,
+        kind: str,
+        *,
+        key: str,
+        payload: dict[str, Any] | None = None,
+        id: str | None = None,
+    ) -> Handle | None:
+        """Records an outbound side effect *intent* — a `PendingAction` (outbox).
+
+        Returns `None` if an action with the same id already exists (idempotent
+        re-run, §42). The produce must **not** perform the I/O itself: the
+        runtime dispatches pending actions via `Runtime(dispatcher=...)` after
+        the intent is committed, so replay/retry/merge cannot re-send it.
+
+        `key` is the stable idempotency key (derived from the action's content
+        and context, e.g. `f"notify:{order_id}:{channel}"`); the artifact id
+        defaults to `f"action:{key}"`, and `key` travels in the payload to the
+        external system.
+        """
+        from .interrupt import PendingAction
+
+        data = PendingAction(
+            kind=kind, idempotency_key=key, payload=dict(payload or {})
+        )
+        return self.create_once(data, id=id or f"action:{key}")
+
     def resume(self, question: Any, resolution: str) -> Effects:
         """Records the human answer on a `PendingQuestion` (HITL, §60)."""
         from datetime import UTC, datetime

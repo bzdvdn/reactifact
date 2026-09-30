@@ -19,6 +19,7 @@ a concrete example (`examples/`).
 | Plan-and-execute (canonical port) | LangChain/AutoGPT | `recipes.PlanExecute` — recipe owns ordering/gating/idempotent re-entry/completion (supports several concurrent goals), domain supplies `plan`/`execute_step`/`finish` | `plan_execute` (`main.py` hand-rolled, `main_recipe.py` on the recipe) |
 | Evaluation-driven dev (DSPy) | DSPy | `reactifact.eval` multi-level metrics (§56) | `examples` + tests |
 | Tool budget / honesty on failure | — | `Budget` + deterministic fallbacks, `None` paths (§59) | `devops`, `repair` |
+| Outbound side effects / idempotent delivery (outbox) | Temporal, Celery | `effects.act(...)` records a `PendingAction`; `Runtime(dispatcher=...)` performs it once after commit (§42) | `outbox` |
 
 Everything above runs **offline** (deterministic fallbacks) and, with a model
 via `.env`, uses the real LLM — see `docs/en/effects.md` for the mental model,

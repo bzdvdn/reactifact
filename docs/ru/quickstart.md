@@ -326,6 +326,6 @@ app.include_router(create_chat_router(assistant))
 - [Recipes](recipes.md) — строительные блоки, использованные на этой странице
   (`fan_out_sources`, `materialize_doc`, `find`), и те, что не использованы
   (`StatusMachine`, `WindowSummarizer`, `Skill`).
-- [Examples](examples.md) — все четырнадцать, с тем, чему конкретно учит каждый.
+- [Examples](examples.md) — все двадцать три, с тем, чему конкретно учит каждый.
 - [Port matrix](port-matrix.md) — если вы знаете LangGraph/CrewAI, какой
   пример соответствует какому знакомому паттерну.

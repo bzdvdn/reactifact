@@ -13,7 +13,7 @@ from .checkpoints import CheckpointBackend, FileBackend, KVBackend
 from .commit import Commit
 from .commit_log import CommitLog
 from .events import Event, EventType
-from .interrupt import PendingQuestion
+from .interrupt import PendingAction, PendingQuestion
 from .patches import (
     Create,
     Delete,
@@ -356,6 +356,67 @@ class Context:
             }
         )
         return self.update(question_id, updated)
+
+    # ---- Outbox: external side effects awaiting dispatch ----
+
+    def pending_actions(self) -> list[Artifact[PendingAction]]:
+        """Committed outbound actions the dispatcher has not performed yet (§42)."""
+        return [
+            a for a in self.list_artifacts(PendingAction) if a.data.status == "pending"
+        ]
+
+    def mark_dispatched(self, action_id: str) -> Artifact[PendingAction] | None:
+        """Records that an outbound action was performed (a regular patch).
+
+        Called by the runtime after the dispatcher returns; the `dispatched`
+        status is what stops a later generation or a replay from re-sending it.
+        """
+        artifact = self._artifacts.get(action_id)
+        if artifact is None or not isinstance(artifact.data, PendingAction):
+            return None
+        updated = artifact.data.model_copy(
+            update={
+                "status": "dispatched",
+                "dispatched_at": datetime.now(UTC),
+                "error": None,
+            }
+        )
+        return self.update(action_id, updated)
+
+    def mark_failed(
+        self, action_id: str, error: str | None = None
+    ) -> Artifact[PendingAction] | None:
+        """Records a failed dispatch (terminal; `retry_action` re-arms it).
+
+        A failing dispatcher propagates out of `arun()` (fail-loud, §69); this
+        keeps the failure visible as state (§59) rather than a bare exception,
+        and bumps `attempts` so a repeated failure is visible.
+        """
+        artifact = self._artifacts.get(action_id)
+        if artifact is None or not isinstance(artifact.data, PendingAction):
+            return None
+        updated = artifact.data.model_copy(
+            update={
+                "status": "failed",
+                "error": error,
+                "attempts": artifact.data.attempts + 1,
+            }
+        )
+        return self.update(action_id, updated)
+
+    def retry_action(self, action_id: str) -> Artifact[PendingAction] | None:
+        """Re-arms a `failed` action as `pending` (resetting `attempts`).
+
+        The retry policy is the application's (or the dispatcher's) — this just
+        puts the action back in the outbox so the next drain tries it again.
+        """
+        artifact = self._artifacts.get(action_id)
+        if artifact is None or not isinstance(artifact.data, PendingAction):
+            return None
+        updated = artifact.data.model_copy(
+            update={"status": "pending", "error": None, "attempts": 0}
+        )
+        return self.update(action_id, updated)
 
     def drain_events(self) -> list[Event]:
         """Drains and clears the event queue."""

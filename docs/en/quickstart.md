@@ -323,6 +323,6 @@ agents, more sources, more error paths. From here:
 - [Recipes](recipes.md) — the building blocks this page used
   (`fan_out_sources`, `materialize_doc`, `find`) plus the ones it didn't
   (`StatusMachine`, `WindowSummarizer`, `Skill`).
-- [Examples](examples.md) — all fourteen, with what each one specifically teaches.
+- [Examples](examples.md) — all twenty-three, with what each one specifically teaches.
 - [Port matrix](port-matrix.md) — if you know LangGraph/CrewAI, which example
   maps to which pattern you already know.
