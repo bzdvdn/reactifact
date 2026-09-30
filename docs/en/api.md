@@ -8,7 +8,7 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-reactifact is pre-1.0 (`0.13.x`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.14.x`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins every `__all__` listed here, so a new export has to be added deliberately
 (and documented on this page), never by accident.
@@ -106,13 +106,23 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69); `dispatcher=async (context, action)` drains the `PendingAction` outbox after each commit (once per stable id, keeping the turn alive until it is empty); `on_dispatch_error(action, exc)` fires when the dispatcher raises (the action is marked `failed` and the exception propagates); `flush_pending_actions()` drains without a generation (e.g. after `merge()`) |
+| `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69); `dispatcher=async (context, action)` drains the `PendingAction` outbox after each commit (once per stable id, keeping the turn alive until it is empty); `on_dispatch_error(action, exc)` fires when the dispatcher raises (the action is marked `failed` and the exception propagates); `flush_pending_actions()` drains without a generation (e.g. after `merge()`); `Budget.max_seconds` is a **hard** turn deadline (cancels the generation in flight) |
+| `Runtime.request_stop()` / `await ashutdown(timeout=…)` / `in_flight` | graceful shutdown: stop at the next generation boundary (`RunOutcome.STOPPED`; the current generation still commits); `ashutdown` waits, force-cancelling after `timeout` |
+| `reactifact.runtime.active_runs()` / `cancel_run(run_id)` | read-only snapshots of the process's in-flight turns (`RunInfo`) and targeted cancel — readiness/ops, in-process only |
 | `ProduceCall.request` | the turn's request mapping inside a produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
-| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | run limits (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) and the final outcome/usage stats. Token/cost limits count LLM usage without a tracer; cost needs an injected `Pricer` (`reactifact.pricing`) |
+| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | run limits (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) and the final outcome/usage stats (`RunOutcome` includes `budget_time_exceeded` and `stopped`). Token/cost limits count LLM usage without a tracer; cost needs an injected `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | the wire format of "something changed" — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | progress/announce channel consumed by web UIs |
 | `Scheduler` | filter → rank → LLM tie-break agent-selection policy, callable from the runtime each iteration (see [design notes](design-notes/adaptive.md)) |
 | `uncertainty_policy(...)` | builds the built-in hybrid `Scheduler` (filter → rank → LLM tie-break → top-k) |
+
+## Logging (`reactifact.logging`)
+
+| Symbol | Role |
+| --- | --- |
+| `configure_logging(level="INFO", *, json=False, stream=None)` | turn on correlated structured logs under `reactifact.*` — silent until called; `json=True` → one JSON object per line |
+| `get_logger(name)` | a logger that injects the turn's correlation fields (`run_id`/`session_id`/`generation`/`agent`/`request_id`) into every record |
+| `bind(**fields)` | add app correlation fields for a block (`tenant`, `user`, …) |
 
 ## Chat layer (reactifact.chat + reactifact.web)
 

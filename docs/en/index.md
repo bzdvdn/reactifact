@@ -228,6 +228,10 @@ it's trimmed from.
 - [Durability & resume](durability.md) — a session-backed run survives a
   process restart; what "at-least-once" means and how to make produces
   idempotent.
+- [Logging](observability.md#logging) — correlated structured logs
+  (`configure_logging()`); each line carries `run_id`/`session_id`/`agent`.
+- [Deadlines & shutdown](durability.md#deadlines-graceful-shutdown-in-flight-runs)
+  — hard `max_seconds`, `request_stop()`/`ashutdown()`, `active_runs()` readiness.
 - [Troubleshooting](troubleshooting.md) — "my agent didn't run" / "ran twice" /
   "the run stopped early" — organized by symptom, not by feature.
 - [Evaluation](eval.md) — multi-level scoring over the final `Context`

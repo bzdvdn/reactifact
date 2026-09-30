@@ -26,6 +26,16 @@ what changed between versions, and breaking entries are marked per the rule
 above. A few changes worth knowing if you're crossing them (see also
 [migrating.md](migrating.md) for porting from other frameworks):
 
+- **0.14.0** — behavior-visible (non-breaking) changes to know about:
+  - `Budget.max_seconds` is now a **hard** turn deadline: the runtime cancels
+    the generation in flight when it passes (a hung LLM call is actually
+    stopped) and ends the turn with `RunOutcome.BUDGET_TIME_EXCEEDED`; the
+    cancelled generation's trigger batch is left queued for a resume. Before,
+    the check only ran between generations, so a run could overshoot it.
+  - A new `RunOutcome.STOPPED` is reported when `Runtime.request_stop()` /
+    `ashutdown()` ends a run at a generation boundary.
+  - Logging is silent by default — nothing is emitted under `reactifact.*`
+    until `configure_logging()` is called.
 - **0.11.0** — behavior-visible (non-breaking) changes to know about:
   - `RunTrace.duration_ms` is now **milliseconds** (it carried raw
     `time.monotonic()` seconds before, so the dashboard showed `0 ms` and the

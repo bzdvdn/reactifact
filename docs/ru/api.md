@@ -9,7 +9,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.13.x`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
 поэтому новый экспорт добавляется осознанно (и документируется на этой
@@ -110,13 +110,23 @@ reactifact всё ещё pre-1.0 (`0.13.x`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69); `dispatcher=async (context, action)` дренирует outbox `PendingAction` после каждого коммита (один раз на стабильный id, удерживая ход живым, пока outbox не пуст); `on_dispatch_error(action, exc)` срабатывает, когда диспетчер падает (действие помечается `failed`, исключение пробрасывается); `flush_pending_actions()` дренирует без поколения (например, после `merge()`) |
+| `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69); `dispatcher=async (context, action)` дренирует outbox `PendingAction` после каждого коммита (один раз на стабильный id, удерживая ход живым, пока outbox не пуст); `on_dispatch_error(action, exc)` срабатывает, когда диспетчер падает (действие помечается `failed`, исключение пробрасывается); `flush_pending_actions()` дренирует без поколения (например, после `merge()`); `Budget.max_seconds` — **жёсткий** дедлайн хода (отменяет генерацию в полёте) |
+| `Runtime.request_stop()` / `await ashutdown(timeout=…)` / `in_flight` | graceful shutdown: остановка на границе генерации (`RunOutcome.STOPPED`; текущая генерация доигрывается); `ashutdown` ждёт ход, форс-отменяя по `timeout` |
+| `reactifact.runtime.active_runs()` / `cancel_run(run_id)` | read-only снимки активных ходов процесса (`RunInfo`) и точечная отмена — readiness/ops, только внутри процесса |
 | `ProduceCall.request` | request-маппинг хода внутри produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
-| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | лимиты запуска (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) и итог/статистика usage. Лимиты токенов/стоимости считают usage LLM без трейсера; для стоимости нужен инжектированный `Pricer` (`reactifact.pricing`) |
+| `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | лимиты запуска (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) и итог/статистика usage (`RunOutcome` включает `budget_time_exceeded` и `stopped`). Лимиты токенов/стоимости считают usage LLM без трейсера; для стоимости нужен инжектированный `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | проводной формат «что-то изменилось» — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | канал прогресса/announce, который потребляют web-UI |
 | `Scheduler` | политика выбора агента filter → rank → LLM tie-break, вызывается рантаймом на каждой итерации (см. [design notes](../en/design-notes/adaptive.md), пока только на английском) |
 | `uncertainty_policy(...)` | собирает встроенную гибридную политику `Scheduler` (filter → rank → LLM tie-break → top-k) |
+
+## Логи (`reactifact.logging`)
+
+| Символ | Роль |
+| --- | --- |
+| `configure_logging(level="INFO", *, json=False, stream=None)` | включает коррелированные структурные логи в `reactifact.*` — молчит, пока не вызван; `json=True` → по одному JSON-объекту на строку |
+| `get_logger(name)` | логгер, подмешивающий в каждый record поля корреляции хода (`run_id`/`session_id`/`generation`/`agent`/`request_id`) |
+| `bind(**fields)` | добавляет доменные поля корреляции на блок (`tenant`, `user`, …) |
 
 ## Чат-слой (reactifact.chat + reactifact.web)
 

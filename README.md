@@ -252,7 +252,12 @@ by hand. Run it yourself: `uv run python -m examples.ledger.main`.
 - **Deterministic by design** — calculations over structured data, honest `None`
   fallbacks instead of hallucinated answers; the model reasons, never "knows".
 - **Observability** — every run traces agent spans, reads/writes, LLM calls,
-  tokens: SQLite store + web dashboard, exportable to Langfuse/Postgres (async sinks).
+  tokens: SQLite store + web dashboard, exportable to Langfuse/Postgres (async sinks);
+  **correlated logs** (`configure_logging()`, silent until called) carry
+  `run_id`/`session_id`/`agent` on every line.
+- **Lifecycle** — `Budget.max_seconds` is a hard deadline (a hung LLM call is
+  cancelled); `request_stop()`/`ashutdown()` stop at a generation boundary
+  (`RunOutcome.STOPPED`); `active_runs()`/`in_flight` give a readiness view.
 - **MCP, both ways** — call any MCP server's tools as a `Tool`
   (`mcp_stdio_tools`/`mcp_http_tools`), or expose your own `Tool`s and a live
   `Context` as an MCP server (`create_mcp_server`) for Claude Desktop, Claude
@@ -329,7 +334,7 @@ uv sync --extra dev --extra web
 
 ## Status & contributing
 
-Active, `0.13.x`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
+Active, `0.14.x`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
 (see the [roadmap](docs/roadmap.md)); releases follow
 [Keep a Changelog](CHANGELOG.md). Questions and design discussion live in
 [GitHub Discussions](https://github.com/bzdvdn/reactifact/discussions); a star,

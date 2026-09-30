@@ -226,9 +226,13 @@ print("supported_by:", evidence.data.text)  # провенанс, который
 **Эксплуатировать**
 
 - [Observability](observability.md) — трейс каждого запуска: агентские спаны,
-  чтения/записи, LLM-вызовы; офлайн-дашборд или экспорт в Langfuse/Postgres.
+  чтения/записи, LLM-вызовы; офлайн-дашборд или экспорт в Langfuse/Postgres;
+  **коррелированные логи** (`configure_logging()`) несут `run_id`/`session_id`/
+  `agent` в каждой строке.
 - [Устойчивость и resume](durability.md) — прогон на сессии переживает рестарт
-  процесса; что значит «at-least-once» и как сделать produce идемпотентным.
+  процесса; что значит «at-least-once» и как сделать produce идемпотентным;
+  **дедлайны и graceful shutdown** (`Budget.max_seconds` — жёсткий,
+  `request_stop()`/`ashutdown()`, `active_runs()` для readiness).
 - [Диагностика проблем](troubleshooting.md) — «агент не запустился» / «запустился
   дважды» / «run остановился раньше времени» — по симптомам, не по фичам.
 - [Evaluation](eval.md) — многоуровневая оценка финального `Context`

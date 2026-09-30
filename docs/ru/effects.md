@@ -62,7 +62,7 @@ self.effects.act(
 или ветка, пришедшая к тому же действию, не создают второе). Produce
 **не** выполняет I/O сам: передайте `Runtime(dispatcher=...)`, и runtime
 вызовет его один раз на закоммиченное намерение, записав `dispatched`/`failed`.
-Полный диспетчер — в [паттернах — Outbox](patterns.md#outbox-внешние-side-effects),
+Полный диспетчер — в [паттернах — Outbox](patterns.md#outbox-side-effects),
 контракт at-least-once — в [durability](durability.md).
 
 ## Три слоя

@@ -69,7 +69,7 @@ async def summarize(call):
   Так делать не нужно — пишите намерение: `self.effects.act(kind=..., key=...,
   payload=...)` создаёт `PendingAction`, а `Runtime(dispatcher=...)` выполняет
   его один раз после коммита намерения (см. паттерн outbox в
-  [паттернах](patterns.md#outbox-внешние-side-effects)). Сам I/O фреймворк
+  [паттернах](patterns.md#outbox-side-effects)). Сам I/O фреймворк
   по-прежнему не может сделать exactly-once — диспетчер должен быть
   идемпотентен по `idempotency_key` (передаётся в `action.data`), и это
   закрывает остаточное окно at-least-once. (`call.request` доступен для

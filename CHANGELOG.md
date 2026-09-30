@@ -4,7 +4,7 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [Unreleased]
+## [0.14.0] — 2026-10-01
 
 ### Added
 
@@ -84,6 +84,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   runtime. `reactifact.runtime.active_runs()` / `cancel_run(run_id)` expose the
   process's in-flight turns read-only (readiness/ops; in-process only), and
   `Runtime.in_flight` reports whether it is running.
+
+### Changed
+
+- `Budget.max_seconds` is enforced **hard** (behavior-visible, non-breaking): the
+  runtime now cancels the generation in flight when the deadline passes, instead
+  of only checking between generations, and ends the turn with
+  `RunOutcome.BUDGET_TIME_EXCEEDED`. A run that previously overshot a hung LLM
+  call now stops on time. See [release.md](docs/en/release.md#upgrading).
+- Logging stays **silent by default** (a library `NullHandler`); nothing is
+  emitted until `configure_logging()` is called.
 
 ### Docs
 
