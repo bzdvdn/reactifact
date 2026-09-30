@@ -293,6 +293,41 @@ generation isn't counted.
 - `on_turn_end` is the single delivery point: a new `astream`/`arun` advances the
   run id (a re-run counts as a new run), and each turn's trace is finalized once.
 
+## Logging
+
+reactifact writes structured, **correlated** logs under the `reactifact.*`
+logger namespace and stays silent until you turn it on (a library never
+configures the root logger):
+
+```python
+import sys
+
+from reactifact import configure_logging
+
+configure_logging()               # INFO, human-readable, to stderr
+configure_logging(json=True)      # one JSON object per line
+configure_logging(level="DEBUG", stream=sys.stderr)
+```
+
+Every line carries the turn's correlation fields — `run_id`, `session_id`,
+`generation`, `agent`, and the `request_id` from `runtime.arun(request=…)` — so
+a line ties back to the exact run/agent. Add your own with `bind(...)`:
+
+```python
+from reactifact import bind, get_logger
+
+log = get_logger(__name__)
+
+with bind(tenant="acme", user="bob"):
+    log.info("handling request")
+```
+
+Levels: `run started` / `run finished` and `action dispatched` are `INFO`;
+per-generation and per-agent completion are `DEBUG`, and a failing agent or a
+failed dispatch is `WARNING`. Logs are **metadata** — artifact data and prompt
+contents are never logged. Logging complements tracing: a `RunTrace` is the
+durable audit of a run; these logs are what an operator tails while it happens.
+
 ## Tracing never fails the run
 
 Observability is **best-effort by contract**. A sink that is unreachable

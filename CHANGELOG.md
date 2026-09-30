@@ -59,6 +59,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   background relay** — the next `arun()` or an explicit
   `flush_pending_actions()` drains the outbox, and retry/backoff policy stays
   with the application (deliberately not a workflow engine).
+- **Correlated structured logging.** `reactifact.logging` (exported as
+  `configure_logging`/`get_logger`) turns on structured logs under the
+  `reactifact.*` namespace — silent until configured (a `NullHandler` by
+  default, never `basicConfig`), human-readable or `json=True`, with
+  `configure_logging(level=..., stream=...)`. Every record carries the turn's
+  correlation fields (`run_id`/`session_id`/`generation`/`agent`, plus the
+  request's `request_id`) so a line ties back to the exact run/agent; app code
+  adds fields with `bind(...)`. The runtime emits `run started`/`run finished`
+  and `action dispatched` at `INFO`, generation/agent completion at `DEBUG`,
+  and failing agents/dispatches at `WARNING`. Logs are metadata only — no
+  artifact data or prompt contents. `examples/starter_app` shows it in a real
+  lifespan (`LOG_LEVEL=…`, `LOG_JSON=1`) alongside a `GET /api/ready` readiness
+  probe backed by `active_runs()`.
+- **Hard turn deadline, graceful shutdown, in-flight registry.**
+  `Budget.max_seconds` is now a hard per-turn deadline: the runtime cancels the
+  generation in flight (a hung LLM call is actually stopped) instead of only
+  checking between generations, leaves the cancelled trigger batch unconsumed
+  for a resume, and ends with `RunOutcome.BUDGET_TIME_EXCEEDED`.
+  `Runtime.request_stop()` stops at the next generation boundary
+  (`RunOutcome.STOPPED`; the current generation still commits), and
+  `Runtime.ashutdown(timeout=…)` waits for the turn, force-cancelling after the
+  timeout. Shared `RuntimeResources` are closed by the host app, never by the
+  runtime. `reactifact.runtime.active_runs()` / `cancel_run(run_id)` expose the
+  process's in-flight turns read-only (readiness/ops; in-process only), and
+  `Runtime.in_flight` reports whether it is running.
 
 ### Docs
 

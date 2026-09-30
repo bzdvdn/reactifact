@@ -34,6 +34,11 @@ def test_provider_and_health(tmp_path):
         assert client.get("/api/provider").json()["mode"] == "model"
 
 
+def test_ready_reports_in_flight_turns(tmp_path):
+    with _client(tmp_path, ScriptedLLM([])) as client:
+        assert client.get("/api/ready").json() == {"ok": True, "in_flight": 0}
+
+
 def test_ask_agent_mode_returns_structured_text(tmp_path):
     with _client(tmp_path, ScriptedLLM(['{"text":"Hello"}'])) as client:
         res = client.post("/api/ask", json={"mode": "agent", "question": "say hi"})

@@ -51,10 +51,12 @@ from reactifact import (
     Consume,
     LLMProvider,
     ProduceCall,
+    configure_logging,
     create_agent,
     produce,
 )
 from reactifact.quick import Doc, Question, agent, chat_agent, rag, tools_agent
+from reactifact.runtime import active_runs
 from reactifact.structured import llm_reply
 from reactifact.tools import tool
 from reactifact.tracing import Tracer, TraceStore
@@ -132,6 +134,12 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+        # `LOG_LEVEL=INFO .venv/bin/python -m examples.starter_app.app` prints
+        # correlated logs (run_id/session_id/agent) under `reactifact.*`.
+        # `LOG_JSON=1` switches to one JSON object per line.
+        level = os.environ.get("LOG_LEVEL")
+        if level:
+            configure_logging(level=level, json=os.environ.get("LOG_JSON") == "1")
         yield
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:
@@ -145,6 +153,13 @@ def create_app(
         if provider is None:
             return {"provider": None, "mode": "offline"}
         return {"provider": type(provider).__name__, "mode": "model"}
+
+    @app.get("/api/ready")
+    async def ready() -> dict[str, Any]:
+        # Readiness, not liveness: how many turns this process is running right
+        # now (`reactifact.runtime.active_runs`). An orchestrator drains when
+        # this is non-zero; the canonical chat `/api/health` stays a plain liveness.
+        return {"ok": True, "in_flight": len(active_runs())}
 
     @app.post("/api/ask", response_model=AskResponse)
     async def ask(req: AskRequest) -> AskResponse:

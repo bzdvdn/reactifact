@@ -27,6 +27,10 @@ class RunOutcome(StrEnum):
     BUDGET_COST_EXCEEDED = "budget_cost_exceeded"
     #: The principal's cross-turn quota is spent (`reactifact.quota`).
     QUOTA_EXCEEDED = "quota_exceeded"
+    #: `Runtime.request_stop()` was called and the run ended at a generation
+    #: boundary (graceful shutdown — in-flight work finished, no new generation
+    #: started).
+    STOPPED = "stopped"
 
 
 class Budget(BaseModel):

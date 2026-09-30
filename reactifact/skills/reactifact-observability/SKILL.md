@@ -115,6 +115,23 @@ tree/commit chain for branching and time travel.
 - Branching forks a session's state (`BranchStore` over a KV backend);
   `python -m reactifact branch <path> <session> <action>` manages forks.
 
+## Correlated logging
+
+`configure_logging()` (from `reactifact`) turns on structured logs under
+`reactifact.*` — silent until called; `json=True` for one object per line.
+Every line carries `run_id`/`session_id`/`generation`/`agent`/`request_id`;
+add app fields with `bind(...)` and `get_logger(__name__)`. Logs are metadata
+(no artifact/prompt content).
+
+```python
+from reactifact import bind, configure_logging, get_logger
+
+configure_logging(level="INFO")
+log = get_logger(__name__)
+with bind(tenant="acme"):
+    log.info("handling request")
+```
+
 ## CLI and visualization
 
 ```bash

@@ -178,6 +178,34 @@ Two different operations, often confused:
 
 The first is execution; the second is audit.
 
+## Deadlines, graceful shutdown & in-flight runs
+
+`Budget.max_seconds` is enforced as a **hard** per-turn deadline: the runtime
+cancels the generation in flight (a hung LLM call is actually stopped) rather
+than only checking between generations. The cancelled generation's trigger batch
+is not consumed, so a later `arun()` resumes it; the turn ends with
+`RunOutcome.BUDGET_TIME_EXCEEDED`.
+
+On process shutdown, `Runtime.request_stop()` asks the run to stop at the next
+generation boundary — the current generation finishes (its commit lands), no new
+one starts, and `RunOutcome.STOPPED` is set. `await runtime.ashutdown(timeout=…)`
+does that and waits for the turn, force-cancelling after `timeout`. It never
+closes shared `RuntimeResources`; close those in your own lifespan
+(`resources.aclose()` or a `ResourceScope`).
+
+The process's in-flight turns are visible read-only:
+
+```python
+from reactifact.runtime import active_runs, cancel_run
+
+len(active_runs())           # a readiness signal
+active_runs()[0].session_id  # what is running
+cancel_run(run_id)           # cancel one turn
+```
+
+`active_runs()` is in-process only — single event loop, not persisted, not
+cross-process. It is an ops/readiness view, not a task queue.
+
 ## Bounding a long-lived context
 
 A session that lives for many turns keeps every commit and every artifact

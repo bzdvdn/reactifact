@@ -1,8 +1,10 @@
 import asyncio
-import logging
+import contextlib
 import sys
 import time
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from .agents import Agent
@@ -14,16 +16,17 @@ from .effects import Effects, current_effects, reset_effects, set_effects
 from .events import Event
 from .guardrails import GuardrailViolation
 from .interrupt import PendingAction
+from .logging import get_logger, reset_context, set_context
 from .patches import Create, Delete, Link, Patch, Unlink, Update
 from .quota import QuotaLLM
-from .request import reset_request, set_request
+from .request import current_request, reset_request, set_request
 from .scheduler import Scheduler
 from .session import Session
 from .streaming import ProgressEvent
 from .tracing.models import AgentSpan
 from .tracing.tracer import CompositeTracer, RunTracer, Tracer
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
 PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
@@ -35,6 +38,45 @@ AgentResult = tuple[Patch | None, Agent, Event, list[Read], float, BaseException
 #: the intent is committed; the app performs the real I/O and returns (or
 #: raises). Must be idempotent on `idempotency_key` (§42).
 Dispatcher = Callable[[Context, Artifact[PendingAction]], Awaitable[None]]
+
+
+@dataclass
+class RunInfo:
+    """A snapshot of one in-flight turn (see `active_runs`)."""
+
+    run_id: str
+    session_id: str
+    started_at: float
+    request: Mapping[str, Any]
+    runtime_id: int
+    generation: int = 0
+
+
+#: In-flight runs of this process, keyed by run id (single event loop; not
+#: persisted, not cross-process — a readiness/ops view, not a task queue).
+_ACTIVE_RUNS: dict[str, RunInfo] = {}
+_RUN_TASKS: dict[str, "asyncio.Task[Any]"] = {}
+
+
+def active_runs() -> list[RunInfo]:
+    """Snapshots of the turns currently executing in this process.
+
+    A small ops surface: readiness (`len(active_runs())`), a "what is running"
+    view, and the ids `cancel_run` accepts.
+    """
+    return list(_ACTIVE_RUNS.values())
+
+
+def cancel_run(run_id: str) -> bool:
+    """Cancel one in-flight turn by id; returns whether it was found.
+
+    For graceful, all-of-them shutdown use `Runtime.ashutdown()`.
+    """
+    task = _RUN_TASKS.get(run_id)
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True
 
 
 class Runtime:
@@ -129,6 +171,16 @@ class Runtime:
         #: Set once after warning that committed `PendingAction`s have no
         #: `dispatcher=` to perform them (§69: don't let the state go silent).
         self._pending_actions_warned = False
+        #: Reset token for the turn's log correlation context (see `_begin_turn`).
+        self._log_token: Any | None = None
+        #: Generation counter within the current turn (log correlation).
+        self._generation = 0
+        #: This turn's id (logs/registry); set in `_begin_turn`.
+        self._run_id = ""
+        #: The task running the current turn (for `ashutdown`).
+        self._turn_task: asyncio.Task[Any] | None = None
+        #: Set by `request_stop()`; checked between generations (§59/§69).
+        self._stop_requested = asyncio.Event()
 
     def _enter_turn(self) -> None:
         if self._in_turn:
@@ -146,6 +198,43 @@ class Runtime:
 
     def register(self, agent: Agent) -> None:
         self.agents.append(agent)
+
+    def request_stop(self) -> None:
+        """Ask the run to stop at the next generation boundary (§59).
+
+        The in-flight generation finishes (its commit lands); no new generation
+        starts, and the run ends with `RunOutcome.STOPPED`. For a bounded wait
+        plus a forced cancel, use `ashutdown()`.
+        """
+        self._stop_requested.set()
+
+    @property
+    def in_flight(self) -> bool:
+        """Whether this Runtime is currently running a turn."""
+        return self._in_turn
+
+    async def ashutdown(self, *, timeout: float | None = None) -> None:
+        """Graceful shutdown: stop at a boundary, then wait for the turn to end.
+
+        Calls `request_stop()` first, then awaits the in-flight turn (if any).
+        With `timeout`, force-cancels the turn after that many seconds. Does
+        **not** close shared `RuntimeResources` — close those yourself (a
+        `ResourceScope`, or `await resources.aclose()` in your own lifespan).
+        """
+        self.request_stop()
+        task = self._turn_task
+        if task is None or task is asyncio.current_task() or task.done():
+            return
+        if timeout is None:
+            with contextlib.suppress(Exception):
+                await asyncio.shield(task)
+            return
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout)
+        except TimeoutError:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     def _begin_turn(self, budget: Budget | None) -> None:
         self._runs_used = 0
@@ -214,6 +303,27 @@ class Runtime:
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else ""
         )
+        self._generation = 0
+        # A per-turn id for logs/registry. Tracing mints its own only when a
+        # tracer is configured; reuse it when present so both agree, and mint
+        # one otherwise.
+        self._run_id = self._trace.run_id or uuid.uuid4().hex
+        # Correlation fields for every log line of this turn (inherited by the
+        # child tasks a generation fans out to).
+        self._log_token = set_context(
+            run_id=self._run_id,
+            session_id=self.session.session_id if self.session is not None else "",
+        )
+        self._turn_task = asyncio.current_task()
+        _ACTIVE_RUNS[self._run_id] = RunInfo(
+            run_id=self._run_id,
+            session_id=self.session.session_id if self.session is not None else "",
+            started_at=time.monotonic(),
+            request=current_request(),
+            runtime_id=id(self),
+        )
+        if self._turn_task is not None:
+            _RUN_TASKS[self._run_id] = self._turn_task
 
     def _end_turn_resources(self) -> None:
         """Undoes `_begin_turn`'s accounting wrap and closes the turn.
@@ -224,6 +334,13 @@ class Runtime:
         if self._original_llm is not None:
             self.context.resources.llm = self._original_llm
             self._original_llm = None
+        if self._log_token is not None:
+            reset_context(self._log_token)
+            self._log_token = None
+        if self._run_id:
+            _ACTIVE_RUNS.pop(self._run_id, None)
+            _RUN_TASKS.pop(self._run_id, None)
+        self._turn_task = None
         self._turn_started = False
 
     def _budget_exhausted(self) -> bool:
@@ -344,6 +461,10 @@ class Runtime:
     async def _arun_once_impl(self, budget: Budget | None = None) -> int:
         if not self._turn_started:
             self._begin_turn(budget)
+        self._generation += 1
+        info = _ACTIVE_RUNS.get(self._run_id)
+        if info is not None:
+            info.generation = self._generation
         if (
             self.dispatcher is None
             and not self._pending_actions_warned
@@ -441,7 +562,13 @@ class Runtime:
         # (`session_save_policy="per_turn"` defers this to `_arun_impl`'s single
         # save after the whole run completes instead.)
         if self.session is not None and self.session_save_policy == "per_commit":
-            await self.session.save()
+            # Shielded so a hard-deadline cancellation cannot interrupt a save
+            # mid-write; the save still completes (marking the generation done).
+            await asyncio.shield(self.session.save())
+        logger.debug(
+            "generation committed",
+            extra={"generation": self._generation, "runs": runs},
+        )
         return runs
 
     async def _dispatch(
@@ -580,10 +707,25 @@ class Runtime:
                 await self.dispatcher(self.context, action)
             except Exception as exc:
                 self.context.mark_failed(action.id, error=repr(exc))
+                logger.warning(
+                    "action dispatch failed",
+                    extra={
+                        "action_kind": action.data.kind,
+                        "action_key": action.data.idempotency_key,
+                        "error": repr(exc),
+                    },
+                )
                 if self.on_dispatch_error is not None:
                     self.on_dispatch_error(action, exc)
                 raise
             self.context.mark_dispatched(action.id)
+            logger.info(
+                "action dispatched",
+                extra={
+                    "action_kind": action.data.kind,
+                    "action_key": action.data.idempotency_key,
+                },
+            )
 
     async def flush_pending_actions(self) -> int:
         """Dispatches committed-but-undispatched actions without running a
@@ -674,7 +816,19 @@ class Runtime:
             self._trace.unregister_task(task)
         latency = (time.monotonic() - started) * 1000
         if error is not None:
+            logger.warning(
+                "agent failed",
+                extra={
+                    "agent": agent.name,
+                    "latency_ms": round(latency, 2),
+                    "error": repr(error),
+                },
+            )
             return None, agent, event, reads, latency, error
+        logger.debug(
+            "agent finished",
+            extra={"agent": agent.name, "latency_ms": round(latency, 2)},
+        )
         # Effects authored in produce() compile to the patch. A produce's own
         # effects happen *after* its returned patch (produce order), so an
         # update that captured the pre-effect state cannot regress later effects.
@@ -703,16 +857,18 @@ class Runtime:
             self._end_turn_resources()
             self._exit_turn()
 
-    async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
-        self._begin_turn(budget)
-        active = self._active_budget
-        limit = (
-            active.max_iterations
-            if active is not None and active.max_iterations is not None
-            else max_iterations
-        )
+    async def _run_generations(self, limit: int) -> int:
+        """The fixpoint loop, from the first generation to quiescence.
+
+        Factored out of `_arun_impl` so the hard deadline can wrap it: a
+        `TimeoutError` cancels whichever generation is in flight, and the
+        loop — not yet consumed its trigger batch — is simply left to resume.
+        """
         total_runs = 0
         for _ in range(limit):
+            if self._stop_requested.is_set():
+                self.outcome = RunOutcome.STOPPED
+                break
             if self._budget_exhausted():
                 break
             runs = await self._arun_once_impl()
@@ -725,6 +881,42 @@ class Runtime:
         else:
             if self.outcome == RunOutcome.COMPLETED:
                 self.outcome = RunOutcome.ITERATIONS_EXHAUSTED
+        return total_runs
+
+    def _remaining_seconds(self) -> float | None:
+        if self._deadline is None:
+            return None
+        return max(0.0, self._deadline - time.monotonic())
+
+    async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
+        self._begin_turn(budget)
+        active = self._active_budget
+        limit = (
+            active.max_iterations
+            if active is not None and active.max_iterations is not None
+            else max_iterations
+        )
+        logger.info("run started", extra={"max_iterations": limit})
+        total_runs = 0
+        remaining = self._remaining_seconds()
+        try:
+            if remaining is None:
+                total_runs = await self._run_generations(limit)
+            else:
+                # Hard deadline: cancel the in-flight generation when wall-clock
+                # runs out (the soft `_budget_exhausted` check only fires between
+                # generations). The generation in flight is not committed and its
+                # trigger batch is not consumed, so a resume re-dispatches it.
+                async with asyncio.timeout(remaining):
+                    total_runs = await self._run_generations(limit)
+        except TimeoutError:
+            self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
+            logger.warning(
+                "turn deadline exceeded",
+                extra={
+                    "max_seconds": active.max_seconds if active is not None else None
+                },
+            )
         tracker = self._tracker
         self.last_stats = RunStats(
             runs=total_runs,
@@ -747,6 +939,16 @@ class Runtime:
         )
         if self.session is not None and self.session_save_policy == "per_turn":
             await self.session.save()
+        stats = self.last_stats
+        logger.info(
+            "run finished",
+            extra={
+                "outcome": self.outcome.value,
+                "runs": total_runs,
+                "errors": self._errors_used,
+                "duration_ms": round(stats.duration * 1000, 2) if stats else 0.0,
+            },
+        )
         return total_runs
 
     def run_once(self, *, request: Mapping[str, Any] | None = None) -> int:

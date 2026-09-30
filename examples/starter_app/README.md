@@ -10,6 +10,7 @@ it, run it, and then swap the domain:
 | `POST /api/ask {mode:"tools"}` | an LLM that can call `add()` | `quick.tools_agent` |
 | `POST /api/chat` | session-persisted assistant | `quick.chat_agent` |
 | `GET /traces` | trace dashboard for every run above | `reactifact.tracing` |
+| `GET /api/ready` | readiness: in-flight turns (`active_runs()`) | `reactifact.runtime` |
 
 There's a tiny UI at `/` (plain HTML, no build step).
 
@@ -35,6 +36,18 @@ cp examples/starter_app/.env.example examples/starter_app/.env
 Ollama, …); with neither set it returns `None`, which every helper treats as an
 honest fallback rather than a crash. `GET /api/provider` tells you which mode
 you're in.
+
+**Correlated logs** are one env var away — the lifespan calls
+`configure_logging()` when `LOG_LEVEL` is set:
+
+```bash
+LOG_LEVEL=INFO .venv/bin/python -m examples.starter_app.app   # human-readable
+LOG_LEVEL=DEBUG LOG_JSON=1 .venv/bin/python -m examples.starter_app.app  # JSON
+```
+
+Every line carries `run_id`/`session_id`/`generation`/`agent`. `GET /api/ready`
+reports how many turns are in flight (`active_runs()`), so an orchestrator can
+drain before shutdown.
 
 ## What to keep when you copy it
 

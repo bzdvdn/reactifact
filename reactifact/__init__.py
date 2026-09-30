@@ -30,6 +30,7 @@ from .context import Context, View
 from .effects import Effects, Handle
 from .events import Event, EventType
 from .interrupt import PendingAction, PendingQuestion
+from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
 from .produce import Produce, ProduceCall, produce
 from .providers import (
@@ -96,9 +97,12 @@ __all__ = [
     "Unlink",
     "Update",
     "View",
+    "bind",
+    "configure_logging",
     "consume",
     "create_agent",
     "current_request",
+    "get_logger",
     "produce",
     "register_type",
     "tool",

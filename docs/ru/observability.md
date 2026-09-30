@@ -296,6 +296,42 @@ MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят 
   запуска (повтор считается новым запуском), и трейс каждого хода финализируется
   один раз.
 
+## Логи
+
+reactifact пишет структурные **коррелированные** логи в пространстве логгеров
+`reactifact.*` и молчит, пока его не включат (библиотека не настраивает корневой
+логгер):
+
+```python
+import sys
+
+from reactifact import configure_logging
+
+configure_logging()               # INFO, человекочитаемо, в stderr
+configure_logging(json=True)      # по одному JSON-объекту на строку
+configure_logging(level="DEBUG", stream=sys.stderr)
+```
+
+Каждая строка несёт поля корреляции хода — `run_id`, `session_id`,
+`generation`, `agent` и `request_id` из `runtime.arun(request=…)` — так строка
+привязывается к конкретному прогону/агенту. Свои поля добавляйте через
+`bind(...)`:
+
+```python
+from reactifact import bind, get_logger
+
+log = get_logger(__name__)
+
+with bind(tenant="acme", user="bob"):
+    log.info("handling request")
+```
+
+Уровни: `run started` / `run finished` и `action dispatched` — `INFO`; завершение
+генерации и агента — `DEBUG`, а упавший агент или неудачный dispatch —
+`WARNING`. Логи — это **метаданные**: данные артефактов и содержимое промптов в
+них не попадают. Логи дополняют трейсинг: `RunTrace` — durable-аудит прогона, а
+эти логи оператор смотрит в реальном времени.
+
 ## Трассировка никогда не роняет запуск
 
 Наблюдаемость **best-effort по контракту**. Недоступный приёмник (Langfuse лёг,
