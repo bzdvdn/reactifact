@@ -4,6 +4,18 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.14.1] — 2026-10-01
+
+### Added
+
+- **`ChatAssistant(dispatcher=...)`.** The canonical chat layer now passes
+  `dispatcher=`/`on_dispatch_error=` through to the `Runtime` it builds for each
+  turn, so an agent that records `effects.act(...)` intents has them delivered
+  from a chat turn (once per stable id, after the commit) instead of left
+  `pending` with only the no-dispatcher warning. `quick.chat_agent(...)` gains
+  the same two arguments (`reactifact.runtime.DispatchErrorHandler` is the
+  callback type).
+
 ## [0.14.0] — 2026-10-01
 
 ### Added

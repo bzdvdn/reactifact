@@ -38,7 +38,7 @@ from .consume import Consume
 from .context import Context
 from .events import Event
 from .resources import RuntimeResources
-from .runtime import Runtime
+from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
 
 logger = logging.getLogger("reactifact.chat")
@@ -306,6 +306,13 @@ class ChatAssistant:
     multi-stage pipeline routinely produces several generations per turn (see
     `Runtime.__init__`'s own docstring for the trade-off).
 
+    `dispatcher=` (and `on_dispatch_error=`) also passes straight through to
+    `Runtime`: give an agent that uses `effects.act(...)` a way to actually send
+    its outbound side effects from a chat turn, with the same once-per-stable-id
+    delivery `Runtime(dispatcher=...)` provides. Without it, a chat turn that
+    records a `PendingAction` leaves it `pending` (the runtime warns) for someone
+    to drain later.
+
     `resources=`/`create_message=` may optionally take the current turn's
     `session_id` — `resources=lambda session_id: build_resources(session_id)`
     (e.g. to attach an authenticated user looked up from the session) and
@@ -349,6 +356,8 @@ class ChatAssistant:
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         memory: ChatMemory | None = None,
+        dispatcher: Dispatcher | None = None,
+        on_dispatch_error: DispatchErrorHandler | None = None,
     ):
         self.store = store
         self._agents = agents
@@ -368,6 +377,8 @@ class ChatAssistant:
             session_save_policy
         )
         self._memory = memory
+        self._dispatcher = dispatcher
+        self._on_dispatch_error = on_dispatch_error
         # Serializes concurrent turns on the *same* session_id (a double
         # submit, a client retry): without this, two overlapping stream()
         # calls both load the same starting state and the later save() wins,
@@ -453,6 +464,8 @@ class ChatAssistant:
             isolate_errors=self._isolate_errors,
             on_agent_error=self._on_agent_error,
             session_save_policy=self._session_save_policy,
+            dispatcher=self._dispatcher,
+            on_dispatch_error=self._on_dispatch_error,
         )
 
     async def stream(

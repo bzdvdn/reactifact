@@ -38,6 +38,8 @@ AgentResult = tuple[Patch | None, Agent, Event, list[Read], float, BaseException
 #: the intent is committed; the app performs the real I/O and returns (or
 #: raises). Must be idempotent on `idempotency_key` (§42).
 Dispatcher = Callable[[Context, Artifact[PendingAction]], Awaitable[None]]
+#: Called when the dispatcher raises (the action is already marked `failed`).
+DispatchErrorHandler = Callable[[Artifact[PendingAction], BaseException], None]
 
 
 @dataclass
@@ -93,9 +95,7 @@ class Runtime:
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         dispatcher: Dispatcher | None = None,
-        on_dispatch_error: (
-            Callable[[Artifact[PendingAction], BaseException], None] | None
-        ) = None,
+        on_dispatch_error: DispatchErrorHandler | None = None,
     ):
         self.context = context
         self.agents = agents or []

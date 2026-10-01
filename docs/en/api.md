@@ -128,7 +128,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state` |
+| `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
 | `ChatMemory` | optional bounded memory for `ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts) |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |

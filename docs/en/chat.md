@@ -51,6 +51,22 @@ await assistant.history(session_id="user-1")   # the thread so far
 
 A ready-made `quick.chat_agent(agents, store=…)` does the same with defaults.
 
+**Outbound side effects.** If an agent in the chat records an intent with
+`effects.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
+they go straight to the `Runtime` the assistant builds per turn, so committed
+actions are delivered once, after each generation's commit, exactly as in a
+non-chat run:
+
+```python
+async def dispatch(context, action):
+    await send_notification(action.data.payload)
+
+ChatAssistant(..., dispatcher=dispatch)
+```
+
+Without it, a recorded `PendingAction` stays `pending` (the runtime warns) until
+something drains it — see [Durability → Outbox](durability.md#outbox-in-production).
+
 ## The conversation recipe
 
 `ConversationMessage` is a canonical `role`/`text`/`turn`/`session_id` artifact,

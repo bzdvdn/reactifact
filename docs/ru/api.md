@@ -132,7 +132,7 @@ reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state` |
+| `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
 | `ChatMemory` | необязательная ограниченная память для `ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты) |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |

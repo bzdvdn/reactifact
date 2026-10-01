@@ -52,6 +52,23 @@ await assistant.history(session_id="user-1")   # поток на данный м
 
 Готовый `quick.chat_agent(agents, store=…)` делает то же с дефолтами.
 
+**Внешние side effects.** Если агент в чате записывает намерение через
+`effects.act(...)`, передайте `dispatcher=` (и, при желании,
+`on_dispatch_error=`) — они уходят прямо в `Runtime`, который ассистент собирает
+на каждый ход, так что закоммиченные действия доставляются один раз, после
+коммита генерации, ровно как в обычном прогоне:
+
+```python
+async def dispatch(context, action):
+    await send_notification(action.data.payload)
+
+ChatAssistant(..., dispatcher=dispatch)
+```
+
+Без него записанный `PendingAction` остаётся `pending` (runtime предупреждает),
+пока что-нибудь его не дренирует — см. раздел про outbox в
+[устойчивости](durability.md).
+
 ## Рецепт разговора
 
 `ConversationMessage` — канонический артефакт `role`/`text`/`turn`/`session_id`,

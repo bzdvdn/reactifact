@@ -15,6 +15,7 @@ from ..checkpoints import FileKVBackend, InMemoryKVBackend
 from ..context import Context
 from ..providers import LLMProvider, from_env
 from ..resources import RuntimeResources
+from ..runtime import Dispatcher, DispatchErrorHandler
 from ..session import SessionStore
 from .models import Question
 
@@ -54,6 +55,8 @@ def chat_agent(
     resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
     budget: Budget | None = None,
     tracer: Any = None,
+    dispatcher: Dispatcher | None = None,
+    on_dispatch_error: DispatchErrorHandler | None = None,
 ) -> ChatAssistant:
     """A configured `ChatAssistant` — sessions, turns, history, out of the box.
 
@@ -79,6 +82,8 @@ def chat_agent(
         resources=resources,
         budget=budget,
         tracer=tracer,
+        dispatcher=dispatcher,
+        on_dispatch_error=on_dispatch_error,
     )
 
 
