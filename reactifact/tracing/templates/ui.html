@@ -4,22 +4,22 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>reactifact traces</title>
-<link rel="stylesheet" href="/traces/assets/app.css"/>
+<link rel="stylesheet" href="__BASE__/traces/assets/app.css"/>
 <script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
 </head>
 <body>
 <div class="app" id="app">
   <aside class="sidebar">
-    <a class="brand" href="/traces">
+    <a class="brand" href="__BASE__/traces">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span class="name">reactifact <em>traces</em></span>
     </a>
     <nav class="nav">
-      <a class="nav-item active" href="/traces">
+      <a class="nav-item active" href="__BASE__/traces">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
         <span class="nav-label">Traces</span>
       </a>
-      <a class="nav-item" href="/sessions">
+      <a class="nav-item" href="__BASE__/sessions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
         <span class="nav-label">Sessions</span>
       </a>
@@ -188,7 +188,7 @@ function loadColumnPref(){try{const raw=localStorage.getItem(COLS_KEY);VISIBLE_C
 function saveColumnPref(){try{localStorage.setItem(COLS_KEY,JSON.stringify(VISIBLE_COLS||[]));}catch(_){}}
 function visibleColumns(){const all=state.columns.map(c=>c.label);if(VISIBLE_COLS===null)return all;return all.filter(l=>VISIBLE_COLS.includes(l));}
 async function loadColumns(){
-  try{const r=await fetch('/api/columns');state.columns=(await r.json()).items||[];}
+  try{const r=await fetch('__BASE__/api/columns');state.columns=(await r.json()).items||[];}
   catch(_){state.columns=[];}
   render();
 }
@@ -287,7 +287,7 @@ function filters(){
 }
 
 async function loadFacets(){
-  try{const r=await fetch('/api/tags');const d=await r.json();state.facets=d.items||[];}
+  try{const r=await fetch('__BASE__/api/tags');const d=await r.json();state.facets=d.items||[];}
   catch(_){state.facets=[];}
   renderFacets();
 }
@@ -308,7 +308,7 @@ function renderFacets(){
 async function load(){
   const q=filters();q.set('limit',state.limit);q.set('offset',state.offset);
   try{
-    const res=await fetch('/api/traces?'+q);
+    const res=await fetch('__BASE__/api/traces?'+q);
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
     state.runs=data.items||[];state.total=data.total||0;state.stats=data.stats||null;
@@ -454,7 +454,7 @@ document.getElementById('view-del').addEventListener('click',()=>{
   const sel=document.getElementById('views');if(sel.value==='')return;
   const views=getViews();views.splice(Number(sel.value),1);setViews(views);renderViews();toast('View deleted');
 });
-document.getElementById('export').addEventListener('click',()=>{const q=filters();q.set('limit',500);window.location.href='/api/traces/export?'+q;});
+document.getElementById('export').addEventListener('click',()=>{const q=filters();q.set('limit',500);window.location.href='__BASE__/api/traces/export?'+q;});
 document.getElementById('live').addEventListener('click',(e)=>{
   state.live=!state.live;e.currentTarget.classList.toggle('on',state.live);
   if(state.live){timer=setInterval(()=>{if(!document.hidden)load();},3000);}else{clearInterval(timer);}
@@ -462,7 +462,7 @@ document.getElementById('live').addEventListener('click',(e)=>{
 document.getElementById('runs').addEventListener('click',(e)=>{
   if(e.target.closest('.rowcheck'))return;
   const row=e.target.closest('tr.row');if(!row)return;
-  window.location.href='/traces/'+row.dataset.id;
+  window.location.href='__BASE__/traces/'+row.dataset.id;
 });
 document.getElementById('runs').addEventListener('change',(e)=>{
   const c=e.target.closest('.rowcheck');if(!c)return;
@@ -476,13 +476,13 @@ document.getElementById('bulk-clear').addEventListener('click',()=>{state.select
 document.getElementById('bulk-apply').addEventListener('click',async()=>{
   const tag=document.getElementById('bulk-tag').value.trim();if(!tag)return;
   const note=document.getElementById('bulk-note').value;
-  await fetch('/api/traces/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag,note:note})});
+  await fetch('__BASE__/api/traces/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag,note:note})});
   document.getElementById('bulk-tag').value='';document.getElementById('bulk-note').value='';
   state.selected.clear();toast('Tagged');await refresh();
 });
 document.getElementById('bulk-remove').addEventListener('click',async()=>{
   const tag=document.getElementById('bulk-remove-sel').value;if(!tag)return;
-  await fetch('/api/traces/tags/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag})});
+  await fetch('__BASE__/api/traces/tags/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_ids:Array.from(state.selected),tag:tag})});
   state.selected.clear();toast('Tag removed');await refresh();
 });
 
@@ -507,18 +507,18 @@ document.getElementById('tagrows').addEventListener('click',async(e)=>{
   if(e.target.closest('.row-save')){
     const name=row.querySelector('.row-name').value.trim();
     const color=row.querySelector('.row-color').value;
-    await fetch('/api/tags/'+encodeURIComponent(old),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:name,color:color})});
+    await fetch('__BASE__/api/tags/'+encodeURIComponent(old),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:name,color:color})});
     await refresh();renderTagRows();toast('Tag updated');
   }else if(e.target.closest('.row-del')){
     if(!confirm('Delete tag "'+old+'" from every run?'))return;
-    await fetch('/api/tags/'+encodeURIComponent(old),{method:'DELETE'});
+    await fetch('__BASE__/api/tags/'+encodeURIComponent(old),{method:'DELETE'});
     await refresh();renderTagRows();toast('Tag deleted');
   }
 });
 document.getElementById('new-tag-add').addEventListener('click',async()=>{
   const name=document.getElementById('new-tag-name').value.trim();if(!name)return;
   const color=document.getElementById('new-tag-color').value;
-  await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,color:color})});
+  await fetch('__BASE__/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,color:color})});
   document.getElementById('new-tag-name').value='';await refresh();renderTagRows();toast('Tag added');
 });
 

@@ -4,22 +4,22 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>reactifact trace</title>
-<link rel="stylesheet" href="/traces/assets/app.css"/>
+<link rel="stylesheet" href="__BASE__/traces/assets/app.css"/>
 <script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
 </head>
 <body>
 <div class="app" id="app">
   <aside class="sidebar">
-    <a class="brand" href="/traces">
+    <a class="brand" href="__BASE__/traces">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span class="name">reactifact <em>traces</em></span>
     </a>
     <nav class="nav">
-      <a class="nav-item active" href="/traces">
+      <a class="nav-item active" href="__BASE__/traces">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
         <span class="nav-label">Traces</span>
       </a>
-      <a class="nav-item" href="/sessions">
+      <a class="nav-item" href="__BASE__/sessions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
         <span class="nav-label">Sessions</span>
       </a>
@@ -42,7 +42,7 @@
       <button class="icon-btn" id="menu-btn" aria-label="open navigation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
-      <div class="crumb"><a href="/traces">traces</a><span class="sep">/</span><b id="cid">#…</b><span id="head"></span></div>
+      <div class="crumb"><a href="__BASE__/traces">traces</a><span class="sep">/</span><b id="cid">#…</b><span id="head"></span></div>
       <div class="spacer"></div>
       <button class="btn sm" id="copy-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1L11 4.9"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.9-1.9"/></svg><span data-label>link</span></button>
       <button class="btn sm" id="copy-json"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>json</span></button>
@@ -104,7 +104,7 @@ function toast(msg){let t=document.getElementById('toast');if(!t){t=document.cre
 
 async function load(){
   try{
-    const res=await fetch('/api/traces/'+RUN_ID);
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID);
     if(res.status===404){document.getElementById('cid').textContent='#'+RUN_ID+' — not found';return;}
     if(!res.ok)throw new Error('HTTP '+res.status);
     render(await res.json());
@@ -122,7 +122,7 @@ function hex(c){return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(
 let VOCAB=[];
 let CURRENT=[];
 async function loadVocab(){
-  try{const r=await fetch('/api/tags');const d=await r.json();VOCAB=(d.items||[]).map(x=>x.name);}
+  try{const r=await fetch('__BASE__/api/tags');const d=await r.json();VOCAB=(d.items||[]).map(x=>x.name);}
   catch(_){VOCAB=[];}
   const dl=document.getElementById('taglist');
   if(dl)dl.innerHTML=VOCAB.map(n=>'<option value="'+escapeHtml(n)+'">').join('');
@@ -152,18 +152,18 @@ function renderAnnot(list){
   document.getElementById('annot-note').addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();addTag();}});
 }
 async function reloadTrace(){
-  const res=await fetch('/api/traces/'+RUN_ID);
+  const res=await fetch('__BASE__/api/traces/'+RUN_ID);
   if(res.ok)renderAnnot((await res.json()).annotations||[]);
   await loadVocab();
 }
 async function addTag(){
   const tag=document.getElementById('annot-tag').value.trim();if(!tag)return;
   const note=document.getElementById('annot-note').value;
-  await fetch('/api/traces/'+RUN_ID+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:tag,note:note})});
+  await fetch('__BASE__/api/traces/'+RUN_ID+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:tag,note:note})});
   toast('Tag added');await reloadTrace();
 }
 async function removeTag(tag){
-  await fetch('/api/traces/'+RUN_ID+'/tags/'+encodeURIComponent(tag),{method:'DELETE'});
+  await fetch('__BASE__/api/traces/'+RUN_ID+'/tags/'+encodeURIComponent(tag),{method:'DELETE'});
   toast('Tag removed');await reloadTrace();
 }
 

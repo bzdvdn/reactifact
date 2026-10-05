@@ -4,22 +4,22 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>reactifact sessions</title>
-<link rel="stylesheet" href="/traces/assets/app.css"/>
+<link rel="stylesheet" href="__BASE__/traces/assets/app.css"/>
 <script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
 </head>
 <body>
 <div class="app" id="app">
   <aside class="sidebar">
-    <a class="brand" href="/traces">
+    <a class="brand" href="__BASE__/traces">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span class="name">reactifact <em>traces</em></span>
     </a>
     <nav class="nav">
-      <a class="nav-item" href="/traces">
+      <a class="nav-item" href="__BASE__/traces">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7.2 11 16.8 6M7.2 13l9.6 5"/></svg>
         <span class="nav-label">Traces</span>
       </a>
-      <a class="nav-item active" href="/sessions">
+      <a class="nav-item active" href="__BASE__/sessions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>
         <span class="nav-label">Sessions</span>
       </a>
@@ -97,7 +97,7 @@ async function load(){
   const p=new URLSearchParams({limit:state.limit,offset:state.offset});
   if(state.q)p.set('q',state.q);
   try{
-    const res=await fetch('/api/sessions?'+p);
+    const res=await fetch('__BASE__/api/sessions?'+p);
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
     state.items=data.items||[];state.total=data.total||0;render();
@@ -133,7 +133,7 @@ function updatePager(){
 }
 document.getElementById('rows').addEventListener('click',(e)=>{
   const row=e.target.closest('tr.row');if(!row)return;
-  window.location.href='/traces?session_id='+encodeURIComponent(row.dataset.id);
+  window.location.href='__BASE__/traces?session_id='+encodeURIComponent(row.dataset.id);
 });
 document.getElementById('f-q').addEventListener('input',debounce((e)=>{state.q=e.target.value.trim();state.offset=0;load();}));
 document.getElementById('prev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);load();});

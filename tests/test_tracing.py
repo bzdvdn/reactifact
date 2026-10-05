@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
@@ -868,3 +869,86 @@ def test_recording_llm_prompt_hash_defaults_empty():
     llm = RecordingLLM(FakeLLM("x"), on_call=recorded.append, agent_of=lambda: "a")
     asyncio.run(llm.complete(LLMRequest(messages=[Message.user("hi")])))
     assert recorded[0].prompt_hash == ""
+
+
+def test_trace_pages_are_prefix_aware(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "prefix.db"))
+    run(store.export(RunTrace(id="r1", session_id="s", outcome="completed")))
+    app = FastAPI()
+    app.include_router(create_trace_router(store), prefix="/ai")
+    client = TestClient(app)
+
+    listing = client.get("/ai/traces")
+    assert listing.status_code == 200
+    html = listing.text
+    assert "__BASE__" not in html
+    assert 'href="/ai/traces/assets/app.css"' in html
+    assert 'href="/ai/traces"' in html
+    assert 'href="/ai/sessions"' in html
+    assert "'/ai/api/traces" in html
+    assert "'/ai/api/columns" in html
+    assert "'/ai/traces/'" in html
+
+    sessions = client.get("/ai/sessions").text
+    assert "__BASE__" not in sessions
+    assert "'/ai/api/sessions" in sessions
+    assert 'href="/ai/traces"' in sessions
+
+    run_page = client.get("/ai/traces/r1").text
+    assert "__BASE__" not in run_page
+    assert "'/ai/api/traces/" in run_page
+    assert 'href="/ai/traces/assets/app.css"' in run_page
+
+
+def test_trace_pages_without_prefix_keep_root_paths(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "root.db"))
+    app = FastAPI()
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+    html = client.get("/traces").text
+    assert "__BASE__" not in html
+    assert 'href="/traces/assets/app.css"' in html
+    assert "'/api/traces" in html
+
+
+def test_trace_pages_honor_asgi_root_path(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "rootpath.db"))
+    app = FastAPI(root_path="/ai")
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+    html = client.get("/traces").text
+    assert "__BASE__" not in html
+    assert 'href="/ai/traces/assets/app.css"' in html
+    assert "'/ai/api/traces" in html
+
+
+def test_trace_pages_stay_prefixed_when_prefix_contains_a_route_segment(tmp_path):
+    """A mount prefix that itself contains ``/traces`` (or ``/sessions``) must
+    not confuse the base: every absolute ref stays inside the prefix."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "tricky.db"))
+    run(store.export(RunTrace(id="r1", session_id="s", outcome="completed")))
+    for prefix in ("/api/traces", "/traces-app", "/sessions", "/traces"):
+        app = FastAPI()
+        app.include_router(create_trace_router(store), prefix=prefix)
+        client = TestClient(app)
+        for logical in ("/traces", "/sessions", "/traces/r1"):
+            html = client.get(prefix + logical).text
+            assert "__BASE__" not in html
+            refs = re.findall(r'(?:href="|fetch\(\')(/[^"\'?]*)', html)
+            assert all(u.startswith(prefix) for u in refs), (prefix, logical, refs[:5])

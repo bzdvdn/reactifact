@@ -4,6 +4,18 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.14.2] — 2026-10-05
+
+### Fixed
+
+- **Trace dashboard respects its mount prefix.** `create_trace_router`'s pages
+  (`/traces`, `/traces/{id}`, `/sessions`) embedded root-absolute URLs
+  (`/api/traces`, `/traces`, `/sessions`, `/traces/assets/app.css`), so a router
+  mounted with `include_router(prefix=…)` (or run behind an ASGI `root_path`)
+  served a UI whose links and `fetch` calls escaped the prefix. The templates
+  now use a `__BASE__` placeholder filled per request from the mount prefix, so
+  the dashboard works at any mount point (and is unchanged at the root).
+
 ## [0.14.1] — 2026-10-01
 
 ### Added

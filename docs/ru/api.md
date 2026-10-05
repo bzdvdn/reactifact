@@ -277,7 +277,7 @@ OTLP/Langfuse-приёмников.
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `TraceColumn` | настраиваемая колонка таблицы из артефактов для `create_trace_router(store, columns=[…])`: `label`, `field` (точечный путь, список→первый), `agent`, `type` (класс или имя), `direction` read/write/any, `index`, `scope` run/session, `default` |
-| `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда |
+| `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда; страницы prefix-aware (работают под `include_router(prefix=…)`/ASGI `root_path`) |
 | `Metrics`, `MetricsTracer`, `create_metrics_router` (`reactifact.metrics`) | Prometheus-метрики без зависимостей: счётчики/гистограммы (`runs_total`, `agent_runs_total`, `llm_calls_total`, `llm_tokens_total`, `llm_cost_total`, `artifacts_written_total`, `relations_total`, латентности…) из трейс-хука; `render()` выдаёт text exposition, `create_metrics_router` отдаёт `GET /metrics`. `RuntimeResources(metrics=…)` открывает тот же sink produce'ам (по умолчанию no-op) |
 
 ## Trust & safety (reactifact.guardrails / reactifact.authz / reactifact.quota, §57)

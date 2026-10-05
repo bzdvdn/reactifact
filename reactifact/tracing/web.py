@@ -33,9 +33,39 @@ from .columns import TraceColumn
 from .store import TraceStoreProtocol
 
 if TYPE_CHECKING:
-    from fastapi import APIRouter
+    from fastapi import APIRouter, Request
 
 _TEMPLATES = Path(__file__).parent / "templates"
+
+
+def _mount_base(request: Request, logical_path: str) -> str:
+    """Path prefix this router is mounted under — ``include_router(prefix=…)``
+    and/or the ASGI ``root_path`` — so templates can emit prefix-aware
+    absolute URLs (``/*`` links and ``fetch`` paths) instead of assuming the
+    service sits at the origin root.
+
+    The prefix is everything before the *last* occurrence of this route's first
+    logical segment (``/traces`` / ``/sessions``) in the request path. The last
+    occurrence — not the first — because the mount prefix may itself contain
+    that segment (``prefix="/api/traces"`` → ``/api/traces/traces``), while the
+    route's own segment is always the one nearest the path parameters.
+    """
+    root_path = request.scope.get("root_path", "") or ""
+    marker = "/" + logical_path.strip("/").split("/")[0]
+    index = request.url.path.rfind(marker)
+    return root_path + (request.url.path[:index] if index > 0 else "")
+
+
+def _render_page(
+    request: Request, filename: str, logical_path: str, **replacements: str
+) -> str:
+    """Read a UI template and fill ``__BASE__`` (mount prefix) plus any
+    caller placeholders (e.g. ``__RUN_ID__``)."""
+    text = (_TEMPLATES / filename).read_text(encoding="utf-8")
+    text = text.replace("__BASE__", _mount_base(request, logical_path))
+    for key, value in replacements.items():
+        text = text.replace(key, value)
+    return text
 
 
 class TagAssign(BaseModel):
@@ -93,8 +123,13 @@ def create_trace_router(
 
     require_extra("tracing.web.create_trace_router", "fastapi", "web")
 
-    from fastapi import APIRouter, Depends, HTTPException, Query
+    from fastapi import APIRouter, Depends, HTTPException, Query, Request
     from fastapi.responses import HTMLResponse, JSONResponse, Response
+
+    # `from __future__ import annotations` keeps every hint a string, resolved
+    # against this module's globals at decoration time; fastapi is imported
+    # lazily here, so publish the names the page handlers annotate with.
+    globals()["Request"] = Request
     from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
     dependencies = []
@@ -286,26 +321,27 @@ def create_trace_router(
         )
 
     @router.get("/traces", response_class=HTMLResponse)
-    async def traces_list_page() -> str:
-        return (_TEMPLATES / "ui.html").read_text(encoding="utf-8")
+    async def traces_list_page(request: Request) -> str:
+        return _render_page(request, "ui.html", "/traces")
 
     @router.get("/sessions", response_class=HTMLResponse)
-    async def sessions_list_page() -> str:
-        return (_TEMPLATES / "sessions.html").read_text(encoding="utf-8")
+    async def sessions_list_page(request: Request) -> str:
+        return _render_page(request, "sessions.html", "/sessions")
 
     @router.get("/traces/{trace_id}", response_class=HTMLResponse)
-    async def traces_run_page(trace_id: str) -> str:
+    async def traces_run_page(request: Request, trace_id: str) -> str:
         from ..viz import trace_provenance_to_mermaid, trace_to_mermaid
 
         trace = await store.get(trace_id)
         mermaid = trace_to_mermaid(trace) if trace is not None else ""
         provenance = trace_provenance_to_mermaid(trace) if trace is not None else ""
-        return (
-            (_TEMPLATES / "ui_run.html")
-            .read_text(encoding="utf-8")
-            .replace("__RUN_ID__", json.dumps(trace_id))
-            .replace("__MERMAID__", json.dumps(mermaid))
-            .replace("__MERMAID_GRAPH__", json.dumps(provenance))
+        return _render_page(
+            request,
+            "ui_run.html",
+            "/traces/{trace_id}",
+            __RUN_ID__=json.dumps(trace_id),
+            __MERMAID__=json.dumps(mermaid),
+            __MERMAID_GRAPH__=json.dumps(provenance),
         )
 
     return router
