@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://github.com/bzdvdn/reactifact)
 [![PyPI version](https://img.shields.io/pypi/v/reactifact)](https://pypi.org/project/reactifact/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bzdvdn/reactifact)
+[![Ask DeepWiki](docs/img/deepwiki.svg)](https://deepwiki.com/bzdvdn/reactifact)
 [![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
 > **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · runs offline, no API key
