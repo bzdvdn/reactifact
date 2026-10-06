@@ -137,7 +137,7 @@ reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхно
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
-| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); схема событий публикуется в OpenAPI `responses` маршрута |
+| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); `request_factory(request)` строит request-маппинг хода из FastAPI `Request` (ходы с учётом идентичности/ACL); схема событий публикуется в OpenAPI `responses` маршрута |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
 
 ## Визуализация (reactifact.viz + python -m reactifact)

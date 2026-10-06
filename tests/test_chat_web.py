@@ -157,6 +157,78 @@ def test_web_router_openapi_publishes_event_schema(tmp_path):
     assert "content" in responses["200"]["description"]
 
 
+def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
+    """`request_factory` maps the FastAPI `Request` into the turn's `request=`."""
+    seen: dict[str, object] = {}
+
+    async def capture(call):
+        seen["user"] = call.request.get("user")
+        call.effects.create(A(text="answer"))
+        return None
+
+    prod = produce(A)(capture)
+    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[agent],
+        user_message=Q,
+        reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
+        max_concurrency=1,
+    )
+
+    app = FastAPI()
+    app.include_router(
+        create_chat_router(
+            assistant,
+            request_factory=lambda request: {"user": request.headers.get("x-user", "")},
+        )
+    )
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "hi", "session_id": "s1"},
+        headers={"X-User": "alice"},
+    ) as response:
+        "".join(response.iter_text())
+
+    assert seen["user"] == "alice"
+
+
+def test_web_router_without_request_factory_has_no_request(tmp_path):
+    """Default stays `request=None`: no behavior change for existing callers."""
+    seen: dict[str, object] = {}
+
+    async def capture(call):
+        seen["request"] = dict(call.request)
+        call.effects.create(A(text="answer"))
+        return None
+
+    prod = produce(A)(capture)
+    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[agent],
+        user_message=Q,
+        reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
+        max_concurrency=1,
+    )
+
+    app = FastAPI()
+    app.include_router(create_chat_router(assistant))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST", "/api/chat/stream", json={"message": "hi", "session_id": "s1"}
+    ) as response:
+        "".join(response.iter_text())
+
+    assert seen["request"] == {}
+
+
 def test_disconnect_cancels_the_running_turn(tmp_path):
     """A dropped SSE client must cancel in-flight work, not leave it burning.
 

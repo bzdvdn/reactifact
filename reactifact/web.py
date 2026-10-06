@@ -41,7 +41,7 @@ from ._extras import require_extra
 from .chat import ChatAssistant, ChatEvent, ChatEventKind
 
 if TYPE_CHECKING:
-    from fastapi import APIRouter
+    from fastapi import APIRouter, Request
     from fastapi.responses import JSONResponse, StreamingResponse
 
 
@@ -83,6 +83,7 @@ def create_chat_router(
     forward_kinds: Sequence[str] | None = None,
     payload_shaper: Callable[[ChatEvent], Mapping[str, Any]] | None = None,
     done_event: str | None = None,
+    request_factory: Callable[[Request], Mapping[str, Any]] | None = None,
 ) -> APIRouter:
     """Builds the chat router on top of a `ChatAssistant`.
 
@@ -100,6 +101,10 @@ def create_chat_router(
     - `payload_shaper(event) -> mapping` — reshape a frame's payload.
     - `done_event` — emit one extra terminal frame (e.g. `"done"`) when the
       stream ends.
+    - `request_factory(request) -> mapping` — build the per-turn `request=`
+      mapping (the same one `ChatAssistant.stream` takes) from the incoming
+      FastAPI `Request`, e.g. the authenticated user for ACL/identity-aware
+      runs. Without it the turn runs with `request=None`.
 
     Defaults reproduce the canonical contract exactly, so existing clients are
     unaffected. The event schema (`ChatEvent`) and the effective names are
@@ -108,8 +113,14 @@ def create_chat_router(
     # Readable error when the `web` extra is missing — then a regular
     # (mypy-visible) import for the real types.
     require_extra("web.create_chat_router", "fastapi", "web")
-    from fastapi import APIRouter
+    from fastapi import APIRouter, Request
     from fastapi.responses import JSONResponse, StreamingResponse
+
+    # `Request` is only referenced from the endpoint's *string* annotation
+    # (`from __future__ import annotations`); FastAPI resolves those against
+    # the module globals, and fastapi may be absent at import time — so publish
+    # it lazily here, right before the endpoint that uses it is defined.
+    globals().setdefault("Request", Request)
 
     names: dict[str, str] = {k: v for k, v in DEFAULT_EVENT_NAMES.items()}
     names.update(event_names or {})
@@ -140,9 +151,13 @@ def create_chat_router(
             }
         },
     )
-    async def chat_stream(req: ChatMessage) -> StreamingResponse:
+    async def chat_stream(req: ChatMessage, request: Request) -> StreamingResponse:
+        turn_request = request_factory(request) if request_factory else None
+
         async def stream() -> AsyncIterator[str]:
-            async for event in assistant.stream(req.message, req.session_id):
+            async for event in assistant.stream(
+                req.message, req.session_id, request=turn_request
+            ):
                 if forward is not None and event.kind not in forward:
                     continue
                 yield sse(names.get(event.kind, event.kind), dict(shaper(event)))

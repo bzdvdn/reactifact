@@ -133,7 +133,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |
-| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); the event schema is published in the route's OpenAPI `responses` |
+| `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); `request_factory(request)` builds the per-turn `request=` mapping from the FastAPI `Request` (identity/ACL-aware turns); the event schema is published in the route's OpenAPI `responses` |
 | `reactifact.web.sse(event, data)` | one SSE frame |
 
 ## Visualization (reactifact.viz + python -m reactifact)

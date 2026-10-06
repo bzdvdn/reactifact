@@ -4,6 +4,16 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.15.0] — 2026-10-06
+
+### Added
+
+- **`create_chat_router(request_factory=…)`.** The chat router can now map the
+  incoming FastAPI `Request` into the per-turn `request=` mapping that
+  `ChatAssistant.stream` accepts (e.g. the authenticated user for
+  ACL/identity-aware runs). Without it the turn runs with `request=None`, as
+  before — existing callers are unaffected.
+
 ## [0.14.2] — 2026-10-05
 
 ### Fixed
