@@ -1031,13 +1031,22 @@ class Runtime:
                     break
                 get_event = asyncio.ensure_future(queue.get())
                 wait_done = asyncio.ensure_future(done.wait())
-                finished, _ = await asyncio.wait(
-                    {get_event, wait_done}, return_when=asyncio.FIRST_COMPLETED
-                )
-                if get_event in finished:
-                    yield get_event.result()
-                else:
-                    get_event.cancel()
+                try:
+                    finished, _ = await asyncio.wait(
+                        {get_event, wait_done}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if get_event in finished:
+                        yield get_event.result()
+                finally:
+                    # Always cancel *and await* the losing future. A task that is
+                    # cancelled but never awaited stays pending until the loop
+                    # closes, producing "Task was destroyed but it is pending!"
+                    # (`Queue.get`/`Event.wait`) on every early generator close
+                    # (e.g. a dropped SSE client).
+                    for fut in (get_event, wait_done):
+                        if not fut.done():
+                            fut.cancel()
+                    await asyncio.gather(get_event, wait_done, return_exceptions=True)
             # Re-raise any agent/runtime exception instead of silently dropping it:
             # an error inside a run must reach the caller, not hide in the task.
             await task
@@ -1053,6 +1062,9 @@ class Runtime:
             )
         finally:
             task.cancel()
+            # Settle the runner too, so an early generator close (client
+            # disconnect) does not leave the run task pending at loop shutdown.
+            await asyncio.gather(task, return_exceptions=True)
             self.context.unsubscribe(queue)
 
     def _apply_patch(self, patch: Patch, commit: Commit) -> list[Write]:

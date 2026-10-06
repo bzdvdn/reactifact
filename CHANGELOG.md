@@ -4,6 +4,18 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.15.1] — 2026-10-06
+
+### Fixed
+
+- **`Runtime.astream` left a pending `queue.get()`/`done.wait()` task.** In the
+  event/`done` wait loop the losing future was cancelled but never awaited (and
+  `done.wait()` was not cancelled at all when an event won), so closing the
+  stream early — a dropped SSE client, an app shutdown — left a task pending and
+  printed `Task was destroyed but it is pending!`. Both futures are now
+  cancelled and awaited every iteration, and the runner task is settled in the
+  generator's `finally`.
+
 ## [0.15.0] — 2026-10-06
 
 ### Added
