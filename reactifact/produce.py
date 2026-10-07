@@ -266,6 +266,37 @@ class Produce(Generic[TOut]):
         """
         return None
 
+    #: Explicit display name (set by e.g. tool-use produces); when unset,
+    #: `name` derives a readable one from the class/function/artifact type.
+    _name: str | None = None
+
+    @property
+    def name(self) -> str:
+        """A human-readable name for traces/logs.
+
+        Subclass-style produces use their class name; an ``@produce``-decorated
+        function uses the wrapped function's name; a bare ``Produce(Model)``
+        (declared only to widen an agent's allowed ``Create`` types) falls back
+        to its output artifact type — otherwise every such no-op would show up
+        as a generic ``Produce``. An explicit ``name`` (e.g. a tool-use produce's)
+        always wins.
+        """
+        explicit = getattr(self, "_name", None)
+        if explicit:
+            return str(explicit)
+        cls = type(self).__name__
+        if cls not in ("Produce", "_FunctionProduce"):
+            return cls
+        func = getattr(self, "_func", None)
+        if func is not None:
+            return str(getattr(func, "__name__", cls))
+        artifact = getattr(self.artifact_type, "__name__", "")
+        return f"Produce[{artifact}]" if artifact else cls
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value
+
     def _apply_result(self, result: Any) -> None:
         """Writes a `@produce`-decorated function's return-style result into
         the effect slot (§24).
@@ -319,6 +350,8 @@ def produce(
             )
 
         class _FunctionProduce(Produce[Any]):
+            _func: Callable[[ProduceCall], Any]
+
             async def produce(self, call: ProduceCall) -> None:
                 result = func(call)
                 if asyncio.iscoroutine(result):
@@ -329,6 +362,8 @@ def produce(
         instance = _FunctionProduce(
             artifact_type=artifact_type, also_creates=also_creates, reacts_to=reacts_to
         )
+        # Keep the function for `Produce.name` (a readable trace/log label).
+        instance._func = func
         return instance
 
     return decorator

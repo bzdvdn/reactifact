@@ -30,6 +30,7 @@ from .models import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
+    ProduceRun,
     RelationRef,
     RunTrace,
     TagAssignment,
@@ -174,13 +175,15 @@ class TraceStore:
                 run_id TEXT NOT NULL REFERENCES runs(id),
                 agent TEXT NOT NULL,
                 event_type TEXT NOT NULL DEFAULT '',
+                event_artifact_type TEXT NOT NULL DEFAULT '',
                 latency_ms REAL NOT NULL DEFAULT 0,
                 error TEXT,
                 started_at REAL,
                 reads TEXT NOT NULL DEFAULT '[]',
                 writes TEXT NOT NULL DEFAULT '[]',
                 relations TEXT NOT NULL DEFAULT '[]',
-                llm_calls TEXT NOT NULL DEFAULT '[]'
+                llm_calls TEXT NOT NULL DEFAULT '[]',
+                produces TEXT NOT NULL DEFAULT '[]'
             );
             CREATE TABLE IF NOT EXISTS tags (
                 name TEXT PRIMARY KEY,
@@ -218,6 +221,14 @@ class TraceStore:
             )
         if "started_at" not in cols:
             self._conn.execute("ALTER TABLE spans ADD COLUMN started_at REAL")
+        if "produces" not in cols:
+            self._conn.execute(
+                "ALTER TABLE spans ADD COLUMN produces TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "event_artifact_type" not in cols:
+            self._conn.execute(
+                "ALTER TABLE spans ADD COLUMN event_artifact_type TEXT NOT NULL DEFAULT ''"
+            )
         run_cols = {row[1] for row in self._conn.execute("PRAGMA table_info(runs)")}
         if "prompt_tokens" not in run_cols:
             self._conn.execute(
@@ -328,13 +339,15 @@ class TraceStore:
         )
         for span in trace.spans:
             self._conn.execute(
-                "INSERT INTO spans (run_id, agent, event_type, latency_ms, error, "
-                "started_at, reads, writes, relations, llm_calls) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
+                "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
+                "produces) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     trace.id,
                     span.agent,
                     span.event_type,
+                    span.event_artifact_type,
                     span.latency_ms,
                     span.error,
                     span.started_at.timestamp() if span.started_at else None,
@@ -342,6 +355,7 @@ class TraceStore:
                     json.dumps([w.model_dump(mode="json") for w in span.writes]),
                     json.dumps([r.model_dump(mode="json") for r in span.relations]),
                     json.dumps([c.model_dump(mode="json") for c in span.llm_calls]),
+                    json.dumps([p.model_dump(mode="json") for p in span.produces]),
                 ),
             )
         self._conn.commit()
@@ -595,8 +609,8 @@ class TraceStore:
         if row is None:
             return None
         span_rows = self._conn.execute(
-            "SELECT agent, event_type, latency_ms, error, started_at, "
-            "reads, writes, relations, llm_calls "
+            "SELECT agent, event_type, event_artifact_type, latency_ms, error, started_at, "
+            "reads, writes, relations, llm_calls, produces "
             "FROM spans WHERE run_id = ? ORDER BY id",
             (trace_id,),
         ).fetchall()
@@ -604,15 +618,17 @@ class TraceStore:
             AgentSpan(
                 agent=r[0],
                 event_type=r[1],
-                latency_ms=r[2],
-                error=r[3],
+                event_artifact_type=r[2],
+                latency_ms=r[3],
+                error=r[4],
                 started_at=(
-                    datetime.fromtimestamp(r[4], tz=UTC) if r[4] is not None else None
+                    datetime.fromtimestamp(r[5], tz=UTC) if r[5] is not None else None
                 ),
-                reads=[ArtifactRef(**d) for d in json.loads(r[5])],
-                writes=[ArtifactRef(**d) for d in json.loads(r[6])],
-                relations=[RelationRef(**d) for d in json.loads(r[7])],
-                llm_calls=[LLMCall(**d) for d in json.loads(r[8])],
+                reads=[ArtifactRef(**d) for d in json.loads(r[6])],
+                writes=[ArtifactRef(**d) for d in json.loads(r[7])],
+                relations=[RelationRef(**d) for d in json.loads(r[8])],
+                llm_calls=[LLMCall(**d) for d in json.loads(r[9])],
+                produces=[ProduceRun(**d) for d in json.loads(r[10])],
             )
             for r in span_rows
         ]

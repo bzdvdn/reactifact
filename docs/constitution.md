@@ -3111,7 +3111,7 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 # Appendix — Implementation Status
 
 State of the public `reactifact` codebase, aligned with this constitution (ver 0.3).
-Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ruff clean.
+Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
@@ -3137,6 +3137,7 @@ Verification: 620 tests (+2 skipped without `TEST_PG_DSN`); mypy (strict) and ru
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |
+| Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which `Produce`(s) ran (`AgentSpan.produces`: name/operations/latency, including a produce that raised), shown as a `Consume → Produce` flow in the dashboard and as child observations in Langfuse |
 | Replay (§55) | §55 | implemented — `ReplayLLM` record/replay, state replay + `python -m reactifact replay` |
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
 | Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which produce/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |

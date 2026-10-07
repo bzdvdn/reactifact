@@ -123,8 +123,19 @@ class OTLPTracer(Tracer):
             attr("reactifact.reads", type_summary(span.reads)),
             attr("reactifact.writes", type_summary(span.writes)),
         ]
+        if span.event_artifact_type:
+            attrs.append(
+                attr("reactifact.event_artifact_type", span.event_artifact_type)
+            )
         if span.error:
             attrs.append(attr("error.type", span.error))
+        if span.produces:
+            attrs.append(
+                attr(
+                    "reactifact.produces",
+                    ", ".join(f"{p.name}({p.operations})" for p in span.produces),
+                )
+            )
         return {
             "traceId": tid,
             "spanId": span_id(f"{tid}:span:{index}:{span.agent}"),

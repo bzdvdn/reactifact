@@ -4,6 +4,43 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.15.2] — 2026-10-07
+
+### Added
+
+- **Produce-level tracing (`AgentSpan.produces`).** A trace span now records
+  which `Produce`(s) ran within the agent for that event, with how many effect
+  operations each authored and its latency — so a multi-produce agent (e.g. one
+  that shapes an answer *and* records a side effect) is no longer a black box in
+  the trace. Captured via a per-task contextvar in `Agent.execute`, persisted in
+  the SQLite/Postgres trace stores (auto-migrated column) and shown in the
+  dashboard as a `Consume → Produce` flow on each span (trigger artifact →
+  produce chips with `+N` authored operations, no-op produces dimmed); the
+  agent header aggregates it. The external sinks carry it too: `LangfuseTracer`
+  emits a child observation per produce (with its latency, so Langfuse's
+  waterfall shows each `Consume → Produce` step) plus the
+  `langfuse.observation.metadata.produces` list, and `OTLPTracer` emits a
+  `reactifact.produces` attribute (`Name(ops)` list). A produce that raises is
+  still recorded — with its partial operations — on the error span, so the
+  failing step is visible instead of silently missing. Produce names are readable:
+  `Produce.name` uses the class name, the `@produce` function's name, or — for a
+  bare `Produce(Model)` used only to widen an agent's allowed `Create` types —
+  `Produce[Model]` (an explicit `name=` still wins), so traces no longer show a
+  wall of generic `Produce`.
+- **`AgentSpan.event_artifact_type`** — the artifact type whose change triggered
+  the agent (its matched `Consume`), e.g. `DraftAnswer` vs `FinalResponse` for an
+  agent that consumes both. `event_type` alone (created/updated) can't tell them
+  apart. Persisted in both trace stores (auto-migrated) and shown on each span;
+  Langfuse gets `langfuse.observation.metadata.event_artifact_type` and OTLP gets
+  `reactifact.event_artifact_type` (both omitted when empty, so no blank key).
+
+### Fixed
+
+- **Dashboard disclosure carets now point down when expanded.** The `▸` on
+  agent, span and LLM-call rows was styled with `details[open]>.caret`, but the
+  caret lives inside `<summary>`, so the selector never matched and it stayed
+  `▸`; it now rotates to `▾` for every expanded row.
+
 ## [0.15.1] — 2026-10-07
 
 ### Added

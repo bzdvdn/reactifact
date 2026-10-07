@@ -205,3 +205,20 @@ def test_artifact_type_auto_derived_from_generic():
     assert Auto.artifact_type is Marker
     instance = Auto()
     assert instance.artifact_type is Marker
+
+
+def test_produce_name_is_readable_for_traces():
+    """A bare `Produce(Model)` (used to widen allowed Create types) must not show
+    up as a generic "Produce" in traces/logs — nor must a `@produce` function."""
+
+    class Named(Produce):
+        artifact_type = Marker
+
+    assert Named().name == "Named"
+    assert Produce(Marker).name == "Produce[Marker]"
+
+    @produce(Marker)
+    def my_marker(call):
+        call.effects.create(Marker(value="x"))
+
+    assert my_marker.name == "my_marker"

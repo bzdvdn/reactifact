@@ -27,6 +27,7 @@ from .models import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
+    ProduceRun,
     RelationRef,
     RunTrace,
     TagAssignment,
@@ -70,13 +71,15 @@ class PostgresStore:
                         run_id TEXT NOT NULL REFERENCES runs(id),
                         agent TEXT NOT NULL,
                         event_type TEXT NOT NULL DEFAULT '',
+                        event_artifact_type TEXT NOT NULL DEFAULT '',
                         latency_ms REAL NOT NULL DEFAULT 0,
                         error TEXT,
                         started_at TIMESTAMPTZ,
                         reads JSONB NOT NULL DEFAULT '[]',
                         writes JSONB NOT NULL DEFAULT '[]',
                         relations JSONB NOT NULL DEFAULT '[]',
-                        llm_calls JSONB NOT NULL DEFAULT '[]'
+                        llm_calls JSONB NOT NULL DEFAULT '[]',
+                        produces JSONB NOT NULL DEFAULT '[]'
                     )
                     """
                 )
@@ -122,6 +125,14 @@ class PostgresStore:
                 await cur.execute(
                     "ALTER TABLE spans ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ"
                 )
+                await cur.execute(
+                    "ALTER TABLE spans ADD COLUMN IF NOT EXISTS "
+                    "produces JSONB NOT NULL DEFAULT '[]'"
+                )
+                await cur.execute(
+                    "ALTER TABLE spans ADD COLUMN IF NOT EXISTS "
+                    "event_artifact_type TEXT NOT NULL DEFAULT ''"
+                )
             await conn.commit()
         finally:
             await conn.close()
@@ -159,13 +170,15 @@ class PostgresStore:
                     if span_started is not None and span_started.tzinfo is None:
                         span_started = span_started.replace(tzinfo=UTC)
                     await cur.execute(
-                        "INSERT INTO spans (run_id, agent, event_type, latency_ms, error, "
-                        "started_at, reads, writes, relations, llm_calls) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
+                        "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
+                        "produces) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                         (
                             trace.id,
                             span.agent,
                             span.event_type,
+                            span.event_artifact_type,
                             span.latency_ms,
                             span.error,
                             span_started,
@@ -180,6 +193,9 @@ class PostgresStore:
                             ),
                             psycopg.types.json.Jsonb(
                                 [c.model_dump(mode="json") for c in span.llm_calls]
+                            ),
+                            psycopg.types.json.Jsonb(
+                                [p.model_dump(mode="json") for p in span.produces]
                             ),
                         ),
                     )
@@ -387,8 +403,8 @@ class PostgresStore:
                 if row is None:
                     return None
                 await cur.execute(
-                    "SELECT agent, event_type, latency_ms, error, started_at, "
-                    "reads, writes, relations, llm_calls "
+                    "SELECT agent, event_type, event_artifact_type, latency_ms, error, "
+                    "started_at, reads, writes, relations, llm_calls, produces "
                     "FROM spans WHERE run_id = %s ORDER BY id",
                     (trace_id,),
                 )
@@ -408,13 +424,15 @@ class PostgresStore:
             AgentSpan(
                 agent=r[0],
                 event_type=r[1],
-                latency_ms=r[2],
-                error=r[3],
-                started_at=r[4],
-                reads=[ArtifactRef(**d) for d in r[5]],
-                writes=[ArtifactRef(**d) for d in r[6]],
-                relations=[RelationRef(**d) for d in r[7]],
-                llm_calls=[LLMCall(**d) for d in r[8]],
+                event_artifact_type=r[2],
+                latency_ms=r[3],
+                error=r[4],
+                started_at=r[5],
+                reads=[ArtifactRef(**d) for d in r[6]],
+                writes=[ArtifactRef(**d) for d in r[7]],
+                relations=[RelationRef(**d) for d in r[8]],
+                llm_calls=[LLMCall(**d) for d in r[9]],
+                produces=[ProduceRun(**d) for d in r[10]],
             )
             for r in span_rows
         ]

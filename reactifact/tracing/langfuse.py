@@ -96,6 +96,11 @@ class LangfuseTracer(Tracer):
             )
             span_start = span.started_at or run_start
             agent_span_id = _span_id(f"{trace_id}:span:{i}:{span.agent}")
+            spans.extend(
+                self._produce_spans(
+                    trace_id, agent_span_id, trace_attrs, run_start, i, span
+                )
+            )
             for j, call in enumerate(span.llm_calls):
                 spans.append(
                     self._llm_span(
@@ -145,8 +150,29 @@ class LangfuseTracer(Tracer):
                 _type_summary(span.writes),
             ),
         ]
+        if span.event_artifact_type:
+            attrs.append(
+                _attr(
+                    "langfuse.observation.metadata.event_artifact_type",
+                    span.event_artifact_type,
+                )
+            )
         if span.error:
             attrs.append(_attr("langfuse.observation.metadata.error", span.error))
+        if span.produces:
+            attrs.append(
+                _attr(
+                    "langfuse.observation.metadata.produces",
+                    [
+                        {
+                            "name": p.name,
+                            "operations": p.operations,
+                            "latency_ms": p.latency_ms,
+                        }
+                        for p in span.produces
+                    ],
+                )
+            )
         return {
             "traceId": trace_id,
             "spanId": _span_id(f"{trace_id}:span:{index}:{span.agent}"),
@@ -157,6 +183,53 @@ class LangfuseTracer(Tracer):
             "endTimeUnixNano": _unix_nanos(end),
             "attributes": attrs,
         }
+
+    def _produce_spans(
+        self,
+        trace_id: str,
+        parent_span_id: str,
+        trace_attrs: list[dict[str, Any]],
+        run_start: datetime,
+        span_index: int,
+        span: AgentSpan,
+    ) -> list[dict[str, Any]]:
+        """One child observation per produce the agent ran, so Langfuse's
+        waterfall shows the ``Consume → Produce`` steps instead of a single
+        opaque agent span.
+
+        Produces run sequentially within an agent, so they are laid out
+        back-to-back from the span start by each one's measured latency.
+        """
+        if not span.produces:
+            return []
+        cursor = span.started_at or run_start
+        out: list[dict[str, Any]] = []
+        for k, produce in enumerate(span.produces):
+            end = cursor + timedelta(milliseconds=produce.latency_ms)
+            out.append(
+                {
+                    "traceId": trace_id,
+                    "spanId": _span_id(
+                        f"{trace_id}:produce:{span_index}:{k}:{produce.name}"
+                    ),
+                    "parentSpanId": parent_span_id,
+                    "name": produce.name,
+                    "kind": 1,
+                    "startTimeUnixNano": _unix_nanos(cursor),
+                    "endTimeUnixNano": _unix_nanos(end),
+                    "attributes": [
+                        *trace_attrs,
+                        _attr("langfuse.observation.type", "span"),
+                        _attr("langfuse.observation.metadata.agent", span.agent),
+                        _attr(
+                            "langfuse.observation.metadata.operations",
+                            produce.operations,
+                        ),
+                    ],
+                }
+            )
+            cursor = end
+        return out
 
     def _llm_span(
         self,

@@ -9,7 +9,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
 поэтому новый экспорт добавляется осознанно (и документируется на этой
@@ -26,10 +26,10 @@ reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхно
   существуют потому, что `Context` разбили на модули поменьше ради
   читаемости, но ни один из них не экспортируется: поддерживаемая
   поверхность — это `Context`, а не они.
-- **SemVer в pre-1.0-стиле**: минорный бамп (`0.13.0` → `0.14.0`) может добавить
+- **SemVer в pre-1.0-стиле**: минорный бамп (`0.14.0` → `0.15.0`) может добавить
   символы или, в редких случаях, изменить поведение так, что `CHANGELOG.md`
   явно пометит это `Breaking` — минорные релизы до 1.0 всё ещё позволяют
-  reactifact исправить архитектурную ошибку. Патч (`0.13.0` → `0.13.1`) никогда
+  reactifact исправить архитектурную ошибку. Патч (`0.14.0` → `0.14.1`) никогда
   не убирает и не переименовывает публичный символ и никогда не меняет
   задокументированное поведение — только чинит баги относительно него.
 - **Депрекейшен**: символ на пути к удалению остаётся импортируемым и работает
@@ -93,7 +93,7 @@ reactifact всё ещё pre-1.0 (`0.14.x`), но не `rc` — поверхно
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to` |
+| `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to`; `.name` — читаемая метка для трейсов/логов (имя класса, имя функции `@produce` или `Produce[Model]` для пустого widening-produce) |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -274,7 +274,7 @@ OTLP/Langfuse-приёмников.
 | `Session`, `SessionStore` | долгоживущая память чата между запросами |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value чекпоинты под сессии (`pg` extra для Postgres) — async-native: файловый I/O уходит в отдельный поток, SQLite/Postgres держат одно постоянное соединение (WAL + busy_timeout у SQLite) под `asyncio.Lock` |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | чекпоинты всего контекста |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`) |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`; `AgentSpan.event_artifact_type` — тип-потребитель, разбудивший агента, `AgentSpan.produces` — отработавшие `ProduceRun` (имя/операции/латентность), чтобы мульти-produce агент не был чёрным ящиком) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `TraceColumn` | настраиваемая колонка таблицы из артефактов для `create_trace_router(store, columns=[…])`: `label`, `field` (точечный путь, список→первый), `agent`, `type` (класс или имя), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда; страницы prefix-aware (работают под `include_router(prefix=…)`/ASGI `root_path`) |

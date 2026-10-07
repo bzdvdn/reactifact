@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..patches import Create, Link, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
-from .models import AgentSpan, ArtifactRef, LLMCall, RelationRef, RunTrace
+from .models import AgentSpan, ArtifactRef, LLMCall, ProduceRun, RelationRef, RunTrace
 from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
@@ -439,12 +439,15 @@ class RunTracer:
         latency_ms: float,
         *,
         error: BaseException | None = None,
+        produces: list[tuple[str, int, float]] | None = None,
     ) -> AgentSpan | None:
         """Builds, buffers and delivers one span — or a no-op if disabled.
 
         `error is not None` covers the isolated-error path; the success path
         (a span whose `writes`/`relations` are filled in once the patch is
         applied, see `Runtime._commit_patches_to_apply`) passes it as `None`.
+        `produces` is the ``(name, operations, latency_ms)`` list the agent's
+        `execute()` recorded for this event.
         """
         if self.tracer is None:
             return None
@@ -452,6 +455,15 @@ class RunTracer:
             span = AgentSpan(
                 agent=agent.name,
                 event_type=event.type.value,
+                event_artifact_type=(
+                    event.artifact_type.__name__
+                    if isinstance(event.artifact_type, type)
+                    else str(event.artifact_type)
+                ),
+                produces=[
+                    ProduceRun(name=name, operations=operations, latency_ms=latency)
+                    for name, operations, latency in (produces or [])
+                ],
                 reads=self.read_refs(reads),
                 latency_ms=latency_ms,
                 llm_calls=self._pending_llm.pop(agent.name, []),

@@ -213,7 +213,8 @@ function renderFields(fields){
   }).join('');
 }
 function spanMatches(s,f){
-  const hay=[s.agent,s.event_type,s.error||''];
+  const hay=[s.agent,s.event_type,s.event_artifact_type||'',s.error||''];
+  for(const p of (s.produces||[]))hay.push(p.name||'');
   for(const a of (s.reads||[]).concat(s.writes||[]))hay.push(a.data_type||'',a.data||'');
   for(const c of (s.llm_calls||[]))hay.push(c.provider||'',c.model||'',c.response||'',...(c.messages||[]).map(m=>m.content||''));
   return hay.join(' ').toLowerCase().includes(f);
@@ -243,7 +244,8 @@ function renderTimeline(spans){
   let html='<div class="timeline"><div class="tl-axis">'+ticks+'</div>';
   for(const r of rows){
     const s=r.s;const left=(r.start/total)*100;const width=Math.max(0.6,(r.dur/total)*100);
-    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_type||'span');const llm=(s.llm_calls||[]).length;
+    const prods=(s.produces||[]).map(p=>p.name).join('+');
+    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_artifact_type||s.event_type||'span')+(prods?' → '+escapeHtml(prods):'');const llm=(s.llm_calls||[]).length;
     html+='<div class="tl-row"><div class="tl-label" title="'+label+'">'+label+(llm?' <span class="sub">'+llm+' llm</span>':'')+'</div>'+
       '<div class="tl-track"><div class="tl-bar'+(s.error?' err':'')+'" style="left:'+left+'%;width:'+width+'%" title="'+label+' — '+r.dur.toFixed(1)+' ms"><span class="lbl">'+r.dur.toFixed(0)+' ms</span></div></div></div>';
   }
@@ -254,7 +256,14 @@ function agentHtml(agent,list){
   for(const s of list){writes+=(s.writes||[]).length;llm+=(s.llm_calls||[]).length;
     for(const r of s.reads||[]){const t=r.data_type||'artifact';readsAgg[t]=(readsAgg[t]||0)+1;}}
   const chips=Object.entries(readsAgg).map(([t,n])=>'<span class="chip">'+escapeHtml(t)+' '+n+'</span>').join('');
+  const consumes=[...new Set(list.map(s=>s.event_artifact_type).filter(Boolean))];
+  const prods=[...new Set(list.flatMap(s=>(s.produces||[]).map(p=>p.name)))];
+  const flow=(consumes.length||prods.length)
+    ? '<span class="flow"><span class="c-side">'+consumes.map(c=>'<span class="consume">'+escapeHtml(c)+'</span>').join('')+
+      '</span><span class="arrow">→</span><span class="produces">'+prods.map(n=>'<span class="chip produce">'+escapeHtml(n)+'</span>').join('')+'</span></span>'
+    : '';
   return '<details class="agent" open><summary><span class="caret">▸</span><b>'+escapeHtml(agent)+'</b>'+
+    flow+
     '<span class="muted">'+list.length+' spans · '+ms.toFixed(1)+' ms avg</span>'+
     '<span class="stat">'+writes+' writes · '+llm+' llm</span></summary>'+
     '<div class="agent-body">'+(chips?'<div class="chips">'+chips+'</div>':'')+
@@ -266,10 +275,27 @@ function spanHtml(s){
   const writes=(s.writes||[]).length?('<div class="io"><h3>writes</h3>'+artsBlock(s.writes)+'</div>'):'';
   const io=(reads||writes)?'<div class="io-grid">'+reads+writes+'</div>':'';
   const llm=(s.llm_calls||[]).map(llmHtml).join('');
-  return '<details class="node"><summary><span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
-    '<span class="nid">'+escapeHtml(s.agent)+'</span><span class="ntype">'+escapeHtml(s.event_type)+'</span>'+
+  return '<details class="node"><summary>'+
+    '<span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
+    '<span class="nid">'+escapeHtml(s.agent)+'</span>'+
+    flowHtml(s.event_artifact_type, s.event_type, s.produces)+
     '<span class="stat">'+Number(s.latency_ms).toFixed(1)+' ms · '+(s.llm_calls||[]).length+' llm'+(ok?'':' · failed')+'</span></summary>'+
     '<div class="node-body">'+errBlock+io+(llm?'<div class="llm"><h3>LLM calls</h3>'+llm+'</div>':'')+'</div></details>';
+}
+function flowHtml(consume, eventType, produces){
+  const c=consume
+    ? '<span class="consume" title="Consume — artifact whose change triggered this agent">'+escapeHtml(consume)+'</span>'
+    : '<span class="consume muted">event</span>';
+  const ev=eventType?'<span class="ev">'+escapeHtml(eventType)+'</span>':'';
+  const list=produces||[];
+  const right=list.length?list.map(produceChip).join(''):'<span class="muted">no produce ran</span>';
+  return '<span class="flow"><span class="c-side">'+c+ev+'</span>'+
+    '<span class="arrow" aria-hidden="true">→</span><span class="produces">'+right+'</span></span>';
+}
+function produceChip(p){
+  const ops=Number(p.operations||0);const ms=Number(p.latency_ms||0);
+  return '<span class="chip produce'+(ops?'':' noop')+'" title="'+escapeHtml(p.name)+' — '+ms.toFixed(1)+' ms">'+
+    escapeHtml(p.name)+'<span class="ops'+(ops?'':' zero')+'">'+(ops?('+'+ops):'0')+'</span></span>';
 }
 function artHtml(a){
   const op=('<span class="tag">'+escapeHtml(a.op_type||'read')+'</span>');

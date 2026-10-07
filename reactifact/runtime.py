@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from .agents import Agent
+from .agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
 from .artifacts import Artifact
 from .budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
 from .commit import Commit, Read, Write
@@ -31,9 +31,17 @@ logger = get_logger(__name__)
 #: A scheduled patch with its trigger reads and (optional) trace span.
 PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
 #: One agent execution result: patch (if any), the agent/event/reads that
-#: produced it, latency, and the exception if the produce raised and
-#: `isolate_errors` was set.
-AgentResult = tuple[Patch | None, Agent, Event, list[Read], float, BaseException | None]
+#: produced it, latency, the exception if the produce raised and
+#: `isolate_errors` was set, and the produces that ran (name/ops/latency).
+AgentResult = tuple[
+    Patch | None,
+    Agent,
+    Event,
+    list[Read],
+    float,
+    BaseException | None,
+    list[tuple[str, int, float]],
+]
 #: Performs one committed `PendingAction` (outbox). Called by the runtime after
 #: the intent is committed; the app performs the real I/O and returns (or
 #: raises). Must be idempotent on `idempotency_key` (§42).
@@ -650,18 +658,22 @@ class Runtime:
         """
         patches_to_apply: list[PatchWork] = []
         runs = 0
-        for patch, agent, event, reads, latency, error in results:
+        for patch, agent, event, reads, latency, error, produce_run_list in results:
             if self._budget_exhausted():
                 break
             runs += 1
             self._runs_used += 1
             if error is not None:
                 self._errors_used += 1
-                self._trace.record_span(agent, event, reads, latency, error=error)
+                self._trace.record_span(
+                    agent, event, reads, latency, error=error, produces=produce_run_list
+                )
                 continue
             if patch is None or patch.is_empty():
                 continue
-            span = self._trace.record_span(agent, event, reads, latency)
+            span = self._trace.record_span(
+                agent, event, reads, latency, produces=produce_run_list
+            )
             self._validate_patch_types(patch, agent)
             self._enforce_authorization(patch)
             patch = self._apply_guardrails(patch)
@@ -794,6 +806,7 @@ class Runtime:
         task = asyncio.current_task()
         self._trace.register_task(task, agent.name)
         effects_token = set_effects(Effects(self.context))
+        produce_runs_token = begin_produce_runs()
         slot: Effects | None = None
         patch: Patch | None = None
         error: BaseException | None = None
@@ -817,6 +830,8 @@ class Runtime:
                 if self.on_agent_error is not None:
                     self.on_agent_error(agent, event, exc)
         finally:
+            runs = produce_runs()
+            end_produce_runs(produce_runs_token)
             reset_effects(effects_token)
             self._trace.unregister_task(task)
         latency = (time.monotonic() - started) * 1000
@@ -829,7 +844,7 @@ class Runtime:
                     "error": repr(error),
                 },
             )
-            return None, agent, event, reads, latency, error
+            return None, agent, event, reads, latency, error, runs
         logger.debug(
             "agent finished",
             extra={"agent": agent.name, "latency_ms": round(latency, 2)},
@@ -843,7 +858,7 @@ class Runtime:
                 combined.merge(patch)
             combined.merge(slot.to_patch())
             patch = combined
-        return patch, agent, event, reads, latency, None
+        return patch, agent, event, reads, latency, None, runs
 
     async def arun(
         self,

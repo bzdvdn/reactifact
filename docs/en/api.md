@@ -8,7 +8,7 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-reactifact is pre-1.0 (`0.14.x`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.15.x`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins every `__all__` listed here, so a new export has to be added deliberately
 (and documented on this page), never by accident.
@@ -23,10 +23,10 @@ pins every `__all__` listed here, so a new export has to be added deliberately
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.13.0` → `0.14.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.14.0` → `0.15.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
-  patch bump (`0.13.0` → `0.13.1`) never removes or renames a public symbol and
+  patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
   never changes documented behavior, only fixes bugs against it.
 - **Deprecation**: a symbol on its way out stays importable and keeps working
   for at least one minor release; it is marked deprecated in the docstring and
@@ -89,7 +89,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set |
+| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set; `.name` is a readable trace/log label (class name, the `@produce` function's name, or `Produce[Model]` for a bare widening produce) |
 | `Trigger` | secondary (non-artifact) enter condition for a produce; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -270,7 +270,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `Session`, `SessionStore` | durable per-chat working memory across requests |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock` |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline) |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type` is the consumed type that triggered the agent, and `AgentSpan.produces` lists the `ProduceRun`s that ran — name/operations/latency — so a multi-produce agent isn't a black box) |
 | `TraceColumn` | a configurable, artifact-derived table column for `create_trace_router(store, columns=[…])`: `label`, `field` (dotted path, list→first), `agent`, `type` (class or name), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `Tag`, `TagAssignment`, `TraceAnnotator`, `TraceStoreProtocol` | reviewer annotations: a tag vocabulary (`Tag`) and per-run tags + notes (`TagAssignment`, `RunTrace.annotations`); stores expose `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag` |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write and the full annotation API; the dashboard (`create_trace_router`) accepts any `TraceStoreProtocol` (SQLite or Postgres) |

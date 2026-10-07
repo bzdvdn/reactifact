@@ -3,12 +3,22 @@ import json
 import re
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
+from reactifact import (
+    Agent,
+    Consume,
+    Context,
+    Patch,
+    Produce,
+    Runtime,
+    RuntimeResources,
+    create_agent,
+)
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, Message
 from reactifact.tracing import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
+    ProduceRun,
     RecordingLLM,
     RelationRef,
     RunTrace,
@@ -147,6 +157,80 @@ def test_runtime_records_spans_and_trace(tmp_path):
     created = next(w for w in greeter.writes if w.op_type == "create")
     assert created.data_type == "Answer"
     assert created.data is not None and "Привет" in created.data
+
+
+def test_runtime_records_which_produce_ran(tmp_path):
+    class Emit(Produce[Answer]):
+        reacts_to = (Question,)
+
+        async def produce(self, call):
+            call.effects.create(Answer(text="ok"))
+
+    class NeverRuns(Produce[Answer]):
+        reacts_to = (Answer,)  # never matches the Question event
+
+        async def produce(self, call):
+            call.effects.create(Answer(text="nope"))
+
+    agent = create_agent(
+        "writer", consumes=[Consume(Question)], produces=[Emit(), NeverRuns()]
+    )
+    store = TraceStore(str(tmp_path / "produce.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    span = next(s for s in trace.spans if s.agent == "writer")
+    assert span.event_artifact_type == "Question"
+    assert [p.name for p in span.produces] == ["Emit"]
+    assert span.produces[0].operations >= 1
+
+
+def test_runtime_records_a_produce_that_raised(tmp_path):
+    """A produce that blows up is the one a trace most needs to show: it must
+    still appear in `span.produces` (with its partial operations), on the error
+    span, under `isolate_errors=True`."""
+
+    class Boom(Produce[Answer]):
+        reacts_to = (Question,)
+
+        async def produce(self, call):
+            call.effects.create(Answer(text="partial"))
+            raise RuntimeError("boom")
+
+    agent = create_agent("writer", consumes=[Consume(Question)], produces=[Boom()])
+    store = TraceStore(str(tmp_path / "boom.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(
+        ctx, agents=[agent], tracer=Tracer(store=store), isolate_errors=True
+    )
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    span = next(s for s in trace.spans if s.agent == "writer")
+    assert span.error is not None and "boom" in span.error
+    assert [p.name for p in span.produces] == ["Boom"]
+    assert span.produces[0].operations >= 1
+
+
+def test_span_keeps_a_string_event_artifact_type(tmp_path):
+    """`Event.from_dict` falls back to the type *name* (a plain string) when a
+    type isn't importable, so the span must record that name as-is rather than
+    blanking it out."""
+    from reactifact.events import Event, EventType
+    from reactifact.tracing.tracer import RunTracer
+
+    ctx = Context()
+    run_tracer = RunTracer(ctx, Tracer())
+    event = Event(EventType.ARTIFACT_CREATED, "Question", "a1")
+    span = run_tracer.record_span(Greeter(), event, [], 1.0)
+    assert span is not None
+    assert span.event_artifact_type == "Question"
 
 
 def test_runtime_records_llm_calls(tmp_path):
@@ -371,6 +455,10 @@ def test_langfuse_exports_trace_spans_and_llm():
                     AgentSpan(
                         agent="greeter",
                         event_type="artifact_created",
+                        event_artifact_type="Question",
+                        produces=[
+                            ProduceRun(name="Emit", operations=2, latency_ms=1.5)
+                        ],
                         writes=[
                             ArtifactRef(
                                 artifact_id="a1",
@@ -407,7 +495,8 @@ def test_langfuse_exports_trace_spans_and_llm():
     assert langfuse._headers["Authorization"].startswith("Basic ")
 
     spans = body["resourceSpans"][0]["scopeSpans"][0]["spans"]
-    assert len(spans) == 3  # root run span + agent span + llm generation span
+    # root run span + agent span + produce child span + llm generation span
+    assert len(spans) == 4
     by_name = {s["name"]: s for s in spans}
 
     def attr(span: dict, key: str):
@@ -423,12 +512,29 @@ def test_langfuse_exports_trace_spans_and_llm():
     agent_span = by_name["greeter"]
     assert agent_span["parentSpanId"] == root["spanId"]
     assert attr(agent_span, "langfuse.observation.type") == {"stringValue": "span"}
+    assert attr(agent_span, "langfuse.observation.metadata.event_artifact_type") == {
+        "stringValue": "Question"
+    }
     write_summary = json.loads(
         attr(agent_span, "langfuse.observation.metadata.write_summary")["stringValue"]
     )
     assert write_summary == {"Answer": 1}
     output = json.loads(attr(agent_span, "langfuse.observation.output")["stringValue"])
     assert output[0]["artifact_id"] == "a1"
+    produces = json.loads(
+        attr(agent_span, "langfuse.observation.metadata.produces")["stringValue"]
+    )
+    assert produces == [{"name": "Emit", "operations": 2, "latency_ms": 1.5}]
+
+    # The produce is also a child observation, so Langfuse's waterfall shows it.
+    produce_span = by_name["Emit"]
+    assert produce_span["parentSpanId"] == agent_span["spanId"]
+    assert attr(produce_span, "langfuse.observation.metadata.agent") == {
+        "stringValue": "greeter"
+    }
+    assert attr(produce_span, "langfuse.observation.metadata.operations") == {
+        "intValue": "2"
+    }
 
     llm_span = by_name["llm:m"]
     assert llm_span["parentSpanId"] == agent_span["spanId"]
@@ -457,6 +563,10 @@ def test_otlp_tracer_exports_vendor_neutral_spans():
                     AgentSpan(
                         agent="greeter",
                         event_type="artifact_created",
+                        event_artifact_type="Question",
+                        produces=[
+                            ProduceRun(name="Emit", operations=2, latency_ms=1.5)
+                        ],
                         writes=[
                             ArtifactRef(
                                 artifact_id="a1",
@@ -509,6 +619,10 @@ def test_otlp_tracer_exports_vendor_neutral_spans():
     agent_span = by_name["invoke_agent greeter"]
     assert agent_span["parentSpanId"] == root["spanId"]
     assert attr(agent_span, "gen_ai.agent.name") == {"stringValue": "greeter"}
+    assert attr(agent_span, "reactifact.event_artifact_type") == {
+        "stringValue": "Question"
+    }
+    assert attr(agent_span, "reactifact.produces") == {"stringValue": "Emit(2)"}
 
     llm_span = by_name["chat m"]
     assert llm_span["parentSpanId"] == agent_span["spanId"]
@@ -720,6 +834,7 @@ def test_postgres_store_roundtrip(tmp_path):
             AgentSpan(
                 agent="greeter",
                 event_type="artifact_created",
+                produces=[ProduceRun(name="Emit", operations=2, latency_ms=1.5)],
                 writes=[
                     ArtifactRef(
                         artifact_id="a1",

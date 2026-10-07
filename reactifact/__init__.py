@@ -51,7 +51,7 @@ from .tools import FunctionTool, Tool, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
 
-__version__ = "0.15.1"
+__version__ = "0.15.2"
 
 __all__ = [
     "Agent",

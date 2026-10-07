@@ -1,16 +1,41 @@
 from __future__ import annotations
 
+import time
 from abc import ABC
 from collections.abc import Sequence
+from contextvars import ContextVar, Token
 from typing import Any
 
 from .artifacts import Artifact
 from .consume import Consume
 from .context import Context
+from .effects import current_effects
 from .events import Event, EventType
 from .patches import Patch
 from .produce import Produce, ProduceCall
 from .triggers import Trigger
+
+#: Per-task log of the produces that ran for the current agent execution:
+#: ``(produce_class_name, operations_authored, latency_ms)``. ``Runtime._execute``
+#: opens it (and later records the span), ``Agent.execute`` appends — a
+#: contextvar so concurrent executions sharing one ``Agent`` instance never race.
+_produce_runs: ContextVar[list[tuple[str, int, float]] | None] = ContextVar(
+    "reactifact_produce_runs", default=None
+)
+
+
+def begin_produce_runs() -> Token[Any]:
+    """Opens the per-task produce-run log (see ``_produce_runs``)."""
+    return _produce_runs.set([])
+
+
+def produce_runs() -> list[tuple[str, int, float]]:
+    """The produce runs recorded for the current task (empty if none)."""
+    return _produce_runs.get() or []
+
+
+def end_produce_runs(token: Token[Any]) -> None:
+    _produce_runs.reset(token)
 
 
 class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() has a default
@@ -154,14 +179,30 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         if not self.produces:
             return None
         inputs = self._collect_inputs(context)
+        slot = current_effects()
+        log = _produce_runs.get()
         for p in self.produces:
             runs, trigger = self._resolve_produce_call(p, event, context)
             if not runs:
                 continue
+            before = len(slot.operations) if slot is not None else 0
+            started = time.monotonic()
             call = ProduceCall(
                 context=context, inputs=inputs, event=event, trigger=trigger
             )
-            await p.produce(call)
+            try:
+                await p.produce(call)
+            finally:
+                # Record the produce even when it raises — a failing produce is
+                # exactly what a trace should show (the span is then the error
+                # span, with this produce's partial operations/latency).
+                if log is not None:
+                    operations = (
+                        len(slot.operations) if slot is not None else 0
+                    ) - before
+                    log.append(
+                        (p.name, operations, (time.monotonic() - started) * 1000)
+                    )
         return None
 
     @staticmethod

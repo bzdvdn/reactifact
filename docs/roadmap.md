@@ -1,6 +1,6 @@
 # Roadmap
 
-reactifact is pre-1.0 (`0.13.x`), one maintainer. This page is the honest
+reactifact is pre-1.0 (`0.15.x`), one maintainer. This page is the honest
 current state of "what's next" — not a wishlist. See
 [CHANGELOG.md](https://github.com/bzdvdn/reactifact/blob/master/CHANGELOG.md)
 for what's already shipped, release by release.

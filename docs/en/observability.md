@@ -9,7 +9,9 @@ traces to Langfuse or Postgres.
 A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
 
 - **Agent spans** (`AgentSpan`) — what each agent did: artifact reads and
-  writes, and the key/value summary of the patch it produced.
+  writes, the key/value summary of the patch it produced, the consumed artifact
+  type that triggered it (`event_artifact_type`) and which produces actually ran
+  (`produces`: name, authored operations, latency).
 - **LLM calls** (`LLMCall`) — prompts, responses (truncated), token usage,
   latency.
 - **Timing and ordering** — the whole causal chain of a run, in order.
@@ -47,10 +49,12 @@ artifacts with `patch.link` provenance edges, §34), and `/sessions`. The
 
 ![Traces list: filterable by outcome and session, each row showing duration and span count.](../img/tracer-list.png)
 
-Opening a run shows work grouped by agent (span count, artifact types touched)
-and the full sequence diagram — here the `devops` example's HITL ask/resume
-flow: `k8s` calls the model across several `artifact_created` spans, then
-`render` builds the final reply:
+Opening a run shows work grouped by agent (span count, artifact types touched,
+and a `Consume → Produce` flow: the artifact type that triggered the agent, then
+which produce ran with its authored-operation count — no-op produces dimmed) and
+the full sequence diagram — here the `devops` example's HITL ask/resume flow:
+`k8s` calls the model across several `artifact_created` spans, then `render`
+builds the final reply:
 
 ![Run detail: work grouped by agent, plus a live sequence diagram of every artifact write and LLM call.](../img/tracer-run-detail.png)
 
@@ -168,8 +172,10 @@ runtime = Runtime(
 
 Spans are delivered once per turn end (delivery-once semantics); the Langfuse
 tracer maps read/write summaries into `input`/`output`, so the timeline is
-readable in their UI. The SQLite `TraceStore` stays a source for the web
-dashboard; Postgres mirrors the same `runs`/`spans` schema.
+readable in their UI; each produce the agent ran also becomes a child
+observation, so the waterfall shows the `Consume → Produce` steps. The SQLite
+`TraceStore` stays a source for the web dashboard; Postgres mirrors the same
+`runs`/`spans` schema.
 
 Both `TraceStore` and `PostgresStore` implement `TraceReader` (async
 `query`/`get`), so `create_trace_router` works against **either**: point the

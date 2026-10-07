@@ -88,11 +88,31 @@ class TagAssignment(BaseModel):
     updated_at: datetime | None = None
 
 
+class ProduceRun(BaseModel):
+    """One produce execution within an agent span (§54).
+
+    An agent runs one or more ``Produce``s per event; the span records which
+    ones actually ran and how much each contributed (``operations`` = authored
+    effect operations, so the produce that did the work is distinguishable from
+    one that merely matched the event).
+    """
+
+    name: str
+    operations: int = 0
+    latency_ms: float = 0.0
+
+
 class AgentSpan(BaseModel):
     """A single agent execution within a run (§54)."""
 
     agent: str
     event_type: str = ""
+    #: The artifact type whose change triggered this agent (its matched
+    #: ``Consume``) — e.g. ``DraftAnswer`` vs ``FinalResponse`` for an agent that
+    #: consumes both. ``event_type`` alone (created/updated) can't tell them apart.
+    event_artifact_type: str = ""
+    #: The produces that ran for this event, in execution order.
+    produces: list[ProduceRun] = Field(default_factory=list)
     reads: list[ArtifactRef] = Field(default_factory=list)
     writes: list[ArtifactRef] = Field(default_factory=list)
     relations: list[RelationRef] = Field(default_factory=list)
