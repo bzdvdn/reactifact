@@ -25,6 +25,8 @@ tasks persists the `Context` with a `Session` itself.
 """
 
 import asyncio
+import contextlib
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -58,6 +60,10 @@ from .models import (
 CreateMessage = Callable[[Context, str], str]
 Reply = Callable[[Context, str], str]
 ContextFactory = Callable[[], Context]
+
+#: In-process task store bound. A long-lived A2A server must not grow `_tasks`
+#: without limit; the oldest completed task is evicted first (see `_evict`).
+_MAX_TASKS = 512
 
 
 def default_create_message(context: Context, text: str) -> str:
@@ -106,10 +112,11 @@ class _A2AServer:
         self._reply = reply
         self._budget = budget
         self._max_iterations = max_iterations
-        self._tasks: dict[str, _TaskRecord] = {}
+        self._tasks: OrderedDict[str, _TaskRecord] = OrderedDict()
 
     def _record_for(self, message: Message) -> _TaskRecord:
         if message.taskId and message.taskId in self._tasks:
+            self._tasks.move_to_end(message.taskId)
             return self._tasks[message.taskId]
         record = _TaskRecord(
             id=message.taskId or uuid4().hex,
@@ -117,7 +124,19 @@ class _A2AServer:
             context=self._context_factory(),
         )
         self._tasks[record.id] = record
+        self._evict()
         return record
+
+    def _evict(self) -> None:
+        """Keep `_tasks` bounded: drop the oldest terminal task first."""
+        if len(self._tasks) <= _MAX_TASKS:
+            return
+        for task_id, record in list(self._tasks.items()):
+            if record.state in TERMINAL_STATES:
+                del self._tasks[task_id]
+                break
+        else:
+            self._tasks.popitem(last=False)
 
     async def _execute(
         self,
@@ -185,14 +204,23 @@ class _A2AServer:
         run = asyncio.create_task(
             self._execute(record, params.message.text, on_event=queue.put_nowait)
         )
-        while not run.done() or not queue.empty():
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=0.05)
-            except TimeoutError:
-                continue
-            yield _sse(request_id, _status_update(record, "working", event.message))
-        await run
-        yield _sse(request_id, self.task(record))
+        try:
+            while not run.done() or not queue.empty():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.05)
+                except TimeoutError:
+                    continue
+                yield _sse(request_id, _status_update(record, "working", event.message))
+            await run
+            yield _sse(request_id, self.task(record))
+        finally:
+            # A dropped SSE client closes this generator mid-run: cancel and
+            # await the run, or it keeps executing (tokens!) and is destroyed
+            # pending ("Task was destroyed but it is pending!").
+            if not run.done():
+                run.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await run
 
     def get(self, task_id: str) -> Task | None:
         record = self._tasks.get(task_id)

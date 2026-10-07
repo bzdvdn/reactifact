@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 import httpx
 import pytest
@@ -46,6 +47,14 @@ class Echo(Produce[Answer]):
 
     async def produce(self, call):
         call.effects.create(Answer(text=call.trigger.data.text.upper()))
+
+
+class Slow(Produce[Answer]):
+    artifact_type = Answer
+
+    async def produce(self, call):
+        await asyncio.sleep(30)
+        call.effects.create(Answer(text="slow"))
 
 
 class AskOrAnswer(Produce[Answer]):
@@ -152,6 +161,63 @@ def test_unknown_method_errors():
     client = TestClient(_app([_echo_agent()]))
     body = _rpc(client, "does/not/exist", {})
     assert body["error"]["code"] == -32601
+
+
+def test_server_task_store_is_bounded():
+    """A long-lived server must not grow its in-process task store without
+    bound: the oldest records are evicted once the cap is reached."""
+    from reactifact.a2a.server import (
+        _MAX_TASKS,
+        _A2AServer,
+        default_create_message,
+        default_reply,
+    )
+
+    server = _A2AServer(
+        [_echo_agent()],
+        context_factory=Context,
+        create_message=default_create_message,
+        reply=default_reply,
+        budget=None,
+        max_iterations=100,
+    )
+    for _ in range(_MAX_TASKS + 20):
+        server._record_for(Message.user("hi"))
+    assert len(server._tasks) <= _MAX_TASKS
+
+
+def test_server_stream_cancels_run_when_the_client_disconnects():
+    """A dropped SSE client must cancel the in-flight run — otherwise it keeps
+    executing and is destroyed pending at loop shutdown ("Task was destroyed
+    but it is pending!")."""
+    from reactifact.a2a.models import MessageSendParams
+    from reactifact.a2a.server import _A2AServer, default_create_message, default_reply
+
+    slow = create_agent("slow", consumes=[Consume(UserMessage)], produces=[Slow()])
+    server = _A2AServer(
+        [slow],
+        context_factory=Context,
+        create_message=default_create_message,
+        reply=default_reply,
+        budget=None,
+        max_iterations=100,
+    )
+    params = MessageSendParams(message=Message.user("hi"))
+
+    async def run():
+        agen = server.stream("1", params)
+        assert (await agen.__anext__()).startswith("data:")  # the working frame
+        puller = asyncio.create_task(agen.__anext__())
+        await asyncio.sleep(0)  # enter the wait: the run task is in flight
+        puller.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await puller
+        await agen.aclose()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        return [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+
+    assert asyncio.run(run()) == []
 
 
 def test_hitl_input_required_then_resume():

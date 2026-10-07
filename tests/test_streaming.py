@@ -31,6 +31,17 @@ class Slow(Agent):
         return Patch().create(Done(text="ok"))
 
 
+class Stubborn(Agent):
+    consumes = [Consume(UserMsg)]
+
+    async def run(self, event, context):
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.5)  # ignores the cancel for a bit
+        return Patch().create(Done(text="ok"))
+
+
 async def collect_events(runtime):
     return [ev async for ev in runtime.astream()]
 
@@ -116,3 +127,30 @@ def test_eventhub_multiple_subscribers():
     assert not hub.has_subscribers
     hub.publish(ProgressEvent(kind="status", message="y"))
     assert q2.empty()
+
+
+def test_eventhub_bounds_a_stuck_subscriber_by_dropping_oldest():
+    hub = EventHub(maxsize=3)
+    q = hub.subscribe()
+    for i in range(5):
+        hub.publish(ProgressEvent(kind="status", message=str(i)))
+    assert q.qsize() == 3
+    assert [q.get_nowait().message for _ in range(3)] == ["2", "3", "4"]
+
+
+def test_astream_close_is_bounded_when_runner_ignores_cancel(monkeypatch):
+    """A misbehaving agent that swallows `CancelledError` must not hang the
+    caller's disconnect path: `astream` gives up after a bounded grace."""
+    monkeypatch.setattr("reactifact.runtime._CANCEL_GRACE_SECONDS", 0.05)
+
+    async def run():
+        ctx = Context()
+        runtime = Runtime(ctx, agents=[Stubborn()])
+        ctx.create(UserMsg(text="привет"))
+        agen = runtime.astream()
+        assert (await agen.__anext__()).kind == "run_start"
+        started = asyncio.get_running_loop().time()
+        await agen.aclose()
+        return asyncio.get_running_loop().time() - started
+
+    assert asyncio.run(run()) < 0.4

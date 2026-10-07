@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -30,6 +31,11 @@ class ProgressEvent:
 
 QueueEvent = asyncio.Queue[ProgressEvent]
 
+#: Per-subscriber queue bound. Status events are best-effort UI hints: a
+#: subscriber that never drains must not grow the queue without bound, so the
+#: oldest event is dropped when this is reached.
+_DEFAULT_SUBSCRIBER_QUEUE_SIZE = 1024
+
 
 class EventHub:
     """Broadcaster of agent status events into a single- or multi-stream.
@@ -38,15 +44,16 @@ class EventHub:
     runs pay nothing for announce.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, maxsize: int = _DEFAULT_SUBSCRIBER_QUEUE_SIZE) -> None:
         self._subscribers: set[QueueEvent] = set()
+        self._maxsize = maxsize
 
     @property
     def has_subscribers(self) -> bool:
         return bool(self._subscribers)
 
     def subscribe(self) -> QueueEvent:
-        queue: QueueEvent = asyncio.Queue()
+        queue: QueueEvent = asyncio.Queue(maxsize=self._maxsize)
         self._subscribers.add(queue)
         return queue
 
@@ -55,4 +62,8 @@ class EventHub:
 
     def publish(self, event: ProgressEvent) -> None:
         for queue in self._subscribers:
+            if queue.full():
+                # Drop the oldest status hint rather than block or grow forever.
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    queue.get_nowait()
             queue.put_nowait(event)

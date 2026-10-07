@@ -59,6 +59,11 @@ class RunInfo:
 _ACTIVE_RUNS: dict[str, RunInfo] = {}
 _RUN_TASKS: dict[str, "asyncio.Task[Any]"] = {}
 
+#: How long `astream` waits for a cancelled runner to unwind before giving up
+#: (a well-behaved turn stops immediately; this only guards a misbehaving agent
+#: that swallows `CancelledError`).
+_CANCEL_GRACE_SECONDS = 5.0
+
 
 def active_runs() -> list[RunInfo]:
     """Snapshots of the turns currently executing in this process.
@@ -1064,7 +1069,13 @@ class Runtime:
             task.cancel()
             # Settle the runner too, so an early generator close (client
             # disconnect) does not leave the run task pending at loop shutdown.
-            await asyncio.gather(task, return_exceptions=True)
+            # Bounded: an agent that swallows `CancelledError` must never hang
+            # the caller's disconnect/shutdown path.
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(
+                    asyncio.gather(task, return_exceptions=True),
+                    timeout=_CANCEL_GRACE_SECONDS,
+                )
             self.context.unsubscribe(queue)
 
     def _apply_patch(self, patch: Patch, commit: Commit) -> list[Write]:

@@ -197,6 +197,44 @@ def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
     assert seen["user"] == "alice"
 
 
+def test_web_router_async_request_factory_is_awaited(tmp_path):
+    """An async `request_factory` must be awaited, not passed as a coroutine."""
+    seen: dict[str, object] = {}
+
+    async def capture(call):
+        seen["user"] = call.request.get("user")
+        call.effects.create(A(text="answer"))
+        return None
+
+    prod = produce(A)(capture)
+    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[agent],
+        user_message=Q,
+        reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
+        max_concurrency=1,
+    )
+
+    async def request_factory(request):
+        return {"user": request.headers.get("x-user", "")}
+
+    app = FastAPI()
+    app.include_router(create_chat_router(assistant, request_factory=request_factory))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "hi", "session_id": "s1"},
+        headers={"X-User": "bob"},
+    ) as response:
+        "".join(response.iter_text())
+
+    assert seen["user"] == "bob"
+
+
 def test_web_router_without_request_factory_has_no_request(tmp_path):
     """Default stays `request=None`: no behavior change for existing callers."""
     seen: dict[str, object] = {}
@@ -425,6 +463,42 @@ def test_callable_resources_closed_after_each_turn(tmp_path):
 
     assert len(built) == 2  # a fresh RuntimeResources was built each turn
     assert all(llm.closed for llm in built)
+
+
+def test_callable_resources_closed_when_session_open_fails(tmp_path):
+    """A failing session open must not leak the freshly-built per-turn
+    ``resources=`` instance — ``_open`` closes it before re-raising."""
+    from reactifact import RuntimeResources
+
+    built: list[_SpyLLM] = []
+
+    def fresh_resources():
+        llm = _SpyLLM()
+        built.append(llm)
+        return RuntimeResources(llm=llm)
+
+    class BoomStore:
+        def open(self, session_id, resources=None):
+            raise RuntimeError("backend down")
+
+        def delete_session(self, session_id):
+            pass
+
+    assistant = ChatAssistant(
+        store=BoomStore(),
+        agents=[ANSWER_AGENT],
+        user_message=Q,
+        reply=lambda ctx, mid: {"reply": "never", "waiting": False},
+        resources=fresh_resources,
+        max_concurrency=1,
+        fallback_reply="degraded",
+    )
+
+    events = _drain(assistant.stream("hi", session_id="s6"))
+
+    assert events[-1].payload["reply"] == "degraded"
+    assert len(built) == 1
+    assert built[0].closed is True
 
 
 def test_shared_resources_instance_not_closed(tmp_path):

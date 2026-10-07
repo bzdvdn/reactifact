@@ -26,7 +26,7 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -414,9 +414,16 @@ class ChatAssistant:
                         self._session_locks.pop(session_id, None)
 
     async def _open(self, session_id: str) -> Session:
-        return await self.store.open(
-            session_id, resources=_resolve_with_session(self._resources, session_id)
-        )
+        resources = _resolve_with_session(self._resources, session_id)
+        try:
+            return await self.store.open(session_id, resources=resources)
+        except Exception:
+            # A callable `resources=` built a fresh per-turn instance; if the
+            # store fails to open the session nothing else will close it.
+            if callable(self._resources):
+                with suppress(Exception):
+                    await resources.aclose()
+            raise
 
     def _memory_agents(self) -> list[Agent]:
         """The bounded-memory agent implied by `memory=`, or none."""
@@ -497,6 +504,7 @@ class ChatAssistant:
         design (see the module docstring).
         """
         async with self._locked_session(session_id):
+            session: Session | None = None
             try:
                 session = await self._open(session_id)
                 runtime = self._build_runtime(session)
@@ -504,6 +512,12 @@ class ChatAssistant:
                 logger.exception(
                     "chat.ChatAssistant: failed to open session %r", session_id
                 )
+                # If the session did open but building the runtime failed, its
+                # per-turn resources still need closing (a callable `resources=`
+                # is never referenced again).
+                if session is not None and callable(self._resources):
+                    with suppress(Exception):
+                        await session.context.resources.aclose()
                 yield ChatEvent(
                     kind="message",
                     session_id=session_id,

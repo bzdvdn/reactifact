@@ -4,7 +4,14 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [0.15.1] — 2026-10-06
+## [0.15.1] — 2026-10-07
+
+### Added
+
+- **`create_chat_router(request_factory=…)` accepts an async factory.** The
+  factory may now be `async def` (or otherwise return an awaitable); its result
+  is awaited before the turn runs, e.g. to look up the authenticated user with a
+  query. The sync form is unchanged.
 
 ### Fixed
 
@@ -15,6 +22,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   printed `Task was destroyed but it is pending!`. Both futures are now
   cancelled and awaited every iteration, and the runner task is settled in the
   generator's `finally`.
+- **`Runtime.astream` waited on a cancelled runner without bound.** A misbehaving
+  agent that swallows `CancelledError` could hang the caller's disconnect or
+  shutdown path; the wait is now bounded (`_CANCEL_GRACE_SECONDS`).
+- **`A2A` `message/stream` leaked its run on client disconnect.** The server's
+  stream generator `create_task`d the run but had no `finally`, so a dropped
+  client left the run executing (burning tokens) and pending at loop shutdown
+  (`Task was destroyed but it is pending!`). The generator now cancels and
+  awaits the run when closed early, and the in-process task store is bounded
+  (`_MAX_TASKS`, evicting the oldest terminal task).
+- **`ChatAssistant.stream` leaked per-turn resources when opening failed.** A
+  callable `resources=` builds a fresh instance per turn; if the store failed to
+  open the session (or the runtime could not be built) it was never closed.
+  `_open`/`stream` now close it on that failure path.
+- **`EventHub` subscriber queues were unbounded.** A subscriber that never drains
+  could grow memory without limit; the queue is now bounded and drops the oldest
+  status hint when full.
 
 ## [0.15.0] — 2026-10-06
 

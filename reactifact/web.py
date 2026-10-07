@@ -31,8 +31,9 @@ fastapi installed, and only `create_chat_router` requires the `web` extra —
 
 from __future__ import annotations
 
+import inspect
 import json
-from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -83,7 +84,8 @@ def create_chat_router(
     forward_kinds: Sequence[str] | None = None,
     payload_shaper: Callable[[ChatEvent], Mapping[str, Any]] | None = None,
     done_event: str | None = None,
-    request_factory: Callable[[Request], Mapping[str, Any]] | None = None,
+    request_factory: Callable[[Request], Mapping[str, Any] | Awaitable[Mapping[str, Any]]]
+    | None = None,
 ) -> APIRouter:
     """Builds the chat router on top of a `ChatAssistant`.
 
@@ -104,7 +106,8 @@ def create_chat_router(
     - `request_factory(request) -> mapping` — build the per-turn `request=`
       mapping (the same one `ChatAssistant.stream` takes) from the incoming
       FastAPI `Request`, e.g. the authenticated user for ACL/identity-aware
-      runs. Without it the turn runs with `request=None`.
+      runs. May be sync or async (an awaitable result is awaited). Without it
+      the turn runs with `request=None`.
 
     Defaults reproduce the canonical contract exactly, so existing clients are
     unaffected. The event schema (`ChatEvent`) and the effective names are
@@ -153,6 +156,8 @@ def create_chat_router(
     )
     async def chat_stream(req: ChatMessage, request: Request) -> StreamingResponse:
         turn_request = request_factory(request) if request_factory else None
+        if inspect.isawaitable(turn_request):
+            turn_request = await turn_request
 
         async def stream() -> AsyncIterator[str]:
             async for event in assistant.stream(
