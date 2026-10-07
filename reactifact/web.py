@@ -84,7 +84,9 @@ def create_chat_router(
     forward_kinds: Sequence[str] | None = None,
     payload_shaper: Callable[[ChatEvent], Mapping[str, Any]] | None = None,
     done_event: str | None = None,
-    request_factory: Callable[[Request], Mapping[str, Any] | Awaitable[Mapping[str, Any]]]
+    request_factory: Callable[
+        [Request], Mapping[str, Any] | Awaitable[Mapping[str, Any]]
+    ]
     | None = None,
 ) -> APIRouter:
     """Builds the chat router on top of a `ChatAssistant`.
