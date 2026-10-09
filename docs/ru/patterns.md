@@ -60,6 +60,8 @@ Produce никогда не должен сам выполнять внешни�
 дёргать webhook, деплоить. Он записывает **намерение**, а runtime выполняет его
 один раз после коммита намерения:
 
+![Outbox: produce записывает PendingAction (без I/O), runtime коммитит его, и только после коммита dispatcher один раз вызывает внешний мир на стабильный id. Replay, retry и merge пересобирают состояние из цепочки коммитов и ничего не пересылают.](../img/outbox-flow.svg)
+
 ```python
 from reactifact import PendingAction, Runtime
 

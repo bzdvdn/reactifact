@@ -60,6 +60,8 @@ A produce should never perform external I/O itself — send an email, call a
 webhook, deploy. It records the **intent** and the runtime performs it, once,
 after the intent is committed:
 
+![The outbox: a produce records a PendingAction (no I/O), the runtime commits it, and only after the commit a dispatcher calls the world once per stable id. Replay, retry and merge rebuild state from the commit chain and never re-send.](../img/outbox-flow.svg)
+
 ```python
 from reactifact import PendingAction, Runtime
 
