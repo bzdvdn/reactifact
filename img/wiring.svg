@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="600" viewBox="0 0 1180 600" role="img" aria-label="Comparison diagram: on the left, a hand-wired three-step pipeline (fetch_docs, verify, answer) connected by fixed arrows; on the right, reactifact's Context holding Question, Evidence and Answer artifacts, with search_agent and answer_agent each independently watching one artifact type and creating the next, plus a supported_by provenance link from Answer back to Evidence — no arrow ever connects the two agents directly.">
+  <rect x="0" y="0" width="1180" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14171c"/>
+    </marker>
+    <marker id="arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e4572e"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1e8e6b"/>
+    </marker>
+  </defs>
+
+  <!-- panel eyebrows -->
+  <text x="40" y="60" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#5b6472">GRAPH-BASED FRAMEWORKS</text>
+  <text x="610" y="60" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#e4572e">REACTIFACT</text>
+
+  <!-- divider -->
+  <line x1="580" y1="45" x2="580" y2="545" stroke="#dde1e7" stroke-width="1.5" stroke-dasharray="3 5"/>
+
+  <!-- ===== LEFT PANEL: hard-wired pipeline ===== -->
+  <g font-family="IBM Plex Mono, monospace">
+    <rect x="200" y="155" width="200" height="50" rx="6" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+    <text x="300" y="185" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">fetch_docs</text>
+
+    <rect x="200" y="315" width="200" height="50" rx="6" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+    <text x="300" y="345" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">verify</text>
+
+    <rect x="200" y="475" width="200" height="50" rx="6" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+    <text x="300" y="505" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">answer</text>
+
+    <line x1="300" y1="205" x2="300" y2="309" stroke="#14171c" stroke-width="2.2" marker-end="url(#arrow-ink)"/>
+    <line x1="300" y1="365" x2="300" y2="469" stroke="#14171c" stroke-width="2.2" marker-end="url(#arrow-ink)"/>
+
+    <text x="330" y="260" font-size="11.5" fill="#5b6472">next()</text>
+    <text x="330" y="420" font-size="11.5" fill="#5b6472">next()</text>
+  </g>
+  <text x="200" y="558" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="#5b6472">A person draws every edge — a GPU-cost question needs a new graph.</text>
+
+  <!-- ===== RIGHT PANEL: Context + agents ===== -->
+  <!-- spine -->
+  <line x1="760" y1="130" x2="760" y2="545" stroke="#c7ced9" stroke-width="2"/>
+  <text x="760" y="108" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" letter-spacing="1.2" fill="#5b6472">CONTEXT</text>
+
+  <g font-family="IBM Plex Mono, monospace">
+    <text x="648" y="184" text-anchor="end" font-size="11.5" fill="#8a93a2">v0</text>
+    <rect x="675" y="155" width="170" height="50" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+    <text x="760" y="176" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">Question</text>
+    <text x="760" y="192" text-anchor="middle" font-size="10" fill="#5b6472">"what's your refund policy?"</text>
+
+    <text x="648" y="344" text-anchor="end" font-size="11.5" fill="#8a93a2">v1</text>
+    <rect x="675" y="315" width="170" height="50" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+    <text x="760" y="336" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">Evidence</text>
+    <text x="760" y="352" text-anchor="middle" font-size="10" fill="#5b6472">"refunds within 14 days"</text>
+
+    <text x="648" y="504" text-anchor="end" font-size="11.5" fill="#8a93a2">v2</text>
+    <rect x="675" y="475" width="170" height="50" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+    <text x="760" y="496" text-anchor="middle" font-size="14" font-weight="600" fill="#14171c">Answer</text>
+    <text x="760" y="512" text-anchor="middle" font-size="10" fill="#5b6472">"refunds within 14 days"</text>
+  </g>
+
+  <!-- agent cards -->
+  <g font-family="IBM Plex Mono, monospace">
+    <rect x="930" y="137" width="210" height="86" rx="6" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+    <text x="950" y="164" font-size="14" font-weight="600" fill="#14171c">search_agent</text>
+    <text x="950" y="184" font-size="10.5" fill="#5b6472">consumes: Question</text>
+    <text x="950" y="200" font-size="10.5" fill="#5b6472">produces: Evidence</text>
+
+    <rect x="930" y="297" width="210" height="86" rx="6" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+    <text x="950" y="324" font-size="14" font-weight="600" fill="#14171c">answer_agent</text>
+    <text x="950" y="344" font-size="10.5" fill="#5b6472">consumes: Evidence</text>
+    <text x="950" y="360" font-size="10.5" fill="#5b6472">produces: Answer</text>
+  </g>
+
+  <!-- watches: Question -> search_agent -->
+  <path d="M845,180 L930,180" fill="none" stroke="#5b6472" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+  <text x="855" y="171" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#5b6472">watches</text>
+
+  <!-- creates: search_agent -> Evidence -->
+  <path d="M1035,223 L1035,270 L845,270 L845,315" fill="none" stroke="#e4572e" stroke-width="2.2" marker-end="url(#arrow-accent)"/>
+  <text x="1000" y="258" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#e4572e">creates</text>
+
+  <!-- watches: Evidence -> answer_agent -->
+  <path d="M845,340 L930,340" fill="none" stroke="#5b6472" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+  <text x="855" y="331" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#5b6472">watches</text>
+
+  <!-- creates: answer_agent -> Answer -->
+  <path d="M1035,383 L1035,430 L845,430 L845,475" fill="none" stroke="#e4572e" stroke-width="2.2" marker-end="url(#arrow-accent)"/>
+  <text x="1000" y="418" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#e4572e">creates</text>
+
+  <!-- provenance: Answer -> Evidence -->
+  <path d="M675,500 L612,500 L612,340 L675,340" fill="none" stroke="#1e8e6b" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow-teal)"/>
+  <text x="602" y="424" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#1e8e6b" transform="rotate(-90 602 424)">supported_by</text>
+
+  <text x="610" y="558" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="#5b6472">search_agent and answer_agent never reference each other — only Context does.</text>
+</svg>
