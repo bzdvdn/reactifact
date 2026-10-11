@@ -326,3 +326,6 @@ agents, more sources, more error paths. From here:
 - [Examples](examples.md) — all twenty-three, with what each one specifically teaches.
 - [Port matrix](port-matrix.md) — if you know LangGraph/CrewAI, which example
   maps to which pattern you already know.
+- [Agent skills](skills.md) — the official Agent Skills, installed with
+  `python -m reactifact skills install`, so a coding agent (Claude Code, Cursor,
+  Codex) can build *with* reactifact.

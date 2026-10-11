@@ -277,6 +277,23 @@ by hand. Run it yourself: `uv run python -m examples.ledger.main`.
 - **Viz & CLI** — Mermaid `blueprint`/`context_to_mermaid`/`trace_to_mermaid`;
   `reactifact` with `graph`/`context`/`trace`/`replay`/`branch`.
 
+## Agent Skills
+
+reactifact ships official **Agent Skills** — reusable instructions that teach a
+coding agent (Claude Code, Cursor, Codex, Copilot, …) how to build *with*
+reactifact. They're bundled with the package, so they always match your version:
+
+```bash
+python -m reactifact skills list                    # what is available
+python -m reactifact skills install                 # -> .agents/skills/
+python -m reactifact skills install --target both    # + .claude/skills/
+```
+
+Skills: `reactifact` (mental model), `reactifact-agents`, `reactifact-llm`,
+`reactifact-rag`, `reactifact-testing`, `reactifact-eval`,
+`reactifact-observability`, `reactifact-from-langchain` — see
+[Agent skills](docs/en/skills.md).
+
 ## Run a demo
 
 Offline-capable, no API keys required (deterministic fallbacks):

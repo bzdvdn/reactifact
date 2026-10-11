@@ -329,3 +329,6 @@ app.include_router(create_chat_router(assistant))
 - [Examples](examples.md) — все двадцать три, с тем, чему конкретно учит каждый.
 - [Port matrix](port-matrix.md) — если вы знаете LangGraph/CrewAI, какой
   пример соответствует какому знакомому паттерну.
+- [Agent skills](skills.md) — официальные Agent Skills, ставятся командой
+  `python -m reactifact skills install`, чтобы кодовый агент (Claude Code,
+  Cursor, Codex) умел строить *с* reactifact.
