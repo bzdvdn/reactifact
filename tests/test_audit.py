@@ -88,6 +88,39 @@ def test_context_hash_changes_when_state_changes():
     assert context_hash(before) != context_hash(after)
 
 
+def test_transient_wall_clock_fields_are_excluded_from_the_hash():
+    """`dispatched_at`/`resolved_at` are envelope, not state: two records that
+    differ only in those timestamps hash the same; a real state change does not."""
+    from datetime import UTC, datetime, timedelta
+
+    from reactifact import PendingAction
+    from reactifact.interrupt import PendingQuestion
+
+    now = datetime.now(UTC)
+    later = now + timedelta(seconds=5)
+
+    dispatched = PendingAction(
+        kind="notify", idempotency_key="k", status="dispatched", dispatched_at=now
+    )
+    dispatched_later = PendingAction(
+        kind="notify", idempotency_key="k", status="dispatched", dispatched_at=later
+    )
+    assert data_hash(dispatched) == data_hash(dispatched_later)
+
+    failed = PendingAction(
+        kind="notify", idempotency_key="k", status="failed", dispatched_at=now
+    )
+    assert data_hash(dispatched) != data_hash(failed)
+
+    answered = PendingQuestion(
+        question="q", answered=True, resolution="yes", resolved_at=now
+    )
+    answered_later = PendingQuestion(
+        question="q", answered=True, resolution="yes", resolved_at=later
+    )
+    assert data_hash(answered) == data_hash(answered_later)
+
+
 # --- report ----------------------------------------------------------------- #
 
 

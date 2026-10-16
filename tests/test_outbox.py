@@ -13,6 +13,7 @@ from examples.outbox.main import (
     same_generation,
 )
 from reactifact import PendingAction
+from reactifact.audit import context_hash
 
 
 def test_happy_path_sends_once():
@@ -63,3 +64,12 @@ def test_app_owned_retry_absorbs_transient_failures():
     assert status == "dispatched"
     assert attempts == 0  # the wrapper absorbed the failures, runtime saw one outcome
     assert log.keys() == ["notify:77"]
+
+
+def test_dispatch_is_reproducible_despite_wall_clock():
+    """A dispatched outbox run hashes identically run to run: the transition is
+    hashed, its wall-clock timestamp (`dispatched_at`) is not."""
+    first, _ = asyncio.run(happy_path())
+    second, _ = asyncio.run(happy_path())
+    assert first.get(ACTION).data.status == "dispatched"
+    assert context_hash(first) == context_hash(second)

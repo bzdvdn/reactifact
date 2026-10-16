@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,11 @@ class PendingQuestion(BaseModel):
     answered: bool = False
     resolution: str | None = None
     resolved_at: datetime | None = None
+
+    #: Wall-clock fields excluded from `context_hash` (transactional envelope,
+    #: not state): a resolved question's *state* is `resolution`, the moment it
+    #: was resolved is not something two equivalent runs must agree on.
+    transient_fields: ClassVar[frozenset[str]] = frozenset({"resolved_at"})
 
 
 class PendingAction(BaseModel):
@@ -52,3 +57,9 @@ class PendingAction(BaseModel):
     attempts: int = 0
     dispatched_at: datetime | None = None
     error: str | None = None
+
+    #: Wall-clock field excluded from `context_hash` (transactional envelope,
+    #: not state): the *fact* that the action dispatched (`status`/`error`/
+    #: `attempts`) is hashed, the moment it happened is not — so an outbox run
+    #: stays run-to-run reproducible.
+    transient_fields: ClassVar[frozenset[str]] = frozenset({"dispatched_at"})

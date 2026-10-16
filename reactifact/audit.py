@@ -47,10 +47,30 @@ DEFAULT_RELATIONS: tuple[str, ...] = (
 )
 
 
+def _transient_fields(model: type[BaseModel]) -> set[str]:
+    """Field names a model declares as transactional *envelope*, not state.
+
+    A model lists them as ``transient_fields: ClassVar[frozenset[str]]``
+    (e.g. `PendingAction.dispatched_at`, `PendingQuestion.resolved_at`).
+    Wall-clock transitions are excluded from the content hash so an otherwise
+    identical state doesn't hash differently run to run — the *fact* of the
+    transition stays hashed (`status`/`resolution`); only its timestamp drops.
+    """
+    names = getattr(model, "transient_fields", ())
+    return set(names) if names else set()
+
+
 def _canonical(value: Any) -> str:
-    """Canonical JSON for hashing (sorted keys; pydantic models dumped)."""
+    """Canonical JSON for hashing (sorted keys; pydantic models dumped).
+
+    A model's `transient_fields` are dropped before hashing — envelope, not
+    state. Everything else is serialized exactly as before, so a state with no
+    transient fields hashes the same as it always did.
+    """
     if isinstance(value, BaseModel):
-        payload: Any = value.model_dump(mode="json")
+        payload: Any = value.model_dump(
+            mode="json", exclude=_transient_fields(type(value)) or None
+        )
     else:
         payload = value
     return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)

@@ -4,6 +4,20 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.15.3] — 2026-10-16
+
+### Fixed
+
+- **`context_hash` no longer varies with wall-clock dispatch/resolve times.**
+  `PendingAction.dispatched_at` and `PendingQuestion.resolved_at` are
+  transactional *envelope*, not state, and are now excluded from the content
+  hash (a per-model `transient_fields` marker). A dispatched outbox run — or a
+  resolved HITL turn — now hashes identically run to run, so `verify_run` /
+  `reactifact replay --verify` is meaningful for them instead of always
+  diverging on the timestamp. The transition itself (`status`/`error`/
+  `attempts`, `resolution`) stays hashed, so the fingerprint is still
+  tamper-detectable against a recorded value.
+
 ## [0.15.2] — 2026-10-07
 
 ### Added
