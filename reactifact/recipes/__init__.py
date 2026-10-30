@@ -62,6 +62,11 @@ Extend by adding a module here (the package stays import-surface-flat).
 
 from __future__ import annotations
 
+from ..native_tool_use import (
+    looks_like_tool_markup,
+    parse_textual_tool_calls,
+    parse_tool_calls_with_textual,
+)
 from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup
 from .conversation import (
     Conversation,
@@ -127,6 +132,9 @@ __all__ = [
     "llm_digest_summarizer",
     "llm_summarizer",
     "load_skills",
+    "looks_like_tool_markup",
+    "parse_textual_tool_calls",
+    "parse_tool_calls_with_textual",
     "match_skills",
     "materialize_doc",
     "run_tool_loop",

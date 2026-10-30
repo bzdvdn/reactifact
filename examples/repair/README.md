@@ -29,6 +29,9 @@ from the local price catalog, and — when you say the plan is over budget —
   budget-aware replan: going over budget rebuilds the *plan*, not just the total.
 - Honest fallbacks: without an LLM the demo still runs — canned replies,
   fallback design options, and clear "can't decide honestly" messages (§59, §68).
+- Sessions persist to SQLite via `AppendBackend`: the first save writes a
+  snapshot, each later turn appends only its commits (plus the pending-event
+  queue), so history stays replayable without rewriting the whole `Context`.
 
 ## Data
 

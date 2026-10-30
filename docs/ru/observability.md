@@ -10,8 +10,15 @@ Langfuse или Postgres.
 
 - **Спаны агентов** (`AgentSpan`) — что делал каждый агент: чтения и записи
   артефактов, суммарные ключ/значение патча, который он произвёл,
-  тип-потребитель, разбудивший агента (`event_artifact_type`), и какие produces
-  реально отработали (`produces`: имя, число операций, задержка).
+  тип-потребитель, разбудивший агента (`event_artifact_type`), какие produces
+  реально отработали (`produces`: имя, число операций, задержка) и какие
+  инструменты он вызвал (`tools`: `ToolRun` имя/задержка/статус/размер —
+  аргументы не пишутся). Дашборд, OTLP (`reactifact.tools`) и Langfuse
+  (`langfuse.observation.metadata.tools`) несут тот же список; Langfuse/OTLP
+  дополнительно дают child-span на каждый тул, размещённый по
+  `ToolRun.started_at` (параллельные вызовы перекрываются). Аргументы по
+  умолчанию не пишутся — включите `RuntimeResources(record_tool_args=True)`
+  (вычищаются `redactor=`).
 - **LLM-вызовы** (`LLMCall`) — промпты, ответы (урезанные), расход токенов,
   задержки.
 - **Тайминги и порядок** — вся причинная цепочка запуска по порядку.
@@ -260,7 +267,10 @@ app.include_router(create_metrics_router(metrics))   # GET /metrics
 agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 `reactifact_llm_calls_total{provider,model,agent}`,
 `reactifact_llm_tokens_total{kind,provider,model}`,
-`reactifact_llm_errors_total{provider,model}` и — при
+`reactifact_llm_errors_total{provider,model}`,
+`reactifact_tool_calls_total{tool,status}`,
+`reactifact_tool_errors_total{tool}`,
+`reactifact_tool_latency_seconds{tool}` и — при
 `MetricsTracer(metrics, pricer=…)` — `reactifact_llm_cost_total{provider,model}`.
 
 Прямо из reads/writes/edges спана получаются **околодоменные** счётчики без кода
@@ -371,6 +381,11 @@ resources = RuntimeResources(llm=from_env(), redactor=RegexRedactor())
 форматов (карты, телефоны, …). Подойдёт любой объект с методом
 `redact(text: str) -> str`, так что PII-сервис подключается без наследования.
 `None` (по умолчанию) оставляет трейсы байт-в-байт как раньше.
+
+Наблюдения тулов — это *не* текст трейса: они уходят обратно в промпт модели.
+Если инструменты могут вернуть секреты, передайте `redact_tool_outputs=True`
+в `recipes.run_tool_loop`: тот же `resources.redactor` применяется до того,
+как наблюдение попадёт в LLM и в `ToolLoopResult.observations`.
 
 ## События прогресса (реактивность UI)
 

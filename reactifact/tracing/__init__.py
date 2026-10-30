@@ -5,6 +5,7 @@ Package: models (`models`), delivery (`tracer`), storage (`store`), UI
 but without `web`, so that importing the package does not pull in FastAPI.
 """
 
+from ..tools import ToolRun
 from .columns import TraceColumn
 from .langfuse import LangfuseTracer
 from .models import (
@@ -49,5 +50,6 @@ __all__ = [
     "TraceSink",
     "TraceStore",
     "TraceStoreProtocol",
+    "ToolRun",
     "Tracer",
 ]

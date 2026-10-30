@@ -153,15 +153,20 @@ def test_estimate_csv_endpoint_exports_worksheet(tmp_path):
     project.estimate = build_estimate(project.plan, catalog)
     assert project.estimate.total
 
-    db = str(tmp_path / "sessions")
+    db_dir = tmp_path / "sessions"
+    db_dir.mkdir()
     import asyncio
 
-    from reactifact.checkpoints import FileKVBackend
+    from reactifact.checkpoints import SQLiteKVBackend
     from reactifact.session import SessionStore
 
-    asyncio.run(SessionStore(FileKVBackend(db)).save_session("s1", __ctx(project)))
+    asyncio.run(
+        SessionStore(SQLiteKVBackend(str(db_dir / "sessions.db"))).save_session(
+            "s1", __ctx(project)
+        )
+    )
 
-    client = TestClient(create_app(store_dir=db))
+    client = TestClient(create_app(store_dir=str(db_dir)))
     res = client.get("/api/runs/s1/estimate.csv")
     assert res.status_code == 200
     assert res.text.startswith("\ufeff")

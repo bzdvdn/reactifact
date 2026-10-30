@@ -7,13 +7,30 @@ that guarantee is — and what it is not.
 
 ## What is persisted
 
-A `SessionStore` saves the whole `Context` (`Context.to_dict`) under a
-`session_id`:
+A `SessionStore` persists the `Context` under a `session_id` — as one blob for
+`FileKVBackend`/`InMemoryKVBackend`, or as a snapshot plus an appended commit
+log for `AppendBackend`:
 
 - the **artifacts** (typed, versioned) and the **relations** between them;
 - the **commit chain** (`Context.history()`), so provenance and `diff`/
   `rollback`/`replay` still work;
 - the **pending trigger queue** — the events no generation has dispatched yet.
+
+The payload carries a `format_version`; a payload from a newer reactifact is
+rejected explicitly, older ones go through the registered migrations
+(`Context.from_dict`).
+
+With an **`AppendBackend`** (`SQLiteKVBackend`, `PostgreSQLKVBackend`) the store
+does not rewrite the whole Context on every commit: the first save (or the first
+save after a compaction/rollback) writes a snapshot, and later saves append only
+the new commits plus the current pending-event queue. `FileKVBackend` and
+`InMemoryKVBackend` keep the full-blob behavior.
+
+`SessionStore(backend, compact_every=N)` bounds the append log: roughly every
+N saves the store rewrites the snapshot and clears the entries. The default is
+100; pass `compact_every=None` to keep the log until an explicit
+`context.compact()` or a rollback. `BranchStore` takes the same option per
+branch key.
 
 With the default `session_save_policy="per_commit"`, the runtime saves at every
 **generation boundary**, *after* that generation's trigger batch is consumed.

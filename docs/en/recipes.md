@@ -166,6 +166,9 @@ class Flow(Agent):
   default), so re-running the same generation never duplicates a summary.
 - `render`/`order_key`/`id_of` are all overridable if the defaults (role/text
   rendering, `created_at` ordering) don't fit your artifact.
+- `message_type` also accepts a sequence of types (e.g. `[UserQuery, Answer]`),
+  so one window bounds a heterogeneous thread; `WindowPruner` takes the same
+  shape.
 
 See `examples/summarize/main.py` for the full runnable demo.
 
@@ -229,6 +232,49 @@ class Flow(Agent):
 - Don't pair this with `WindowPruner`: pruning deletes without folding first,
   which loses the content this recipe means to condense. It manages its own
   raw window and needs nothing else.
+
+## `run_tool_loop` — a bounded native tool-calling loop (§46, §47)
+
+`reactifact.native_tool_use` deliberately ships one-turn helpers, not a loop.
+When you *do* want the loop — bounded rounds, parallel calls, a forced final
+answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `Agent`:
+
+```python
+from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
+
+result = await run_tool_loop(
+    call.context,
+    system="You are a research assistant.",
+    user=question,
+    tools=[search_knowledge, read_source],
+    mandatory="read_source",
+    max_rounds=6,
+    max_observation_chars=4_000,   # cap what goes back into the prompt
+    redact_tool_outputs=True,      # apply resources.redactor to tool output
+    parse_calls=parse_tool_calls_with_textual,  # tolerate DSML/XML providers
+    on_event=lambda name, payload: ...,         # round/tool/final for SSE
+)
+call.effects.create(Answer(text=result.text))
+```
+
+- The turn's `Budget` is honoured between rounds: `max_tool_calls` caps
+  executions (extra calls come back as tool errors), `max_seconds` and
+  token/cost limits stop new rounds; the loop then forces an answer.
+- `fallback(ctx, messages, text)` runs when no calls were parsed and the text
+  looks like tool-call markup (`looks_like_tool_markup`); return a string to
+  end the turn (e.g. delegate to a legacy `ToolUse` loop), or `None` to accept
+  the text as the answer.
+- `on_event` receives `round_start`, `tool_call`, `tool_result`, `final`; the
+  same progress is published through `Context.announce(kind="agent")`, so a
+  `ChatAssistant(status_kinds=("status", "agent"))` streams it without a
+  custom loop.
+- `ToolLoopResult.stop_reason` is `completed`, `max_rounds`, `budget`,
+  `provider_error` or `fallback`; `error` carries the provider failure detail.
+  Tool failures are also typed: `ToolOutput.failed(ToolError(code=, message=,
+  retryable=))` surfaces as `ToolObservation.error_info`, and
+  `retry_tool_errors=True` retries only the `retryable=True` ones
+  (`tool_retry_attempts`/`tool_retry_delay` control the backoff; retries count
+  as tool executions for `Budget.max_tool_calls`).
 
 ## `keyword_score` / `stem_words` — deterministic text scoring (§67)
 

@@ -25,7 +25,7 @@ from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Context, RuntimeResources, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
-from reactifact.checkpoints import FileKVBackend
+from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import (
     embedder_from_env,
     image_from_env,
@@ -122,11 +122,13 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
     """Application factory. `llm` and `store_dir` are for tests; by default the
     providers come from .env (OpenRouter·DeepSeek for chat)."""
     active_llm = llm if llm is not None else build_llm()
-    store = SessionStore(
-        FileKVBackend(str(Path(store_dir) if store_dir else ROOT / "sessions"))
-    )
+    db_dir = Path(store_dir) if store_dir else ROOT / "sessions"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    # SQLite implements AppendBackend: a turn appends its commits to the
+    # session instead of rewriting the whole Context.
+    store = SessionStore(SQLiteKVBackend(str(db_dir / "sessions.db")))
     trace_store = TraceStore(
-        str(Path(store_dir) / "traces.db") if store_dir else str(ROOT / "traces.db")
+        str(db_dir / "traces.db") if store_dir else str(ROOT / "traces.db")
     )
 
     assistant = ChatAssistant(

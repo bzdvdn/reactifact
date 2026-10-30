@@ -163,3 +163,68 @@ def test_debounce_without_wakes_is_rejected():
     rather than silently doing nothing."""
     with pytest.raises(ValueError, match="meaningless"):
         Consume(Input, wakes=False, debounce=True)
+
+
+class MarkerBase(BaseModel):
+    text: str
+
+
+class MarkerChildA(MarkerBase):
+    pass
+
+
+class MarkerChildB(MarkerBase):
+    pass
+
+
+class BaseRecorder(Agent):
+    consumes = [Consume.by_base(MarkerBase)]
+    produces = [Produce(Output)]
+
+    async def run(self, event, context):
+        artifact = context.get(event.artifact_id)
+        if artifact is None:
+            return None
+        return Patch().create(Output(text=type(artifact.data).__name__))
+
+
+def test_consume_by_base_wakes_on_subclasses():
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[BaseRecorder()])
+
+    ctx.create(MarkerChildA(text="a"))
+    asyncio.run(runtime.arun())
+
+    outputs = ctx.list_artifacts(Output)
+    assert [o.data.text for o in outputs] == ["MarkerChildA"]
+
+
+def test_exact_consume_does_not_wake_on_subclasses():
+    class ExactRecorder(BaseRecorder):
+        consumes = [Consume(MarkerBase)]
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[ExactRecorder()])
+
+    ctx.create(MarkerChildA(text="a"))
+    asyncio.run(runtime.arun())
+
+    assert ctx.list_artifacts(Output) == []
+
+
+def test_consume_by_base_reads_all_subclass_artifacts():
+    class Collector(Agent):
+        consumes = [Consume.by_base(MarkerBase)]
+        produces = [Produce(Output)]
+
+        async def run(self, event, context):
+            texts = ",".join(a.data.text for a in context.list_artifacts(MarkerBase))
+            return Patch().create(Output(text=texts))
+
+    ctx = Context()
+    runtime = Runtime(ctx, agents=[Collector()])
+    ctx.create(MarkerChildA(text="a"))
+    ctx.create(MarkerChildB(text="b"))
+    asyncio.run(runtime.arun())
+
+    assert ctx.list_artifacts(Output)[-1].data.text == "a,b"

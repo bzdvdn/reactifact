@@ -20,7 +20,7 @@ from examples.repair.agents import RepairFlow
 from examples.repair.models import ChatReply, UserMsg
 from examples.repair.services import Catalog
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
-from reactifact.checkpoints import FileKVBackend
+from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import (
     OpenAICompatProvider,
     image_from_env,
@@ -50,7 +50,10 @@ async def main() -> None:
     if images is not None:
         resources.set("images", images)
 
-    store = SessionStore(FileKVBackend(str(ROOT / "sessions")))
+    # SQLite implements AppendBackend (snapshot + append-only commit log).
+    sessions_dir = ROOT / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    store = SessionStore(SQLiteKVBackend(str(sessions_dir / "sessions.db")))
     session = await store.open(SESSION_ID, resources=resources)
     print("Ремонтный ассистент. Опишите комнату (тип, площадь, бюджет).\n")
 

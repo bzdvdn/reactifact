@@ -4,6 +4,96 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.16.0] — 2026-10-30
+
+### Added
+
+- **`Consume.by_base(Type)` / `include_subclasses=True`.** A trigger can now
+  wake on a marker base's subclasses (`Consume(ChatMessage, …)` fires for
+  `UserQuery`/`Answer`) instead of requiring an exact type match. Opt-in, so an
+  agent subscribed to both a base and a descendant never double-fires;
+  `collect()` already read by `issubclass`.
+- **Heterogeneous chat memory.** `ChatMemory(message_types=[UserQuery, Answer])`
+  (or a marker base) bounds a thread made of several artifact types;
+  `WindowPruner`/`WindowSummarizer` now accept `message_type` as a single type
+  *or* a sequence, de-duplicated by artifact id.
+- **`Context.request` and request-aware `create_message`.** `ChatAssistant`'s
+  `create_message` hook may take `(ctx, text, session_id, request)` (detected
+  by arity), and `ctx.request` exposes the turn's mapping during the hook — so
+  per-turn metadata (category, tenant, user) reaches the user artifact without
+  an app-level `ContextVar`.
+- **Tool-loop streaming, redaction, truncation and textual fallbacks.**
+  `run_tool_loop` gained `on_event` (`round_start`/`tool_call`/`tool_result`/
+  `final`, also published via `Context.announce(kind="agent")`),
+  `redact_tool_outputs` (applies `resources.redactor` to tool observations),
+  `max_observation_chars` (caps what goes back into the prompt while
+  `ToolObservation`s keep the full text), `parse_calls` (a response → calls
+  codec) and `fallback` (invoked when a text answer looks like tool-call
+  markup). `reactifact.native_tool_use` ships `looks_like_tool_markup`,
+  `parse_textual_tool_calls` (DSML/Hermes/XML) and
+  `parse_tool_calls_with_textual`; the helpers are re-exported from
+  `reactifact.recipes`. `run_tool_loop(retry_tool_errors=True)` retries a
+  `ToolError(retryable=True)` up to `tool_retry_attempts` with exponential
+  `tool_retry_delay` backoff; retries count as tool executions for
+  `Budget.max_tool_calls`.
+- **Versioned Context payloads and append-only session persistence.**
+  `Context.to_dict()` now carries `format_version`; `Context.from_dict()`
+  migrates older payloads (legacy = v1) and rejects a payload from a newer
+  reactifact instead of silently mis-reading it. `SQLiteKVBackend` and
+  `PostgreSQLKVBackend` implement the new `AppendBackend`: `SessionStore` writes
+  a snapshot on the first save (or after compaction/rollback) and then appends
+  only the new commits plus the pending-event queue, so a turn no longer
+  rewrites the whole Context. `SessionStore(..., compact_every=N)` bounds the
+  append log by rewriting the snapshot every ~N saves (default 100; `None`
+  disables). `BranchStore` uses the same append path per branch key.
+  `FileKVBackend`/`InMemoryKVBackend` keep the full-blob path;
+  `examples/repair` now uses the SQLite append store.
+- **Tool calls are now part of traces and metrics.** `ToolUse` and
+  `recipes.run_tool_loop` execute tools through `tools.execute_tool`, which
+  records a `ToolRun` (name, latency, ok/error, output size; args are opt-in)
+  on the current agent span (`AgentSpan.tools`).
+  SQLite/Postgres trace stores persist it (auto-migrated `tools` column), the
+  dashboard renders a Tool calls section, OTLP/Langfuse carry it as
+  `reactifact.tools` / `langfuse.observation.metadata.tools` and emit a child
+  span per tool (placed by `ToolRun.started_at`, so parallel calls overlap),
+  and `MetricsTracer` emits `reactifact_tool_calls_total{tool,status}`,
+  `reactifact_tool_errors_total{tool}` and
+  `reactifact_tool_latency_seconds{tool}`. Args are omitted by default; set
+  `RuntimeResources(record_tool_args=True)` to include them (scrubbed by
+  `redactor=`). `ToolRun` is exported from `reactifact.tracing`.
+- **Typed tool failures and a tool-loop stop reason.** `ToolError(code=,
+  message=, retryable=)` + `ToolOutput.failed(...)` give tools a structured
+  failure (`ToolObservation.error_info`) while `ToolOutput.error` stays a plain
+  string for compatibility. `ToolLoopResult.stop_reason` now reports
+  `completed` / `max_rounds` / `budget` / `provider_error` / `fallback`, with
+  `error` carrying the provider detail — so an app can route on *why* a loop
+  ended instead of treating every empty result the same.
+
+### Fixed
+
+- **Trace UI: the Work section could render empty.** `spanHtml` in
+  `tracing/templates/ui_run.html` referenced an undeclared `toolCount`, so the
+  first span threw a `ReferenceError` and the whole tree/timeline stayed blank
+  even though `/api/runs/{id}` returned spans. Declared it locally and added a
+  template regression test.
+- **A `RuntimeResources` shared across sessions is no longer mutated by a
+  turn.** Per-turn `budget`/`budget_deadline`/`budget_tracker` and the
+  `BudgetLLM`/`QuotaLLM`/`RecordingLLM` wrappers are installed on a shallow
+  copy of the resources (restored at turn end), so concurrent turns on
+  different sessions can't clobber each other's budget or stack LLM wrappers
+  on the shared provider. Tracing now installs `RecordingLLM` at turn start
+  rather than at `Runtime` construction for the same reason.
+- **`run_tool_loop` now honours the turn's `Budget`.** `max_tool_calls` caps
+  executed calls (extra calls are reported back as tool errors), while
+  `max_seconds` and token/cost limits stop new rounds before the loop falls
+  through to the forced answer — matching `ToolUse`'s own loop. Previously the
+  recipe ignored `context.resources.budget` entirely, so an app had to wrap
+  every tool by hand.
+- **Textual tool-call markup is no longer returned as a final answer** when a
+  `parse_calls` codec or `fallback` is supplied; a provider that emits
+  DSML/XML instead of native `tool_calls` can be normalized or delegated to a
+  legacy loop instead of leaking markup to the user.
+
 ## [0.15.3] — 2026-10-16
 
 ### Fixed

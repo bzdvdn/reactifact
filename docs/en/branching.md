@@ -77,7 +77,9 @@ restored.merge(await store.load_branch("demo", "hypothesis-b"))   # base survive
 ```
 
 The fork base snapshot is serialized with the context, so `merge` keeps its
-conflict detection after a reload.
+conflict detection after a reload. On SQLite/Postgres, `BranchStore` uses the
+same snapshot + append-only commit log as `SessionStore` (per branch key), with
+the same `compact_every` bound.
 
 ## CLI
 

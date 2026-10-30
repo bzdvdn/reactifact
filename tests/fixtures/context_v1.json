@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "head_id": "78de72ab-2d29-4a8e-91af-45ee34c096b3",
+  "artifacts": {
+    "question:legacy": {
+      "id": "question:legacy",
+      "data_type": "reactifact.quick.models.Question",
+      "data": {
+        "text": "legacy question",
+        "session_id": ""
+      },
+      "version": 0,
+      "created_at": "2026-10-30T21:51:49.425483+00:00",
+      "updated_at": "2026-10-30T21:51:49.425483+00:00",
+      "history": [],
+      "created_by_commit": "78de72ab-2d29-4a8e-91af-45ee34c096b3"
+    }
+  },
+  "relations": [],
+  "commits": [
+    {
+      "id": "78de72ab-2d29-4a8e-91af-45ee34c096b3",
+      "author": "legacy",
+      "message": "seed",
+      "timestamp": "2026-10-30T21:51:49.425467+00:00",
+      "operations": [
+        {
+          "type": "create",
+          "data": {
+            "text": "legacy question",
+            "session_id": ""
+          },
+          "data_type": "reactifact.quick.models.Question",
+          "artifact_id": "question:legacy",
+          "id": "question:legacy"
+        }
+      ],
+      "parent_id": null,
+      "context_version": 1,
+      "reads": [],
+      "writes": []
+    }
+  ],
+  "commit_baseline": null,
+  "events": [],
+  "fork_name": "",
+  "base": null
+}

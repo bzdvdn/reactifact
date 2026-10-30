@@ -101,6 +101,11 @@ class LangfuseTracer(Tracer):
                     trace_id, agent_span_id, trace_attrs, run_start, i, span
                 )
             )
+            spans.extend(
+                self._tool_spans(
+                    trace_id, agent_span_id, trace_attrs, run_start, i, span
+                )
+            )
             for j, call in enumerate(span.llm_calls):
                 spans.append(
                     self._llm_span(
@@ -173,6 +178,22 @@ class LangfuseTracer(Tracer):
                     ],
                 )
             )
+        if span.tools:
+            attrs.append(
+                _attr(
+                    "langfuse.observation.metadata.tools",
+                    [
+                        {
+                            "tool": t.tool,
+                            "latency_ms": t.latency_ms,
+                            "ok": t.ok,
+                            "chars": t.chars,
+                            "error": t.error,
+                        }
+                        for t in span.tools
+                    ],
+                )
+            )
         return {
             "traceId": trace_id,
             "spanId": _span_id(f"{trace_id}:span:{index}:{span.agent}"),
@@ -229,6 +250,47 @@ class LangfuseTracer(Tracer):
                 }
             )
             cursor = end
+        return out
+
+    def _tool_spans(
+        self,
+        trace_id: str,
+        parent_span_id: str,
+        trace_attrs: list[dict[str, Any]],
+        run_start: datetime,
+        span_index: int,
+        span: AgentSpan,
+    ) -> list[dict[str, Any]]:
+        """One child observation per tool call, placed by its own start time
+        (parallel tool calls therefore overlap on the waterfall)."""
+        out: list[dict[str, Any]] = []
+        for k, tool in enumerate(span.tools):
+            start = tool.started_at or span.started_at or run_start
+            end = start + timedelta(milliseconds=tool.latency_ms)
+            attrs = [
+                *trace_attrs,
+                _attr("langfuse.observation.type", "tool"),
+                _attr("langfuse.observation.metadata.agent", span.agent),
+                _attr("langfuse.observation.metadata.tool", tool.tool),
+                _attr("langfuse.observation.metadata.ok", tool.ok),
+                _attr("langfuse.observation.metadata.chars", tool.chars),
+            ]
+            if tool.args is not None:
+                attrs.append(_attr("langfuse.observation.input", tool.args))
+            if tool.error:
+                attrs.append(_attr("langfuse.observation.metadata.error", tool.error))
+            out.append(
+                {
+                    "traceId": trace_id,
+                    "spanId": _span_id(f"{trace_id}:tool:{span_index}:{k}:{tool.tool}"),
+                    "parentSpanId": parent_span_id,
+                    "name": tool.tool,
+                    "kind": 1,
+                    "startTimeUnixNano": _unix_nanos(start),
+                    "endTimeUnixNano": _unix_nanos(end),
+                    "attributes": attrs,
+                }
+            )
         return out
 
     def _llm_span(

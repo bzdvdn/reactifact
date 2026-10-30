@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .checkpoints import KVBackend
+from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
+from .checkpoints import AppendBackend, KVBackend
 from .context import Context
 from .resources import RuntimeResources
 
@@ -8,8 +9,9 @@ from .resources import RuntimeResources
 class Session:
     """Named session: an isolated Context bound to a key-value store.
 
-    Saves the full state (commit chain + working tree + head),
-    so after a restart the session resumes from the last commit.
+    With an `AppendBackend` (SQLite/Postgres) the store keeps a snapshot plus
+    an append-only commit log, so a turn writes only its new commits instead
+    of the whole Context. Other backends keep the full-blob behavior.
     """
 
     def __init__(
@@ -32,20 +34,52 @@ class Session:
 
 
 class SessionStore:
-    """Session store on top of KVBackend (session_id → Context)."""
+    """Session store on top of KVBackend (session_id → Context).
 
-    def __init__(self, backend: KVBackend):
+    When the backend implements `AppendBackend` (the built-in SQLite and
+    Postgres stores), a save writes a snapshot only on the first save, after a
+    compaction, or after a rollback; subsequent saves append just the new
+    commits plus the current pending-event queue. This keeps a turn's write
+    cost proportional to what changed instead of O(whole context).
+
+    `compact_every=N` (default 100) bounds the append log: roughly every N
+    saves the snapshot is rewritten and the log cleared. `None` keeps the log
+    until an explicit `context.compact()` or a rollback. Ignored by backends
+    that are not `AppendBackend`.
+    """
+
+    def __init__(
+        self,
+        backend: KVBackend,
+        *,
+        compact_every: int | None = DEFAULT_COMPACT_EVERY,
+    ):
+        if compact_every is not None and compact_every < 1:
+            raise ValueError("compact_every must be >= 1 or None")
         self.backend = backend
+        self.compact_every = compact_every
 
     async def save_session(self, session_id: str, context: Context) -> None:
+        if isinstance(self.backend, AppendBackend):
+            await save_append(
+                self.backend,
+                session_id,
+                context,
+                compact_every=self.compact_every,
+            )
+            return
         await context.to_kv(self.backend, session_id)
+        context.mark_persisted(key=session_id)
 
     async def load_session(
         self,
         session_id: str,
         resources: RuntimeResources | None = None,
     ) -> Context | None:
-        context = await Context.from_kv(self.backend, session_id)
+        if isinstance(self.backend, AppendBackend):
+            context = await load_append(self.backend, session_id)
+        else:
+            context = await Context.from_kv(self.backend, session_id)
         if context is None:
             return None
         context.resources = resources or RuntimeResources()

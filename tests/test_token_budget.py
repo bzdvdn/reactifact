@@ -180,3 +180,46 @@ def test_llm_wrapper_is_restored_after_the_turn():
     asyncio.run(runtime.arun())
 
     assert ctx.resources.llm is llm  # not left wrapped
+
+
+def test_shared_resources_survive_concurrent_turns():
+    """A `RuntimeResources` shared by two sessions must never be mutated by a
+    turn: budget/deadline/tracker and the LLM wrappers live on a per-turn copy,
+    so concurrent turns can't clobber each other."""
+    llm = UsageLLM()
+    shared = RuntimeResources(llm=llm)
+    ctx1 = Context(resources=shared)
+    ctx2 = Context(resources=shared)
+    rt1 = Runtime(ctx1, agents=[ChattyAgent()], budget=Budget(max_tokens=1))
+    rt2 = Runtime(
+        ctx2, agents=[ChattyAgent()], budget=Budget(max_tokens=1000, max_runs=2)
+    )
+    ctx1.create(Number(value=0))
+    ctx2.create(Number(value=0))
+
+    async def _both() -> None:
+        await asyncio.gather(rt1.arun(), rt2.arun())
+
+    asyncio.run(_both())
+
+    assert shared.llm is llm
+    assert shared.budget is None
+    assert shared.budget_deadline is None
+    assert shared.budget_tracker is None
+    assert rt1.outcome == RunOutcome.BUDGET_TOKENS_EXCEEDED
+
+
+def test_shared_resources_are_not_wrapped_by_tracing():
+    from reactifact.tracing import Tracer
+
+    llm = UsageLLM()
+    shared = RuntimeResources(llm=llm)
+    ctx = Context(resources=shared)
+    runtime = Runtime(
+        ctx, agents=[ChattyAgent()], budget=Budget(max_runs=1), tracer=Tracer()
+    )
+    ctx.create(Number(value=0))
+
+    asyncio.run(runtime.arun())
+
+    assert shared.llm is llm

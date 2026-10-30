@@ -86,6 +86,7 @@ class RuntimeResources:
         verification_threshold: float | None = None,
         redactor: Redactor | None = None,
         trace_truncate: int | None = 1500,
+        record_tool_args: bool = False,
         id_factory: IdFactory | None = None,
         pricer: Pricer | None = None,
         metrics: MetricsSink | None = None,
@@ -131,6 +132,9 @@ class RuntimeResources:
         # persisted session. `None` (default) reproduces the pre-hook behavior.
         # See `reactifact.redaction`.
         self.redactor = redactor
+        # Opt-in: record tool-call arguments on `ToolRun.args` (scrubbed by
+        # `redactor` when set). Off by default because args may carry secrets.
+        self.record_tool_args = record_tool_args
         # How many characters of an artifact's JSON (and an LLM response) are
         # kept in a trace. `None` disables truncation. Larger values make
         # configurable table columns / deep fields resolvable, at the cost of
@@ -154,13 +158,15 @@ class RuntimeResources:
         # later. `additional` stays as the string-keyed escape hatch.
         self._typed: dict[Any, Any] = {}
         self.additional = additional
-        # Set by Runtime per turn (not a constructor param — the runtime, not
-        # the caller, owns these): the active Budget and its wall-clock
-        # deadline, read back by ToolUse's own inner loop (§ tool_use.py) to
-        # enforce the tool-call/time budget between its own round-trips, not
-        # just at the top-level Runtime._budget_exhausted check. `budget_tracker`
-        # is the per-turn token/cost counters (set only when the budget tracks
-        # tokens/cost), read the same way.
+        # Set by Runtime per turn on a shallow copy of this instance (not a
+        # constructor param — the runtime, not the caller, owns these): the
+        # active Budget and its wall-clock deadline, read back by ToolUse's own
+        # inner loop (§ tool_use.py) to enforce the tool-call/time budget
+        # between its own round-trips, not just at the top-level
+        # Runtime._budget_exhausted check. `budget_tracker` is the per-turn
+        # token/cost counters (set only when the budget tracks tokens/cost),
+        # read the same way. The copy keeps a resources instance shared across
+        # sessions/turns from being mutated by concurrent turns.
         self.budget: Budget | None = None
         self.budget_deadline: float | None = None
         self.budget_tracker: BudgetTracker | None = None

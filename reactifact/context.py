@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, TypeVar, cast, overload
+from typing import Any, TypedDict, TypeVar, cast, overload
 
 from pydantic import BaseModel
 
@@ -17,7 +17,9 @@ from .interrupt import PendingAction, PendingQuestion
 from .patches import (
     Create,
     Delete,
+    Link,
     Relation,
+    Unlink,
     Update,
 )
 from .relations import RelationGraph
@@ -26,6 +28,58 @@ from .streaming import EventHub, ProgressEvent, QueueEvent
 
 TData = TypeVar("TData", bound=BaseModel)
 TArtifact = TypeVar("TArtifact", bound=BaseModel)
+
+#: Current persisted-envelope version. Bump when `to_dict`'s shape changes and
+#: register a migration in `_CONTEXT_MIGRATIONS` for the previous version.
+CONTEXT_FORMAT_VERSION = 1
+
+
+class SerializedContext(TypedDict, total=False):
+    """The persisted Context envelope (`Context.to_dict`).
+
+    `total=False` because older payloads predate some keys (notably
+    `format_version`, treated as v1 by `migrate_context_payload`).
+    """
+
+    format_version: int
+    version: int
+    head_id: str | None
+    artifacts: dict[str, dict[str, Any]]
+    relations: list[dict[str, Any]]
+    commits: list[dict[str, Any]]
+    commit_baseline: dict[str, Any] | None
+    events: list[dict[str, Any]]
+    fork_name: str
+    base: SerializedContext | None
+
+
+#: from_version -> migration that upgrades the payload by one version.
+_CONTEXT_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {}
+
+
+def migrate_context_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Upgrades a persisted Context payload to `CONTEXT_FORMAT_VERSION`.
+
+    Payloads written before the version field existed are treated as version 1.
+    A payload from a *newer* framework is rejected explicitly rather than
+    silently mis-read. Migrations are chained one version at a time.
+    """
+    version = int(data.get("format_version", 1))
+    if version > CONTEXT_FORMAT_VERSION:
+        raise ValueError(
+            f"context payload format {version} is newer than this reactifact "
+            f"supports ({CONTEXT_FORMAT_VERSION}); upgrade reactifact"
+        )
+    while version < CONTEXT_FORMAT_VERSION:
+        migration = _CONTEXT_MIGRATIONS.get(version)
+        if migration is None:
+            raise ValueError(
+                f"no migration registered for context payload format {version}"
+            )
+        data = migration(data)
+        version += 1
+        data["format_version"] = version
+    return data
 
 
 @dataclass
@@ -67,6 +121,20 @@ class Context:
     agent linkage via consumes/produces.
     """
 
+    @property
+    def request(self) -> Mapping[str, Any]:
+        """The active turn's request mapping (empty when none was set).
+
+        Read-only view of `reactifact.request.current_request()` — the same
+        data a produce sees as `call.request`. Exposed on `Context` so hooks
+        that receive only a context (e.g. `ChatAssistant(create_message=…)`)
+        can read per-turn metadata (category, tenant, user) without a
+        hand-rolled `ContextVar` of their own.
+        """
+        from .request import current_request
+
+        return current_request()
+
     def __init__(self, resources: RuntimeResources | None = None):
         self._artifacts: dict[str, Artifact[Any]] = {}
         self._events: list[Event] = []
@@ -91,6 +159,39 @@ class Context:
         # Any bulk rewrite that bypasses create/update/delete must call
         # `_reindex_by_type()` (mirrors `_recompute_stale()`, same reasoning).
         self._by_type: dict[type, set[str]] = {}
+        # Per storage key: (version, compaction baseline) already persisted.
+        # A Context can be saved under several keys (a session + named
+        # branches), so this is keyed rather than a single global marker.
+        self._persisted: dict[str, tuple[int, int]] = {}
+        # Compatibility view for the single-session case (last marked key).
+        self._persisted_version = -1
+        self._persisted_compacted_at = 0
+
+    def persisted_state(self, key: str) -> tuple[int, int]:
+        """`(version, compacted_at)` already written for `key`.
+
+        `(-1, 0)` when this Context has never been persisted under that key.
+        """
+        return self._persisted.get(key, (-1, 0))
+
+    @property
+    def persisted_version(self) -> int:
+        """Highest version written by the last `mark_persisted` call
+        (`-1` when this Context has never been persisted)."""
+        return self._persisted_version
+
+    @property
+    def persisted_compacted_at(self) -> int:
+        """Compaction baseline written by the last `mark_persisted` call."""
+        return self._persisted_compacted_at
+
+    def mark_persisted(self, version: int | None = None, *, key: str = "") -> None:
+        """Records that the Context has been persisted up to `version` (head
+        when omitted) for `key`, including its current compaction baseline."""
+        persisted = self.version if version is None else version
+        self._persisted[key] = (persisted, self.compacted_at)
+        self._persisted_version = persisted
+        self._persisted_compacted_at = self.compacted_at
 
     # ---- announce: agent progress events streamed out ----
 
@@ -497,6 +598,71 @@ class Context:
         for write in commit.writes:
             self._stale.discard(write.artifact_id)
 
+    def apply_commit(self, commit: Commit, *, reindex: bool = True) -> None:
+        """Applies a commit's operations to the live state and logs it.
+
+        This is the load path for the append-only session format (snapshot +
+        commit log): it replays operations *without* emitting events (a
+        restored session must not re-trigger its own agents). `reindex=False`
+        skips the final full re-index — use it when applying several commits
+        and call `rebuild_indices()` once at the end.
+        """
+        for op in commit.operations:
+            if isinstance(op, Create):
+                artifact_id = op.artifact_id or op.id
+                if artifact_id is None:
+                    raise ValueError(
+                        "cannot apply a Create without artifact_id/id to a Context"
+                    )
+                existing = self._artifacts.get(artifact_id)
+                if existing is not None:
+                    self._by_type.get(type(existing.data), set()).discard(artifact_id)
+                    existing.update(op.data)
+                    self._by_type.setdefault(type(op.data), set()).add(artifact_id)
+                else:
+                    self._artifacts[artifact_id] = Artifact(
+                        op.data, id=artifact_id, created_by_commit=commit.id
+                    )
+                    self._by_type.setdefault(type(op.data), set()).add(artifact_id)
+            elif isinstance(op, Update):
+                artifact = self._artifacts.get(op.artifact_id)
+                if artifact is None:
+                    continue
+                old_type = type(artifact.data)
+                artifact.update(op.new_data)
+                new_type = type(op.new_data)
+                if new_type is not old_type:
+                    self._by_type.get(old_type, set()).discard(op.artifact_id)
+                    self._by_type.setdefault(new_type, set()).add(op.artifact_id)
+            elif isinstance(op, Delete):
+                artifact = self._artifacts.pop(op.artifact_id, None)
+                if artifact is not None:
+                    self._by_type.get(type(artifact.data), set()).discard(
+                        op.artifact_id
+                    )
+            elif isinstance(op, Link):
+                self.link(op.artifact_id, op.relation, op.target_id)
+            elif isinstance(op, Unlink):
+                self.unlink(op.artifact_id, op.relation, op.target_id)
+            else:
+                raise ValueError(f"Unknown operation: {op}")
+        self.log_commit(commit)
+        if reindex:
+            self.rebuild_indices()
+
+    def rebuild_indices(self) -> None:
+        """Rebuilds the type/staleness indices from the live state.
+
+        Used after a bulk load (append-only replay) that bypasses the
+        incremental `create`/`update`/`delete` paths.
+        """
+        self._recompute_stale()
+        self._reindex_by_type()
+
+    def replace_events(self, events: Sequence[Event]) -> None:
+        """Replaces the pending-event queue (used by the session load path)."""
+        self._events = list(events)
+
     def commit_log(self) -> list[Commit]:
         return self._log.history()
 
@@ -702,8 +868,9 @@ class Context:
         self._recompute_stale()
         self._reindex_by_type()
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> SerializedContext:
         return {
+            "format_version": CONTEXT_FORMAT_VERSION,
             "version": self._log.version,
             "head_id": self._log.head_id,
             "artifacts": {aid: art.to_dict() for aid, art in self._artifacts.items()},
@@ -721,22 +888,26 @@ class Context:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Context:
+        data = migrate_context_payload(dict(d))
         ws = cls()
-        for aid, art_dict in d["artifacts"].items():
+        for aid, art_dict in data["artifacts"].items():
             artifact = Artifact.from_dict(art_dict)
             ws._artifacts[aid] = artifact
-        ws._relations = RelationGraph.from_dict(d.get("relations", []))
+        ws._relations = RelationGraph.from_dict(data.get("relations", []))
         ws._log = CommitLog.from_dict(
-            d["commits"],
-            version=d.get("version"),
-            head_id=d.get("head_id"),
-            baseline=d.get("commit_baseline"),
+            data["commits"],
+            version=data.get("version"),
+            head_id=data.get("head_id"),
+            baseline=data.get("commit_baseline"),
         )
-        ws._events = [Event.from_dict(e) for e in d.get("events", [])]
-        ws._fork_name = d.get("fork_name", "")
-        ws._base = Context.from_dict(d["base"]) if d.get("base") is not None else None
+        ws._events = [Event.from_dict(e) for e in data.get("events", [])]
+        ws._fork_name = data.get("fork_name", "")
+        ws._base = (
+            Context.from_dict(data["base"]) if data.get("base") is not None else None
+        )
         ws._recompute_stale()
         ws._reindex_by_type()
+        ws.mark_persisted(ws.version)
         return ws
 
     async def save_checkpoint(self, backend_or_path: str | CheckpointBackend) -> None:
@@ -745,7 +916,7 @@ class Context:
             backend = FileBackend(backend_or_path)
         else:
             backend = backend_or_path
-        await backend.save(self.to_dict())
+        await backend.save(cast(dict[str, Any], self.to_dict()))
 
     @classmethod
     async def load_checkpoint(cls, backend_or_path: str | CheckpointBackend) -> Context:
@@ -765,7 +936,7 @@ class Context:
         backend, §39) — call this instead of hand-rolling `backend.set(key,
         context.to_dict())`.
         """
-        await backend.set(key, self.to_dict())
+        await backend.set(key, cast(dict[str, Any], self.to_dict()))
 
     @classmethod
     async def from_kv(cls, backend: KVBackend, key: str) -> Context | None:

@@ -28,6 +28,13 @@ class Trigger:
     event (see `Runtime._arun_once_impl` and `Consume`'s own `debounce`
     param, which is what actually sets this in practice). `Trigger` itself
     only carries the flag; it plays no part in `matches()`.
+
+    `include_subclasses` (default `False`): match any artifact whose type is
+    a *subclass* of `artifact_type`, not just the exact type. Opt-in because
+    it changes what a trigger fires on: a marker base (`class ChatMessage`),
+    a protocol-ish base, or any `Consume(Base)` that wants the concrete
+    `UserQuery`/`Answer` underneath it. The default stays exact so an agent
+    subscribed to both a base and a descendant never double-fires by accident.
     """
 
     def __init__(
@@ -37,19 +44,30 @@ class Trigger:
         condition: Callable[[Artifact[Any]], bool] | None = None,
         context_condition: Callable[[Artifact[Any], Context], bool] | None = None,
         debounce: bool = False,
+        include_subclasses: bool = False,
     ):
         self.event_type = event_type
         self.artifact_type = artifact_type
         self.condition = condition
         self.context_condition = context_condition
         self.debounce = debounce
+        self.include_subclasses = include_subclasses
+
+    def _type_matches(self, event_type: type | str | None) -> bool:
+        if self.artifact_type is None:
+            return True
+        if event_type is None:
+            return False
+        if self.include_subclasses and isinstance(event_type, type):
+            return issubclass(event_type, self.artifact_type)
+        return event_type == self.artifact_type
 
     def matches(self, event: Event, context: Context | None = None) -> bool:
         """Checks whether the event matches this trigger.
         If a condition is set, requires a context to fetch the artifact."""
         if event.type != self.event_type:
             return False
-        if self.artifact_type is not None and event.artifact_type != self.artifact_type:
+        if not self._type_matches(event.artifact_type):
             return False
         if self.condition is not None or self.context_condition is not None:
             if context is None:

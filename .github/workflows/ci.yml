@@ -22,7 +22,7 @@ jobs:
       - name: Install
         run: uv sync
       - name: Tests
-        run: uv run python -m pytest -q --cov=reactifact --cov-report=xml
+        run: uv run python -m pytest -q --cov=reactifact --cov-report=xml --cov-fail-under=85
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

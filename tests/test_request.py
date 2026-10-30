@@ -86,3 +86,65 @@ def test_chat_invoke_passes_request_to_produces(tmp_path):
     )
     assert result["reply"] == "ok"
     assert seen["user"] == "bob"
+
+
+class Query(BaseModel):
+    text: str
+    session_id: str = ""
+    category: str = ""
+
+
+def _query_assistant(tmp_path, create_message):
+    from reactifact import SessionStore
+    from reactifact.chat import ChatAssistant
+    from reactifact.checkpoints import FileKVBackend
+
+    store = SessionStore(FileKVBackend(str(tmp_path / "sessions")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[],
+        user_message=Query,
+        reply=lambda ctx, mid: {"reply": "ok"},
+        create_message=create_message,
+    )
+    return assistant, store
+
+
+def test_create_message_reads_request_through_context(tmp_path):
+    seen: dict[str, object] = {}
+
+    def create_message(ctx, text):
+        seen["request"] = dict(ctx.request)
+        return ctx.create(Query(text=text, category=ctx.request.get("category", ""))).id
+
+    assistant, store = _query_assistant(tmp_path, create_message)
+    result = asyncio.run(
+        assistant.invoke("hi", session_id="s1", request={"category": "helm"})
+    )
+
+    assert result["reply"] == "ok"
+    assert seen["request"] == {"category": "helm"}
+    ctx = asyncio.run(store.open("s1")).context
+    assert ctx.list_artifacts(Query)[0].data.category == "helm"
+    # the request is not leaked past the turn
+    assert dict(current_request()) == {}
+
+
+def test_create_message_four_arg_shape_receives_request(tmp_path):
+    seen: dict[str, object] = {}
+
+    def create_message(ctx, text, session_id, request):
+        seen["session_id"] = session_id
+        seen["request"] = dict(request or {})
+        return ctx.create(
+            Query(
+                text=text,
+                session_id=session_id,
+                category=(request or {}).get("category", ""),
+            )
+        ).id
+
+    assistant, _ = _query_assistant(tmp_path, create_message)
+    asyncio.run(assistant.invoke("hi", session_id="s2", request={"category": "argocd"}))
+
+    assert seen == {"session_id": "s2", "request": {"category": "argocd"}}

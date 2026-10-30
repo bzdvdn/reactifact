@@ -234,6 +234,50 @@ class Flow(Agent):
   сворачивания, а значит теряет контент, который этот рецепт должен
   сохранить. Свой сырой хвост он ограничивает сам, ничего больше не нужно.
 
+## `run_tool_loop` — ограниченный цикл native tool-calling (§46, §47)
+
+`reactifact.native_tool_use` намеренно даёт хелперы на один ход, а не цикл.
+Когда цикл всё-таки нужен — ограниченные раунды, параллельные вызовы,
+форсированный финальный ответ — `run_tool_loop` это opt-in рецепт, а не
+реактивный `Agent`:
+
+```python
+from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
+
+result = await run_tool_loop(
+    call.context,
+    system="You are a research assistant.",
+    user=question,
+    tools=[search_knowledge, read_source],
+    mandatory="read_source",
+    max_rounds=6,
+    max_observation_chars=4_000,   # ограничить то, что уходит обратно в промпт
+    redact_tool_outputs=True,      # применить resources.redactor к выводу тула
+    parse_calls=parse_tool_calls_with_textual,  # терпеть DSML/XML-провайдеров
+    on_event=lambda name, payload: ...,         # round/tool/final для SSE
+)
+call.effects.create(Answer(text=result.text))
+```
+
+- `Budget` хода соблюдается между раундами: `max_tool_calls` ограничивает
+  выполнения (лишние вызовы возвращаются как ошибки тулов), `max_seconds` и
+  лимиты токенов/стоимости останавливают новые раунды; затем цикл форсирует
+  ответ.
+- `fallback(ctx, messages, text)` вызывается, когда вызовов не распарсили, а
+  текст похож на tool-call разметку (`looks_like_tool_markup`); верните строку,
+  чтобы завершить ход (например, делегировать в legacy `ToolUse`), или `None`,
+  чтобы принять текст как ответ.
+- `on_event` получает `round_start`, `tool_call`, `tool_result`, `final`; тот
+  же прогресс публикуется через `Context.announce(kind="agent")`, поэтому
+  `ChatAssistant(status_kinds=("status", "agent"))` стримит его без своего цикла.
+- `ToolLoopResult.stop_reason` — `completed`, `max_rounds`, `budget`,
+  `provider_error` или `fallback`; `error` содержит детали отказа провайдера.
+  Ошибки тулов тоже типизированы: `ToolOutput.failed(ToolError(code=, message=,
+  retryable=))` виден как `ToolObservation.error_info`, а
+  `retry_tool_errors=True` повторяет только `retryable=True`
+  (`tool_retry_attempts`/`tool_retry_delay` задают backoff; повторы считаются
+  выполнениями для `Budget.max_tool_calls`).
+
 ## `keyword_score` / `stem_words` — детерминированный скоринг текста (§67)
 
 Там, где эмбеддинги опциональны, покрытие по ключевым словам — нейтральный

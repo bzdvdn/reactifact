@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import copy
 import sys
 import time
 import uuid
@@ -20,9 +21,11 @@ from .logging import get_logger, reset_context, set_context
 from .patches import Create, Delete, Link, Patch, Unlink, Update
 from .quota import QuotaLLM
 from .request import current_request, reset_request, set_request
+from .resources import RuntimeResources
 from .scheduler import Scheduler
 from .session import Session
 from .streaming import ProgressEvent
+from .tools import ToolRun, begin_tool_runs, end_tool_runs, tool_runs
 from .tracing.models import AgentSpan
 from .tracing.tracer import CompositeTracer, RunTracer, Tracer
 
@@ -41,6 +44,7 @@ AgentResult = tuple[
     float,
     BaseException | None,
     list[tuple[str, int, float]],
+    list[ToolRun],
 ]
 #: Performs one committed `PendingAction` (outbox). Called by the runtime after
 #: the intent is committed; the app performs the real I/O and returns (or
@@ -165,8 +169,8 @@ class Runtime:
         self._errors_used = 0
         # Not reentrant: `arun`/`arun_once`/`astream` all mutate shared,
         # instance-level turn state (`_runs_used`, `outcome`, `_deadline`,
-        # and `context.resources.budget`/`budget_deadline` — a resource
-        # *shared* by the Context). Two concurrent calls on the *same*
+        # and the per-turn copy of `context.resources`). Two concurrent calls
+        # on the *same*
         # Runtime (e.g. `asyncio.gather(runtime.arun(), runtime.arun())`)
         # would race on that state — one call's budget/deadline silently
         # clobbers the other's mid-flight. Guarded in `_enter_turn`/
@@ -179,6 +183,11 @@ class Runtime:
         # budget tracks tokens/cost.
         self._tracker: BudgetTracker | None = None
         self._original_llm: Any | None = None
+        #: The app's `RuntimeResources` before `_begin_turn` installs a
+        #: per-turn shallow copy (budget/deadline/tracker/LLM wrappers live on
+        #: that copy, so a `RuntimeResources` shared across sessions/turns is
+        #: never mutated by concurrent turns). Restored on turn end.
+        self._original_resources: RuntimeResources | None = None
         #: Set when the principal's cross-turn quota is already spent.
         self._quota_exceeded = False
         #: Set once after warning that committed `PendingAction`s have no
@@ -250,6 +259,15 @@ class Runtime:
                 await task
 
     def _begin_turn(self, budget: Budget | None) -> None:
+        # Per-turn budget/deadline/tracker and the LLM wrappers that fill them
+        # are installed on a *copy* of the app's RuntimeResources. A single
+        # RuntimeResources instance may be shared by several sessions (a
+        # long-lived provider), and concurrent turns on different Contexts
+        # would otherwise clobber each other's budget and stack LLM wrappers on
+        # the shared object. The copy is discarded at turn end.
+        if self._original_resources is None:
+            self._original_resources = self.context.resources
+            self.context.resources = copy.copy(self.context.resources)
         self._runs_used = 0
         self._errors_used = 0
         self.outcome = RunOutcome.COMPLETED
@@ -347,6 +365,11 @@ class Runtime:
         if self._original_llm is not None:
             self.context.resources.llm = self._original_llm
             self._original_llm = None
+        if self._original_resources is not None:
+            # Drop the per-turn copy (and every wrapper installed on it) and
+            # put the app's original instance back on the Context.
+            self.context.resources = self._original_resources
+            self._original_resources = None
         if self._log_token is not None:
             reset_context(self._log_token)
             self._log_token = None
@@ -658,7 +681,16 @@ class Runtime:
         """
         patches_to_apply: list[PatchWork] = []
         runs = 0
-        for patch, agent, event, reads, latency, error, produce_run_list in results:
+        for (
+            patch,
+            agent,
+            event,
+            reads,
+            latency,
+            error,
+            produce_run_list,
+            tool_run_list,
+        ) in results:
             if self._budget_exhausted():
                 break
             runs += 1
@@ -666,13 +698,24 @@ class Runtime:
             if error is not None:
                 self._errors_used += 1
                 self._trace.record_span(
-                    agent, event, reads, latency, error=error, produces=produce_run_list
+                    agent,
+                    event,
+                    reads,
+                    latency,
+                    error=error,
+                    produces=produce_run_list,
+                    tools=tool_run_list,
                 )
                 continue
             if patch is None or patch.is_empty():
                 continue
             span = self._trace.record_span(
-                agent, event, reads, latency, produces=produce_run_list
+                agent,
+                event,
+                reads,
+                latency,
+                produces=produce_run_list,
+                tools=tool_run_list,
             )
             self._validate_patch_types(patch, agent)
             self._enforce_authorization(patch)
@@ -807,6 +850,10 @@ class Runtime:
         self._trace.register_task(task, agent.name)
         effects_token = set_effects(Effects(self.context))
         produce_runs_token = begin_produce_runs()
+        tool_runs_token = begin_tool_runs(
+            record_args=self.context.resources.record_tool_args,
+            redactor=self.context.resources.redactor,
+        )
         slot: Effects | None = None
         patch: Patch | None = None
         error: BaseException | None = None
@@ -831,7 +878,9 @@ class Runtime:
                     self.on_agent_error(agent, event, exc)
         finally:
             runs = produce_runs()
+            tools = tool_runs()
             end_produce_runs(produce_runs_token)
+            end_tool_runs(tool_runs_token)
             reset_effects(effects_token)
             self._trace.unregister_task(task)
         latency = (time.monotonic() - started) * 1000
@@ -844,7 +893,7 @@ class Runtime:
                     "error": repr(error),
                 },
             )
-            return None, agent, event, reads, latency, error, runs
+            return None, agent, event, reads, latency, error, runs, tools
         logger.debug(
             "agent finished",
             extra={"agent": agent.name, "latency_ms": round(latency, 2)},
@@ -858,7 +907,7 @@ class Runtime:
                 combined.merge(patch)
             combined.merge(slot.to_patch())
             patch = combined
-        return patch, agent, event, reads, latency, None, runs
+        return patch, agent, event, reads, latency, None, runs, tools
 
     async def arun(
         self,

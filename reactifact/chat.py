@@ -37,6 +37,7 @@ from .budget import Budget
 from .consume import Consume
 from .context import Context
 from .events import Event
+from .request import reset_request, set_request
 from .resources import RuntimeResources
 from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
@@ -101,8 +102,12 @@ async def run_message(
     (devops-style clarify) pass their own. Also accepts the 3-arg shape
     `create_message(ctx, text, session_id) -> msg_id` for a hook that needs
     the current turn's `session_id` (e.g. to stamp it onto the created
-    artifact) — detected from the callable's own arity, so the 2-arg shape
-    keeps working unchanged.
+    artifact) and the 4-arg shape `create_message(ctx, text, session_id,
+    request) -> msg_id` for per-request metadata (a category, tenant, user)
+    — detected from the callable's own arity, so the 2-arg shape keeps
+    working unchanged. During the hook `ctx.request` is the same mapping
+    passed as `request=`, so a 2/3-arg hook can read it too without a
+    `ContextVar` of its own.
 
     `status_kinds` selects which progress event kinds are forwarded as `status`
     frames (default: only `status`; e.g. tool-announcing demos also forward
@@ -115,10 +120,17 @@ async def run_message(
     forwarded = set(status_kinds)
     ctx = runtime.context
     try:
-        if create_message is not None:
-            msg_id = _call_create_message(create_message, ctx, text, session_id)
-        else:
-            msg_id = ctx.create(user_message(text=text, session_id=session_id)).id
+        token = set_request(request) if request is not None else None
+        try:
+            if create_message is not None:
+                msg_id = _call_create_message(
+                    create_message, ctx, text, session_id, request
+                )
+            else:
+                msg_id = ctx.create(user_message(text=text, session_id=session_id)).id
+        finally:
+            if token is not None:
+                reset_request(token)
     except Exception:
         logger.exception("chat.run_message: failed to enter the turn")
         yield ChatEvent(
@@ -217,11 +229,20 @@ def _resolve_with_session(value: Any, session_id: str) -> Any:
 
 
 def _call_create_message(
-    create_message: Callable[..., str], ctx: Context, text: str, session_id: str
+    create_message: Callable[..., str],
+    ctx: Context,
+    text: str,
+    session_id: str,
+    request: Mapping[str, Any] | None = None,
 ) -> str:
-    """Calls `create_message` with `session_id` appended when it declares a
-    third parameter for it (`(ctx, text, session_id) -> msg_id`), alongside
-    the pre-existing two-arg shape (`(ctx, text) -> msg_id`)."""
+    """Calls `create_message` with the widest shape it declares.
+
+    Four params get `(ctx, text, session_id, request)`, three get
+    `(ctx, text, session_id)`, and the pre-existing two-arg shape gets
+    `(ctx, text)`. Detected from arity so old hooks keep working unchanged.
+    """
+    if _accepts_arg(create_message, 4):
+        return create_message(ctx, text, session_id, request)
     if _accepts_arg(create_message, 3):
         return create_message(ctx, text, session_id)
     return create_message(ctx, text)
@@ -274,15 +295,36 @@ class ChatMemory:
     `message_type` (needed for `keep`/`summarize`) is any model with
     `role`/`text`; for compaction-only it isn't needed at all, so
     `ChatMemory(compact_commits=…)` is a complete policy on its own.
+
+    `message_types` (or a sequence passed as `message_type`) bounds a
+    heterogeneous conversation — the natural `UserQuery`/`Answer` pair, or a
+    marker base like `ChatMessage` whose concrete types inherit from it. The
+    memory agent wakes on every listed type (and, for a marker base, on its
+    subclasses), so one window covers the whole thread.
     """
 
-    message_type: type[BaseModel] | None = None
+    message_type: type[BaseModel] | Sequence[type[BaseModel]] | None = None
+    message_types: Sequence[type[BaseModel]] | None = None
     keep: int | None = None
     summarize: Callable[[Context, str, list[Any]], Awaitable[str | None]] | None = None
     summary_type: type[BaseModel] | None = None
     build_summary: Callable[[str], BaseModel] | None = None
     digest_id: str = "digest"
     compact_commits: int | None = None
+
+    def resolved_message_types(self) -> tuple[type[BaseModel], ...]:
+        """The message types to bound, normalized from the two fields."""
+        if self.message_types is not None:
+            types = tuple(self.message_types)
+        elif self.message_type is None:
+            return ()
+        elif isinstance(self.message_type, type):
+            types = (self.message_type,)
+        else:
+            types = tuple(self.message_type)
+        if not types:
+            raise ValueError("message_type must name at least one artifact type")
+        return types
 
 
 class ChatAssistant:
@@ -298,7 +340,9 @@ class ChatAssistant:
     its provider's HTTP client doesn't leak. Pass a plain `RuntimeResources`
     instance instead when you want one shared, long-lived provider across
     turns/sessions — that instance is never closed automatically; close it
-    yourself at real shutdown.
+    yourself at real shutdown. It is safe to share: the runtime installs
+    per-turn budget/tracing wrappers on a shallow copy, so concurrent turns do
+    not mutate the shared instance.
 
     `session_save_policy=` passes straight through to `Runtime` — `"per_turn"`
     trades finer crash-resilience granularity (a save at every generation
@@ -434,12 +478,17 @@ class ChatAssistant:
 
         produce: Any
         if memory.summarize is not None:
-            if memory.message_type is None or memory.summary_type is None:
+            if memory.summary_type is None:
+                raise ValueError(
+                    "ChatMemory.summarize needs message_type and summary_type"
+                )
+            message_types = memory.resolved_message_types()
+            if not message_types:
                 raise ValueError(
                     "ChatMemory.summarize needs message_type and summary_type"
                 )
             produce = RollingDigestSummarizer(
-                message_type=memory.message_type,
+                message_type=message_types,
                 artifact_type=memory.summary_type,
                 summarize=memory.summarize,
                 build=_digest_build(memory.summary_type, memory.build_summary),
@@ -447,15 +496,16 @@ class ChatAssistant:
                 digest_id=memory.digest_id,
             )
         elif memory.keep is not None:
-            if memory.message_type is None:
+            message_types = memory.resolved_message_types()
+            if not message_types:
                 raise ValueError("ChatMemory.keep needs message_type")
-            produce = WindowPruner(memory.message_type, keep=memory.keep)
+            produce = WindowPruner(message_types, keep=memory.keep)
         else:
             return []  # compaction-only: no message-level memory agent
         return [
             create_agent(
                 "memory",
-                consumes=[Consume(memory.message_type)],
+                consumes=[Consume.by_base(t) for t in message_types],
                 produces=[produce],
             )
         ]

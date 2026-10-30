@@ -29,8 +29,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
 from .artifacts import Artifact
-from .checkpoints import KVBackend
+from .checkpoints import AppendBackend, KVBackend
 from .commit import Commit
 from .context import Context
 from .interrupt import PendingAction
@@ -242,10 +243,22 @@ def merge_contexts(
 
 
 class BranchStore:
-    """Persists named branches (`branch:<session>:<name>`) over a KV backend."""
+    """Persists named branches (`branch:<session>:<name>`) over a KV backend.
 
-    def __init__(self, backend: KVBackend):
+    With an `AppendBackend` (SQLite/Postgres) branches use the same
+    snapshot + append-only commit log as sessions, keyed per branch name.
+    """
+
+    def __init__(
+        self,
+        backend: KVBackend,
+        *,
+        compact_every: int | None = DEFAULT_COMPACT_EVERY,
+    ):
+        if compact_every is not None and compact_every < 1:
+            raise ValueError("compact_every must be >= 1 or None")
         self.backend = backend
+        self.compact_every = compact_every
 
     @staticmethod
     def _key(session_id: str, name: str) -> str:
@@ -255,11 +268,21 @@ class BranchStore:
         self, context: Context, *, session_id: str, name: str
     ) -> None:
         """Saves a branch (including its fork base snapshot, §40)."""
-        await context.to_kv(self.backend, self._key(session_id, name))
+        key = self._key(session_id, name)
+        if isinstance(self.backend, AppendBackend):
+            await save_append(
+                self.backend, key, context, compact_every=self.compact_every
+            )
+            return
+        await context.to_kv(self.backend, key)
+        context.mark_persisted(key=key)
 
     async def load_branch(self, session_id: str, name: str) -> Context | None:
         """Loads a branch, or None if it does not exist."""
-        return await Context.from_kv(self.backend, self._key(session_id, name))
+        key = self._key(session_id, name)
+        if isinstance(self.backend, AppendBackend):
+            return await load_append(self.backend, key)
+        return await Context.from_kv(self.backend, key)
 
     async def list_branches(self, session_id: str) -> list[str]:
         prefix = f"branch:{session_id}:"

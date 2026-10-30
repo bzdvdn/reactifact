@@ -11,11 +11,169 @@ Tools are capabilities; they are not part of consume/produce: those bind artifac
 from __future__ import annotations
 
 import inspect
+import json
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from contextvars import ContextVar, Token
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, overload
 
 from pydantic import BaseModel, Field, create_model
+
+from .redaction import Redactor
+
+
+class ToolError(BaseModel):
+    """Typed tool failure — the structured half of `ToolOutput.error`.
+
+    `error` stays a plain string for backward compatibility; `error_info` lets
+    a caller branch on `code`/`retryable` instead of parsing a message. A
+    `ToolOutput.failed(ToolError(...))` sets both.
+    """
+
+    code: str = ""
+    message: str = ""
+    retryable: bool = False
+
+    def __str__(self) -> str:
+        return self.message or self.code or "tool failed"
+
+
+class ToolRun(BaseModel):
+    """One tool execution recorded for a trace span (`AgentSpan.tools`).
+
+    `ToolUse`/`run_tool_loop` open a per-task run log via `begin_tool_runs()`;
+    the runtime attaches it to the agent span. Args are deliberately not
+    recorded (they may carry secrets); name/latency/status/size is enough to
+    spot a slow or failing tool.
+    """
+
+    tool: str
+    latency_ms: float = 0.0
+    ok: bool = True
+    error: str | None = None
+    chars: int = 0
+    #: Tool arguments, recorded only when `RuntimeResources(record_tool_args=
+    #: True)` (and scrubbed through `resources.redactor` when configured).
+    args: dict[str, Any] | None = None
+    #: Wall-clock start, so exporters can place the call on a timeline even
+    #: when tools ran in parallel.
+    started_at: datetime | None = None
+
+
+@dataclass
+class _ToolRunLog:
+    runs: list[ToolRun] = field(default_factory=list)
+    record_args: bool = False
+    redactor: Redactor | None = None
+
+
+_tool_run_log: ContextVar[_ToolRunLog | None] = ContextVar(
+    "reactifact_tool_runs", default=None
+)
+
+
+def begin_tool_runs(
+    *, record_args: bool = False, redactor: Redactor | None = None
+) -> Token[Any]:
+    """Opens the per-task tool-run log (see `ToolRun`)."""
+    return _tool_run_log.set(_ToolRunLog(record_args=record_args, redactor=redactor))
+
+
+def tool_runs() -> list[ToolRun]:
+    """The tool runs recorded for the current task (empty if none)."""
+    log = _tool_run_log.get()
+    return list(log.runs) if log is not None else []
+
+
+def end_tool_runs(token: Token[Any]) -> None:
+    _tool_run_log.reset(token)
+
+
+async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
+    """Executes `tool` and records the call in the current task's run log.
+
+    Framework loops (`ToolUse`, `recipes.run_tool_loop`) use this instead of
+    `tool.execute` so tool calls show up on the trace span. A direct
+    `tool.execute` call is not traced.
+    """
+    started_at = datetime.now(UTC)
+    started = time.monotonic()
+    try:
+        output = await tool.execute(args)
+    except Exception as exc:
+        _record_tool_run(
+            tool.name,
+            started_at=started_at,
+            latency_ms=(time.monotonic() - started) * 1000,
+            ok=False,
+            error=f"{type(exc).__name__}: {exc}",
+            args=args,
+        )
+        raise
+    if output.error:
+        error = output.error
+        chars = 0
+    else:
+        error = None
+        chars = (
+            len(output.text)
+            if output.text
+            else len(json.dumps(output.data, ensure_ascii=False))
+        )
+    _record_tool_run(
+        tool.name,
+        started_at=started_at,
+        latency_ms=(time.monotonic() - started) * 1000,
+        ok=output.ok,
+        error=error,
+        chars=chars,
+        args=args,
+    )
+    return output
+
+
+def _redact_args(value: Any, redactor: Redactor | None) -> Any:
+    if redactor is None:
+        return value
+    if isinstance(value, str):
+        return redactor.redact(value)
+    if isinstance(value, dict):
+        return {key: _redact_args(item, redactor) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_args(item, redactor) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_args(item, redactor) for item in value)
+    return value
+
+
+def _record_tool_run(
+    tool: str,
+    *,
+    started_at: datetime,
+    latency_ms: float,
+    ok: bool,
+    error: str | None = None,
+    chars: int = 0,
+    args: dict[str, Any] | None = None,
+) -> None:
+    log = _tool_run_log.get()
+    if log is None:
+        return
+    recorded_args = _redact_args(args, log.redactor) if log.record_args else None
+    log.runs.append(
+        ToolRun(
+            tool=tool,
+            latency_ms=latency_ms,
+            ok=ok,
+            error=error,
+            chars=chars,
+            args=recorded_args if isinstance(recorded_args, dict) else None,
+            started_at=started_at,
+        )
+    )
 
 
 class ToolOutput(BaseModel):
@@ -24,6 +182,18 @@ class ToolOutput(BaseModel):
     text: str = ""
     data: dict[str, Any] = Field(default_factory=dict)
     error: str = ""
+    #: Structured failure details (code/retryable). `error` mirrors the
+    #: message when this is set, so existing string-based callers keep working.
+    error_info: ToolError | None = None
+
+    @classmethod
+    def failed(cls, error: ToolError) -> ToolOutput:
+        """Builds a failure result from a `ToolError`."""
+        return cls(error=str(error), error_info=error)
+
+    @property
+    def ok(self) -> bool:
+        return not (self.error or self.error_info)
 
 
 class Tool(ABC):

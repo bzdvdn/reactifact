@@ -10,8 +10,15 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
 
 - **Agent spans** (`AgentSpan`) — what each agent did: artifact reads and
   writes, the key/value summary of the patch it produced, the consumed artifact
-  type that triggered it (`event_artifact_type`) and which produces actually ran
-  (`produces`: name, authored operations, latency).
+  type that triggered it (`event_artifact_type`), which produces actually ran
+  (`produces`: name, authored operations, latency), and which tools it executed
+  (`tools`: `ToolRun` name/latency/status/chars — args are not recorded).
+  The dashboard, OTLP (`reactifact.tools`) and Langfuse
+  (`langfuse.observation.metadata.tools`) carry the same list; Langfuse/OTLP
+  also emit a child span per tool, placed by `ToolRun.started_at` (parallel
+  calls overlap). Tool args are omitted by default — set
+  `RuntimeResources(record_tool_args=True)` to include them (scrubbed by
+  `redactor=`).
 - **LLM calls** (`LLMCall`) — prompts, responses (truncated), token usage,
   latency.
 - **Timing and ordering** — the whole causal chain of a run, in order.
@@ -259,7 +266,10 @@ It records, per finished turn: `reactifact_runs_total{outcome}`,
 agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 `reactifact_llm_calls_total{provider,model,agent}`,
 `reactifact_llm_tokens_total{kind,provider,model}`,
-`reactifact_llm_errors_total{provider,model}`, and — with
+`reactifact_llm_errors_total{provider,model}`,
+`reactifact_tool_calls_total{tool,status}`,
+`reactifact_tool_errors_total{tool}`,
+`reactifact_tool_latency_seconds{tool}`, and — with
 `MetricsTracer(metrics, pricer=…)` — `reactifact_llm_cost_total{provider,model}`.
 
 Straight from the span's reads/writes/edges you also get **domain-adjacent**
@@ -367,6 +377,11 @@ financial figure; pass `patterns=[(name, regex), …]` for a project's own
 formats (cards, phones, …). Any object with a `redact(text: str) -> str` method
 satisfies the hook, so a PII service drops in without subclassing. `None` (the
 default) leaves traces byte-for-byte as before.
+
+Tool observations are *not* trace text — they go back into the model's prompt.
+If tools can return secrets, pass `redact_tool_outputs=True` to
+`recipes.run_tool_loop`: it applies the same `resources.redactor` before the
+observation is fed to the LLM and recorded on `ToolLoopResult.observations`.
 
 ## Progress events (UI reactivity)
 

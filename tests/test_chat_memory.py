@@ -140,3 +140,61 @@ def test_chat_memory_digest_requires_build_without_a_text_field():
 
     with pytest.raises(ValueError, match="build_summary"):
         assistant._memory_agents()
+
+
+class _UserMsg(BaseModel):
+    text: str
+    session_id: str = ""
+
+
+class _BotMsg(BaseModel):
+    text: str
+    session_id: str = ""
+
+
+class _Bot(Produce[_BotMsg]):
+    artifact_type = _BotMsg
+
+    async def produce(self, call: ProduceCall) -> None:
+        trigger = call.trigger
+        if trigger is not None and isinstance(trigger.data, _UserMsg):
+            call.effects.create(
+                _BotMsg(
+                    text=f"echo: {trigger.data.text}",
+                    session_id=trigger.data.session_id,
+                )
+            )
+
+
+def _hetero_assistant(keep: int) -> tuple[ChatAssistant, SessionStore]:
+    store = SessionStore(InMemoryKVBackend())
+    assistant = ChatAssistant(
+        store=store,
+        agents=[
+            create_agent(
+                "bot",
+                consumes=[Consume(_UserMsg)],
+                produces=[_Bot()],
+            )
+        ],
+        user_message=_UserMsg,
+        reply=lambda ctx, msg_id: {"reply": "ok"},
+        memory=ChatMemory(message_types=[_UserMsg, _BotMsg], keep=keep),
+    )
+    return assistant, store
+
+
+def test_chat_memory_message_types_bounds_a_heterogeneous_thread():
+    assistant, store = _hetero_assistant(keep=2)
+
+    for i in range(5):
+        asyncio.run(assistant.invoke(f"m{i}", session_id="s"))
+
+    ctx = asyncio.run(store.open("s")).context
+    total = len(ctx.list_artifacts(_UserMsg)) + len(ctx.list_artifacts(_BotMsg))
+    assert total <= 2
+
+
+def test_chat_memory_accepts_a_sequence_in_message_type():
+    memory = ChatMemory(message_type=[_UserMsg, _BotMsg], keep=2)
+    assert memory.resolved_message_types() == (_UserMsg, _BotMsg)

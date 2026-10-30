@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Sequence
 from typing import Any, cast
 
@@ -103,6 +104,93 @@ def parse_tool_calls(response: LLMResponse) -> list[ToolCall]:
     return parsed
 
 
+#: Textual markers some providers emit instead of native `tool_calls` (DeepSeek
+#: DSML, Hermes-style XML). Kept conservative: a false positive only costs one
+#: fallback attempt, but a normal answer should not be mistaken for a call.
+_TEXTUAL_MARKERS = (
+    "DSML",
+    "<|tool_calls",
+    "<tool_calls",
+    "<tool_call>",
+    "<|tool_call>",
+    "<|function_call",
+    "<function_call",
+    "｜tool_calls",
+)
+
+
+def looks_like_tool_markup(text: str) -> bool:
+    """Whether `text` looks like tool-call markup rather than a real answer."""
+    return bool(text) and any(marker in text for marker in _TEXTUAL_MARKERS)
+
+
+def _parse_argument(value: str) -> Any:
+    try:
+        return json.loads(value)
+    except ValueError:
+        return value
+
+
+def parse_textual_tool_calls(text: str) -> list[ToolCall]:
+    """Best-effort extraction of tool calls from textual markup.
+
+    Handles the two shapes seen in the wild:
+
+    - Hermes / JSON-in-tag: `<tool_call>{"name": …, "arguments": {…}}</tool_call>`
+    - DSML / XML-ish: `<｜invoke name="x"><｜parameter name="y">z</…></…>`
+      (both ASCII `|` and fullwidth `｜` delimiters).
+
+    Opt-in: pass it as `parse_calls=` to `run_tool_loop` (or compose it with
+    `parse_tool_calls` via `parse_tool_calls_with_textual`). Malformed markup
+    yields `[]`, never raises — the same tolerant contract as
+    `parse_tool_calls`.
+    """
+    if not looks_like_tool_markup(text):
+        return []
+    calls: list[ToolCall] = []
+    for match in re.finditer(
+        r"<tool_call>\s*(\{.*?\})\s*</tool_call>", text, re.DOTALL
+    ):
+        try:
+            payload = json.loads(match.group(1))
+        except ValueError:
+            continue
+        name = payload.get("name") or payload.get("tool")
+        if not name:
+            continue
+        args = payload.get("arguments", payload.get("args", {}))
+        if isinstance(args, str):
+            parsed = _parse_argument(args)
+            args = parsed if isinstance(parsed, dict) else {"input": parsed}
+        calls.append(ToolCall(id=f"textual:{len(calls)}", name=name, args=args or {}))
+    if calls:
+        return calls
+    for invoke in re.finditer(
+        r"<[|｜]?invoke\s+name=\"([^\"]+)\"[^>]*>(.*?)</[|｜]?invoke>",
+        text,
+        re.DOTALL,
+    ):
+        name, body = invoke.group(1), invoke.group(2)
+        call_args: dict[str, Any] = {}
+        for param in re.finditer(
+            r"<[|｜]?parameter\s+name=\"([^\"]+)\"[^>]*>(.*?)</[|｜]?parameter>",
+            body,
+            re.DOTALL,
+        ):
+            call_args[param.group(1)] = _parse_argument(param.group(2).strip())
+        calls.append(ToolCall(id=f"textual:{len(calls)}", name=name, args=call_args))
+    return calls
+
+
+def parse_tool_calls_with_textual(response: LLMResponse) -> list[ToolCall]:
+    """Native `tool_calls` first, then textual markup as a fallback.
+
+    Drop-in `parse_calls=` for `run_tool_loop` on providers that sometimes
+    return DSML/XML instead of the OpenAI wire shape.
+    """
+    return parse_tool_calls(response) or parse_textual_tool_calls(response.text)
+
+
 async def native_complete(
     context: Context,
     *,
@@ -164,4 +252,12 @@ async def native_complete(
         return None
 
 
-__all__ = ["ToolCall", "native_complete", "parse_tool_calls", "tools_payload"]
+__all__ = [
+    "ToolCall",
+    "looks_like_tool_markup",
+    "native_complete",
+    "parse_textual_tool_calls",
+    "parse_tool_calls",
+    "parse_tool_calls_with_textual",
+    "tools_payload",
+]

@@ -51,6 +51,28 @@ await assistant.history(session_id="user-1")   # the thread so far
 
 A ready-made `quick.chat_agent(agents, store=…)` does the same with defaults.
 
+**Per-request metadata in `create_message`.** The hook may take `(ctx, text)`,
+`(ctx, text, session_id)`, or `(ctx, text, session_id, request)` (detected from
+its arity). During it `ctx.request` is the same mapping passed to
+`stream(..., request=...)`, so a turn's category/tenant/user can be stamped
+onto the user artifact without a `ContextVar` of your own:
+
+```python
+def create_message(ctx, text, session_id):
+    return ctx.create(UserQuery(
+        text=text,
+        session_id=session_id,
+        category=ctx.request.get("category", ""),
+    )).id
+
+await assistant.invoke("...", session_id="s1", request={"category": "helm"})
+```
+
+`resources=` may also be a plain `RuntimeResources` instance when you want one
+long-lived provider shared across sessions. Per-turn budget/deadline/token
+tracking and tracing wrappers are installed on a shallow copy, so concurrent
+turns never mutate the shared instance.
+
 **Outbound side effects.** If an agent in the chat records an intent with
 `effects.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
 they go straight to the `Runtime` the assistant builds per turn, so committed
@@ -118,6 +140,7 @@ assistant = ChatAssistant(
     ...,
     memory=ChatMemory(
         message_type=ConversationMessage,
+        # message_types=[UserQuery, Answer],  # heterogeneous thread / marker base
         keep=20,                 # keep the last 20 raw messages (WindowPruner)
         # or, to condense instead of dropping:
         # summarize=my_summarize,      # (ctx, previous_digest, stale) -> str | None
@@ -135,6 +158,12 @@ source messages. `compact_commits` is orthogonal — it bounds the *history*
 `message_type`, so `ChatMemory(compact_commits=…)` is a complete policy on its
 own (the safe choice when messages are correlated/typed rather than a plain
 role/text log, e.g. separate `Question`/`Answer` artifact types).
+
+When the thread really is more than one artifact type, pass
+`message_types=[UserQuery, Answer]` — or a marker base (`ChatMessage`) whose
+concrete types inherit it. The memory agent wakes on every listed type (and,
+for a marker base, on its subclasses), so one window bounds the whole thread;
+`message_type` also accepts a sequence for the same effect.
 
 ## Human-in-the-loop turns
 

@@ -48,6 +48,36 @@ class KVBackend(ABC):
         """Releases held resources (a pooled connection, ...). No-op by default."""
 
 
+class AppendBackend(KVBackend):
+    """KV backend that can append commit entries without rewriting the snapshot.
+
+    `SessionStore` uses this when available to persist a session as
+    *snapshot + append-only commit log* instead of rewriting the whole Context
+    on every commit. Backends without it keep the full-blob behavior.
+
+    Entries are opaque JSON dicts; `SessionStore` writes one per save with the
+    new commits and the current pending-event queue. `clear_entries` is used
+    when the snapshot is rewritten (first save, compaction, rollback).
+    """
+
+    @abstractmethod
+    async def append(self, key: str, entry: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    async def entries(self, key: str) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def clear_entries(self, key: str) -> None: ...
+
+    async def entry_count(self, key: str) -> int:
+        """Number of appended entries for `key`.
+
+        Backends with a native `COUNT(*)` should override this; the default
+        loads the entries and counts them.
+        """
+        return len(await self.entries(key))
+
+
 class InMemoryKVBackend(KVBackend):
     """Dict-backed KV store — no files, no external service.
 
@@ -178,9 +208,9 @@ class _AsyncSQLite:
     writers across processes via the database file).
     """
 
-    def __init__(self, db_path: str, init_sql: str):
+    def __init__(self, db_path: str, init_sql: str | tuple[str, ...]):
         self.db_path = db_path
-        self._init_sql = init_sql
+        self._init_sql = (init_sql,) if isinstance(init_sql, str) else init_sql
         self._conn: sqlite3.Connection | None = None
         self._lock = asyncio.Lock()
 
@@ -197,7 +227,8 @@ class _AsyncSQLite:
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA busy_timeout=5000")
-                conn.execute(self._init_sql)
+                for statement in self._init_sql:
+                    conn.execute(statement)
                 conn.commit()
                 return conn
             except sqlite3.OperationalError:
@@ -227,15 +258,23 @@ class _AsyncSQLite:
                 self._conn = None
 
 
-class SQLiteKVBackend(KVBackend):
-    """SQLite KV backend: table kv_entries(key PRIMARY KEY, data JSON)."""
+class SQLiteKVBackend(AppendBackend):
+    """SQLite KV backend: snapshot in `kv_entries`, commit log in
+    `append_entries` (snapshot + append-only commits for sessions)."""
 
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._sql = _AsyncSQLite(
             db_path,
-            "CREATE TABLE IF NOT EXISTS kv_entries "
-            "(key TEXT PRIMARY KEY, data TEXT NOT NULL)",
+            (
+                "CREATE TABLE IF NOT EXISTS kv_entries "
+                "(key TEXT PRIMARY KEY, data TEXT NOT NULL)",
+                "CREATE TABLE IF NOT EXISTS append_entries "
+                "(seq INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "key TEXT NOT NULL, data TEXT NOT NULL)",
+                "CREATE INDEX IF NOT EXISTS idx_append_entries_key "
+                "ON append_entries(key, seq)",
+            ),
         )
 
     async def set(self, key: str, data: dict[str, Any]) -> None:
@@ -252,10 +291,32 @@ class SQLiteKVBackend(KVBackend):
 
     async def delete(self, key: str) -> None:
         await self._sql.execute("DELETE FROM kv_entries WHERE key = ?", (key,))
+        await self._sql.execute("DELETE FROM append_entries WHERE key = ?", (key,))
 
     async def keys(self) -> list[str]:
         rows = await self._sql.execute("SELECT key FROM kv_entries")
         return [cast(str, r[0]) for r in rows]
+
+    async def append(self, key: str, entry: dict[str, Any]) -> None:
+        await self._sql.execute(
+            "INSERT INTO append_entries (key, data) VALUES (?, ?)",
+            (key, json.dumps(entry)),
+        )
+
+    async def entries(self, key: str) -> list[dict[str, Any]]:
+        rows = await self._sql.execute(
+            "SELECT data FROM append_entries WHERE key = ? ORDER BY seq", (key,)
+        )
+        return [cast(dict[str, Any], json.loads(r[0])) for r in rows]
+
+    async def clear_entries(self, key: str) -> None:
+        await self._sql.execute("DELETE FROM append_entries WHERE key = ?", (key,))
+
+    async def entry_count(self, key: str) -> int:
+        rows = await self._sql.execute(
+            "SELECT COUNT(*) FROM append_entries WHERE key = ?", (key,)
+        )
+        return int(rows[0][0]) if rows else 0
 
     async def aclose(self) -> None:
         await self._sql.aclose()
@@ -288,7 +349,7 @@ class SQLiteBackend(CheckpointBackend):
         await self._sql.aclose()
 
 
-class PostgreSQLKVBackend(KVBackend):
+class PostgreSQLKVBackend(AppendBackend):
     """PostgreSQL KV backend (`kv_entries(key, data)`) — behind the `pg` extra.
 
     Like the SQLite KV backend, but shared across processes: a natural store
@@ -326,6 +387,15 @@ class PostgreSQLKVBackend(KVBackend):
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS kv_entries "
                     "(key TEXT PRIMARY KEY, data TEXT NOT NULL)"
+                )
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS append_entries "
+                    "(seq BIGSERIAL PRIMARY KEY, "
+                    "key TEXT NOT NULL, data TEXT NOT NULL)"
+                )
+                await cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_append_entries_key "
+                    "ON append_entries(key, seq)"
                 )
             await conn.commit()
             self._conn = conn
@@ -384,10 +454,36 @@ class PostgreSQLKVBackend(KVBackend):
 
     async def delete(self, key: str) -> None:
         await self._run("DELETE FROM kv_entries WHERE key = %s", (key,))
+        await self._run("DELETE FROM append_entries WHERE key = %s", (key,))
 
     async def keys(self) -> list[str]:
         rows = await self._run("SELECT key FROM kv_entries", fetch="fetchall")
         return [cast(str, r[0]) for r in rows]
+
+    async def append(self, key: str, entry: dict[str, Any]) -> None:
+        await self._run(
+            "INSERT INTO append_entries (key, data) VALUES (%s, %s)",
+            (key, json.dumps(entry)),
+        )
+
+    async def entries(self, key: str) -> list[dict[str, Any]]:
+        rows = await self._run(
+            "SELECT data FROM append_entries WHERE key = %s ORDER BY seq",
+            (key,),
+            fetch="fetchall",
+        )
+        return [cast(dict[str, Any], json.loads(r[0])) for r in rows]
+
+    async def clear_entries(self, key: str) -> None:
+        await self._run("DELETE FROM append_entries WHERE key = %s", (key,))
+
+    async def entry_count(self, key: str) -> int:
+        row = await self._run(
+            "SELECT COUNT(*) FROM append_entries WHERE key = %s",
+            (key,),
+            fetch="fetchone",
+        )
+        return int(row[0]) if row is not None else 0
 
     async def aclose(self) -> None:
         async with self._lock:

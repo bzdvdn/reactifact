@@ -77,7 +77,9 @@ restored.merge(await store.load_branch("demo", "hypothesis-b"))   # база т�
 ```
 
 Снимок базы форка сериализуется вместе с контекстом, так что `merge` сохраняет
-детекцию конфликтов после перезагрузки.
+детекцию конфликтов после перезагрузки. На SQLite/Postgres `BranchStore`
+использует тот же снапшот + append-only журнал, что и `SessionStore` (на
+каждый ключ ветки), с тем же ограничением `compact_every`.
 
 ## CLI
 

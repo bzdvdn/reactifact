@@ -110,7 +110,9 @@ class RepairFlow(Agent):
 - `consumes` — типы артефактов, которые будят агента (и питают его входы —
   `Consume(..., wakes=False)` читает тип как вход, не будя на нём агента;
   `Consume(..., debounce=True)` схлопывает несколько событий одного
-  поколения в один запуск). `reactifact.consume.JoinConsume`/`AbsentConsume`
+  поколения в один запуск; `Consume.by_base(Base)` (или
+  `include_subclasses=True`) будит и на наследниках — для marker-баз вроде
+  `ChatMessage`). `reactifact.consume.JoinConsume`/`AbsentConsume`
   коррелируют по общему ключу сразу два типа артефактов, а не только один —
   см. [patterns](patterns.md).
 - `produces` — экземпляры `Produce`, которые могут выполниться, когда агент

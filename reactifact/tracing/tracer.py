@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from ..events import Event
     from ..patches import Patch
     from ..redaction import Redactor
+    from ..tools import ToolRun
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +260,10 @@ class RunTracer:
     Builds `ArtifactRef`/`RelationRef`/`AgentSpan`/`RunTrace` and delivers
     them to the configured `Tracer`, so `Runtime` only calls into this at a
     few well-defined points instead of interleaving span-building with the
-    dispatch loop. Owns: wrapping `resources.llm` in `RecordingLLM` on
-    construction, the task→agent attribution that wrapper needs to attribute
-    an LLM call to the agent that made it, the per-turn span buffer, and the
+    dispatch loop. Owns: wrapping `resources.llm` in `RecordingLLM` at turn
+    start (on the runtime's per-turn resources copy), the task→agent
+    attribution that wrapper needs to attribute an LLM call to the agent that
+    made it, the per-turn span buffer, and the
     artifact-data truncation cache (`ArtifactRef.data` is memoized per
     `(artifact_id, version)` for one turn, since the same artifact is often
     referenced — as a read — by several spans in a generation).
@@ -284,14 +286,6 @@ class RunTracer:
         #: Wall-clock start of the current turn, used as the trace's `started_at`
         #: (and the origin for the dashboard's timeline).
         self.started_at: datetime | None = None
-        if self.tracer is not None and context.resources.llm is not None:
-            context.resources.llm = RecordingLLM(
-                context.resources.llm,
-                on_call=self._record_llm,
-                agent_of=self._current_agent_name,
-                redactor=self._redactor,
-                truncate=self._truncate,
-            )
 
     @property
     def enabled(self) -> bool:
@@ -420,6 +414,19 @@ class RunTracer:
     def begin_turn(self, *, session_id: str) -> None:
         if self.tracer is None:
             return
+        # Install the recording wrapper at turn start, not at Runtime
+        # construction: the Runtime copies `resources` for the turn (see
+        # `Runtime._begin_turn`), so wrapping the copy keeps a resources
+        # instance shared across sessions/turns free of stacked wrappers.
+        llm = self._context.resources.llm
+        if llm is not None:
+            self._context.resources.llm = RecordingLLM(
+                llm,
+                on_call=self._record_llm,
+                agent_of=self._current_agent_name,
+                redactor=self._redactor,
+                truncate=self._truncate,
+            )
         self.run_id = str(uuid.uuid4())
         self.spans = []
         self._trace_data_cache = {}
@@ -440,6 +447,7 @@ class RunTracer:
         *,
         error: BaseException | None = None,
         produces: list[tuple[str, int, float]] | None = None,
+        tools: list[ToolRun] | None = None,
     ) -> AgentSpan | None:
         """Builds, buffers and delivers one span — or a no-op if disabled.
 
@@ -464,6 +472,7 @@ class RunTracer:
                     ProduceRun(name=name, operations=operations, latency_ms=latency)
                     for name, operations, latency in (produces or [])
                 ],
+                tools=tools or [],
                 reads=self.read_refs(reads),
                 latency_ms=latency_ms,
                 llm_calls=self._pending_llm.pop(agent.name, []),

@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..tools import ToolRun
+
 
 class ArtifactRef(BaseModel):
     """Reference to an artifact with data for inspection (§54).
@@ -113,6 +115,8 @@ class AgentSpan(BaseModel):
     event_artifact_type: str = ""
     #: The produces that ran for this event, in execution order.
     produces: list[ProduceRun] = Field(default_factory=list)
+    #: Tool executions that happened during this agent run (name/latency/status).
+    tools: list[ToolRun] = Field(default_factory=list)
     reads: list[ArtifactRef] = Field(default_factory=list)
     writes: list[ArtifactRef] = Field(default_factory=list)
     relations: list[RelationRef] = Field(default_factory=list)

@@ -16,8 +16,11 @@ Counters: `reactifact_runs_total{outcome}`,
 `reactifact_llm_calls_total{provider,model,agent}`,
 `reactifact_llm_tokens_total{kind,provider,model}`,
 `reactifact_llm_errors_total{provider,model}`, and (with a `pricer`)
-`reactifact_llm_cost_total{provider,model}`. Histograms:
-`reactifact_agent_latency_seconds{agent}`, `reactifact_llm_latency_seconds`.
+`reactifact_llm_cost_total{provider,model}`,
+`reactifact_tool_calls_total{tool,status}`,
+`reactifact_tool_errors_total{tool}`. Histograms:
+`reactifact_agent_latency_seconds{agent}`, `reactifact_llm_latency_seconds`,
+`reactifact_tool_latency_seconds{tool}`.
 
 No `prometheus_client` dependency: `Metrics.render()` emits the Prometheus text
 exposition format directly, and `create_metrics_router` serves it (the `web`
@@ -62,6 +65,9 @@ _HELP = {
     "reactifact_artifacts_written_total": "Artifacts written, by type and op.",
     "reactifact_artifacts_read_total": "Artifacts read, by type.",
     "reactifact_relations_total": "Provenance edges added, by relation.",
+    "reactifact_tool_calls_total": "Tool executions, by tool and status.",
+    "reactifact_tool_errors_total": "Tool executions that failed.",
+    "reactifact_tool_latency_seconds": "Tool execution latency.",
 }
 
 
@@ -202,6 +208,18 @@ class MetricsTracer(Tracer):
             for call in span.llm_calls:
                 self._record_llm(call)
             self._record_artifacts(span)
+            for tool in span.tools:
+                status = "ok" if tool.ok else "error"
+                metrics.increment(
+                    "reactifact_tool_calls_total", tool=tool.tool, status=status
+                )
+                if not tool.ok:
+                    metrics.increment("reactifact_tool_errors_total", tool=tool.tool)
+                metrics.observe(
+                    "reactifact_tool_latency_seconds",
+                    tool.latency_ms / 1000.0,
+                    tool=tool.tool,
+                )
 
     def _record_artifacts(self, span: AgentSpan) -> None:
         """Domain-adjacent counters straight from the span's reads/writes/edges.

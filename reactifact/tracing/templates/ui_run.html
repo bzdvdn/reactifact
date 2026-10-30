@@ -245,7 +245,8 @@ function renderTimeline(spans){
   for(const r of rows){
     const s=r.s;const left=(r.start/total)*100;const width=Math.max(0.6,(r.dur/total)*100);
     const prods=(s.produces||[]).map(p=>p.name).join('+');
-    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_artifact_type||s.event_type||'span')+(prods?' → '+escapeHtml(prods):'');const llm=(s.llm_calls||[]).length;
+    const toolCount=(s.tools||[]).length;
+    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_artifact_type||s.event_type||'span')+(prods?' → '+escapeHtml(prods):'')+(toolCount?' · '+toolCount+' tools':'');const llm=(s.llm_calls||[]).length;
     html+='<div class="tl-row"><div class="tl-label" title="'+label+'">'+label+(llm?' <span class="sub">'+llm+' llm</span>':'')+'</div>'+
       '<div class="tl-track"><div class="tl-bar'+(s.error?' err':'')+'" style="left:'+left+'%;width:'+width+'%" title="'+label+' — '+r.dur.toFixed(1)+' ms"><span class="lbl">'+r.dur.toFixed(0)+' ms</span></div></div></div>';
   }
@@ -275,12 +276,13 @@ function spanHtml(s){
   const writes=(s.writes||[]).length?('<div class="io"><h3>writes</h3>'+artsBlock(s.writes)+'</div>'):'';
   const io=(reads||writes)?'<div class="io-grid">'+reads+writes+'</div>':'';
   const llm=(s.llm_calls||[]).map(llmHtml).join('');
+  const toolCount=(s.tools||[]).length;
   return '<details class="node"><summary>'+
     '<span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
     '<span class="nid">'+escapeHtml(s.agent)+'</span>'+
     flowHtml(s.event_artifact_type, s.event_type, s.produces)+
-    '<span class="stat">'+Number(s.latency_ms).toFixed(1)+' ms · '+(s.llm_calls||[]).length+' llm'+(ok?'':' · failed')+'</span></summary>'+
-    '<div class="node-body">'+errBlock+io+(llm?'<div class="llm"><h3>LLM calls</h3>'+llm+'</div>':'')+'</div></details>';
+    '<span class="stat">'+Number(s.latency_ms).toFixed(1)+' ms · '+(s.llm_calls||[]).length+' llm'+(toolCount?' · '+toolCount+' tools':'')+(ok?'':' · failed')+'</span></summary>'+
+    '<div class="node-body">'+errBlock+io+toolsBlock(s.tools)+(llm?'<div class="llm"><h3>LLM calls</h3>'+llm+'</div>':'')+'</div></details>';
 }
 function flowHtml(consume, eventType, produces){
   const c=consume
@@ -302,6 +304,17 @@ function artHtml(a){
   const type=a.data_type?'<span class="atype">['+escapeHtml(a.data_type)+']</span>':'';
   const data=a.data?'<pre class="adata">'+escapeHtml(a.data)+'</pre>':'';
   return '<div class="art"><div class="art-head">'+op+' '+type+' <code>'+escapeHtml(a.artifact_id.slice(0,8))+'</code> <span class="ver">v'+a.version+'</span></div>'+data+'</div>';
+}
+function toolsBlock(tools){
+  const list=tools||[];if(!list.length)return '';
+  return '<div class="llm"><h3>Tool calls</h3>'+list.map(toolHtml).join('')+'</div>';
+}
+function toolHtml(t){
+  const ok=t.ok!==false;
+  return '<div class="role '+(ok?'tool':'tool err')+'"><span class="role-label">'+escapeHtml(t.tool||'tool')+'</span>'+
+    '<span class="muted">'+Number(t.latency_ms||0).toFixed(1)+' ms · '+Number(t.chars||0)+' chars'+
+    (ok?'':' · failed')+'</span>'+
+    (t.error?'<div class="err-box">'+escapeHtml(t.error)+'</div>':'')+'</div>';
 }
 function llmHtml(c){
   const detail=(c.messages||[]).map(m=>'<div class="role '+escapeHtml(m.role)+'"><span class="role-label">'+escapeHtml(m.role)+'</span>'+escapeHtml(m.content||'')+'</div>').join('');

@@ -42,6 +42,32 @@ MsgT = TypeVar("MsgT", bound=BaseModel)
 SummaryT = TypeVar("SummaryT", bound=BaseModel)
 
 
+def _message_types(
+    message_type: type[Any] | Sequence[type[Any]],
+) -> tuple[type[Any], ...]:
+    """Normalizes a single message type or a sequence of them into a tuple."""
+    types = (message_type,) if isinstance(message_type, type) else tuple(message_type)
+    if not types:
+        raise ValueError("message_type must name at least one artifact type")
+    return types
+
+
+def _collect_messages(
+    context: Context, message_types: Sequence[type[Any]]
+) -> list[Artifact[Any]]:
+    """Every artifact of the given types, de-duplicated by id.
+
+    De-duplication matters when a caller passes both a marker base and one of
+    its concrete types (`[ChatMessage, UserQuery]`): `list_artifacts` is
+    subclass-aware, so the concrete artifact would otherwise appear twice.
+    """
+    seen: dict[str, Artifact[Any]] = {}
+    for message_type in message_types:
+        for artifact in context.list_artifacts(message_type):
+            seen.setdefault(artifact.id, artifact)
+    return list(seen.values())
+
+
 def _default_render(messages: list[Artifact[Any]]) -> str:
     lines = []
     for a in messages:
@@ -69,13 +95,18 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
     """Condenses the recent window of `message_type` artifacts into a summary
     artifact every `every` messages (§27).
 
+    `message_type` accepts a single type or a sequence of types (e.g. a
+    `UserQuery`/`Answer` pair), merged and ordered by `order_key` before the
+    window/round math runs — same shape `RollingDigestSummarizer` already
+    supports.
+
     Idempotent by construction: the summary id is derived from the message
     count, so re-running the same generation never produces a duplicate.
     """
 
     def __init__(
         self,
-        message_type: type[MsgT],
+        message_type: type[MsgT] | Sequence[type[MsgT]],
         artifact_type: type[SummaryT],
         *,
         summarize: Callable[[Context, str], Awaitable[str | None]],
@@ -88,6 +119,7 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         id_of: Callable[[int], str] = lambda round_no: f"summary:{round_no}",
     ):
         super().__init__(artifact_type=artifact_type)
+        self.message_types = _message_types(message_type)
         self.message_type = message_type
         self.summarize = summarize
         self.build = build
@@ -100,7 +132,7 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
 
     async def produce(self, call: ProduceCall) -> None:
         context = call.context
-        messages = context.list_artifacts(self.message_type)
+        messages = _collect_messages(context, self.message_types)
         count = len(messages)
         if count == 0 or count % self.every != 0:
             return None
@@ -122,23 +154,31 @@ class WindowPruner(Produce[MsgT], Generic[MsgT]):
     `order_key`, default `created_at`). Standalone-useful — pair it with
     `WindowSummarizer` for full sliding-window memory, or use it alone to
     just bound how many messages a context keeps.
+
+    `message_type` accepts a single type or a sequence of types (e.g. a
+    `UserQuery`/`Answer` pair), so one window can bound a heterogeneous
+    conversation.
     """
 
     def __init__(
         self,
-        message_type: type[MsgT],
+        message_type: type[MsgT] | Sequence[type[MsgT]],
         *,
         keep: int = 8,
         order_key: Callable[[Artifact[MsgT]], Any] = lambda a: a.created_at,
     ):
-        super().__init__(artifact_type=message_type)
+        message_types = _message_types(message_type)
+        super().__init__(artifact_type=message_types[0])
+        self.message_types = message_types
         self.message_type = message_type
         self.keep = keep
         self.order_key = order_key
 
     async def produce(self, call: ProduceCall) -> None:
         context = call.context
-        messages = sorted(context.list_artifacts(self.message_type), key=self.order_key)
+        messages = sorted(
+            _collect_messages(context, self.message_types), key=self.order_key
+        )
         # `max(0, ...)`: a plain negative slice bound wraps from the end in
         # Python (`messages[:-1]` means "all but the last"), which would prune
         # the wrong messages while the window hasn't filled up yet.
@@ -194,9 +234,8 @@ class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         digest_id: str = "digest",
     ):
         super().__init__(artifact_type=artifact_type)
-        self.message_types: tuple[type[MsgT], ...] = (
-            (message_type,) if isinstance(message_type, type) else tuple(message_type)
-        )
+        self.message_types = _message_types(message_type)
+        self.message_type = message_type
         self.summarize = summarize
         self.build = build
         self.window = window
@@ -209,8 +248,7 @@ class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
     async def produce(self, call: ProduceCall) -> None:
         context = call.context
         messages = sorted(
-            (a for t in self.message_types for a in context.list_artifacts(t)),
-            key=self.order_key,
+            _collect_messages(context, self.message_types), key=self.order_key
         )
         if len(messages) <= self.trigger:
             return None

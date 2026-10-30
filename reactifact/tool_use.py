@@ -25,7 +25,7 @@ from .events import Event
 from .interrupt import PendingQuestion
 from .produce import Produce, ProduceCall
 from .structured import structured_llm
-from .tools import Tool
+from .tools import Tool, execute_tool
 
 
 class ToolAnswer(BaseModel):
@@ -120,7 +120,7 @@ class _ToolLoopBase(Produce[ToolAnswer]):
         if tool.destructive and not allow_destructive:
             return f"Tool '{tool_id}' is destructive and not offered to the LLM."
         try:
-            output = await tool.execute(args)
+            output = await execute_tool(tool, args)
         except Exception as exc:  # noqa: BLE001 — tool failure is returned to the LLM
             return f"Tool '{tool_id}' failed: {exc}"
         if output.error:

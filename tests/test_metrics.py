@@ -205,3 +205,29 @@ def test_metrics_tracer_runs_inside_a_runtime():
     assert 'reactifact_agent_runs_total{agent="bump",status="ok"} 2' in text
     # a domain counter recorded by the produce via resources.metrics
     assert "test_bumped_total 2" in text
+
+
+def test_metrics_tracer_records_tool_calls():
+    from reactifact.tools import ToolRun
+
+    metrics = Metrics()
+    trace = RunTrace(
+        outcome="completed",
+        spans=[
+            AgentSpan(
+                agent="a",
+                tools=[
+                    ToolRun(tool="search", latency_ms=250.0, ok=True, chars=10),
+                    ToolRun(tool="read", latency_ms=50.0, ok=False, error="boom"),
+                ],
+            )
+        ],
+    )
+
+    asyncio.run(MetricsTracer(metrics).on_turn_end(trace))
+
+    text = metrics.render()
+    assert 'reactifact_tool_calls_total{status="ok",tool="search"} 1' in text
+    assert 'reactifact_tool_calls_total{status="error",tool="read"} 1' in text
+    assert 'reactifact_tool_errors_total{tool="read"} 1' in text
+    assert 'reactifact_tool_latency_seconds_bucket{tool="search",le="0.25"} 1' in text

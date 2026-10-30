@@ -61,9 +61,9 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Context` | versioned working state; resources; queries; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` to bound history (`compacted_at`) |
+| `Context` | versioned working state; resources; `request` (the active turn's per-request mapping); queries; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` to bound history (`compacted_at`); `apply_commit(commit)` replays a commit into the live state (the append-only session load path) |
 | `View` | result of a typed join query (`context.view(...)`) |
-| `RuntimeResources` | providers + sources + app resources; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` for typed collaborators (`ResourceKey[T]` when two of one type); string `get`/`set` stay as the `additional` escape hatch; `redactor=` scrubs trace text; `trace_truncate=` caps artifact/response JSON kept in a trace (`None` = no clip); `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown |
+| `RuntimeResources` | providers + sources + app resources; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` for typed collaborators (`ResourceKey[T]` when two of one type); string `get`/`set` stay as the `additional` escape hatch; `redactor=` scrubs trace text; `trace_truncate=` caps artifact/response JSON kept in a trace (`None` = no clip); `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown; `record_tool_args=True` puts tool args on `ToolRun` (scrubbed by `redactor=`) |
 | `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
 | `current_request()` | the active turn's request mapping (same as `ProduceCall.request`) |
@@ -85,7 +85,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Agent` | thin container: `name`, `consumes`, `produces`, `concurrency_limit` |
 | `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
-| `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
+| `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
@@ -96,7 +96,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
 | `ToolUse`, `ToolUseHITL` | the tool-loop produce; HITL variant waits for approval on execution |
 | `DeferredToolGroup` (`reactifact.tool_use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput` | tool abstraction and registration |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `self.effects.resume(...)` |
 | `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the produce; `None` if it already exists |
@@ -129,7 +129,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
-| `ChatMemory` | optional bounded memory for `ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts) |
+| `ChatMemory` | optional bounded memory for `ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |
@@ -245,12 +245,13 @@ current event loop**, so one provider instance stays usable across repeated
 | `fan_out_sources(context, query, owner_id, …)` | idempotent fan-out search → refs + patch |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | lazy ref → document with provenance |
 | `StatusMachine` | deterministic artifact lifecycle (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
-| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count |
-| `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful |
+| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count; `message_type` may be a sequence of types |
+| `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful; `message_type` may be a sequence of types |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | multi-turn conversation generic over a message model (yours, or the default `ConversationMessage`): append turns, render the thread to provider `Message`s (`turn_count` / `conversation_state` helpers) |
 | `Transcript` / `MessageSpec` | read-only view for apps with *separate* types per side (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): merges typed turns by role into one `Message` list (`messages` / `state`) |
 | `llm_summarizer(system=…)` | builds a `WindowSummarizer(summarize=…)` callback from a system prompt via `llm_reply` |
-| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in native tool-calling loop over `native_tool_use`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; returns `ToolLoopResult` (text, transcript, `ToolObservation`s) |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in native tool-calling loop over `native_tool_use`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; honours the turn's `Budget` (`max_tool_calls`, `max_seconds`, token/cost) between rounds; caps tool observations (`max_observation_chars`), optionally redacts them via `resources.redactor`, retries `ToolError(retryable=True)` when `retry_tool_errors=True`, accepts a `parse_calls` codec (e.g. textual DSML), a `fallback` for markup answers, and an `on_event` streaming hook; returns `ToolLoopResult` (text, transcript, `ToolObservation`s, `stop_reason`/`error`) |
+| `looks_like_tool_markup(text)` / `parse_textual_tool_calls(text)` / `parse_tool_calls_with_textual(response)` | opt-in helpers for providers that emit DSML/Hermes/XML tool-call markup instead of native `tool_calls`; pass the last one as `run_tool_loop(parse_calls=…)` |
 
 ## Text & rollback helpers (reactifact.recipes)
 
@@ -267,10 +268,10 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `Session`, `SessionStore` | durable per-chat working memory across requests |
-| `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock` |
+| `Session`, `SessionStore` | durable per-chat working memory across requests; `SessionStore(backend, compact_every=N)` bounds the append-only log (roughly every N saves it rewrites the snapshot) |
+| `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock`; SQLite/Postgres also implement `AppendBackend` (snapshot + append-only commit log, so a save writes only new commits) |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type` is the consumed type that triggered the agent, and `AgentSpan.produces` lists the `ProduceRun`s that ran — name/operations/latency — so a multi-produce agent isn't a black box) |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `ToolRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type` is the consumed type that triggered the agent, `AgentSpan.produces` lists the `ProduceRun`s that ran, and `AgentSpan.tools` lists `ToolRun`s — tool name/latency/status/chars — so slow or failing tools are visible without custom instrumentation) |
 | `TraceColumn` | a configurable, artifact-derived table column for `create_trace_router(store, columns=[…])`: `label`, `field` (dotted path, list→first), `agent`, `type` (class or name), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `Tag`, `TagAssignment`, `TraceAnnotator`, `TraceStoreProtocol` | reviewer annotations: a tag vocabulary (`Tag`) and per-run tags + notes (`TagAssignment`, `RunTrace.annotations`); stores expose `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag` |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write and the full annotation API; the dashboard (`create_trace_router`) accepts any `TraceStoreProtocol` (SQLite or Postgres) |

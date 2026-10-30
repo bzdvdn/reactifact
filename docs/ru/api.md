@@ -65,9 +65,9 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `Context` | версионируемое рабочее состояние; ресурсы; запросы; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` для ограничения истории (`compacted_at`) |
+| `Context` | версионируемое рабочее состояние; ресурсы; `request` (per-request mapping активного хода); запросы; `latest(Model)`; announce; diff/rollback; `compact(keep_commits=, keep_versions=)` для ограничения истории (`compacted_at`); `apply_commit(commit)` проигрывает коммит в живое состояние (путь загрузки append-only сессии) |
 | `View` | результат типа-запроса (`context.view(...)`) |
-| `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `trace_truncate=` ограничивает JSON артефактов/ответов в трейсе (`None` — без обрезки); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении |
+| `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `trace_truncate=` ограничивает JSON артефактов/ответов в трейсе (`None` — без обрезки); `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении; `record_tool_args=True` пишет аргументы тулов в `ToolRun` (вычищаются `redactor=`) |
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
 | `current_request()` | request-маппинг активного хода (то же, что `ProduceCall.request`) |
@@ -89,7 +89,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | --- | --- |
 | `Agent` | тонкий контейнер: `name`, `consumes`, `produces`, `concurrency_limit` |
 | `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров |
-| `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
+| `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
@@ -100,7 +100,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
 | `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения перед исполнением |
 | `DeferredToolGroup` (`reactifact.tool_use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput` | абстракция и регистрация инструментов |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `self.effects.resume(...)` |
 | `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
@@ -133,7 +133,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | Символ | Роль |
 | --- | --- |
 | `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
-| `ChatMemory` | необязательная ограниченная память для `ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты) |
+| `ChatMemory` | необязательная ограниченная память для `ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
@@ -249,12 +249,13 @@ OTLP/Langfuse-приёмников.
 | `fan_out_sources(context, query, owner_id, …)` | идемпотентный поиск fan-out → рефы + патч |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | ленивый реф → документ с провенансом |
 | `StatusMachine` | детерминированный жизненный цикл артефакта (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
-| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений |
-| `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе |
+| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений; `message_type` может быть последовательностью типов |
+| `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | многоходовой разговор, обобщённый над моделью сообщения (вашей или дефолтной `ConversationMessage`): добавлять ходы, рендерить поток в провайдерские `Message` (хелперы `turn_count` / `conversation_state`) |
 | `Transcript` / `MessageSpec` | read-only view для приложений с *разными* типами на стороны (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): сливает типизированные ходы по ролям в один `Message`-список (`messages` / `state`) |
 | `llm_summarizer(system=…)` | строит колбэк `WindowSummarizer(summarize=…)` из системного промпта через `llm_reply` |
-| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…)` | opt-in цикл native tool-calling поверх `native_tool_use`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`) |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in цикл native tool-calling поверх `native_tool_use`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; соблюдает `Budget` хода (`max_tool_calls`, `max_seconds`, токены/стоимость); ограничивает наблюдения (`max_observation_chars`), опционально редактирует их через `resources.redactor`, повторяет `ToolError(retryable=True)` при `retry_tool_errors=True`, принимает `parse_calls`-кодек (например, текстовый DSML), `fallback` для markup-ответов и `on_event`-хук для стриминга; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`, `stop_reason`/`error`) |
+| `looks_like_tool_markup(text)` / `parse_textual_tool_calls(text)` / `parse_tool_calls_with_textual(response)` | opt-in хелперы для провайдеров, отдающих DSML/Hermes/XML-разметку вместо native `tool_calls`; последний передаётся как `run_tool_loop(parse_calls=…)` |
 
 ## Хелперы текста и отката (reactifact.recipes)
 
@@ -271,10 +272,10 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `Session`, `SessionStore` | долгоживущая память чата между запросами |
-| `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value чекпоинты под сессии (`pg` extra для Postgres) — async-native: файловый I/O уходит в отдельный поток, SQLite/Postgres держат одно постоянное соединение (WAL + busy_timeout у SQLite) под `asyncio.Lock` |
+| `Session`, `SessionStore` | долгоживущая память чата между запросами; `SessionStore(backend, compact_every=N)` ограничивает append-журнал (примерно каждые N сохранений снапшот перезаписывается) |
+| `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value чекпоинты под сессии (`pg` extra для Postgres) — async-native: файловый I/O уходит в отдельный поток, SQLite/Postgres держат одно постоянное соединение (WAL + busy_timeout у SQLite) под `asyncio.Lock`; SQLite/Postgres также реализуют `AppendBackend` (снапшот + append-only журнал коммитов, сохранение пишет только новые коммиты) |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | чекпоинты всего контекста |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`; `AgentSpan.event_artifact_type` — тип-потребитель, разбудивший агента, `AgentSpan.produces` — отработавшие `ProduceRun` (имя/операции/латентность), чтобы мульти-produce агент не был чёрным ящиком) |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `RunTrace`, `LLMCall`, `ProduceRun`, `ToolRun`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`; `AgentSpan.event_artifact_type` — тип-потребитель, разбудивший агента, `AgentSpan.produces` — отработавшие `ProduceRun`, а `AgentSpan.tools` — `ToolRun` (имя/латентность/статус/размер), чтобы медленные и падающие тулы были видны без своего инструментирования) |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `TraceColumn` | настраиваемая колонка таблицы из артефактов для `create_trace_router(store, columns=[…])`: `label`, `field` (точечный путь, список→первый), `agent`, `type` (класс или имя), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `create_trace_router(store)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда; страницы prefix-aware (работают под `include_router(prefix=…)`/ASGI `root_path`) |

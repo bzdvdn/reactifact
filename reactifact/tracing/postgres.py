@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from ..tools import ToolRun
 from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
     AgentSpan,
@@ -79,7 +80,8 @@ class PostgresStore:
                         writes JSONB NOT NULL DEFAULT '[]',
                         relations JSONB NOT NULL DEFAULT '[]',
                         llm_calls JSONB NOT NULL DEFAULT '[]',
-                        produces JSONB NOT NULL DEFAULT '[]'
+                        produces JSONB NOT NULL DEFAULT '[]',
+                        tools JSONB NOT NULL DEFAULT '[]'
                     )
                     """
                 )
@@ -133,6 +135,10 @@ class PostgresStore:
                     "ALTER TABLE spans ADD COLUMN IF NOT EXISTS "
                     "event_artifact_type TEXT NOT NULL DEFAULT ''"
                 )
+                await cur.execute(
+                    "ALTER TABLE spans ADD COLUMN IF NOT EXISTS "
+                    "tools JSONB NOT NULL DEFAULT '[]'"
+                )
             await conn.commit()
         finally:
             await conn.close()
@@ -172,8 +178,8 @@ class PostgresStore:
                     await cur.execute(
                         "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
                         "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
-                        "produces) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        "produces, tools) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                         (
                             trace.id,
                             span.agent,
@@ -196,6 +202,9 @@ class PostgresStore:
                             ),
                             psycopg.types.json.Jsonb(
                                 [p.model_dump(mode="json") for p in span.produces]
+                            ),
+                            psycopg.types.json.Jsonb(
+                                [tr.model_dump(mode="json") for tr in span.tools]
                             ),
                         ),
                     )
@@ -404,7 +413,7 @@ class PostgresStore:
                     return None
                 await cur.execute(
                     "SELECT agent, event_type, event_artifact_type, latency_ms, error, "
-                    "started_at, reads, writes, relations, llm_calls, produces "
+                    "started_at, reads, writes, relations, llm_calls, produces, tools "
                     "FROM spans WHERE run_id = %s ORDER BY id",
                     (trace_id,),
                 )
@@ -433,6 +442,7 @@ class PostgresStore:
                 relations=[RelationRef(**d) for d in r[8]],
                 llm_calls=[LLMCall(**d) for d in r[9]],
                 produces=[ProduceRun(**d) for d in r[10]],
+                tools=[ToolRun(**d) for d in r[11]],
             )
             for r in span_rows
         ]

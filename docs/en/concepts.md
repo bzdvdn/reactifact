@@ -109,8 +109,10 @@ class RepairFlow(Agent):
 - `consumes` — artifact types that wake this agent (and feed its inputs —
   `Consume(..., wakes=False)` reads a type as input without waking on it;
   `Consume(..., debounce=True)` collapses several same-generation events
-  into one run). `reactifact.consume.JoinConsume`/`AbsentConsume` correlate
-  across two artifact types by a shared key instead of one type alone —
+  into one run; `Consume.by_base(Base)` (or `include_subclasses=True`) also
+  wakes on subclasses, for marker bases like `ChatMessage`).
+  `reactifact.consume.JoinConsume`/`AbsentConsume` correlate across two
+  artifact types by a shared key instead of one type alone —
   see [patterns](patterns.md).
 - `produces` — `Produce` instances that may run when the agent is awake.
   `Produce(reacts_to=(Type, …))` restricts a produce to only the triggering

@@ -1067,3 +1067,119 @@ def test_trace_pages_stay_prefixed_when_prefix_contains_a_route_segment(tmp_path
             assert "__BASE__" not in html
             refs = re.findall(r'(?:href="|fetch\(\')(/[^"\'?]*)', html)
             assert all(u.startswith(prefix) for u in refs), (prefix, logical, refs[:5])
+
+
+def test_runtime_records_tool_runs(tmp_path):
+    from reactifact.tools import execute_tool, tool
+
+    @tool
+    async def lookup(q: str) -> str:
+        """Look up a term."""
+        return "found"
+
+    class UsesTool(Produce[Answer]):
+        async def produce(self, call):
+            await execute_tool(lookup, {"q": "x"})
+            call.effects.create(Answer(text="ok"))
+
+    agent = create_agent(
+        "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
+    )
+    store = TraceStore(str(tmp_path / "tools.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    span = next(s for s in trace.spans if s.agent == "tool-user")
+    assert len(span.tools) == 1
+    assert span.tools[0].tool == "lookup"
+    assert span.tools[0].ok is True
+    assert span.tools[0].chars == len("found")
+
+
+def test_tool_args_are_opt_in_and_redacted(tmp_path):
+    from reactifact.redaction import RegexRedactor
+    from reactifact.tools import execute_tool, tool
+
+    @tool
+    async def lookup(q: str) -> str:
+        """Look up a term."""
+        return "found"
+
+    class UsesTool(Produce[Answer]):
+        async def produce(self, call):
+            await execute_tool(lookup, {"q": "bob@example.com"})
+            call.effects.create(Answer(text="ok"))
+
+    agent = create_agent(
+        "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
+    )
+
+    def _span(resources):
+        store = TraceStore(str(tmp_path / f"{id(resources)}.db"))
+        ctx = Context(resources=resources)
+        runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+        ctx.create(Question(text="hi"))
+        asyncio.run(runtime.arun())
+        trace = run(store.get(run(store.query())["items"][0]["id"]))
+        assert trace is not None
+        return next(s for s in trace.spans if s.agent == "tool-user")
+
+    off = _span(RuntimeResources(llm=ReplyLLM()))
+    assert off.tools[0].args is None
+    assert off.tools[0].started_at is not None
+
+    on = _span(
+        RuntimeResources(
+            llm=ReplyLLM(), record_tool_args=True, redactor=RegexRedactor()
+        )
+    )
+    assert on.tools[0].args == {"q": "[REDACTED:email]"}
+
+
+def test_langfuse_and_otlp_emit_tool_child_spans():
+    from datetime import UTC, datetime, timedelta
+
+    from reactifact.tools import ToolRun
+    from reactifact.tracing import LangfuseTracer, OTLPTracer
+
+    def attr(span, key):
+        return next(a["value"] for a in span["attributes"] if a["key"] == key)
+
+    start = datetime.now(UTC)
+    span = AgentSpan(
+        agent="a",
+        started_at=start,
+        tools=[
+            ToolRun(
+                tool="search",
+                latency_ms=10.0,
+                ok=True,
+                chars=5,
+                started_at=start + timedelta(milliseconds=2),
+            )
+        ],
+    )
+    trace = RunTrace(id="tr", spans=[span])
+
+    client = FakeClient()
+    langfuse = LangfuseTracer(
+        public_key="pk", secret_key="sk", host="http://langfuse.local", client=client
+    )
+    run(langfuse.on_turn_end(trace))
+    spans = client.requests[-1][1]["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    tool_span = next(s for s in spans if s["name"] == "search")
+    assert tool_span["parentSpanId"] == next(
+        s["spanId"] for s in spans if s["name"] == "a"
+    )
+    assert attr(tool_span, "langfuse.observation.type") == {"stringValue": "tool"}
+
+    client = FakeClient()
+    otlp = OTLPTracer(endpoint="http://localhost:4318/v1/traces", client=client)
+    run(otlp.on_turn_end(trace))
+    spans = client.requests[-1][1]["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    tool_span = next(s for s in spans if s["name"] == "execute_tool search")
+    assert attr(tool_span, "gen_ai.operation.name") == {"stringValue": "execute_tool"}

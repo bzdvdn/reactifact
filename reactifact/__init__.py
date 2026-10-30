@@ -47,11 +47,11 @@ from .request import current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import Runtime
 from .session import Session, SessionStore
-from .tools import FunctionTool, Tool, ToolOutput, tool
+from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
 
-__version__ = "0.15.3"
+__version__ = "0.16.0"
 
 __all__ = [
     "Agent",
@@ -92,6 +92,7 @@ __all__ = [
     "Session",
     "SessionStore",
     "Tool",
+    "ToolError",
     "ToolOutput",
     "Trigger",
     "Unlink",

@@ -52,6 +52,29 @@ await assistant.history(session_id="user-1")   # поток на данный м
 
 Готовый `quick.chat_agent(agents, store=…)` делает то же с дефолтами.
 
+**Per-request метаданные в `create_message`.** Хук может принимать
+`(ctx, text)`, `(ctx, text, session_id)` или `(ctx, text, session_id,
+request)` (определяется по арности). Во время его вызова `ctx.request` — тот
+же mapping, что передан в `stream(..., request=...)`, поэтому категорию/
+тенанта/пользователя хода можно записать в артефакт пользователя без
+собственного `ContextVar`:
+
+```python
+def create_message(ctx, text, session_id):
+    return ctx.create(UserQuery(
+        text=text,
+        session_id=session_id,
+        category=ctx.request.get("category", ""),
+    )).id
+
+await assistant.invoke("...", session_id="s1", request={"category": "helm"})
+```
+
+`resources=` может быть и обычным экземпляром `RuntimeResources`, если нужен
+один долгоживущий провайдер на все сессии. Per-turn budget/deadline/токены и
+обёртки трейсинга ставятся на поверхностную копию, поэтому конкурентные ходы
+не мутируют общий экземпляр.
+
 **Внешние side effects.** Если агент в чате записывает намерение через
 `effects.act(...)`, передайте `dispatcher=` (и, при желании,
 `on_dispatch_error=`) — они уходят прямо в `Runtime`, который ассистент собирает
@@ -122,6 +145,7 @@ assistant = ChatAssistant(
     ...,
     memory=ChatMemory(
         message_type=ConversationMessage,
+        # message_types=[UserQuery, Answer],  # гетерогенный поток / marker-база
         keep=20,                 # держать последние 20 сырых сообщений (WindowPruner)
         # или, чтобы сжимать, а не отбрасывать:
         # summarize=my_summarize,      # (ctx, previous_digest, stale) -> str | None
@@ -139,6 +163,12 @@ assistant = ChatAssistant(
 `message_type`, поэтому `ChatMemory(compact_commits=…)` — самодостаточная
 политика (безопасный выбор, когда сообщения коррелированы/типизированы, а не
 плоский role/text лог, напр. отдельные типы `Question`/`Answer`).
+
+Когда поток действительно состоит из нескольких типов артефактов, передайте
+`message_types=[UserQuery, Answer]` — или marker-базу (`ChatMessage`), от
+которой наследуются конкретные типы. Агент памяти просыпается на каждом
+перечисленном типе (а для marker-базы — и на её наследниках), поэтому одно
+окно ограничивает весь поток; `message_type` тоже принимает последовательность.
 
 ## Ходы с человеком в цикле
 

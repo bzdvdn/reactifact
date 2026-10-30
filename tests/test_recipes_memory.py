@@ -229,3 +229,56 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
     assert digest is not None
     assert "Question:q0" in digest.data.text
     assert "FinalResponse:r1" in digest.data.text
+
+
+def test_pruner_bounds_multiple_message_types():
+    async def _arun() -> Context:
+        ctx = Context()
+        agent = create_agent(
+            "prune-multi",
+            consumes=[Consume(Question), Consume(FinalResponse)],
+            produces=[WindowPruner([Question, FinalResponse], keep=4)],
+        )
+        runtime = Runtime(ctx, agents=[agent])
+        for i in range(10):
+            if i % 2 == 0:
+                ctx.create(Question(text=f"q{i}"))
+            else:
+                ctx.create(FinalResponse(text=f"r{i}"))
+            await runtime.arun()
+        return ctx
+
+    ctx = asyncio.run(_arun())
+    total = len(ctx.list_artifacts(Question)) + len(ctx.list_artifacts(FinalResponse))
+    assert total == 4
+
+
+def test_summarizer_merges_multiple_message_types():
+    async def _arun() -> Context:
+        ctx = Context()
+        agent = create_agent(
+            "summarize-multi",
+            consumes=[Consume(Question), Consume(FinalResponse)],
+            produces=[
+                WindowSummarizer(
+                    [Question, FinalResponse],
+                    Summary,
+                    summarize=_offline_summarize,
+                    build=_build,
+                    window=4,
+                    every=2,
+                )
+            ],
+        )
+        runtime = Runtime(ctx, agents=[agent])
+        for i in range(4):
+            if i % 2 == 0:
+                ctx.create(Question(text=f"q{i}"))
+            else:
+                ctx.create(FinalResponse(text=f"r{i}"))
+            await runtime.arun()
+        return ctx
+
+    ctx = asyncio.run(_arun())
+    summaries = sorted(ctx.list_artifacts(Summary), key=lambda s: s.data.round)
+    assert [s.data.round for s in summaries] == [1, 2]

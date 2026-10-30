@@ -28,6 +28,14 @@ class Consume:
     subclass that overrides `run()` directly and has no `consumes` at all to
     attach a condition to; see `Agent.triggers`'s own docstring).
 
+    `include_subclasses` (default `False`): wake on artifacts whose type is a
+    subclass of `artifact_type`, not only the exact type — the declarative
+    form of a marker base / protocol base (`Consume(ChatMessage,
+    include_subclasses=True)` fires for `UserQuery` and `Answer`). `collect()`
+    already reads by `issubclass` (`Context.list_artifacts`), so the flag only
+    affects triggering. Opt-in so an agent subscribed to both a base and a
+    concrete type never wakes twice for the same event.
+
     `debounce` (default `False`): when several events in the same
     generation would each independently wake this agent via this `Consume`
     (a fan-out step creating five `Evidence` artifacts in one commit, five
@@ -51,6 +59,7 @@ class Consume:
     )
     wakes: bool = True
     debounce: bool = False
+    include_subclasses: bool = False
 
     def __init__(
         self,
@@ -60,6 +69,7 @@ class Consume:
         *,
         wakes: bool | None = None,
         debounce: bool | None = None,
+        include_subclasses: bool | None = None,
     ):
         self.artifact_type = artifact_type or self.__class__.artifact_type
         if self.artifact_type is None:
@@ -75,6 +85,11 @@ class Consume:
         )
         self.wakes = wakes if wakes is not None else self.__class__.wakes
         self.debounce = debounce if debounce is not None else self.__class__.debounce
+        self.include_subclasses = (
+            include_subclasses
+            if include_subclasses is not None
+            else self.__class__.include_subclasses
+        )
         if self.debounce and not self.wakes:
             raise ValueError(
                 "Consume(debounce=True, wakes=False) is meaningless: debounce "
@@ -93,7 +108,11 @@ class Consume:
             return []
         return [
             Trigger(
-                event_type, self.artifact_type, self.condition, debounce=self.debounce
+                event_type,
+                self.artifact_type,
+                self.condition,
+                debounce=self.debounce,
+                include_subclasses=self.include_subclasses,
             )
             for event_type in self.event_types
         ]
@@ -130,6 +149,31 @@ class Consume:
             event_types=event_types,
             wakes=wakes,
             debounce=debounce,
+        )
+
+    @classmethod
+    def by_base(
+        cls,
+        artifact_type: ArtifactType,
+        event_types: Sequence[EventType] = (
+            EventType.ARTIFACT_CREATED,
+            EventType.ARTIFACT_UPDATED,
+        ),
+        *,
+        wakes: bool = True,
+        debounce: bool = False,
+    ) -> Consume:
+        """Creates a Consume that also wakes on subclasses of `artifact_type`.
+
+        Sugar for `Consume(artifact_type, include_subclasses=True)` — e.g. a
+        marker base `ChatMessage` with concrete `UserQuery`/`Answer` artifacts.
+        """
+        return cls(
+            artifact_type,
+            event_types=event_types,
+            wakes=wakes,
+            debounce=debounce,
+            include_subclasses=True,
         )
 
     @classmethod
@@ -380,8 +424,14 @@ def consume(
     *,
     wakes: bool = True,
     debounce: bool = False,
+    include_subclasses: bool = False,
 ) -> Consume:
     """Factory for quickly creating a Consume."""
     return Consume(
-        artifact_type, condition, event_types, wakes=wakes, debounce=debounce
+        artifact_type,
+        condition,
+        event_types,
+        wakes=wakes,
+        debounce=debounce,
+        include_subclasses=include_subclasses,
     )

@@ -27,6 +27,7 @@ from typing import Any
 import httpx
 
 from .._httpx import LoopBoundClient
+from ..tools import ToolRun
 from ._otlp import attr, span_id, trace_id, type_summary, unix_nanos
 from .models import AgentSpan, LLMCall, RunTrace
 from .tracer import Tracer
@@ -93,6 +94,12 @@ class OTLPTracer(Tracer):
                         tid, agent_span_id, span_start, i, j, span.agent, call
                     )
                 )
+            for k, tool in enumerate(span.tools):
+                spans.append(
+                    self._tool_span(
+                        tid, agent_span_id, run_start, i, k, span.agent, span, tool
+                    )
+                )
 
         body = {
             "resourceSpans": [
@@ -136,11 +143,57 @@ class OTLPTracer(Tracer):
                     ", ".join(f"{p.name}({p.operations})" for p in span.produces),
                 )
             )
+        if span.tools:
+            attrs.append(
+                attr(
+                    "reactifact.tools",
+                    ", ".join(
+                        f"{tool.tool}({tool.latency_ms:.1f}ms"
+                        f"{'' if tool.ok else ',failed'})"
+                        for tool in span.tools
+                    ),
+                )
+            )
         return {
             "traceId": tid,
             "spanId": span_id(f"{tid}:span:{index}:{span.agent}"),
             "parentSpanId": parent_span_id,
             "name": f"invoke_agent {span.agent}",
+            "kind": 1,
+            "startTimeUnixNano": unix_nanos(start),
+            "endTimeUnixNano": unix_nanos(end),
+            "attributes": attrs,
+        }
+
+    def _tool_span(
+        self,
+        tid: str,
+        parent_span_id: str,
+        run_start: datetime,
+        span_index: int,
+        tool_index: int,
+        agent: str,
+        span: AgentSpan,
+        tool: ToolRun,
+    ) -> dict[str, Any]:
+        start = tool.started_at or span.started_at or run_start
+        end = start + timedelta(milliseconds=tool.latency_ms)
+        attrs = [
+            attr("gen_ai.operation.name", "execute_tool"),
+            attr("gen_ai.tool.name", tool.tool),
+            attr("gen_ai.agent.name", agent),
+            attr("reactifact.tool.ok", tool.ok),
+            attr("reactifact.tool.chars", tool.chars),
+        ]
+        if tool.args is not None:
+            attrs.append(attr("reactifact.tool.arguments", tool.args))
+        if tool.error:
+            attrs.append(attr("error.type", tool.error))
+        return {
+            "traceId": tid,
+            "spanId": span_id(f"{tid}:tool:{span_index}:{tool_index}:{tool.tool}"),
+            "parentSpanId": parent_span_id,
+            "name": f"execute_tool {tool.tool}",
             "kind": 1,
             "startTimeUnixNano": unix_nanos(start),
             "endTimeUnixNano": unix_nanos(end),
