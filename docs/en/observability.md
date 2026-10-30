@@ -12,7 +12,8 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   writes, the key/value summary of the patch it produced, the consumed artifact
   type that triggered it (`event_artifact_type`), which produces actually ran
   (`produces`: name, authored operations, latency), and which tools it executed
-  (`tools`: `ToolRun` name/latency/status/chars — args are not recorded).
+  (`tools`: `ToolRun` name/produce/latency/status/chars/output — args are
+  opt-in, output is truncated/redacted by the trace policy).
   The dashboard, OTLP (`reactifact.tools`) and Langfuse
   (`langfuse.observation.metadata.tools`) carry the same list; Langfuse/OTLP
   also emit a child span per tool, placed by `ToolRun.started_at` (parallel

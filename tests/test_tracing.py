@@ -1098,6 +1098,8 @@ def test_runtime_records_tool_runs(tmp_path):
     assert span.tools[0].tool == "lookup"
     assert span.tools[0].ok is True
     assert span.tools[0].chars == len("found")
+    assert span.tools[0].produce == "UsesTool"
+    assert span.tools[0].output == "found"
 
 
 def test_tool_args_are_opt_in_and_redacted(tmp_path):

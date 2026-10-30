@@ -15,9 +15,17 @@ CALLS: dict[str, int] = {}
 
 @tool
 async def kubectl_get(resource: str, namespace: str) -> str:
-    """Get the state of a k8s resource (pods, deployments) in a namespace."""
+    """Get the state of a k8s resource (pods, deployments, logs) in a namespace."""
     CALLS["kubectl_get"] = CALLS.get("kubectl_get", 0) + 1
-    if "pod" in resource.lower():
+    target = resource.lower()
+    if "log" in target or "describe" in target or "worker-2f1" in target:
+        return (
+            f"namespace={namespace} pod=worker-2f1\n"
+            "Last State: Terminated (OOMKilled)\n"
+            "Reason: Back-off restarting failed container\n"
+            "Events: Warning BackOff  kubelet  Back-off restarting failed container"
+        )
+    if "pod" in target:
         return (
             f"namespace={namespace}\n"
             "NAME       READY  STATUS            RESTARTS\n"

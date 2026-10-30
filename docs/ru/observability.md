@@ -12,8 +12,9 @@ Langfuse или Postgres.
   артефактов, суммарные ключ/значение патча, который он произвёл,
   тип-потребитель, разбудивший агента (`event_artifact_type`), какие produces
   реально отработали (`produces`: имя, число операций, задержка) и какие
-  инструменты он вызвал (`tools`: `ToolRun` имя/задержка/статус/размер —
-  аргументы не пишутся). Дашборд, OTLP (`reactifact.tools`) и Langfuse
+  инструменты он вызвал (`tools`: `ToolRun` имя/produce/задержка/статус/
+  размер/output — аргументы opt-in, output усекается/редактируется политикой
+  трейса). Дашборд, OTLP (`reactifact.tools`) и Langfuse
   (`langfuse.observation.metadata.tools`) несут тот же список; Langfuse/OTLP
   дополнительно дают child-span на каждый тул, размещённый по
   `ToolRun.started_at` (параллельные вызовы перекрываются). Аргументы по

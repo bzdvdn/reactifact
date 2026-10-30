@@ -22,3 +22,12 @@ def test_span_renderer_defines_the_tool_count_it_uses():
 
     assert "const toolCount" in body
     assert body.index("const toolCount") < body.index("toolCount?")
+
+
+def test_artifact_preview_opens_the_full_data_modal():
+    html = _ui_run_html()
+    assert "adata-preview" in html
+    assert "data-art-key" in html
+    assert "openDataModal" in html
+    assert 'id="data-modal"' in html
+    assert "const ARTIFACTS={}" in html

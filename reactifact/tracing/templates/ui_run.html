@@ -83,6 +83,12 @@
   </div>
 </div>
 <datalist id="taglist"></datalist>
+<div class="modal-bg" id="data-modal">
+  <div class="modal wide">
+    <div class="modal-head"><h2 id="data-modal-title">Artifact</h2><div class="spacer"></div><button class="btn sm" id="data-modal-close">close</button></div>
+    <div class="modal-body"><pre class="json-pre" id="data-modal-pre"></pre></div>
+  </div>
+</div>
 
 <script>
 const RUN_ID=__RUN_ID__;
@@ -302,8 +308,16 @@ function produceChip(p){
 function artHtml(a){
   const op=('<span class="tag">'+escapeHtml(a.op_type||'read')+'</span>');
   const type=a.data_type?'<span class="atype">['+escapeHtml(a.data_type)+']</span>':'';
-  const data=a.data?'<pre class="adata">'+escapeHtml(a.data)+'</pre>':'';
-  return '<div class="art"><div class="art-head">'+op+' '+type+' <code>'+escapeHtml(a.artifact_id.slice(0,8))+'</code> <span class="ver">v'+a.version+'</span></div>'+data+'</div>';
+  let data='';let more='';
+  if(a.data){
+    const key=(a.artifact_id||'')+':'+(a.version||0)+':'+(a.op_type||'read');
+    ARTIFACTS[key]=a.data;
+    const preview=a.data.length>360?a.data.slice(0,360)+'…':a.data;
+    const k=escapeHtml(key);
+    more='<span class="art-open" data-art-key="'+k+'" title="open full artifact">expand</span>';
+    data='<pre class="adata adata-preview" data-art-key="'+k+'" title="click to expand">'+escapeHtml(preview)+'</pre>';
+  }
+  return '<div class="art"><div class="art-head">'+op+' '+type+' <code>'+escapeHtml(a.artifact_id.slice(0,8))+'</code> <span class="ver">v'+a.version+'</span>'+more+'</div>'+data+'</div>';
 }
 function toolsBlock(tools){
   const list=tools||[];if(!list.length)return '';
@@ -311,10 +325,15 @@ function toolsBlock(tools){
 }
 function toolHtml(t){
   const ok=t.ok!==false;
-  return '<div class="role '+(ok?'tool':'tool err')+'"><span class="role-label">'+escapeHtml(t.tool||'tool')+'</span>'+
-    '<span class="muted">'+Number(t.latency_ms||0).toFixed(1)+' ms · '+Number(t.chars||0)+' chars'+
-    (ok?'':' · failed')+'</span>'+
-    (t.error?'<div class="err-box">'+escapeHtml(t.error)+'</div>':'')+'</div>';
+  const produce=t.produce?'<span class="chip produce">'+escapeHtml(t.produce)+'</span>':'';
+  const args=t.args?('<div class="role"><span class="role-label">args</span><pre class="adata">'+escapeHtml(JSON.stringify(t.args,null,2))+'</pre></div>'):'';
+  const output=t.output?('<div class="role assistant"><span class="role-label">output</span><pre class="adata">'+escapeHtml(t.output)+'</pre></div>'):'';
+  const err=t.error?'<div class="err-box">'+escapeHtml(t.error)+'</div>':'';
+  return '<details class="llm-call"><summary><span class="caret">▸</span>'+produce+
+    '<b>'+escapeHtml(t.tool||'tool')+'</b>'+
+    '<span class="stat">'+Number(t.latency_ms||0).toFixed(1)+' ms · '+Number(t.chars||0)+' chars'+
+    (ok?'':' · failed')+'</span></summary>'+
+    '<div class="node-body">'+args+output+err+'</div></details>';
 }
 function llmHtml(c){
   const detail=(c.messages||[]).map(m=>'<div class="role '+escapeHtml(m.role)+'"><span class="role-label">'+escapeHtml(m.role)+'</span>'+escapeHtml(m.content||'')+'</div>').join('');
@@ -323,6 +342,7 @@ function llmHtml(c){
 }
 
 const DIAGRAMS=[];
+const ARTIFACTS={};
 let mermaidPromise=null;
 function loadScript(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error('offline'));document.head.appendChild(s);});}
 function loadMermaid(){
@@ -404,6 +424,12 @@ Diagram.prototype.render=async function(src){
   }
 };
 function mountDiagram(src,rootId,preId){const pre=document.getElementById(preId);if(pre)pre.textContent=src||'no provenance recorded';const root=document.getElementById(rootId);if(root)new Diagram(root).render(src);}
+function openDataModal(title,text){
+  document.getElementById('data-modal-title').textContent=title;
+  document.getElementById('data-modal-pre').textContent=text;
+  document.getElementById('data-modal').classList.add('show');
+}
+function closeDataModal(){document.getElementById('data-modal').classList.remove('show');}
 function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);}
 function initCopy(){
   const bind=(btnId,src)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
@@ -423,6 +449,14 @@ function copyTo(btnId,text,label){
   const done=()=>{el.textContent='copied';setTimeout(()=>{el.textContent=label;},900);};
   if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});else{fallbackCopy(text);done();}
 }
+document.getElementById('data-modal-close').addEventListener('click',closeDataModal);
+document.getElementById('data-modal').addEventListener('click',(e)=>{if(e.target.id==='data-modal')closeDataModal();});
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeDataModal();});
+document.getElementById('agents').addEventListener('click',(e)=>{
+  const el=e.target.closest('[data-art-key]');if(!el)return;
+  const key=el.getAttribute('data-art-key');
+  if(ARTIFACTS[key]!==undefined)openDataModal('Artifact '+key,ARTIFACTS[key]);
+});
 document.getElementById('copy-link').addEventListener('click',()=>copyTo('copy-link',location.href,'link'));
 document.getElementById('copy-json').addEventListener('click',()=>copyTo('copy-json',TRACE?JSON.stringify(TRACE,null,2):'','json'));
 document.getElementById('toggle-json').addEventListener('click',(e)=>{

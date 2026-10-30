@@ -853,6 +853,7 @@ class Runtime:
         tool_runs_token = begin_tool_runs(
             record_args=self.context.resources.record_tool_args,
             redactor=self.context.resources.redactor,
+            truncate=self.context.resources.trace_truncate,
         )
         slot: Effects | None = None
         patch: Patch | None = None

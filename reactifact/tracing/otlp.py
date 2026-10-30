@@ -185,8 +185,12 @@ class OTLPTracer(Tracer):
             attr("reactifact.tool.ok", tool.ok),
             attr("reactifact.tool.chars", tool.chars),
         ]
+        if tool.produce:
+            attrs.append(attr("reactifact.tool.produce", tool.produce))
         if tool.args is not None:
             attrs.append(attr("reactifact.tool.arguments", tool.args))
+        if tool.output is not None:
+            attrs.append(attr("reactifact.tool.output", tool.output))
         if tool.error:
             attrs.append(attr("error.type", tool.error))
         return {

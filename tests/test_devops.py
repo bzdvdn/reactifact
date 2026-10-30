@@ -246,3 +246,13 @@ def test_flag_policy_allows_and_does_not_raise():
     ctx.create(UserMsg(text="delete the prod pods"))
     asyncio.run(Runtime(ctx, agents=[RouteAgent()]).arun())
     assert ctx.list_artifacts(K8sProblem)
+
+
+def test_kubectl_get_returns_logs_for_a_specific_pod():
+    from examples.devops.tools import kubectl_get
+
+    out = asyncio.run(
+        kubectl_get.execute({"resource": "pods/worker-2f1", "namespace": "nikard"})
+    )
+    assert "OOMKilled" in out.text
+    assert "worker-2f1" in out.text

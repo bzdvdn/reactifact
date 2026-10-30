@@ -48,12 +48,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   disables). `BranchStore` uses the same append path per branch key.
   `FileKVBackend`/`InMemoryKVBackend` keep the full-blob path;
   `examples/repair` now uses the SQLite append store.
+- **Trace UI: compact artifact previews with an expand modal.** Large
+  read/write bodies are shown as a truncated preview (no nested scrollbars);
+  clicking the preview (or its `expand` label) opens the full JSON in a wide
+  modal. Tool outputs and produce attribution are visible in the same span.
 - **Tool calls are now part of traces and metrics.** `ToolUse` and
   `recipes.run_tool_loop` execute tools through `tools.execute_tool`, which
-  records a `ToolRun` (name, latency, ok/error, output size; args are opt-in)
-  on the current agent span (`AgentSpan.tools`).
+  records a `ToolRun` (tool, owning produce, latency, ok/error, output size and
+  truncated/redacted output; args are opt-in) on the current agent span
+  (`AgentSpan.tools`).
   SQLite/Postgres trace stores persist it (auto-migrated `tools` column), the
-  dashboard renders a Tool calls section, OTLP/Langfuse carry it as
+  dashboard renders a Tool calls section with an expandable per-tool output, OTLP/Langfuse carry it as
   `reactifact.tools` / `langfuse.observation.metadata.tools` and emit a child
   span per tool (placed by `ToolRun.started_at`, so parallel calls overlap),
   and `MetricsTracer` emits `reactifact_tool_calls_total{tool,status}`,

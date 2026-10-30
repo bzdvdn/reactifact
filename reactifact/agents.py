@@ -13,6 +13,7 @@ from .effects import current_effects
 from .events import Event, EventType
 from .patches import Patch
 from .produce import Produce, ProduceCall
+from .tools import reset_current_produce, set_current_produce
 from .triggers import Trigger
 
 #: Per-task log of the produces that ran for the current agent execution:
@@ -190,9 +191,11 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             call = ProduceCall(
                 context=context, inputs=inputs, event=event, trigger=trigger
             )
+            produce_token = set_current_produce(p.name)
             try:
                 await p.produce(call)
             finally:
+                reset_current_produce(produce_token)
                 # Record the produce even when it raises — a failing produce is
                 # exactly what a trace should show (the span is then the error
                 # span, with this produce's partial operations/latency).

@@ -54,6 +54,7 @@ class K8sAgent(HITLLMAgent):
     tools = [kubectl_get]
     consumes = [Consume(K8sProblem)]
     produces = [K8sReportBuilder()]
+    max_steps = 4
     max_asks = 1
     resume_announce = staticmethod(_announce_answer)
 
@@ -66,6 +67,7 @@ class GitlabAgent(HITLLMAgent):
     tools = [gitlab_search, gitlab_pipeline]
     consumes = [Consume(GitlabProblem)]
     produces = [GitlabReportBuilder()]
+    max_steps = 4
     max_asks = 1
     resume_announce = staticmethod(_announce_answer)
 
@@ -78,6 +80,7 @@ class AnsibleAgent(HITLLMAgent):
     tools = [ansible_run]
     consumes = [Consume(AnsibleProblem)]
     produces = [AnsibleReportBuilder()]
+    max_steps = 4
     max_asks = 1
     resume_announce = staticmethod(_announce_answer)
 

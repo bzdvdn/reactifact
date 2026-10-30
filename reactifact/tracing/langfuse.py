@@ -275,8 +275,14 @@ class LangfuseTracer(Tracer):
                 _attr("langfuse.observation.metadata.ok", tool.ok),
                 _attr("langfuse.observation.metadata.chars", tool.chars),
             ]
+            if tool.produce:
+                attrs.append(
+                    _attr("langfuse.observation.metadata.produce", tool.produce)
+                )
             if tool.args is not None:
                 attrs.append(_attr("langfuse.observation.input", tool.args))
+            if tool.output is not None:
+                attrs.append(_attr("langfuse.observation.output", tool.output))
             if tool.error:
                 attrs.append(_attr("langfuse.observation.metadata.error", tool.error))
             out.append(

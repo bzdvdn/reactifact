@@ -61,6 +61,12 @@ class ToolRun(BaseModel):
     #: Wall-clock start, so exporters can place the call on a timeline even
     #: when tools ran in parallel.
     started_at: datetime | None = None
+    #: The produce that executed the tool (empty for a direct call outside a
+    #: produce), so the UI can group calls by produce.
+    produce: str = ""
+    #: The returned text, redacted/truncated by the trace policy (`None` on a
+    #: failure or when output recording is disabled).
+    output: str | None = None
 
 
 @dataclass
@@ -68,6 +74,8 @@ class _ToolRunLog:
     runs: list[ToolRun] = field(default_factory=list)
     record_args: bool = False
     redactor: Redactor | None = None
+    truncate: int | None = 1500
+    record_output: bool = True
 
 
 _tool_run_log: ContextVar[_ToolRunLog | None] = ContextVar(
@@ -75,11 +83,34 @@ _tool_run_log: ContextVar[_ToolRunLog | None] = ContextVar(
 )
 
 
+_current_produce: ContextVar[str] = ContextVar("reactifact_current_produce", default="")
+
+
+def set_current_produce(name: str) -> Token[str]:
+    """Marks the produce currently executing (used to attribute tool runs)."""
+    return _current_produce.set(name)
+
+
+def reset_current_produce(token: Token[str]) -> None:
+    _current_produce.reset(token)
+
+
 def begin_tool_runs(
-    *, record_args: bool = False, redactor: Redactor | None = None
+    *,
+    record_args: bool = False,
+    redactor: Redactor | None = None,
+    truncate: int | None = 1500,
+    record_output: bool = True,
 ) -> Token[Any]:
     """Opens the per-task tool-run log (see `ToolRun`)."""
-    return _tool_run_log.set(_ToolRunLog(record_args=record_args, redactor=redactor))
+    return _tool_run_log.set(
+        _ToolRunLog(
+            record_args=record_args,
+            redactor=redactor,
+            truncate=truncate,
+            record_output=record_output,
+        )
+    )
 
 
 def tool_runs() -> list[ToolRun]:
@@ -131,6 +162,11 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
         error=error,
         chars=chars,
         args=args,
+        output_text=(
+            output.text or json.dumps(output.data, ensure_ascii=False)
+            if not output.error
+            else None
+        ),
     )
     return output
 
@@ -149,6 +185,12 @@ def _redact_args(value: Any, redactor: Redactor | None) -> Any:
     return value
 
 
+def _truncate_text(text: str, limit: int | None) -> str:
+    if limit is None or len(text) <= limit:
+        return text
+    return f"{text[:limit]}\n…[truncated {len(text) - limit} chars]"
+
+
 def _record_tool_run(
     tool: str,
     *,
@@ -158,11 +200,17 @@ def _record_tool_run(
     error: str | None = None,
     chars: int = 0,
     args: dict[str, Any] | None = None,
+    output_text: str | None = None,
 ) -> None:
     log = _tool_run_log.get()
     if log is None:
         return
     recorded_args = _redact_args(args, log.redactor) if log.record_args else None
+    recorded_output = None
+    if log.record_output and output_text is not None:
+        recorded_output = _truncate_text(
+            str(_redact_args(output_text, log.redactor)), log.truncate
+        )
     log.runs.append(
         ToolRun(
             tool=tool,
@@ -172,6 +220,8 @@ def _record_tool_run(
             chars=chars,
             args=recorded_args if isinstance(recorded_args, dict) else None,
             started_at=started_at,
+            produce=_current_produce.get(),
+            output=recorded_output,
         )
     )
 
