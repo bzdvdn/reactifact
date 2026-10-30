@@ -33,6 +33,7 @@ can be computed from a `RunTrace` alone. Two sources cover the range:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import random
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -97,7 +98,7 @@ class _ContextSource:
     async def eval_input(self, run: RunTrace) -> EvalInput:
         # A sync run_fn (e.g. one that calls `asyncio.run` itself) must run off
         # the loop `online_evaluate` owns — mirror `runner._evaluate_one`.
-        if asyncio.iscoroutinefunction(self._run_fn):
+        if inspect.iscoroutinefunction(self._run_fn):
             built = self._run_fn(run.id)
         else:
             sync_fn: Callable[[str], Any] = self._run_fn

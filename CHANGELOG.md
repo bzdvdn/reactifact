@@ -4,7 +4,7 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [0.16.0] — 2026-10-30
+## [0.16.0] — 2026-10-31
 
 ### Added
 
