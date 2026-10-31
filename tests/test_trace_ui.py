@@ -17,7 +17,7 @@ def test_span_renderer_defines_the_tool_count_it_uses():
     threw a ReferenceError and left the whole Work section empty."""
     html = _ui_run_html()
     start = html.index("function spanHtml(s){")
-    end = html.index("function flowHtml", start)
+    end = html.index("function producesBlock", start)
     body = html[start:end]
 
     assert "const toolCount" in body
@@ -31,3 +31,14 @@ def test_artifact_preview_opens_the_full_data_modal():
     assert "openDataModal" in html
     assert 'id="data-modal"' in html
     assert "const ARTIFACTS={}" in html
+
+
+def test_work_ui_has_contract_flow_and_chip_filters():
+    html = _ui_run_html()
+    assert "contract-flow" in html
+    assert "data-contract-agent" in html
+    assert "data-filter-kind" in html
+    assert "Consumes / inputs" in html
+    assert "Outputs / writes" in html
+    assert "tl-sub produce" in html
+    assert "tl-sub tool" in html

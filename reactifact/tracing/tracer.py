@@ -25,7 +25,15 @@ from typing import TYPE_CHECKING, Any
 
 from ..patches import Create, Link, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
-from .models import AgentSpan, ArtifactRef, LLMCall, ProduceRun, RelationRef, RunTrace
+from .models import (
+    AgentContract,
+    AgentSpan,
+    ArtifactRef,
+    LLMCall,
+    ProduceRun,
+    RelationRef,
+    RunTrace,
+)
 from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
@@ -460,6 +468,20 @@ class RunTracer:
         if self.tracer is None:
             return None
         try:
+            consumes = [
+                getattr(c.artifact_type, "__name__", str(c.artifact_type))
+                for c in (agent.consumes or [])
+                if c.artifact_type is not None
+            ]
+            produces_declared = [
+                getattr(p, "name", type(p).__name__) for p in (agent.produces or [])
+            ]
+            declared_tools = getattr(agent, "tools", ()) or ()
+            if isinstance(declared_tools, dict):
+                declared_tools = declared_tools.values()
+            tools_declared = [
+                getattr(t, "name", type(t).__name__) for t in declared_tools
+            ]
             span = AgentSpan(
                 agent=agent.name,
                 event_type=event.type.value,
@@ -467,6 +489,13 @@ class RunTracer:
                     event.artifact_type.__name__
                     if isinstance(event.artifact_type, type)
                     else str(event.artifact_type)
+                ),
+                event_artifact_id=event.artifact_id,
+                contract=AgentContract(
+                    consumes=consumes,
+                    produces=produces_declared,
+                    tools=tools_declared,
+                    priority=agent.priority,
                 ),
                 produces=[
                     ProduceRun(name=name, operations=operations, latency_ms=latency)

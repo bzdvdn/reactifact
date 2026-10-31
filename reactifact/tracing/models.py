@@ -90,6 +90,20 @@ class TagAssignment(BaseModel):
     updated_at: datetime | None = None
 
 
+class AgentContract(BaseModel):
+    """The agent's declared contract, recorded on each span for the UI.
+
+    `consumes`/`produces`/`tools` are the *declared* names (not only what ran),
+    so the dashboard can show a consume/produce that never fired as a muted
+    chip instead of hiding it.
+    """
+
+    consumes: list[str] = Field(default_factory=list)
+    produces: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
+    priority: int = 0
+
+
 class ProduceRun(BaseModel):
     """One produce execution within an agent span (§54).
 
@@ -113,6 +127,10 @@ class AgentSpan(BaseModel):
     #: ``Consume``) — e.g. ``DraftAnswer`` vs ``FinalResponse`` for an agent that
     #: consumes both. ``event_type`` alone (created/updated) can't tell them apart.
     event_artifact_type: str = ""
+    #: The concrete artifact whose change triggered this span.
+    event_artifact_id: str = ""
+    #: The agent's declared consumes/produces/tools (for the UI contract view).
+    contract: AgentContract = Field(default_factory=AgentContract)
     #: The produces that ran for this event, in execution order.
     produces: list[ProduceRun] = Field(default_factory=list)
     #: Tool executions that happened during this agent run (name/latency/status).

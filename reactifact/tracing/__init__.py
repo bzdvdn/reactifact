@@ -9,6 +9,7 @@ from ..tools import ToolRun
 from .columns import TraceColumn
 from .langfuse import LangfuseTracer
 from .models import (
+    AgentContract,
     AgentSpan,
     ArtifactRef,
     LLMCall,
@@ -30,6 +31,7 @@ from .store import (
 from .tracer import CompositeTracer, RecordingLLM, RunTracer, Tracer
 
 __all__ = [
+    "AgentContract",
     "AgentSpan",
     "ArtifactRef",
     "CompositeTracer",

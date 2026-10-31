@@ -249,6 +249,7 @@ FROZEN: dict[str, frozenset[str]] = {
     ),
     "reactifact.tracing": frozenset(
         {
+            "AgentContract",
             "AgentSpan",
             "ArtifactRef",
             "CompositeTracer",

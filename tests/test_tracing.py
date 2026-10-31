@@ -146,6 +146,10 @@ def test_runtime_records_spans_and_trace(tmp_path):
     assert trace.outcome == "completed"
     # greeter span: read the question, created the answer
     greeter = next(s for s in trace.spans if s.agent == "Greeter")
+    assert greeter.event_artifact_id == ctx.list_artifacts(Question)[0].id
+    assert greeter.contract.consumes == ["Question"]
+    assert greeter.contract.produces == []
+    assert greeter.contract.tools == []
     assert any(
         r.artifact_id == ctx.list_artifacts(Question)[0].id for r in greeter.reads
     )
@@ -187,6 +191,7 @@ def test_runtime_records_which_produce_ran(tmp_path):
     assert span.event_artifact_type == "Question"
     assert [p.name for p in span.produces] == ["Emit"]
     assert span.produces[0].operations >= 1
+    assert span.contract.produces == ["Emit", "NeverRuns"]
 
 
 def test_runtime_records_a_produce_that_raised(tmp_path):
@@ -1100,6 +1105,8 @@ def test_runtime_records_tool_runs(tmp_path):
     assert span.tools[0].chars == len("found")
     assert span.tools[0].produce == "UsesTool"
     assert span.tools[0].output == "found"
+    assert span.contract.consumes == ["Question"]
+    assert span.contract.produces == ["UsesTool"]
 
 
 def test_tool_args_are_opt_in_and_redacted(tmp_path):

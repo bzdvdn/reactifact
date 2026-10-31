@@ -28,6 +28,7 @@ from typing import Any, Protocol
 from ..tools import ToolRun
 from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
+    AgentContract,
     AgentSpan,
     ArtifactRef,
     LLMCall,
@@ -185,7 +186,9 @@ class TraceStore:
                 relations TEXT NOT NULL DEFAULT '[]',
                 llm_calls TEXT NOT NULL DEFAULT '[]',
                 produces TEXT NOT NULL DEFAULT '[]',
-                tools TEXT NOT NULL DEFAULT '[]'
+                tools TEXT NOT NULL DEFAULT '[]',
+                event_artifact_id TEXT NOT NULL DEFAULT '',
+                contract TEXT NOT NULL DEFAULT '{}'
             );
             CREATE TABLE IF NOT EXISTS tags (
                 name TEXT PRIMARY KEY,
@@ -234,6 +237,14 @@ class TraceStore:
         if "tools" not in cols:
             self._conn.execute(
                 "ALTER TABLE spans ADD COLUMN tools TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "event_artifact_id" not in cols:
+            self._conn.execute(
+                "ALTER TABLE spans ADD COLUMN event_artifact_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "contract" not in cols:
+            self._conn.execute(
+                "ALTER TABLE spans ADD COLUMN contract TEXT NOT NULL DEFAULT '{}'"
             )
         run_cols = {row[1] for row in self._conn.execute("PRAGMA table_info(runs)")}
         if "prompt_tokens" not in run_cols:
@@ -347,8 +358,8 @@ class TraceStore:
             self._conn.execute(
                 "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
                 "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
-                "produces, tools) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "produces, tools, event_artifact_id, contract) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     trace.id,
                     span.agent,
@@ -363,6 +374,8 @@ class TraceStore:
                     json.dumps([c.model_dump(mode="json") for c in span.llm_calls]),
                     json.dumps([p.model_dump(mode="json") for p in span.produces]),
                     json.dumps([t.model_dump(mode="json") for t in span.tools]),
+                    span.event_artifact_id,
+                    json.dumps(span.contract.model_dump(mode="json")),
                 ),
             )
         self._conn.commit()
@@ -617,7 +630,8 @@ class TraceStore:
             return None
         span_rows = self._conn.execute(
             "SELECT agent, event_type, event_artifact_type, latency_ms, error, started_at, "
-            "reads, writes, relations, llm_calls, produces, tools "
+            "reads, writes, relations, llm_calls, produces, tools, "
+            "event_artifact_id, contract "
             "FROM spans WHERE run_id = ? ORDER BY id",
             (trace_id,),
         ).fetchall()
@@ -637,6 +651,8 @@ class TraceStore:
                 llm_calls=[LLMCall(**d) for d in json.loads(r[9])],
                 produces=[ProduceRun(**d) for d in json.loads(r[10])],
                 tools=[ToolRun(**d) for d in json.loads(r[11])],
+                event_artifact_id=r[12],
+                contract=AgentContract(**json.loads(r[13])),
             )
             for r in span_rows
         ]

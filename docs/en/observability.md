@@ -20,6 +20,10 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   calls overlap). Tool args are omitted by default — set
   `RuntimeResources(record_tool_args=True)` to include them (scrubbed by
   `redactor=`).
+- **Agent contract** (`AgentContract`) — the declared `consumes`/`produces`/
+  `tools`/`priority`, plus the concrete `event_artifact_id`. The Work view
+  renders explicit `consumes → produces` lists, mutes declared-but-not-run
+  items, and a click on any chip filters the visible spans.
 - **LLM calls** (`LLMCall`) — prompts, responses (truncated), token usage,
   latency.
 - **Timing and ordering** — the whole causal chain of a run, in order.

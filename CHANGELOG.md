@@ -4,6 +4,17 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.16.1] — 2026-10-31
+
+### Added
+
+- **Trace UI: explicit agent contract and consume/produce flow.** Each span now
+  records the agent's declared `AgentContract` (`consumes`/`produces`/`tools`/
+  `priority`) and the concrete `event_artifact_id`. The Work view renders
+  labelled `consumes → produces` lists (declared-but-not-run items muted), a
+  per-agent `contract` popover, click-to-filter chips, and produces/tools as
+  sub-bars under the Timeline.
+
 ## [0.16.0] — 2026-10-31
 
 ### Added
