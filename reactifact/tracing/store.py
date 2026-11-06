@@ -93,7 +93,13 @@ class TraceReader(Protocol):
         offset: int = 0,
     ) -> dict[str, Any]: ...
 
-    async def get(self, trace_id: str) -> RunTrace | None: ...
+    async def get(
+        self,
+        trace_id: str,
+        *,
+        span_limit: int | None = 500,
+        span_offset: int = 0,
+    ) -> RunTrace | None: ...
 
     async def field_values(
         self, run_id: str, columns: Sequence[TraceColumn]
@@ -150,9 +156,13 @@ class TraceStore:
         *,
         timeout: float = 10.0,
         max_runs: int | None = 200,
+        column_scan_limit: int | None = 1000,
+        max_session_runs: int = 50,
     ):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.max_runs = max_runs
+        self.column_scan_limit = column_scan_limit
+        self.max_session_runs = max_session_runs
         self._conn = sqlite3.connect(path, check_same_thread=False, timeout=timeout)
         self._create_schema()
         self._migrate()
@@ -170,7 +180,8 @@ class TraceStore:
                 duration_ms REAL NOT NULL,
                 outcome TEXT NOT NULL,
                 prompt_tokens INTEGER NOT NULL DEFAULT 0,
-                completion_tokens INTEGER NOT NULL DEFAULT 0
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                truncated INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS spans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,6 +266,10 @@ class TraceStore:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0"
             )
+        if "truncated" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN truncated INTEGER NOT NULL DEFAULT 0"
+            )
         self._conn.commit()
 
     # ---- async public API (bridged to the sync core) ----------------------- #
@@ -293,8 +308,16 @@ class TraceStore:
             offset,
         )
 
-    async def get(self, trace_id: str) -> RunTrace | None:
-        return await asyncio.to_thread(self._get_sync, trace_id)
+    async def get(
+        self,
+        trace_id: str,
+        *,
+        span_limit: int | None = 500,
+        span_offset: int = 0,
+    ) -> RunTrace | None:
+        return await asyncio.to_thread(
+            self._get_sync, trace_id, span_limit=span_limit, span_offset=span_offset
+        )
 
     async def field_values(
         self, run_id: str, columns: Sequence[TraceColumn]
@@ -309,6 +332,14 @@ class TraceStore:
         offset: int = 0,
     ) -> dict[str, Any]:
         return await asyncio.to_thread(self._sessions_sync, q, limit, offset)
+
+    async def delete_run(self, trace_id: str) -> bool:
+        """Deletes one run and its spans/tags; returns whether it existed."""
+        return await asyncio.to_thread(self._delete_run_sync, trace_id)
+
+    async def delete_session(self, session_id: str) -> int:
+        """Deletes every run of a session; returns the number removed."""
+        return await asyncio.to_thread(self._delete_session_sync, session_id)
 
     async def list_tags(self) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._list_tags_sync)
@@ -343,7 +374,8 @@ class TraceStore:
         completion_tokens = sum(c.completion_tokens for c in trace.llm_calls)
         self._conn.execute(
             "INSERT INTO runs (id, session_id, started_at, duration_ms, outcome, "
-            "prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "prompt_tokens, completion_tokens, truncated) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 trace.id,
                 trace.session_id,
@@ -352,6 +384,7 @@ class TraceStore:
                 trace.outcome,
                 prompt_tokens,
                 completion_tokens,
+                1 if trace.trace_truncated else 0,
             ),
         )
         for span in trace.spans:
@@ -381,6 +414,36 @@ class TraceStore:
         self._conn.commit()
         if self.max_runs is not None:
             self._prune_sync(self.max_runs)
+
+    def _delete_run_sync(self, trace_id: str) -> bool:
+        exists = self._conn.execute(
+            "SELECT 1 FROM runs WHERE id = ?", (trace_id,)
+        ).fetchone()
+        if exists is None:
+            return False
+        self._conn.execute("DELETE FROM spans WHERE run_id = ?", (trace_id,))
+        self._conn.execute("DELETE FROM run_tags WHERE run_id = ?", (trace_id,))
+        self._conn.execute("DELETE FROM runs WHERE id = ?", (trace_id,))
+        self._conn.commit()
+        return True
+
+    def _delete_session_sync(self, session_id: str) -> int:
+        rows = self._conn.execute(
+            "SELECT id FROM runs WHERE session_id = ?", (session_id,)
+        ).fetchall()
+        ids = [r[0] for r in rows]
+        if not ids:
+            return 0
+        placeholders = ",".join("?" for _ in ids)
+        self._conn.execute(
+            f"DELETE FROM spans WHERE run_id IN ({placeholders})", tuple(ids)
+        )
+        self._conn.execute(
+            f"DELETE FROM run_tags WHERE run_id IN ({placeholders})", tuple(ids)
+        )
+        self._conn.execute(f"DELETE FROM runs WHERE id IN ({placeholders})", tuple(ids))
+        self._conn.commit()
+        return len(ids)
 
     def _prune_sync(self, keep: int) -> int:
         """Keeps the last `keep` traces, deletes older ones (retention)."""
@@ -518,29 +581,34 @@ class TraceStore:
                 "spans": row[7],
                 "tags": tags_by_run.get(row[0], []),
                 "fields": fields_by_run.get(row[0], {}),
+                "fields_truncated": bool(
+                    columns
+                    and self.column_scan_limit is not None
+                    and row[7] > self.column_scan_limit
+                ),
             }
             for row in rows
         ]
         return {"items": items, "total": total, "stats": stats}
 
-    def _run_span_artifacts(self, run_ids: list[str]) -> dict[str, list[SpanArtifacts]]:
-        if not run_ids:
-            return {}
-        placeholders = ",".join("?" for _ in run_ids)
-        rows = self._conn.execute(
-            "SELECT run_id, agent, reads, writes FROM spans "
-            f"WHERE run_id IN ({placeholders}) ORDER BY id",
-            tuple(run_ids),
-        ).fetchall()
+    def _run_span_artifacts(
+        self, run_ids: list[str], *, limit: int | None = None
+    ) -> dict[str, list[SpanArtifacts]]:
         spans_by_run: dict[str, list[SpanArtifacts]] = {}
-        for run_id, agent, reads, writes in rows:
-            spans_by_run.setdefault(run_id, []).append(
-                SpanArtifacts(
-                    agent=agent,
-                    reads=[ArtifactRef(**d) for d in json.loads(reads)],
-                    writes=[ArtifactRef(**d) for d in json.loads(writes)],
+        for run_id in run_ids:
+            sql = "SELECT agent, reads, writes FROM spans WHERE run_id = ? ORDER BY id"
+            args: tuple[Any, ...] = (run_id,)
+            if limit is not None:
+                sql += " LIMIT ?"
+                args = (run_id, limit)
+            for agent, reads, writes in self._conn.execute(sql, args).fetchall():
+                spans_by_run.setdefault(run_id, []).append(
+                    SpanArtifacts(
+                        agent=agent,
+                        reads=[ArtifactRef(**d) for d in json.loads(reads)],
+                        writes=[ArtifactRef(**d) for d in json.loads(writes)],
+                    )
                 )
-            )
         return spans_by_run
 
     def _session_span_artifacts(
@@ -559,7 +627,12 @@ class TraceStore:
             f"WHERE session_id IN ({placeholders}) ORDER BY started_at ASC, id ASC",
             tuple(session_ids),
         ).fetchall()
-        spans_by_run = self._run_span_artifacts([r[0] for r in run_rows])
+        if len(run_rows) > self.max_session_runs:
+            half = max(1, self.max_session_runs // 2)
+            run_rows = run_rows[:half] + run_rows[-half:]
+        spans_by_run = self._run_span_artifacts(
+            [r[0] for r in run_rows], limit=self.column_scan_limit
+        )
         out: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
         for session_id in session_ids:
             out[session_id] = [
@@ -600,7 +673,7 @@ class TraceStore:
         """Computes the configured artifact columns for each run (page-scoped)."""
         if not run_ids:
             return {}
-        spans_by_run = self._run_span_artifacts(run_ids)
+        spans_by_run = self._run_span_artifacts(run_ids, limit=self.column_scan_limit)
         needs_session = any(column.scope == "session" for column in columns)
         session_order: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
         if needs_session:
@@ -620,21 +693,34 @@ class TraceStore:
             )
         return out
 
-    def _get_sync(self, trace_id: str) -> RunTrace | None:
+    def _get_sync(
+        self,
+        trace_id: str,
+        *,
+        span_limit: int | None = 500,
+        span_offset: int = 0,
+    ) -> RunTrace | None:
         row = self._conn.execute(
-            "SELECT id, session_id, started_at, duration_ms, outcome "
+            "SELECT id, session_id, started_at, duration_ms, outcome, truncated "
             "FROM runs WHERE id = ?",
             (trace_id,),
         ).fetchone()
         if row is None:
             return None
-        span_rows = self._conn.execute(
+        span_total = self._conn.execute(
+            "SELECT COUNT(*) FROM spans WHERE run_id = ?", (trace_id,)
+        ).fetchone()[0]
+        span_sql = (
             "SELECT agent, event_type, event_artifact_type, latency_ms, error, started_at, "
             "reads, writes, relations, llm_calls, produces, tools, "
             "event_artifact_id, contract "
-            "FROM spans WHERE run_id = ? ORDER BY id",
-            (trace_id,),
-        ).fetchall()
+            "FROM spans WHERE run_id = ? ORDER BY id"
+        )
+        span_args: tuple[Any, ...] = (trace_id,)
+        if span_limit is not None:
+            span_sql += " LIMIT ? OFFSET ?"
+            span_args = (trace_id, span_limit, span_offset)
+        span_rows = self._conn.execute(span_sql, span_args).fetchall()
         spans = [
             AgentSpan(
                 agent=r[0],
@@ -679,6 +765,10 @@ class TraceStore:
             duration_ms=row[3],
             outcome=row[4],
             spans=spans,
+            span_total=span_total,
+            span_offset=span_offset,
+            has_more_spans=span_offset + len(spans) < span_total,
+            trace_truncated=bool(row[5]),
             annotations=annotations,
         )
 

@@ -4,6 +4,50 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.17.0] — 2026-10-31
+
+### Added
+
+- **Bounded trace reads.** `TraceStore.get()` / `PostgresStore.get()` accept
+  `span_limit` (default **500**) and `span_offset`, and `RunTrace` now reports
+  `span_total`, `span_offset`, `has_more_spans` and `trace_truncated`. A
+  runaway run can be inspected page by page instead of loading every span into
+  memory.
+- **Write-time trace caps.** `Tracer(store=..., limits=TraceLimits(
+  max_spans=5000, max_refs_per_span=50, max_llm_calls_per_span=20))` drops
+  excess spans/refs/LLM calls and marks the trace truncated; SQLite/Postgres
+  persist the `truncated` flag. These are tracer settings, not
+  `RuntimeResources`.
+- **Lazy trace UI.** The detail page shell no longer loads the trace or builds
+  Mermaid; `GET /api/traces/{id}/diagram` is capped (`max_mermaid_spans=200`),
+  the page loads spans in pages (`span_limit`/`span_offset`, UI `load more`,
+  max 2000 loaded), and `GET /api/traces/{id}/tags` refreshes annotations
+  without re-fetching the whole run.
+- **Bounded trace columns.** `column_scan_limit` (default 1000) and
+  `max_session_runs` (default 50) cap the spans/runs scanned for
+  `TraceColumn(scope="session")`; list rows carry `fields_truncated`.
+- **Trace retention and deletion.** `PostgresStore(max_runs=200)` now prunes
+  like SQLite; both stores expose `delete_run()` / `delete_session()`, with
+  `DELETE /api/traces/{id}` and `DELETE /api/sessions/{session_id}` (under the
+  router's auth) and delete buttons in the trace/session UI. This lets a huge
+  run be inspected or removed without SQL.
+- **Read concurrency guard.** `create_trace_router(max_concurrent_reads=2)`
+  serializes heavy trace reads by default.
+
+### Changed
+
+- `RuntimeResources(trace_truncate=...)` is **deprecated** (emits
+  `DeprecationWarning`): configure `Tracer(limits=TraceLimits(max_data_chars=…))`
+  instead. The old value remains a fallback when `max_data_chars` is unset.
+- `TraceStore.get()` / `PostgresStore.get()` are **safe by default**
+  (`span_limit=500`); pass `span_limit=None` for a full load in export/CLI
+  code that explicitly needs it. `export_traces` is bounded too.
+
+### Fixed
+
+- **Duplicate `on_span` callback.** `RunTracer.record_span()` called
+  `tracer.on_span(span)` twice, doubling span delivery to external sinks.
+
 ## [0.16.1] — 2026-10-31
 
 ### Added

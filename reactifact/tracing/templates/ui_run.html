@@ -46,6 +46,7 @@
       <div class="spacer"></div>
       <button class="btn sm" id="copy-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1L11 4.9"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.9-1.9"/></svg><span data-label>link</span></button>
       <button class="btn sm" id="copy-json"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>json</span></button>
+      <button class="btn sm danger" id="delete-run">delete</button>
       <button class="btn sm" id="toggle-json">{ } raw</button>
     </header>
     <main>
@@ -63,7 +64,7 @@
             <button class="seg-btn" data-view="timeline">Timeline</button>
           </div>
         </div>
-        <div class="card-body"><div class="agents" id="agents"></div></div>
+        <div class="card-body"><div class="hint" id="work-note"></div><div class="agents" id="agents"></div></div>
       </div>
       <div class="card" id="json-card" style="display:none"><div class="card-head"><h2>Raw JSON</h2></div><div class="card-body"><pre id="json-pre" class="json-pre"></pre></div></div>
       <div class="card">
@@ -93,8 +94,10 @@
 
 <script>
 const RUN_ID=__RUN_ID__;
-const MERMAID_SRC=__MERMAID__;
-const MERMAID_GRAPH_SRC=__MERMAID_GRAPH__;
+let MERMAID_SRC='';
+let MERMAID_GRAPH_SRC='';
+const SPAN_PAGE=200;
+const UI_MAX_SPANS=2000;
 function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}DIAGRAMS.forEach(d=>{if(d.src)d.render(d.src);});}
 function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
 document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
@@ -111,13 +114,50 @@ function toast(msg){let t=document.getElementById('toast');if(!t){t=document.cre
 
 async function load(){
   try{
-    const res=await fetch('__BASE__/api/traces/'+RUN_ID);
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'?span_limit='+SPAN_PAGE+'&span_offset=0');
     if(res.status===404){document.getElementById('cid').textContent='#'+RUN_ID+' — not found';return;}
     if(!res.ok)throw new Error('HTTP '+res.status);
     render(await res.json());
   }catch(err){
     document.getElementById('cid').textContent='#'+RUN_ID;
     document.getElementById('meta').innerHTML='<div class="annot-empty">Could not load trace — '+escapeHtml(err&&err.message?err.message:String(err))+'</div>';
+  }
+}
+async function loadMoreSpans(){
+  if(!TRACE)return;
+  const offset=(TRACE.spans||[]).length;
+  try{
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'?span_limit='+SPAN_PAGE+'&span_offset='+offset);
+    if(!res.ok)return;
+    const next=await res.json();
+    TRACE.spans=(TRACE.spans||[]).concat(next.spans||[]);
+    TRACE.span_total=next.span_total;TRACE.span_offset=next.span_offset;
+    TRACE.has_more_spans=next.has_more_spans;TRACE.trace_truncated=next.trace_truncated;
+    renderWork();updateWorkNote();
+  }catch(_){}
+}
+function updateWorkNote(){
+  const el=document.getElementById('work-note');if(!el||!TRACE)return;
+  const loaded=(TRACE.spans||[]).length;const total=TRACE.span_total||loaded;
+  let html='showing '+loaded+' of '+total+' spans'+(TRACE.trace_truncated?' · trace truncated at write':'');
+  if(TRACE.has_more_spans&&loaded<UI_MAX_SPANS)html+=' <button class="btn sm" id="load-more-spans">load more</button>';
+  else if(TRACE.has_more_spans)html+=' · <span class="muted">UI limit reached — use export</span>';
+  el.innerHTML=html;
+  const b=document.getElementById('load-more-spans');if(b)b.addEventListener('click',loadMoreSpans);
+}
+async function loadDiagram(){
+  try{
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/diagram');
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    MERMAID_SRC=d.mermaid||'';MERMAID_GRAPH_SRC=d.provenance||'';
+    mountDiagram(MERMAID_SRC,'diagram-mermaid','mermaid-pre');
+    mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
+    if(d.truncated)toast('Diagram truncated: '+d.span_limit+' of '+d.span_total+' spans');
+  }catch(err){
+    const msg='Could not load diagram — '+escapeHtml(err&&err.message?err.message:String(err));
+    const a=document.getElementById('diagram-mermaid');if(a)a.innerHTML='<div class="empty">'+msg+'</div>';
+    const b=document.getElementById('diagram-graph');if(b)b.innerHTML='<div class="empty">'+msg+'</div>';
   }
 }
 function tile(k,v){return '<div class="stat-tile"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
@@ -159,8 +199,8 @@ function renderAnnot(list){
   document.getElementById('annot-note').addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();addTag();}});
 }
 async function reloadTrace(){
-  const res=await fetch('__BASE__/api/traces/'+RUN_ID);
-  if(res.ok)renderAnnot((await res.json()).annotations||[]);
+  const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/tags');
+  if(res.ok)renderAnnot((await res.json()).items||[]);
   await loadVocab();
 }
 async function addTag(){
@@ -208,6 +248,7 @@ function render(t){
   renderAnnot(t.annotations||[]);
   const jp=document.getElementById('json-pre');if(jp)jp.textContent=JSON.stringify(t,null,2);
   renderWork();
+  updateWorkNote();
 }
 function renderFields(fields){
   const card=document.getElementById('fields-card');
@@ -488,10 +529,10 @@ function openDataModal(title,text){
 function closeDataModal(){document.getElementById('data-modal').classList.remove('show');}
 function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);}
 function initCopy(){
-  const bind=(btnId,src)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
-    btn.addEventListener('click',()=>{const done=()=>{label.textContent='copied';setTimeout(()=>{label.textContent='copy';},900);};const text=src||'';
+  const bind=(btnId,getSrc)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
+    btn.addEventListener('click',()=>{const done=()=>{label.textContent='copied';setTimeout(()=>{label.textContent='copy';},900);};const text=getSrc()||'';
       if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});else{fallbackCopy(text);done();}});};
-  bind('copy-mermaid',MERMAID_SRC);bind('copy-graph',MERMAID_GRAPH_SRC);
+  bind('copy-mermaid',()=>MERMAID_SRC);bind('copy-graph',()=>MERMAID_GRAPH_SRC);
 }
 
 document.getElementById('view-seg').addEventListener('click',(e)=>{
@@ -529,6 +570,11 @@ document.getElementById('agents').addEventListener('click',(e)=>{
 document.addEventListener('click',(e)=>{
   if(e.target.closest('[data-clear-filter]')){CHIP_FILTER=null;renderWork();}
 });
+document.getElementById('delete-run').addEventListener('click',async()=>{
+  if(!confirm('Delete this trace? This cannot be undone.'))return;
+  const res=await fetch('__BASE__/api/traces/'+RUN_ID,{method:'DELETE'});
+  if(res.ok)location.href='__BASE__/traces';else toast('Delete failed');
+});
 document.getElementById('copy-link').addEventListener('click',()=>copyTo('copy-link',location.href,'link'));
 document.getElementById('copy-json').addEventListener('click',()=>copyTo('copy-json',TRACE?JSON.stringify(TRACE,null,2):'','json'));
 document.getElementById('toggle-json').addEventListener('click',(e)=>{
@@ -536,9 +582,7 @@ document.getElementById('toggle-json').addEventListener('click',(e)=>{
   card.style.display=on?'block':'none';e.currentTarget.classList.toggle('on',on);
 });
 
-initTheme();load();loadVocab();initCopy();
-mountDiagram(MERMAID_SRC,'diagram-mermaid','mermaid-pre');
-mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
+initTheme();load();loadVocab();loadDiagram();initCopy();
 </script>
 </body>
 </html>

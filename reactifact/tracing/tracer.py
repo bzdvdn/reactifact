@@ -33,6 +33,7 @@ from .models import (
     ProduceRun,
     RelationRef,
     RunTrace,
+    TraceLimits,
 )
 from .store import TraceSink, TraceStore
 
@@ -125,7 +126,9 @@ class Tracer:
         *,
         store: TraceStore | None = None,
         sinks: Iterable[TraceSink] | None = None,
+        limits: TraceLimits | None = None,
     ):
+        self.limits = limits or TraceLimits()
         self.sinks: list[TraceSink] = []
         if sink is not None:
             self.sinks.append(sink)
@@ -233,8 +236,14 @@ class RecordingLLM(LLMProvider):
 class CompositeTracer:
     """Distributes events to all passed observers (local + Langfuse)."""
 
-    def __init__(self, tracers: Iterable[Tracer]):
+    def __init__(
+        self,
+        tracers: Iterable[Tracer],
+        *,
+        limits: TraceLimits | None = None,
+    ):
         self.tracers = list(tracers)
+        self.limits = limits or TraceLimits()
 
     def on_turn_begin(
         self, run_id: str, *, session_id: str, started_at: datetime
@@ -294,10 +303,26 @@ class RunTracer:
         #: Wall-clock start of the current turn, used as the trace's `started_at`
         #: (and the origin for the dashboard's timeline).
         self.started_at: datetime | None = None
+        #: Write-time trace caps (see `TraceLimits` on the tracer). When a
+        #: cap is hit, the span/ref/call is dropped and the trace is marked
+        #: truncated instead of letting a runaway run exhaust memory.
+        limits = getattr(tracer, "limits", None) or TraceLimits()
+        self._max_spans = limits.max_spans
+        self._max_refs = limits.max_refs_per_span
+        self._max_llm = limits.max_llm_calls_per_span
+        if limits.max_data_chars is not None:
+            self._truncate = limits.max_data_chars
+        self.truncated = False
 
     @property
     def enabled(self) -> bool:
         return self.tracer is not None
+
+    @property
+    def data_char_limit(self) -> int | None:
+        """The resolved per-text trace cap (`TraceLimits.max_data_chars` or the
+        legacy `RuntimeResources.trace_truncate` fallback)."""
+        return self._truncate
 
     # ---- task -> agent attribution, for RecordingLLM.agent_of ----
 
@@ -371,6 +396,9 @@ class RunTracer:
 
     def write_refs(self, patch: Patch, writes: list[Write]) -> list[ArtifactRef]:
         try:
+            if self._max_refs is not None and len(writes) > self._max_refs:
+                self.truncated = True
+                writes = writes[: self._max_refs]
             ops_by_id: dict[str, tuple[str, Any | None]] = {}
             for op in patch.operations:
                 artifact_id = getattr(op, "artifact_id", None)
@@ -403,6 +431,9 @@ class RunTracer:
             for op in patch.operations:
                 if not isinstance(op, Link):
                     continue
+                if self._max_refs is not None and len(refs) >= self._max_refs:
+                    self.truncated = True
+                    break
                 refs.append(
                     RelationRef(
                         source_id=op.artifact_id,
@@ -437,6 +468,7 @@ class RunTracer:
             )
         self.run_id = str(uuid.uuid4())
         self.spans = []
+        self.truncated = False
         self._trace_data_cache = {}
         self.started_at = datetime.now(UTC)
         try:
@@ -467,7 +499,19 @@ class RunTracer:
         """
         if self.tracer is None:
             return None
+        if self._max_spans is not None and len(self.spans) >= self._max_spans:
+            self.truncated = True
+            return None
         try:
+            if self._max_refs is not None and len(reads) > self._max_refs:
+                self.truncated = True
+                reads = reads[: self._max_refs]
+            llm_calls = self._pending_llm.pop(agent.name, [])
+            if self._max_llm is not None and len(llm_calls) > self._max_llm:
+                self.truncated = True
+                llm_calls = llm_calls[: self._max_llm]
+            if self._max_refs is not None and tools is not None:
+                tools = tools[: self._max_refs]
             consumes = [
                 getattr(c.artifact_type, "__name__", str(c.artifact_type))
                 for c in (agent.consumes or [])
@@ -504,7 +548,7 @@ class RunTracer:
                 tools=tools or [],
                 reads=self.read_refs(reads),
                 latency_ms=latency_ms,
-                llm_calls=self._pending_llm.pop(agent.name, []),
+                llm_calls=llm_calls,
                 error=(
                     _redact(f"{type(error).__name__}: {error}", self._redactor)
                     if error is not None
@@ -535,6 +579,7 @@ class RunTracer:
             duration_ms=duration_ms,
             outcome=outcome,
             spans=self.spans,
+            trace_truncated=self.truncated,
         )
         try:
             await self.tracer.on_turn_end(trace)

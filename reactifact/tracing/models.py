@@ -118,6 +118,23 @@ class ProduceRun(BaseModel):
     latency_ms: float = 0.0
 
 
+class TraceLimits(BaseModel):
+    """Write-time limits for one recorded run.
+
+    Configure on the tracer (`Tracer(store=..., limits=TraceLimits(...))`),
+    not on `RuntimeResources`: these are recording policy, independent of the
+    app's providers/sources. When a cap is hit, extra data is dropped and the
+    trace is marked `trace_truncated` instead of growing without bound.
+    """
+
+    max_spans: int | None = 5000
+    max_refs_per_span: int | None = 50
+    max_llm_calls_per_span: int | None = 20
+    #: Per-artifact/response text cap. `None` = use
+    #: `RuntimeResources.trace_truncate` (the legacy setting).
+    max_data_chars: int | None = None
+
+
 class AgentSpan(BaseModel):
     """A single agent execution within a run (§54)."""
 
@@ -153,6 +170,14 @@ class RunTrace(BaseModel):
     duration_ms: float = 0.0
     outcome: str = ""
     spans: list[AgentSpan] = Field(default_factory=list)
+    #: Total spans stored for this run (even when `spans` is a page).
+    span_total: int = 0
+    #: Offset of `spans` within the stored run (for pagination).
+    span_offset: int = 0
+    #: Whether the store has more spans beyond this page.
+    has_more_spans: bool = False
+    #: Whether the run was truncated while it was recorded (write-time cap).
+    trace_truncated: bool = False
     #: Reviewer annotations attached *after* the run (UI review workflow, §54).
     #: The runtime always leaves this empty; `TraceStore.get` populates it.
     annotations: list[TagAssignment] = Field(default_factory=list)

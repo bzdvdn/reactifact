@@ -70,6 +70,13 @@
 const state={q:'',limit:25,offset:0,total:0,items:[]};
 function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}}
 function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
+document.getElementById('rows').addEventListener('click',async(e)=>{
+  const btn=e.target.closest('[data-del-session]');if(!btn)return;
+  const id=btn.getAttribute('data-del-session');
+  if(!confirm('Delete all traces for session '+id+'? This cannot be undone.'))return;
+  const res=await fetch('__BASE__/api/sessions/'+encodeURIComponent(id),{method:'DELETE'});
+  if(res.ok)load();else alert('Delete failed');
+});
 document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
 (function initShell(){
   const app=document.getElementById('app');
@@ -111,7 +118,7 @@ function render(){
   const el=document.getElementById('rows');
   document.getElementById('summary').textContent=state.total+' sessions';
   if(!state.items.length){el.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg><div>No sessions yet. Sessions appear once traces carry a session id.</div></div>';updatePager();return;}
-  let html='<table><thead><tr><th>session</th><th style="text-align:right">runs</th><th style="text-align:right">duration</th><th style="text-align:right">tokens</th><th style="text-align:right">last seen</th></tr></thead><tbody>';
+  let html='<table><thead><tr><th>session</th><th style="text-align:right">runs</th><th style="text-align:right">duration</th><th style="text-align:right">tokens</th><th style="text-align:right">last seen</th><th></th></tr></thead><tbody>';
   for(const s of state.items){
     const tokens=(s.prompt_tokens||0)+(s.completion_tokens||0);
     html+='<tr class="row" data-id="'+escapeHtml(s.session_id)+'">'+
@@ -119,7 +126,8 @@ function render(){
       '<td class="num" style="text-align:right">'+s.runs+'</td>'+
       '<td class="num" style="text-align:right">'+Number(s.duration_ms).toFixed(0)+' ms</td>'+
       '<td class="num" style="text-align:right">'+(tokens||'—')+'</td>'+
-      '<td class="num" style="text-align:right" title="'+escapeHtml(fmtAbs(s.last_at))+'">'+fmtRel(s.last_at)+'</td></tr>';
+      '<td class="num" style="text-align:right" title="'+escapeHtml(fmtAbs(s.last_at))+'">'+fmtRel(s.last_at)+'</td>'+
+      '<td style="text-align:right"><button class="btn sm danger" data-del-session="'+escapeHtml(s.session_id)+'">delete</button></td></tr>';
   }
   el.innerHTML=html+'</tbody></table>';
   updatePager();

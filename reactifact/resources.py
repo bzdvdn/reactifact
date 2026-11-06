@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import warnings
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import (
@@ -26,6 +27,15 @@ if TYPE_CHECKING:
     from .redaction import Redactor
 
 T = TypeVar("T")
+
+
+class _UnsetTraceTruncate:
+    """Sentinel so an explicit `trace_truncate=` can be told apart from the default."""
+
+    __slots__ = ()
+
+
+_UNSET_TRACE_TRUNCATE = _UnsetTraceTruncate()
 
 #: Mints an artifact id from its model/type name — injectable for deterministic
 #: runs (`reactifact.replay.counter_ids`). `None` keeps the uuid default.
@@ -85,7 +95,7 @@ class RuntimeResources:
         context_builder: ContextBuilder | None = None,
         verification_threshold: float | None = None,
         redactor: Redactor | None = None,
-        trace_truncate: int | None = 1500,
+        trace_truncate: int | None | _UnsetTraceTruncate = _UNSET_TRACE_TRUNCATE,
         record_tool_args: bool = False,
         id_factory: IdFactory | None = None,
         pricer: Pricer | None = None,
@@ -136,10 +146,19 @@ class RuntimeResources:
         # `redactor` when set). Off by default because args may carry secrets.
         self.record_tool_args = record_tool_args
         # How many characters of an artifact's JSON (and an LLM response) are
-        # kept in a trace. `None` disables truncation. Larger values make
-        # configurable table columns / deep fields resolvable, at the cost of
-        # trace size.
-        self.trace_truncate = trace_truncate
+        # kept in a trace. `None` disables truncation. Deprecated: configure
+        # `Tracer(limits=TraceLimits(max_data_chars=...))` instead; this stays
+        # as a fallback for older code.
+        if isinstance(trace_truncate, _UnsetTraceTruncate):
+            self.trace_truncate: int | None = 1500
+        else:
+            warnings.warn(
+                "RuntimeResources(trace_truncate=...) is deprecated; use "
+                "Tracer(limits=TraceLimits(max_data_chars=...)) instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.trace_truncate = trace_truncate
         # Framework-wide pass/fail cutoff for `Verify` (verify.py): `None`
         # means "use Verify's own DEFAULT_THRESHOLD". A `Verify` instance's
         # own explicit `threshold=` still overrides this per agent.

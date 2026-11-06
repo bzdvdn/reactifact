@@ -266,6 +266,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "TagAssignment",
             "TraceAnnotator",
             "TraceColumn",
+            "TraceLimits",
             "TraceReader",
             "TraceSink",
             "TraceStore",

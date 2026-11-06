@@ -40,11 +40,21 @@ from .store import _SORT_COLUMNS, _like
 class PostgresStore:
     """Postgres trace sink with async write + read. Requires the `pg` extra."""
 
-    def __init__(self, dsn: str):
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        max_runs: int | None = 200,
+        column_scan_limit: int | None = 1000,
+        max_session_runs: int = 50,
+    ):
         from .._extras import require_extra
 
         self._psycopg = require_extra("PostgresStore", "psycopg", "pg")
         self.dsn = dsn
+        self.max_runs = max_runs
+        self.column_scan_limit = column_scan_limit
+        self.max_session_runs = max_session_runs
         self._schema_ready = False
 
     async def _ensure_schema(self) -> None:
@@ -62,7 +72,8 @@ class PostgresStore:
                         duration_ms REAL NOT NULL,
                         outcome TEXT NOT NULL,
                         prompt_tokens INTEGER NOT NULL DEFAULT 0,
-                        completion_tokens INTEGER NOT NULL DEFAULT 0
+                        completion_tokens INTEGER NOT NULL DEFAULT 0,
+                        truncated INTEGER NOT NULL DEFAULT 0
                     )
                     """
                 )
@@ -128,6 +139,10 @@ class PostgresStore:
                     "completion_tokens INTEGER NOT NULL DEFAULT 0"
                 )
                 await cur.execute(
+                    "ALTER TABLE runs ADD COLUMN IF NOT EXISTS "
+                    "truncated INTEGER NOT NULL DEFAULT 0"
+                )
+                await cur.execute(
                     "ALTER TABLE spans ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ"
                 )
                 await cur.execute(
@@ -170,8 +185,8 @@ class PostgresStore:
             async with conn.cursor() as cur:
                 await cur.execute(
                     "INSERT INTO runs (id, session_id, started_at, duration_ms, "
-                    "outcome, prompt_tokens, completion_tokens) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    "outcome, prompt_tokens, completion_tokens, truncated) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         trace.id,
                         trace.session_id,
@@ -180,6 +195,7 @@ class PostgresStore:
                         trace.outcome,
                         prompt_tokens,
                         completion_tokens,
+                        1 if trace.trace_truncated else 0,
                     ),
                 )
                 for span in trace.spans:
@@ -223,9 +239,85 @@ class PostgresStore:
                             ),
                         ),
                     )
+            if self.max_runs is not None:
+                await self._prune_cur(cur, self.max_runs)
             await conn.commit()
         finally:
             await conn.close()
+
+    async def _prune_cur(self, cur: Any, keep: int) -> int:
+        await cur.execute(
+            "SELECT id FROM runs ORDER BY started_at DESC, id DESC OFFSET %s",
+            (keep,),
+        )
+        ids = [r[0] for r in await cur.fetchall()]
+        if not ids:
+            return 0
+        placeholders = ",".join("%s" for _ in ids)
+        await cur.execute(
+            f"DELETE FROM spans WHERE run_id IN ({placeholders})", tuple(ids)
+        )
+        await cur.execute(
+            f"DELETE FROM run_tags WHERE run_id IN ({placeholders})", tuple(ids)
+        )
+        await cur.execute(f"DELETE FROM runs WHERE id IN ({placeholders})", tuple(ids))
+        return len(ids)
+
+    async def prune(self, keep: int | None = None) -> int:
+        keep = self.max_runs if keep is None else keep
+        if keep is None:
+            return 0
+        await self._ensure_schema()
+        conn = await self._psycopg.AsyncConnection.connect(self.dsn)
+        try:
+            async with conn.cursor() as cur:
+                removed = await self._prune_cur(cur, keep)
+            await conn.commit()
+        finally:
+            await conn.close()
+        return removed
+
+    async def delete_run(self, trace_id: str) -> bool:
+        await self._ensure_schema()
+        conn = await self._psycopg.AsyncConnection.connect(self.dsn)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT 1 FROM runs WHERE id = %s", (trace_id,))
+                if await cur.fetchone() is None:
+                    return False
+                await cur.execute("DELETE FROM spans WHERE run_id = %s", (trace_id,))
+                await cur.execute("DELETE FROM run_tags WHERE run_id = %s", (trace_id,))
+                await cur.execute("DELETE FROM runs WHERE id = %s", (trace_id,))
+            await conn.commit()
+        finally:
+            await conn.close()
+        return True
+
+    async def delete_session(self, session_id: str) -> int:
+        await self._ensure_schema()
+        conn = await self._psycopg.AsyncConnection.connect(self.dsn)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id FROM runs WHERE session_id = %s", (session_id,)
+                )
+                ids = [r[0] for r in await cur.fetchall()]
+                if not ids:
+                    return 0
+                placeholders = ",".join("%s" for _ in ids)
+                await cur.execute(
+                    f"DELETE FROM spans WHERE run_id IN ({placeholders})", tuple(ids)
+                )
+                await cur.execute(
+                    f"DELETE FROM run_tags WHERE run_id IN ({placeholders})", tuple(ids)
+                )
+                await cur.execute(
+                    f"DELETE FROM runs WHERE id IN ({placeholders})", tuple(ids)
+                )
+            await conn.commit()
+        finally:
+            await conn.close()
+        return len(ids)
 
     def _where(
         self,
@@ -332,21 +424,32 @@ class PostgresStore:
                         )
                 fields_by_run: dict[str, dict[str, str]] = {}
                 if run_ids and columns:
-                    placeholders = ",".join("%s" for _ in run_ids)
-                    await cur.execute(
-                        "SELECT run_id, agent, reads, writes FROM spans "
-                        f"WHERE run_id IN ({placeholders}) ORDER BY id",
-                        tuple(run_ids),
-                    )
-                    spans_by_run: dict[str, list[SpanArtifacts]] = {}
-                    for run_id, agent, reads, writes in await cur.fetchall():
-                        spans_by_run.setdefault(run_id, []).append(
-                            SpanArtifacts(
-                                agent=agent,
-                                reads=[ArtifactRef(**d) for d in reads],
-                                writes=[ArtifactRef(**d) for d in writes],
+
+                    async def spans_of(
+                        ids: list[str],
+                    ) -> dict[str, list[SpanArtifacts]]:
+                        out: dict[str, list[SpanArtifacts]] = {}
+                        for rid in ids:
+                            sql = (
+                                "SELECT agent, reads, writes FROM spans "
+                                "WHERE run_id = %s ORDER BY id"
                             )
-                        )
+                            args: tuple[Any, ...] = (rid,)
+                            if self.column_scan_limit is not None:
+                                sql += " LIMIT %s"
+                                args = (rid, self.column_scan_limit)
+                            await cur.execute(sql, args)
+                            for agent, reads, writes in await cur.fetchall():
+                                out.setdefault(rid, []).append(
+                                    SpanArtifacts(
+                                        agent=agent,
+                                        reads=[ArtifactRef(**d) for d in reads],
+                                        writes=[ArtifactRef(**d) for d in writes],
+                                    )
+                                )
+                        return out
+
+                    spans_by_run = await spans_of(run_ids)
                     needs_session = any(c.scope == "session" for c in columns)
                     session_order: dict[str, list[tuple[str, list[SpanArtifacts]]]] = {}
                     if needs_session:
@@ -360,21 +463,10 @@ class PostgresStore:
                             ordered = [x[0] for x in await cur.fetchall()]
                             if not ordered:
                                 continue
-                            sph = ",".join("%s" for _ in ordered)
-                            await cur.execute(
-                                "SELECT run_id, agent, reads, writes FROM spans "
-                                f"WHERE run_id IN ({sph}) ORDER BY id",
-                                tuple(ordered),
-                            )
-                            by_run: dict[str, list[SpanArtifacts]] = {}
-                            for run_id, agent, reads, writes in await cur.fetchall():
-                                by_run.setdefault(run_id, []).append(
-                                    SpanArtifacts(
-                                        agent=agent,
-                                        reads=[ArtifactRef(**d) for d in reads],
-                                        writes=[ArtifactRef(**d) for d in writes],
-                                    )
-                                )
+                            if len(ordered) > self.max_session_runs:
+                                half = max(1, self.max_session_runs // 2)
+                                ordered = ordered[:half] + ordered[-half:]
+                            by_run = await spans_of(ordered)
                             session_order[sid] = [
                                 (rid, by_run.get(rid, [])) for rid in ordered
                             ]
@@ -408,18 +500,29 @@ class PostgresStore:
                 "spans": r[7],
                 "tags": tags_by_run.get(r[0], []),
                 "fields": fields_by_run.get(r[0], {}),
+                "fields_truncated": bool(
+                    columns
+                    and self.column_scan_limit is not None
+                    and r[7] > self.column_scan_limit
+                ),
             }
             for r in rows
         ]
         return {"items": items, "total": total, "stats": stats}
 
-    async def get(self, trace_id: str) -> RunTrace | None:
+    async def get(
+        self,
+        trace_id: str,
+        *,
+        span_limit: int | None = 500,
+        span_offset: int = 0,
+    ) -> RunTrace | None:
         await self._ensure_schema()
         conn = await self._psycopg.AsyncConnection.connect(self.dsn)
         try:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT id, session_id, started_at, duration_ms, outcome "
+                    "SELECT id, session_id, started_at, duration_ms, outcome, truncated "
                     "FROM runs WHERE id = %s",
                     (trace_id,),
                 )
@@ -427,12 +530,20 @@ class PostgresStore:
                 if row is None:
                     return None
                 await cur.execute(
+                    "SELECT COUNT(*) FROM spans WHERE run_id = %s", (trace_id,)
+                )
+                span_total = (await cur.fetchone())[0]
+                span_sql = (
                     "SELECT agent, event_type, event_artifact_type, latency_ms, error, "
                     "started_at, reads, writes, relations, llm_calls, produces, tools, "
                     "event_artifact_id, contract "
-                    "FROM spans WHERE run_id = %s ORDER BY id",
-                    (trace_id,),
+                    "FROM spans WHERE run_id = %s ORDER BY id"
                 )
+                span_args: tuple[Any, ...] = (trace_id,)
+                if span_limit is not None:
+                    span_sql += " LIMIT %s OFFSET %s"
+                    span_args = (trace_id, span_limit, span_offset)
+                await cur.execute(span_sql, span_args)
                 span_rows = await cur.fetchall()
                 await cur.execute(
                     "SELECT rt.tag, rt.note, COALESCE(t.color, ''), "
@@ -484,6 +595,10 @@ class PostgresStore:
             duration_ms=row[3],
             outcome=row[4],
             spans=spans,
+            span_total=span_total,
+            span_offset=span_offset,
+            has_more_spans=span_offset + len(spans) < span_total,
+            trace_truncated=bool(row[5]),
             annotations=annotations,
         )
 
@@ -507,21 +622,25 @@ class PostgresStore:
                 async def spans_of(
                     run_ids: list[str],
                 ) -> dict[str, list[SpanArtifacts]]:
-                    placeholders = ",".join("%s" for _ in run_ids)
-                    await cur.execute(
-                        "SELECT run_id, agent, reads, writes FROM spans "
-                        f"WHERE run_id IN ({placeholders}) ORDER BY id",
-                        tuple(run_ids),
-                    )
                     out: dict[str, list[SpanArtifacts]] = {}
-                    for rid, agent, reads, writes in await cur.fetchall():
-                        out.setdefault(rid, []).append(
-                            SpanArtifacts(
-                                agent=agent,
-                                reads=[ArtifactRef(**d) for d in reads],
-                                writes=[ArtifactRef(**d) for d in writes],
-                            )
+                    for rid in run_ids:
+                        sql = (
+                            "SELECT agent, reads, writes FROM spans "
+                            "WHERE run_id = %s ORDER BY id"
                         )
+                        args: tuple[Any, ...] = (rid,)
+                        if self.column_scan_limit is not None:
+                            sql += " LIMIT %s"
+                            args = (rid, self.column_scan_limit)
+                        await cur.execute(sql, args)
+                        for agent, reads, writes in await cur.fetchall():
+                            out.setdefault(rid, []).append(
+                                SpanArtifacts(
+                                    agent=agent,
+                                    reads=[ArtifactRef(**d) for d in reads],
+                                    writes=[ArtifactRef(**d) for d in writes],
+                                )
+                            )
                     return out
 
                 run_spans = (await spans_of([run_id])).get(run_id, [])
@@ -534,6 +653,9 @@ class PostgresStore:
                     )
                     ordered = [r[0] for r in await cur.fetchall()]
                     if ordered:
+                        if len(ordered) > self.max_session_runs:
+                            half = max(1, self.max_session_runs // 2)
+                            ordered = ordered[:half] + ordered[-half:]
                         by_run = await spans_of(ordered)
                         session_spans = []
                         for rid in ordered:

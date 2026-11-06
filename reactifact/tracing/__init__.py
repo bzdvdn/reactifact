@@ -18,6 +18,7 @@ from .models import (
     RunTrace,
     Tag,
     TagAssignment,
+    TraceLimits,
 )
 from .otlp import OTLPTracer
 from .postgres import PostgresStore
@@ -48,6 +49,7 @@ __all__ = [
     "TagAssignment",
     "TraceAnnotator",
     "TraceColumn",
+    "TraceLimits",
     "TraceReader",
     "TraceSink",
     "TraceStore",

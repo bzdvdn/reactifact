@@ -5,7 +5,7 @@ import json
 
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
-from reactifact.tracing import RunTrace, TraceColumn, Tracer, TraceStore
+from reactifact.tracing import RunTrace, TraceColumn, TraceLimits, Tracer, TraceStore
 from reactifact.tracing.columns import SpanArtifacts, extract_columns
 from reactifact.tracing.models import ArtifactRef
 
@@ -328,8 +328,12 @@ def test_trace_truncate_is_configurable(tmp_path):
         d = tmp_path / name
         d.mkdir()
         store = TraceStore(str(d / "traces.db"), max_runs=None)
-        ctx = Context(resources=RuntimeResources(trace_truncate=truncate))
-        runtime = Runtime(ctx, agents=[BigProducer()], tracer=Tracer(store=store))
+        ctx = Context(resources=RuntimeResources())
+        runtime = Runtime(
+            ctx,
+            agents=[BigProducer()],
+            tracer=Tracer(store=store, limits=TraceLimits(max_data_chars=truncate)),
+        )
         ctx.create(Question(text="hello"))
         run(runtime.arun())
         return store

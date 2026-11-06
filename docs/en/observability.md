@@ -28,6 +28,14 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   latency.
 - **Timing and ordering** — the whole causal chain of a run, in order.
 
+A huge run is read in pages: `get(span_limit=…, span_offset=…)` (default 500)
+returns `span_total`/`has_more_spans`, the detail UI loads more on demand, and
+Mermaid is built only for a capped window. Write-time caps
+(`Tracer(limits=TraceLimits(...))`) mark a trace `trace_truncated` instead of
+letting it grow without bound. `DELETE /api/traces/{id}` and
+`DELETE /api/sessions/{id}` (or `delete_run`/`delete_session`) remove a bad run
+or session; the session itself stays visible until you choose to delete it.
+
 `RecordingLLM` wraps your provider for free, so **LLM call tracking needs no
 code** — just wire it at resources time.
 
@@ -154,6 +162,7 @@ and, on the run page, as a **Fields** card — so the question/answer (and a HIT
 clarify, e.g. a `PendingQuestion` column) are visible on the run too, not just
 the list. Values
 come from the JSON persisted with each span, clipped by
+`TraceLimits(max_data_chars=…)` on the tracer (preferred) or the legacy
 `RuntimeResources(trace_truncate=…)` (default 1500 chars; `None` disables the
 clip) — raise it if a deep/large field must resolve.
 

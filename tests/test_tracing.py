@@ -737,8 +737,9 @@ def test_trace_run_page_embeds_mermaid_diagram(tmp_path):
     html = client.get("/traces/r1").text
     assert "__MERMAID__" not in html  # the placeholder was replaced
     assert "__RUN_ID__" not in html
-    assert "sequenceDiagram" in html
-    assert "MERMAID_SRC" in html
+    assert "loadDiagram" in html
+    diagram = client.get("/api/traces/r1/diagram").json()
+    assert "sequenceDiagram" in diagram["mermaid"]
 
 
 def test_trace_run_page_embeds_provenance_graph(tmp_path):
@@ -792,8 +793,9 @@ def test_trace_run_page_embeds_provenance_graph(tmp_path):
     html = client.get("/traces/r1").text
     assert "__MERMAID_GRAPH__" not in html
     assert "Evidence graph" in html
-    assert "MERMAID_GRAPH_SRC" in html
-    assert "supported_by" in html  # the provenance edge was rendered server-side
+    assert "loadDiagram" in html
+    diagram = client.get("/api/traces/r1/diagram").json()
+    assert "supported_by" in diagram["provenance"]
 
 
 def test_runtime_records_provenance_relations(tmp_path):

@@ -21,11 +21,12 @@ the router is created (a web app).
 
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     from fastapi import APIRouter, Request
 
 _TEMPLATES = Path(__file__).parent / "templates"
+T = TypeVar("T")
 
 
 def _mount_base(request: Request, logical_path: str) -> str:
@@ -103,6 +105,9 @@ def create_trace_router(
     username: str | None = None,
     password: str | None = None,
     export_limit: int = 500,
+    max_detail_spans: int = 500,
+    max_mermaid_spans: int = 200,
+    max_concurrent_reads: int | None = 2,
 ) -> APIRouter:
     """Router over a trace store (SQLite or Postgres).
 
@@ -156,6 +161,17 @@ def create_trace_router(
         dependencies = [Depends(_check)]
 
     router = APIRouter(dependencies=dependencies)
+    read_gate = (
+        asyncio.Semaphore(max_concurrent_reads)
+        if max_concurrent_reads is not None
+        else None
+    )
+
+    async def _read(coro: Awaitable[T]) -> T:
+        if read_gate is None:
+            return await coro
+        async with read_gate:
+            return await coro
 
     # ---- reads ------------------------------------------------------------- #
 
@@ -171,17 +187,19 @@ def create_trace_router(
         limit: int = Query(default=25, ge=1, le=200),
         offset: int = Query(default=0, ge=0),
     ) -> dict[str, Any]:
-        return await store.query(
-            session_id=session_id,
-            outcome=outcome,
-            tags=tag,
-            tag_mode=tag_mode,
-            q=q,
-            sort=sort,
-            order=order,
-            columns=columns,
-            limit=limit,
-            offset=offset,
+        return await _read(
+            store.query(
+                session_id=session_id,
+                outcome=outcome,
+                tags=tag,
+                tag_mode=tag_mode,
+                q=q,
+                sort=sort,
+                order=order,
+                columns=columns,
+                limit=limit,
+                offset=offset,
+            )
         )
 
     # ``response_model=None`` is required: the module uses ``from __future__
@@ -200,20 +218,22 @@ def create_trace_router(
         limit: int = Query(default=200, ge=1, le=1000),
     ) -> JSONResponse:
         """Full traces (spans, LLM calls, annotations) for the current filter."""
-        listed = await store.query(
-            session_id=session_id,
-            outcome=outcome,
-            tags=tag,
-            tag_mode=tag_mode,
-            q=q,
-            sort=sort,
-            order=order,
-            limit=min(limit, export_limit),
-            offset=0,
+        listed = await _read(
+            store.query(
+                session_id=session_id,
+                outcome=outcome,
+                tags=tag,
+                tag_mode=tag_mode,
+                q=q,
+                sort=sort,
+                order=order,
+                limit=min(limit, export_limit),
+                offset=0,
+            )
         )
         items: list[dict[str, Any]] = []
         for row in listed["items"]:
-            trace = await store.get(row["id"])
+            trace = await _read(store.get(row["id"], span_limit=max_detail_spans))
             if trace is not None:
                 items.append(trace.to_dict())
         payload = {
@@ -241,7 +261,7 @@ def create_trace_router(
         limit: int = Query(default=50, ge=1, le=200),
         offset: int = Query(default=0, ge=0),
     ) -> dict[str, Any]:
-        return await store.sessions(q=q, limit=limit, offset=offset)
+        return await _read(store.sessions(q=q, limit=limit, offset=offset))
 
     @router.get("/api/columns")
     async def list_columns() -> dict[str, Any]:
@@ -249,14 +269,42 @@ def create_trace_router(
         return {"items": items, "total": len(items)}
 
     @router.get("/api/traces/{trace_id}")
-    async def get_trace(trace_id: str) -> dict[str, Any]:
-        trace = await store.get(trace_id)
+    async def get_trace(
+        trace_id: str,
+        span_limit: int = Query(default=max_detail_spans, ge=0),
+        span_offset: int = Query(default=0, ge=0),
+    ) -> dict[str, Any]:
+        trace = await _read(
+            store.get(trace_id, span_limit=span_limit, span_offset=span_offset)
+        )
         if trace is None:
             raise HTTPException(status_code=404, detail="trace not found")
         data = trace.to_dict()
         if columns:
-            data["fields"] = await store.field_values(trace_id, columns)
+            data["fields"] = await _read(store.field_values(trace_id, columns))
         return data
+
+    @router.get("/api/traces/{trace_id}/tags")
+    async def get_trace_tags(trace_id: str) -> dict[str, Any]:
+        trace = await _read(store.get(trace_id, span_limit=0))
+        if trace is None:
+            raise HTTPException(status_code=404, detail="trace not found")
+        return {"items": [a.model_dump(mode="json") for a in trace.annotations]}
+
+    @router.get("/api/traces/{trace_id}/diagram")
+    async def get_trace_diagram(trace_id: str) -> dict[str, Any]:
+        from ..viz import trace_provenance_to_mermaid, trace_to_mermaid
+
+        trace = await _read(store.get(trace_id, span_limit=max_mermaid_spans))
+        if trace is None:
+            raise HTTPException(status_code=404, detail="trace not found")
+        return {
+            "mermaid": trace_to_mermaid(trace),
+            "provenance": trace_provenance_to_mermaid(trace),
+            "truncated": trace.has_more_spans,
+            "span_total": trace.span_total,
+            "span_limit": max_mermaid_spans,
+        }
 
     # ---- annotation writes ------------------------------------------------- #
 
@@ -285,6 +333,25 @@ def create_trace_router(
     async def remove_tag(trace_id: str, tag: str) -> dict[str, Any]:
         count = await store.untag_runs([trace_id], tag)
         return {"untagged": count}
+
+    @router.delete("/api/traces/{trace_id}")
+    async def delete_trace(trace_id: str) -> dict[str, Any]:
+        delete = getattr(store, "delete_run", None)
+        if delete is None:
+            raise HTTPException(status_code=501, detail="store cannot delete runs")
+        if not await delete(trace_id):
+            raise HTTPException(status_code=404, detail="trace not found")
+        return {"deleted": 1}
+
+    @router.delete("/api/sessions/{session_id}")
+    async def delete_session(session_id: str) -> dict[str, Any]:
+        delete = getattr(store, "delete_session", None)
+        if delete is None:
+            raise HTTPException(status_code=501, detail="store cannot delete sessions")
+        count = await delete(session_id)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="session not found")
+        return {"deleted": count}
 
     # ---- tag vocabulary ---------------------------------------------------- #
 
@@ -330,18 +397,13 @@ def create_trace_router(
 
     @router.get("/traces/{trace_id}", response_class=HTMLResponse)
     async def traces_run_page(request: Request, trace_id: str) -> str:
-        from ..viz import trace_provenance_to_mermaid, trace_to_mermaid
-
-        trace = await store.get(trace_id)
-        mermaid = trace_to_mermaid(trace) if trace is not None else ""
-        provenance = trace_provenance_to_mermaid(trace) if trace is not None else ""
+        # The shell only — detail and diagram are fetched by the page itself,
+        # so a huge trace is never loaded twice (or at all) just to render HTML.
         return _render_page(
             request,
             "ui_run.html",
             "/traces/{trace_id}",
             __RUN_ID__=json.dumps(trace_id),
-            __MERMAID__=json.dumps(mermaid),
-            __MERMAID_GRAPH__=json.dumps(provenance),
         )
 
     return router
