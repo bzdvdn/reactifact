@@ -4,6 +4,24 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.17.1] — 2026-11-06
+
+### Fixed
+
+- **Postgres trace retention no longer rolls back every export.** `PostgresStore.export()`
+  called `_prune_cur()` after the cursor's `async with` block had closed it,
+  raising `psycopg.InterfaceError: the cursor is closed` and rolling back the
+  inserted run. Retention now runs on the still-open cursor, so pruning and the
+  trace insert commit together.
+- **SQLite trace export and retention are now atomic.** `TraceStore.export()`
+  committed the run before pruning, so a retention failure left the trace
+  stored without applying the limit. The insert and `_prune_sync()` now share
+  one transaction (with `rollback()` on error), matching `PostgresStore`'s
+  still-open-cursor behavior.
+- **Postgres retention regression test.** Added coverage for
+  `PostgresStore.export()` with `max_runs` set, guarding the cursor-close /
+  `InterfaceError` regression that used to roll back every export.
+
 ## [0.17.0] — 2026-10-31
 
 ### Added

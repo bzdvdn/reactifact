@@ -372,48 +372,54 @@ class TraceStore:
         started = trace.started_at.timestamp() if trace.started_at else time.time()
         prompt_tokens = sum(c.prompt_tokens for c in trace.llm_calls)
         completion_tokens = sum(c.completion_tokens for c in trace.llm_calls)
-        self._conn.execute(
-            "INSERT INTO runs (id, session_id, started_at, duration_ms, outcome, "
-            "prompt_tokens, completion_tokens, truncated) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                trace.id,
-                trace.session_id,
-                started,
-                trace.duration_ms,
-                trace.outcome,
-                prompt_tokens,
-                completion_tokens,
-                1 if trace.trace_truncated else 0,
-            ),
-        )
-        for span in trace.spans:
+        try:
             self._conn.execute(
-                "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
-                "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
-                "produces, tools, event_artifact_id, contract) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO runs (id, session_id, started_at, duration_ms, outcome, "
+                "prompt_tokens, completion_tokens, truncated) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     trace.id,
-                    span.agent,
-                    span.event_type,
-                    span.event_artifact_type,
-                    span.latency_ms,
-                    span.error,
-                    span.started_at.timestamp() if span.started_at else None,
-                    json.dumps([r.model_dump(mode="json") for r in span.reads]),
-                    json.dumps([w.model_dump(mode="json") for w in span.writes]),
-                    json.dumps([r.model_dump(mode="json") for r in span.relations]),
-                    json.dumps([c.model_dump(mode="json") for c in span.llm_calls]),
-                    json.dumps([p.model_dump(mode="json") for p in span.produces]),
-                    json.dumps([t.model_dump(mode="json") for t in span.tools]),
-                    span.event_artifact_id,
-                    json.dumps(span.contract.model_dump(mode="json")),
+                    trace.session_id,
+                    started,
+                    trace.duration_ms,
+                    trace.outcome,
+                    prompt_tokens,
+                    completion_tokens,
+                    1 if trace.trace_truncated else 0,
                 ),
             )
-        self._conn.commit()
-        if self.max_runs is not None:
-            self._prune_sync(self.max_runs)
+            for span in trace.spans:
+                self._conn.execute(
+                    "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
+                    "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
+                    "produces, tools, event_artifact_id, contract) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        trace.id,
+                        span.agent,
+                        span.event_type,
+                        span.event_artifact_type,
+                        span.latency_ms,
+                        span.error,
+                        span.started_at.timestamp() if span.started_at else None,
+                        json.dumps([r.model_dump(mode="json") for r in span.reads]),
+                        json.dumps([w.model_dump(mode="json") for w in span.writes]),
+                        json.dumps([r.model_dump(mode="json") for r in span.relations]),
+                        json.dumps([c.model_dump(mode="json") for c in span.llm_calls]),
+                        json.dumps([p.model_dump(mode="json") for p in span.produces]),
+                        json.dumps([t.model_dump(mode="json") for t in span.tools]),
+                        span.event_artifact_id,
+                        json.dumps(span.contract.model_dump(mode="json")),
+                    ),
+                )
+            # Insert and retention commit together: a prune failure rolls the
+            # run back instead of leaving it stored with retention unapplied.
+            if self.max_runs is not None:
+                self._prune_sync(self.max_runs, commit=False)
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
 
     def _delete_run_sync(self, trace_id: str) -> bool:
         exists = self._conn.execute(
@@ -445,7 +451,7 @@ class TraceStore:
         self._conn.commit()
         return len(ids)
 
-    def _prune_sync(self, keep: int) -> int:
+    def _prune_sync(self, keep: int, *, commit: bool = True) -> int:
         """Keeps the last `keep` traces, deletes older ones (retention)."""
         cur = self._conn.execute(
             "DELETE FROM runs WHERE id NOT IN "
@@ -458,7 +464,8 @@ class TraceStore:
         self._conn.execute(
             "DELETE FROM run_tags WHERE run_id NOT IN (SELECT id FROM runs)"
         )
-        self._conn.commit()
+        if commit:
+            self._conn.commit()
         return cur.rowcount
 
     def _where(

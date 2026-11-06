@@ -419,15 +419,27 @@ def test_trace_memoizes_artifact_dump(tmp_path):
 def test_trace_store_retention_prunes_oldest(tmp_path):
     store = TraceStore(str(tmp_path / "ret.db"), max_runs=2)
     for i in range(5):
-        run(store.export(RunTrace(id=f"r{i}", session_id="s", outcome="completed")))
+        run(
+            store.export(
+                RunTrace(
+                    id=f"r{i}",
+                    session_id="s",
+                    outcome="completed",
+                    spans=[AgentSpan(agent="a")],
+                )
+            )
+        )
+    run(store.tag_runs(["r0", "r1"], "old"))
 
     items = run(store.query())["items"]
     ids = {item["id"] for item in items}
     assert ids == {"r3", "r4"}  # the last 2 remain
     assert run(store.get("r0")) is None
-    # spans of old traces are also removed
-    rows = store._conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
-    assert rows == 0  # r3/r4 have no spans (exported without spans)
+    # spans and tags of old traces are also removed
+    spans = store._conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
+    tags = store._conn.execute("SELECT COUNT(*) FROM run_tags").fetchone()[0]
+    assert spans == 2  # one per r3/r4
+    assert tags == 0
 
 
 class FakeClient:
@@ -869,6 +881,31 @@ def test_postgres_store_roundtrip(tmp_path):
     loaded = run(store.get("pg-1"))
     assert loaded is not None
     assert loaded.spans[0].relations[0].relation == "supported_by"
+
+
+def test_postgres_export_with_retention_does_not_raise(tmp_path):
+    """Retention must run on the still-open cursor (regression: InterfaceError)."""
+    import os
+
+    import pytest
+    from reactifact.tracing import PostgresStore
+
+    dsn = os.environ.get("TEST_PG_DSN")
+    if not dsn:
+        pytest.skip("TEST_PG_DSN not set — skipping Postgres trace integration")
+
+    store = PostgresStore(dsn, max_runs=100_000)
+    trace = RunTrace(
+        id="pg-retention-1",
+        session_id="pg-retention-test",
+        outcome="completed",
+        spans=[AgentSpan(agent="a")],
+    )
+    try:
+        run(store.export(trace))
+        assert run(store.get("pg-retention-1")) is not None
+    finally:
+        run(store.delete_session("pg-retention-test"))
 
 
 def test_span_started_at_roundtrips(tmp_path):

@@ -129,3 +129,26 @@ def test_trace_truncate_is_deprecated():
         warnings.simplefilter("error")
         default = RuntimeResources()
     assert default.trace_truncate == 1500
+
+
+def test_sqlite_export_rolls_back_when_prune_fails(tmp_path, monkeypatch):
+    store = TraceStore(str(tmp_path / "atomic.db"), max_runs=100)
+
+    def boom(keep: int, *, commit: bool = True) -> int:
+        raise RuntimeError("prune failed")
+
+    monkeypatch.setattr(store, "_prune_sync", boom)
+    with pytest.raises(RuntimeError, match="prune failed"):
+        run(
+            store.export(
+                RunTrace(
+                    id="r1",
+                    session_id="s1",
+                    outcome="completed",
+                    spans=[AgentSpan(agent="a")],
+                )
+            )
+        )
+
+    # insert + retention share one transaction, so the failed prune leaves no run
+    assert run(store.get("r1")) is None

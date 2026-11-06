@@ -239,8 +239,8 @@ class PostgresStore:
                             ),
                         ),
                     )
-            if self.max_runs is not None:
-                await self._prune_cur(cur, self.max_runs)
+                if self.max_runs is not None:
+                    await self._prune_cur(cur, self.max_runs)
             await conn.commit()
         finally:
             await conn.close()
