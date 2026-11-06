@@ -69,6 +69,54 @@ def test_sqlite_session_appends_only_new_commits(tmp_path):
     asyncio.run(_run())
 
 
+def test_append_persists_working_tree_artifacts(tmp_path):
+    """User input is a working-tree artifact, not a commit: append saves must
+    carry it too, or every message after the first is lost on reload."""
+
+    async def _run() -> None:
+        backend = SQLiteKVBackend(str(tmp_path / "sessions.db"))
+        store = SessionStore(backend)
+        context = Context()
+
+        await store.save_session("s", context)  # initial snapshot
+        first = context.create(Note(text="first user message"))
+        _commit(context, "committed", "note:committed")
+        await store.save_session("s", context)  # append
+
+        second = context.create(Note(text="second user message"))
+        await store.save_session("s", context)  # append again
+
+        loaded = await store.load_session("s")
+        assert loaded is not None
+        texts = [note.data.text for note in loaded.list_artifacts(Note)]
+        assert texts == ["first user message", "committed", "second user message"]
+        assert loaded.get(first.id) is not None
+        assert loaded.get(second.id) is not None
+        await backend.aclose()
+
+    asyncio.run(_run())
+
+
+def test_working_tree_artifact_delete_survives_append_reload(tmp_path):
+    async def _run() -> None:
+        backend = SQLiteKVBackend(str(tmp_path / "sessions.db"))
+        store = SessionStore(backend)
+        context = Context()
+
+        await store.save_session("s", context)
+        first = context.create(Note(text="temporary"))
+        await store.save_session("s", context)
+        context.delete(first.id)
+        await store.save_session("s", context)
+
+        loaded = await store.load_session("s")
+        assert loaded is not None
+        assert loaded.list_artifacts(Note) == []
+        await backend.aclose()
+
+    asyncio.run(_run())
+
+
 def test_compaction_rewrites_the_snapshot_and_clears_the_log(tmp_path):
     async def _run() -> None:
         backend = SQLiteKVBackend(str(tmp_path / "sessions.db"))

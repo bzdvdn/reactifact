@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from reactifact import Consume, SessionStore, create_agent, produce
 from reactifact.chat import ChatAssistant
-from reactifact.checkpoints import FileKVBackend
+from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.web import create_chat_router
 
 
@@ -65,6 +65,35 @@ def test_history_roundtrip(tmp_path):
     assert roles == ["user", "assistant"]
     assert history["messages"][0]["text"] == "hi"
     assert history["messages"][1]["text"] == "answer"
+
+
+def test_history_keeps_every_user_message_with_append_backend(tmp_path):
+    """Append-only sessions must persist working-tree user messages, not just
+    the assistant commits the runtime writes."""
+    store = SessionStore(SQLiteKVBackend(str(tmp_path / "sessions.sqlite3")))
+
+    def reply(ctx, msg_id):
+        answer = ctx.latest(A)
+        return {"reply": answer.data.text if answer else "fallback", "waiting": False}
+
+    assistant = ChatAssistant(
+        store=store,
+        agents=[ANSWER_AGENT],
+        user_message=Q,
+        reply=reply,
+        max_concurrency=1,
+    )
+    for text in ("first", "second", "third"):
+        _drain(assistant.stream(text, session_id="s1"))
+
+    history = asyncio.run(assistant.history("s1"))
+    messages = history["messages"]
+    assert [m["role"] for m in messages] == [
+        "user", "assistant", "user", "assistant", "user", "assistant"
+    ]
+    assert [m["text"] for m in messages if m["role"] == "user"] == [
+        "first", "second", "third"
+    ]
 
 
 def test_history_empty_for_unknown_session(tmp_path):

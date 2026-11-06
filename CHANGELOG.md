@@ -4,6 +4,18 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.17.2] — 2026-11-07
+
+### Fixed
+
+- **Append-only sessions now persist working-tree artifacts.** `Context.create()`
+  (used for each chat turn's user message) does not create a commit, and
+  `save_append()` previously wrote only commits/events. After the first snapshot,
+  every later user turn disappeared on reload while assistant `FinalResponse`s
+  remained. Append entries now carry the current working tree (artifacts,
+  relations and insertion order), and `default_session_state()` uses insertion
+  order instead of `created_at` (replayed commits get load-time timestamps).
+
 ## [0.17.1] — 2026-11-06
 
 ### Fixed

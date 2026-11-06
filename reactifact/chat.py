@@ -180,7 +180,11 @@ def default_session_state(
     `assistant`. Apps with richer reply payloads pass their own hook.
     """
     messages: list[dict[str, Any]] = []
-    for artifact in sorted(ctx.list_artifacts(), key=lambda a: a.created_at):
+    # Insertion order is the true creation order. Do not sort by `created_at`:
+    # append-only session replay reconstructs committed artifacts at load time,
+    # so their timestamps are newer than the working-tree user messages and a
+    # timestamp sort would push all user turns to the front.
+    for artifact in ctx.list_artifacts():
         data = artifact.data
         text = getattr(data, "text", None)
         if not isinstance(text, str):
