@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Produce, ProduceCall
+from reactifact import Artifact, Consume, Context, Step, StepCall
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -43,7 +43,7 @@ _hypotheses_prompt = StructuredLLM(HypothesesOut, system=SYSTEM_RESEARCHER)
 _extract_prompt = StructuredLLM(Body, system=SYSTEM_EXTRACTOR)
 
 
-class Generator(Produce[Hypothesis]):
+class Generator(Step):
     """Question → competing hypotheses.
 
     With an LLM available, four alternatives are proposed for *this* question
@@ -51,7 +51,8 @@ class Generator(Produce[Hypothesis]):
     the deterministic set below stands in (§67).
     """
 
-    artifact_type = Hypothesis
+    consumes = (Question,)
+    produces = (Hypothesis,)
     #: Deterministic fallback (the demo's own topic).
     STATEMENTS = (
         "vitamin D supplementation prevents winter colds",
@@ -61,7 +62,7 @@ class Generator(Produce[Hypothesis]):
     )
     MAX_HYPOTHESES = 4
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         question_id = question_id_of(context, call.event)
         if question_id is None:
@@ -112,12 +113,13 @@ class Generator(Produce[Hypothesis]):
         return None
 
 
-class Investigator(Produce[SourceRef]):
+class Investigator(Step):
     """Per-hypothesis channel: search sources tagged with the hypothesis."""
 
-    artifact_type = SourceRef
+    consumes = (Consume.by_status(Hypothesis, "open"),)
+    produces = (SourceRef, SearchDone)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         hyp_art = call.trigger
         if hyp_art is None or not isinstance(hyp_art.data, Hypothesis):
@@ -171,12 +173,13 @@ class Investigator(Produce[SourceRef]):
         return None
 
 
-class Resolver(Produce[TypedDoc]):
+class Resolver(Step):
     """Lazy materialization: a ref → page text (Reference → Artifact, §6)."""
 
-    artifact_type = TypedDoc
+    consumes = (SourceRef,)
+    produces = (TypedDoc,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         ref_art = call.trigger
         if ref_art is None or not isinstance(ref_art.data, SourceRef):
@@ -202,7 +205,7 @@ class Resolver(Produce[TypedDoc]):
         return None
 
 
-class ExtractEvidence(Produce[Evidence]):
+class ExtractEvidence(Step):
     """Evidence from a page; polarity decided by content vs each hypothesis.
 
     Topic-agnostic (§66): a page supports the hypotheses it agrees with
@@ -210,9 +213,10 @@ class ExtractEvidence(Produce[Evidence]):
     Deterministic — the model only summarises (§67), it never scores.
     """
 
-    artifact_type = Evidence
+    consumes = (TypedDoc,)
+    produces = (Evidence,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         doc_art = call.trigger
         if doc_art is None or not isinstance(doc_art.data, TypedDoc):
@@ -241,12 +245,13 @@ class ExtractEvidence(Produce[Evidence]):
         return None
 
 
-class ClaimBuilder(Produce[Claim]):
+class ClaimBuilder(Step):
     """Evidence → claims with confidence against the page (§35)."""
 
-    artifact_type = Claim
+    consumes = (Evidence,)
+    produces = (Claim,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         ev_art = call.trigger
         if ev_art is None or not isinstance(ev_art.data, Evidence):
@@ -277,12 +282,13 @@ class ClaimBuilder(Produce[Claim]):
         return None
 
 
-class CrossChecker(Produce[Claim]):
+class CrossChecker(Step):
     """Cross-hypothesis contradictions (§36): similar wording, opposite polarity."""
 
-    artifact_type = Claim
+    consumes = (Claim,)
+    produces = (Claim,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         claim_art = call.trigger
         if claim_art is None or not isinstance(claim_art.data, Claim):

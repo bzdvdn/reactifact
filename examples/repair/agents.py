@@ -1,9 +1,8 @@
-"""Repair assistant agent — a container over the staged Produce (§71)."""
+"""Repair assistant agent — a container over the staged Step (§71)."""
 
-from reactifact import Agent, Consume, PendingQuestion, Produce
+from reactifact import Agent
 
-from .models import ChatReply, Project, UserMsg
-from .produce import (
+from .steps import (
     ApprovalStage,
     AssistantStage,
     CollectStage,
@@ -16,19 +15,16 @@ from .produce import (
 class RepairFlow(Agent):
     """Single dispatcher: reacts to messages and project changes.
 
-    Each stage is its own Produce with a deterministic guard; routing follows
+    Each stage is its own Step with a deterministic guard; routing follows
     `Project.stage` — the runtime builds links from the artifact state.
     """
 
     name = "repair_flow"
-    consumes = [Consume(UserMsg), Consume(Project)]
-    produces = [
+    steps = [
         CollectStage(),
         PickStage(),
         PlanStage(),
         EstimateStage(),
         ApprovalStage(),
         AssistantStage(),
-        Produce(ChatReply),
-        Produce(PendingQuestion),
     ]

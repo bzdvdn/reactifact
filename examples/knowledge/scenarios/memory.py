@@ -1,6 +1,6 @@
 """Multi-turn: chat memory carries over to a follow-up question.
 
-`BuildAnswer` (`produce/lifecycle.py`) only feeds `conversation_text(...)`
+`BuildAnswer` (`steps/lifecycle.py`) only feeds `conversation_text(...)`
 into the LLM prompt — with no model configured, the deterministic fallback
 answer ignores it entirely, so a purely `llm=None` run can't show memory
 changing the *answer text*. What it can prove, fully deterministically, is
@@ -16,7 +16,7 @@ from reactifact.testing import ScenarioLab, scenario
 
 from ..agents import AGENTS
 from ..models import Answer, Calculation, UserQuery
-from ..produce.common import conversation_text
+from ..steps.common import conversation_text
 from ._common import GPU_COST_QUESTION, resources
 
 FOLLOW_UP_QUESTION = "how do I set up billing alerts for that?"

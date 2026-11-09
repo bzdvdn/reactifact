@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-from reactifact import Agent, Consume
+from reactifact import Agent
 
-from .models import Review, Strategy
-from .produce import BreadthInvestigate, DepthInvestigate, Evaluate
+from .steps import BreadthInvestigate, DepthInvestigate, Evaluate
 
 
 class StrategyAgent(Agent):
     """Runs in a *single* branch: spawn the Strategy first, this reacts."""
 
     name = "strategy"
-    consumes = [Consume(Strategy)]
-    produces = [DepthInvestigate(), BreadthInvestigate()]
+    steps = [DepthInvestigate(), BreadthInvestigate()]
 
 
 class EvaluatorAgent(Agent):
     """Runs on the merged context and produces the final Answer."""
 
     name = "evaluator"
-    consumes = [Consume(Review)]
-    produces = [Evaluate()]
+    steps = [Evaluate()]

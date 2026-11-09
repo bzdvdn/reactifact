@@ -8,21 +8,22 @@ the top findings are printed verbatim (honest fallback, §59).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Produce, ProduceCall
+from reactifact import Artifact, Context, Step, StepCall
 from reactifact.structured import structured_llm
 
-from ..models import Answer, AnswerBody, Evidence, Question
+from ..models import Answer, AnswerBody, Evidence, Question, Review
 from ..prompts import synthesis_system
 
 TOPN = 3
 
 
-class Evaluate(Produce[Answer]):
+class Evaluate(Step):
     """Deterministic ranking + links; LLM wording on top of the merged state."""
 
-    artifact_type = Answer
+    consumes = (Review,)
+    produces = (Answer,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         evidences = context.list_artifacts(Evidence)
         if not evidences:

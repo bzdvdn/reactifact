@@ -5,7 +5,7 @@ The lexicons decide the numbers, the model never does (§67, §68).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Produce, ProduceCall
+from reactifact import Artifact, Context, Step, StepCall
 from reactifact.sources import SourceRef
 
 from ..models import (
@@ -113,12 +113,13 @@ def evaluate_hypothesis(
     }
 
 
-class Evaluator(Produce[Hypothesis]):
+class Evaluator(Step):
     """Deterministic scorer; re-runs as each channel round materializes."""
 
-    artifact_type = Hypothesis
+    consumes = (Hypothesis, Evidence, Claim, TypedDoc, SearchDone)
+    produces = (Hypothesis,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         question_id = question_id_of(context, call.event)
         if question_id is None:

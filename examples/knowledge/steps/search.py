@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Produce, ProduceCall
+from reactifact import Artifact, Context, Step, StepCall
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 
@@ -10,16 +10,17 @@ from ..models import ResearchTurn, SearchDone, Spreadsheet, TypedDoc
 from .common import SCOUT_LIMIT
 
 
-class ScoutSources(Produce[SourceRef]):
+class ScoutSources(Step):
     """Fan-out over all configured sources, with idempotency (§24, §42).
 
     Effects-based: `fan_out_sources` writes the refs into `self.effects`, this
     produce adds the idempotency marker, and the runtime commits the slot once.
     """
 
-    artifact_type = SourceRef
+    consumes = (ResearchTurn,)
+    produces = (SourceRef, SearchDone)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         turn_artifact = call.trigger
         if turn_artifact is None or not isinstance(turn_artifact.data, ResearchTurn):
@@ -53,12 +54,13 @@ class ScoutSources(Produce[SourceRef]):
         return None
 
 
-class ResolveRef(Produce[TypedDoc]):
+class ResolveRef(Step):
     """Lazy materialization of a text ref (§6); text documents only."""
 
-    artifact_type = TypedDoc
+    consumes = (SourceRef,)
+    produces = (TypedDoc,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         ref_artifact = call.trigger
         if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
@@ -92,12 +94,13 @@ class ResolveRef(Produce[TypedDoc]):
         return None
 
 
-class ResolveTable(Produce[Spreadsheet]):
+class ResolveTable(Step):
     """Spreadsheet: structured data stays structured, not text (§29)."""
 
-    artifact_type = Spreadsheet
+    consumes = (SourceRef,)
+    produces = (Spreadsheet,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         ref_artifact = call.trigger
         if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):

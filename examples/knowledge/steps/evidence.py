@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Produce, ProduceCall
+from reactifact import Step, StepCall
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -16,12 +16,13 @@ from .common import (
 )
 
 
-class ExtractEvidence(Produce[Evidence]):
+class ExtractEvidence(Step):
     """A key fact from the document (schema → fact, §18)."""
 
-    artifact_type = Evidence
+    consumes = (TypedDoc,)
+    produces = (Evidence,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         doc_artifact = call.trigger
         if doc_artifact is None or not isinstance(doc_artifact.data, TypedDoc):
@@ -57,7 +58,7 @@ class ExtractEvidence(Produce[Evidence]):
         return None
 
 
-class VerifyClaims(Produce[Claim]):
+class VerifyClaims(Step):
     """Builds verifiable claims from a fact and computes their confirmation (§35).
 
     Each Evidence sentence → Claim with confidence (by matching against the
@@ -66,7 +67,8 @@ class VerifyClaims(Produce[Claim]):
     state rather than something hidden in a string (§36, §69).
     """
 
-    artifact_type = Claim
+    consumes = (Evidence,)
+    produces = (Claim,)
 
     @staticmethod
     def _similarity(a: str, b: str) -> float:
@@ -75,7 +77,7 @@ class VerifyClaims(Produce[Claim]):
             return 0.0
         return len(ta & tb) / min(len(ta), len(tb))
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         evidence_art = call.trigger
         if evidence_art is None or not isinstance(evidence_art.data, Evidence):

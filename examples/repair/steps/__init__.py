@@ -2,7 +2,7 @@
 
 Flat re-exports keep the agent's imports stable: `common` (shared helpers and
 the change/rebuild model), `design` (options + previews), `plan` (LLM plan),
-`stages` (the six Produce stages).
+`stages` (the six Step stages).
 """
 
 from .stages import (

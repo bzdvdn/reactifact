@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from reactifact import Produce, ProduceCall
+from reactifact import Step, StepCall
 from reactifact.structured import structured_llm
 
-from ..models import AnswerBody, ChatReply, ResearchTurn
+from ..models import AnswerBody, ChatReply, ResearchTurn, UserQuery
 from .common import GREETING_RE, GREETING_TEXT, RESEARCH_RE, user_query
 
 
-class PlannerReply(Produce[ChatReply]):
+class PlannerReply(Step):
     """ChatReply: greeting / direct reply. None for research questions."""
 
-    artifact_type = ChatReply
+    consumes = (UserQuery,)
+    produces = (ChatReply,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         event = call.event
         user = user_query(context, event)
@@ -52,12 +53,13 @@ class PlannerReply(Produce[ChatReply]):
         return None
 
 
-class PlannerTurn(Produce[ResearchTurn]):
+class PlannerTurn(Step):
     """ResearchTurn: for questions that need a source search."""
 
-    artifact_type = ResearchTurn
+    consumes = (UserQuery,)
+    produces = (ResearchTurn,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         event = call.event
         user = user_query(context, event)

@@ -1,24 +1,13 @@
 """Demo-assistant agents — thin containers (§46, §48).
 
-Logic lives in the Produce classes (`examples/knowledge/produce/`);
-here we only declare the consumes/produces contracts.
+Logic lives in the Step classes (`examples/knowledge/steps/`); here we only
+declare the steps contracts. Each step carries its own `consumes`/`produces`,
+so the agent is just the runtime entry point.
 """
 
-from reactifact import Agent, Consume, Produce
-from reactifact.sources import SourceRef
+from reactifact import Agent
 
-from .models import (
-    Answer,
-    Calculation,
-    Claim,
-    Evidence,
-    ResearchTurn,
-    SearchDone,
-    Spreadsheet,
-    TypedDoc,
-    UserQuery,
-)
-from .produce import (
+from .steps import (
     BuildAnswer,
     CalculateAggregate,
     EvaluateTurn,
@@ -36,78 +25,56 @@ class Planner(Agent):
     """Router: greeting/direct → ChatReply, research → ResearchTurn."""
 
     name = "planner"
-    consumes = [Consume(UserQuery)]
-    produces = [PlannerReply(), PlannerTurn()]
+    steps = [PlannerReply(), PlannerTurn()]
 
 
 class SearchScout(Agent):
     """Fan-out over sources: refs → SourceRef + search-complete marker."""
 
     name = "search_scout"
-    consumes = [Consume(ResearchTurn)]
-    produces = [ScoutSources(), Produce(SearchDone)]
+    steps = [ScoutSources()]
 
 
 class ResolverAgent(Agent):
     """Lazy materialization of a text link into a typed document."""
 
     name = "resolver"
-    consumes = [Consume(SourceRef)]
-    produces = [ResolveRef()]
+    steps = [ResolveRef()]
 
 
 class TableResolver(Agent):
     """Lazy materialization of a structured ref into a spreadsheet (§29)."""
 
     name = "table_resolver"
-    consumes = [Consume(SourceRef)]
-    produces = [ResolveTable()]
+    steps = [ResolveTable()]
 
 
 class EvidenceBuilder(Agent):
     """Extracts key facts from a document."""
 
     name = "evidence_builder"
-    consumes = [Consume(TypedDoc)]
-    produces = [ExtractEvidence()]
+    steps = [ExtractEvidence()]
 
 
 class VerifierAgent(Agent):
     """Verifies facts: builds claims with confidence and finds contradictions."""
 
     name = "verifier"
-    consumes = [Consume(Evidence)]
-    produces = [VerifyClaims()]
+    steps = [VerifyClaims()]
 
 
 class CalculatorAgent(Agent):
     """Computes over the spreadsheet if the question asks for an aggregate (§29, §67)."""
 
     name = "calculator"
-    consumes = [Consume(Spreadsheet)]
-    produces = [CalculateAggregate()]
+    steps = [CalculateAggregate()]
 
 
 class ProgressEvaluator(Agent):
-    """Deterministic turn overseer: moves statuses forward (§24, §69).
-
-    Consumes research lifecycle events: search, documents, evidence, claims,
-    calculations, the final answer — recomputes the needed status on each one.
-    """
+    """Deterministic turn overseer: moves statuses forward (§24, §69)."""
 
     name = "progress_evaluator"
-    consumes = [
-        Consume(ResearchTurn),
-        Consume(SourceRef),
-        Consume(TypedDoc),
-        Consume(Evidence),
-        Consume(Claim),
-        Consume(Spreadsheet),
-        Consume(Calculation),
-        Consume(SearchDone),
-        Consume(Answer),
-    ]
-    produces = [EvaluateTurn()]
+    steps = [EvaluateTurn()]
     priority = 100
 
 
@@ -115,8 +82,7 @@ class AnswerBuilder(Agent):
     """Assembles the answer once the turn becomes answerable (§17)."""
 
     name = "answer_builder"
-    consumes = [Consume.by_field(ResearchTurn, "status", "answerable")]
-    produces = [BuildAnswer()]
+    steps = [BuildAnswer()]
 
 
 #: The full pipeline, in no particular order — the runtime schedules by
@@ -132,4 +98,17 @@ AGENTS: list[Agent] = [
     CalculatorAgent(),
     ProgressEvaluator(),
     AnswerBuilder(),
+]
+
+__all__ = [
+    "AGENTS",
+    "AnswerBuilder",
+    "CalculatorAgent",
+    "EvidenceBuilder",
+    "Planner",
+    "ProgressEvaluator",
+    "ResolverAgent",
+    "SearchScout",
+    "TableResolver",
+    "VerifierAgent",
 ]

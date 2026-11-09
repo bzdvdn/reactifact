@@ -1,6 +1,6 @@
 """Deterministic pipeline fallbacks (no LLM, §67).
 
-A separate module so that `produce.py` stays about stages while the fallback
+A separate module so that `steps.py` stays about stages while the fallback
 design options and plan live here. Used only when the model is not
 configured (demo mode); when a model is configured, failures are not masked.
 """

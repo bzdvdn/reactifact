@@ -8,7 +8,7 @@ can walk the chain to an auditable record.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, ProduceCall, produce
+from reactifact import Artifact, Context, StepCall, step
 from reactifact.recipes import fan_out_sources, find
 from reactifact.sources import SourceRef
 
@@ -25,8 +25,8 @@ from examples.fintech_audit.models import (
 POLICY_THRESHOLD = 0.10
 
 
-@produce(SourceRef)
-async def search_sources(call: ProduceCall) -> None:
+@step(produces=SourceRef, consumes=Question)
+async def search_sources(call: StepCall) -> None:
     question = find(call.inputs, Question)
     if question is None:
         return None
@@ -40,8 +40,8 @@ def _question(context: Context) -> Artifact[Question] | None:
     return context.latest(Question)
 
 
-@produce(Table, also_creates=(Policy,))
-async def materialize(call: ProduceCall) -> None:
+@step(produces=(Table, Policy), consumes=SourceRef)
+async def materialize(call: StepCall) -> None:
     """Resolves a `SourceRef` into a `Table` (CSV) or a `Policy` (Markdown)."""
     ref = call.trigger
     if ref is None or not isinstance(ref.data, SourceRef):
@@ -84,8 +84,8 @@ def _budget_for(table: Table, category: str) -> float | None:
     return None
 
 
-@produce(Spend, reacts_to=Table)
-async def compute_spend(call: ProduceCall) -> None:
+@step(produces=Spend, consumes=Table)
+async def compute_spend(call: StepCall) -> None:
     """Sums `cloud` spend by month — deterministic arithmetic, not a model."""
     table = call.trigger
     if table is None or not isinstance(table.data, Table):
@@ -116,8 +116,8 @@ async def compute_spend(call: ProduceCall) -> None:
     return None
 
 
-@produce(Variance, reacts_to=Spend)
-async def compute_variance(call: ProduceCall) -> None:
+@step(produces=Variance, consumes=Spend)
+async def compute_variance(call: StepCall) -> None:
     """Actual vs budget, and whether the variance crosses the policy line."""
     spend = call.trigger
     if spend is None or not isinstance(spend.data, Spend):
@@ -182,8 +182,8 @@ def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
     return locators
 
 
-@produce(AuditAnswer, reacts_to=Variance)
-async def answer(call: ProduceCall) -> None:
+@step(produces=AuditAnswer, consumes=Variance)
+async def answer(call: StepCall) -> None:
     """States the computed figures in prose, citing the sources it rests on."""
     variance = call.trigger
     if variance is None or not isinstance(variance.data, Variance):

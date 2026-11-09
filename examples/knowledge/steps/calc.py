@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Produce, ProduceCall
+from reactifact import Step, StepCall
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -58,16 +58,17 @@ def numeric_column(sheet: Spreadsheet) -> tuple[str | None, list[float]]:
     return chosen, values
 
 
-class CalculateAggregate(Produce[Calculation]):
+class CalculateAggregate(Step):
     """Calculation: computes over the spreadsheet if asked for an aggregate (§29, §67).
 
     Deterministic arithmetic (sum/mean/max/min over the relevant numeric column).
     Provenance: Calculation —derived_from→ Spreadsheet.
     """
 
-    artifact_type = Calculation
+    consumes = (Spreadsheet,)
+    produces = (Calculation,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         sheet_art = call.trigger
         if sheet_art is None or not isinstance(sheet_art.data, Spreadsheet):

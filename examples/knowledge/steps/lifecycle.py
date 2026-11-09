@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from reactifact import Context, Produce, ProduceCall
+from reactifact import Consume, Context, Step, StepCall
 from reactifact.recipes import StatusMachine, match_skills
 from reactifact.sources import SourceRef
 from reactifact.structured import structured_llm
@@ -18,6 +18,7 @@ from ..models import (
     ResearchTurn,
     SearchDone,
     Spreadsheet,
+    TypedDoc,
 )
 from .common import FALLBACK_TOPN, conversation_text
 
@@ -35,7 +36,18 @@ def _log_llm_outage(reason: str, exc: BaseException | None) -> None:
 class EvaluateTurn(StatusMachine[ResearchTurn]):
     """Moves the turn's status when state changes (deterministic, §24, §69)."""
 
-    artifact_type = ResearchTurn
+    consumes = (
+        ResearchTurn,
+        SourceRef,
+        TypedDoc,
+        Evidence,
+        Claim,
+        Spreadsheet,
+        Calculation,
+        SearchDone,
+        Answer,
+    )
+    produces = (ResearchTurn,)
     terminal = frozenset({"answered", "insufficient"})
 
     def next_status(self, context: Context, key: str) -> str | None:
@@ -69,12 +81,13 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
         )
 
 
-class BuildAnswer(Produce[Answer]):
+class BuildAnswer(Step):
     """Projection of all the query's evidence into an answer (§17, §34)."""
 
-    artifact_type = Answer
+    consumes = (Consume.by_field(ResearchTurn, "status", "answerable"),)
+    produces = (Answer,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         turn_artifact = call.trigger
         if turn_artifact is None or not isinstance(turn_artifact.data, ResearchTurn):

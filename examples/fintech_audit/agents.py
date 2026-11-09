@@ -2,17 +2,9 @@
 
 from __future__ import annotations
 
-from reactifact import Agent, Consume, create_agent
-from reactifact.sources import SourceRef
+from reactifact import Agent, create_agent
 
-from examples.fintech_audit.models import (
-    Policy,
-    Question,
-    Spend,
-    Table,
-    Variance,
-)
-from examples.fintech_audit.produce import (
+from examples.fintech_audit.steps import (
     answer,
     compute_spend,
     compute_variance,
@@ -21,15 +13,11 @@ from examples.fintech_audit.produce import (
 )
 
 AGENTS: list[Agent] = [
-    create_agent("search", consumes=[Consume(Question)], produces=[search_sources]),
-    create_agent("materialize", consumes=[Consume(SourceRef)], produces=[materialize]),
-    create_agent("analyze", consumes=[Consume(Table)], produces=[compute_spend]),
-    create_agent("variance", consumes=[Consume(Spend)], produces=[compute_variance]),
-    create_agent(
-        "answer",
-        consumes=[Consume(Variance), Consume(Policy, wakes=False)],
-        produces=[answer],
-    ),
+    create_agent("search", steps=[search_sources]),
+    create_agent("materialize", steps=[materialize]),
+    create_agent("analyze", steps=[compute_spend]),
+    create_agent("variance", steps=[compute_variance]),
+    create_agent("answer", steps=[answer]),
 ]
 
 __all__ = ["AGENTS"]

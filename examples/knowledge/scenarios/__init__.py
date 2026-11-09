@@ -11,7 +11,7 @@ unit tests in `tests/`, run through the `reactifact scenario` CLI, so a plain
 `reactifact.testing`).
 
 Three scenarios over the multi-source pipeline (`search -> evidence -> claim
-verification -> calc -> answer`, see `examples/knowledge/produce/`), one per
+verification -> calc -> answer`, see `examples/knowledge/steps/`), one per
 module:
 
 - `greeting` — the router answers a greeting from its regex table without
@@ -26,7 +26,7 @@ module:
   offline — proving the real model actually assembles a coherent, sourced
   answer from the retrieved evidence, without needing a key in CI.
 - `memory` — a multi-turn scenario (`lab.scenario()`/`.turn()`) proving chat
-  memory (`produce/common.py`'s `conversation_text`) still holds the first
+  memory (`steps/common.py`'s `conversation_text`) still holds the first
   question and its answer by the time a follow-up question is asked.
 
 `_common.py` holds the shared resources/fixture-path/stub-LLM helpers.

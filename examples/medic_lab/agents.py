@@ -1,19 +1,9 @@
 """medic-lab agents — thin containers, example-local (§48)."""
 
-from reactifact import Agent, Consume, Produce
-from reactifact.interrupt import PendingQuestion
+from reactifact import Agent
 from reactifact.scheduler import Scheduler, relation_balance_metric, uncertainty_policy
-from reactifact.sources import SourceRef
 
-from .models import (
-    Claim,
-    Evidence,
-    Hypothesis,
-    Question,
-    SearchDone,
-    TypedDoc,
-)
-from .produce import (
+from .steps import (
     ClaimBuilder,
     CrossChecker,
     Deepen,
@@ -30,78 +20,58 @@ from .produce import (
 class GeneratorAgent(Agent):
     name = "generator"
     concurrency_limit = 2  # LLM-bound producers (§66)
-    consumes = [Consume(Question)]
-    produces = [Generator()]
+    steps = [Generator()]
 
 
 class InvestigatorAgent(Agent):
     name = "investigator"
-    consumes = [Consume.by_status(Hypothesis, "open")]
-    produces = [Investigator(), Produce(SearchDone)]
+    steps = [Investigator()]
 
 
 class ResolverAgent(Agent):
     name = "resolver"
-    consumes = [Consume(SourceRef)]
-    produces = [Resolver()]
+    steps = [Resolver()]
 
 
 class EvidenceAgent(Agent):
     name = "evidence_extractor"
     concurrency_limit = 2  # LLM-bound producers (§66)
-    consumes = [Consume(TypedDoc)]
-    produces = [ExtractEvidence()]
+    steps = [ExtractEvidence()]
 
 
 class ClaimsAgent(Agent):
     name = "claim_builder"
-    consumes = [Consume(Evidence)]
-    produces = [ClaimBuilder()]
+    steps = [ClaimBuilder()]
 
 
 class CrossCheckAgent(Agent):
     name = "cross_checker"
-    consumes = [Consume(Claim)]
-    produces = [CrossChecker()]
+    steps = [CrossChecker()]
     priority = 50
 
 
 class EvaluatorAgent(Agent):
     name = "evaluator"
-    consumes = [
-        Consume(Hypothesis),
-        Consume(Evidence),
-        Consume(Claim),
-        Consume(TypedDoc),
-        Consume(SearchDone),
-    ]
-    produces = [Evaluator()]
+    steps = [Evaluator()]
     priority = 100
 
 
 class SteerAgent(Agent):
     name = "steer"
-    consumes = [Consume(Hypothesis), Consume(Claim), Consume(Evidence)]
-    produces = [Steer(), Produce(PendingQuestion)]
+    steps = [Steer()]
     priority = 100
 
 
 class DeepenAgent(Agent):
     name = "deepen"
     concurrency_limit = 2  # LLM-bound producers (§66)
-    consumes = [Consume.by_field(PendingQuestion, "answered", True)]
-    produces = [Deepen()]
+    steps = [Deepen()]
 
 
 class ReporterAgent(Agent):
     name = "reporter"
     concurrency_limit = 2  # LLM-bound producers (§66)
-    consumes = [
-        Consume(Hypothesis),
-        Consume(PendingQuestion),
-        Consume(Question),
-    ]
-    produces = [Reporter()]
+    steps = [Reporter()]
     priority = 100
 
 
@@ -124,6 +94,6 @@ def medic_lab_scheduler() -> Scheduler:
     """Uncertainty-driven scheduling (§26): when several open hypotheses are
     eligible for (re-)investigation in the same generation, prioritize the
     most-contradicted one first. Same `supports`/`contradicts` relations
-    `Evaluator` already scores by hand (`produce/evaluate.py`) — this reuses
+    `Evaluator` already scores by hand (`steps/evaluate.py`) — this reuses
     the signal to drive execution order, not just the report."""
     return uncertainty_policy(metric=relation_balance_metric())

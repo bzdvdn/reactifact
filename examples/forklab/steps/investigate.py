@@ -9,7 +9,7 @@ fallback, §59) — the pipeline still runs fully offline.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Produce, ProduceCall
+from reactifact import Artifact, Context, Step, StepCall
 from reactifact.structured import structured_llm
 
 from ..models import Evidence, EvidenceBody, Question, Strategy
@@ -60,12 +60,13 @@ def _strategy_of(context: Context) -> Artifact[Strategy] | None:
     return strategies[0] if strategies else None
 
 
-class DepthInvestigate(Produce[Evidence]):
+class DepthInvestigate(Step):
     """One strong finding from the top-ranked document."""
 
-    artifact_type = Evidence
+    consumes = (Strategy,)
+    produces = (Evidence,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "depth":
@@ -84,12 +85,13 @@ class DepthInvestigate(Produce[Evidence]):
         return None
 
 
-class BreadthInvestigate(Produce[Evidence]):
+class BreadthInvestigate(Step):
     """Several weaker findings across more documents."""
 
-    artifact_type = Evidence
+    consumes = (Strategy,)
+    produces = (Evidence,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "breadth":

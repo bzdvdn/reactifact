@@ -1,6 +1,6 @@
 """repair produce — the six pipeline stages (§71).
 
-Each stage is its own Produce with a deterministic guard on `Project.stage`:
+Each stage is its own Step with a deterministic guard on `Project.stage`:
 collect (facts → designs) → design_choice (pick) → plan (LLM + geometry) →
 estimate (catalog, no LLM) → final_approval (HITL gate) → assistant (open-ended
 post-approval). Routing follows the project's stage field — the runtime/wake
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reactifact import Context, Produce, ProduceCall
+from reactifact import Context, PendingQuestion, Step, StepCall
 from reactifact.artifacts import Artifact
 from reactifact.recipes import changed_fields
 from reactifact.structured import llm_reply
@@ -54,10 +54,13 @@ def _reply(
 # --- collect stage -----------------------------------------------------------
 
 
-class CollectStage(Produce[Project]):
+class CollectStage(Step):
     """Extracts facts; once all the required ones are present — designs and design_choice."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    consumes = (UserMsg, Project)
+    produces = (Project, ChatReply)
+
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None:
@@ -127,10 +130,13 @@ class CollectStage(Produce[Project]):
 # --- design_choice stage -------------------------------------------------------
 
 
-class PickStage(Produce[Project]):
+class PickStage(Step):
     """Parses the user's choice → plan."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    consumes = (UserMsg, Project)
+    produces = (Project, ChatReply)
+
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "design_choice":
@@ -164,10 +170,13 @@ class PickStage(Produce[Project]):
 # --- plan / estimate / final_approval stages (deterministic steps) ------------
 
 
-class PlanStage(Produce[Project]):
+class PlanStage(Step):
     """Plan (LLM + geometry) → estimate."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    consumes = (Project,)
+    produces = (Project,)
+
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if (
@@ -182,10 +191,13 @@ class PlanStage(Produce[Project]):
         return None
 
 
-class EstimateStage(Produce[Project]):
+class EstimateStage(Step):
     """Estimate — deterministically, via the catalog (no LLM) → final_approval."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    consumes = (Project,)
+    produces = (Project,)
+
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "estimate":
@@ -203,10 +215,13 @@ class EstimateStage(Produce[Project]):
         return None
 
 
-class ApprovalStage(Produce[Project]):
+class ApprovalStage(Step):
     """HITL gate (§60): immediately asks the approval question; the answer → assistant or a rebuild."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    consumes = (UserMsg, Project)
+    produces = (Project, ChatReply, PendingQuestion)
+
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "final_approval":
@@ -275,12 +290,13 @@ class ApprovalStage(Produce[Project]):
 # --- assistant stage ------------------------------------------------------------
 
 
-class AssistantStage(Produce[Project]):
+class AssistantStage(Step):
     """Open-ended dialogue after approval."""
 
-    artifact_type = Project
+    consumes = (UserMsg, Project)
+    produces = (Project, ChatReply)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None or project_art.data.stage != "assistant":

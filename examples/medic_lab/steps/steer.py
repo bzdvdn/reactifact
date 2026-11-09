@@ -6,11 +6,13 @@ import re
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Context, Produce, ProduceCall
+from reactifact import Consume, Context, Step, StepCall
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
 from ..models import (
+    Claim,
+    Evidence,
     Hypothesis,
     HypothesisRank,
     Question,
@@ -62,7 +64,7 @@ def _ranking_block(context: Context, question_id: str) -> str:
     return "\n".join(lines)
 
 
-class Steer(Produce[PendingQuestion]):
+class Steer(Step):
     """HITL (§60): when every hypothesis is terminal, ask the human.
 
     Uses a stable artifact id, so concurrent invocations in one generation
@@ -70,9 +72,10 @@ class Steer(Produce[PendingQuestion]):
     no new events.
     """
 
-    artifact_type = PendingQuestion
+    consumes = (Hypothesis, Claim, Evidence)
+    produces = (PendingQuestion,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         question_id = question_id_of(context, call.event)
         if question_id is None:
@@ -103,12 +106,13 @@ class Steer(Produce[PendingQuestion]):
         return None
 
 
-class Deepen(Produce[PendingQuestion]):
+class Deepen(Step):
     """Human answer: deepen hypothesis N (reopens its channel) or stop."""
 
-    artifact_type = PendingQuestion
+    consumes = (Consume.by_field(PendingQuestion, "answered", True),)
+    produces = (PendingQuestion,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         q_art = call.trigger
         if q_art is None or not isinstance(q_art.data, PendingQuestion):
@@ -173,12 +177,13 @@ class Deepen(Produce[PendingQuestion]):
         return [q.strip() for q in body.questions if q.strip()] if body else []
 
 
-class Reporter(Produce[ResearchReport]):
+class Reporter(Step):
     """Builds the report when the human stops or the depth budget is exhausted."""
 
-    artifact_type = ResearchReport
+    consumes = (Hypothesis, PendingQuestion, Question)
+    produces = (ResearchReport,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         question_id = question_id_of(context, call.event)
         if question_id is None:

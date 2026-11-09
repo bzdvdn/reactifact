@@ -12,7 +12,7 @@ unit tests in `tests/`, run through the `reactifact scenario` CLI, so a plain
 
 Four scenarios over the staged pipeline (`collect -> design_choice -> plan ->
 estimate -> final_approval -> assistant`, see
-`examples/repair/produce/stages.py`), one per module:
+`examples/repair/steps/stages.py`), one per module:
 
 - `greeting` — the fast-reply table answers a greeting without touching
   the LLM at all.
