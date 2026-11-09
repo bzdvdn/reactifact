@@ -125,10 +125,12 @@ class CursorStep(Step):
     produces = (Answer,)
 
     async def run(self, call, question: Question) -> None:
+        assert call.trigger is not None
+        vector = call.cursor.get(Question, {})
         self.effects.upsert(
             Answer(
                 query_id=question.query_id,
-                text=str(call.cursor.get(Question, -1)),
+                text=str(vector.get(call.trigger.id, -1)),
             ),
             id="cursor-answer",
         )

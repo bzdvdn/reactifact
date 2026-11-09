@@ -52,7 +52,7 @@ class SerializedContext(TypedDict, total=False):
     events: list[dict[str, Any]]
     fork_name: str
     base: SerializedContext | None
-    step_cursors: dict[str, dict[str, list[Any]]]
+    step_cursors: dict[str, dict[str, dict[str, int]]]
 
 
 #: from_version -> migration that upgrades the payload by one version.
@@ -168,7 +168,7 @@ class Context:
         #: Per-step input cursors (watermark scheduling): step key →
         #: {artifact type: (latest id, max version)}. In-memory for now;
         #: persistence/replay of cursors is a later core milestone.
-        self._step_cursors: dict[Any, dict[type, tuple[str, int]]] = {}
+        self._step_cursors: dict[Any, dict[type, dict[str, int]]] = {}
         # Compatibility view for the single-session case (last marked key).
         self._persisted_version = -1
         self._persisted_compacted_at = 0
@@ -874,36 +874,41 @@ class Context:
         self._recompute_stale()
         self._reindex_by_type()
 
-    def _serialize_step_cursors(self) -> dict[str, dict[str, list[Any]]]:
+    def _serialize_step_cursors(self) -> dict[str, dict[str, dict[str, int]]]:
         """Serializes watermark cursors with stable type ids (JSON-safe keys)."""
-        payload: dict[str, dict[str, list[Any]]] = {}
+        payload: dict[str, dict[str, dict[str, int]]] = {}
         for (agent, step, scope), cursor in self._step_cursors.items():
             key = json.dumps([agent, step, scope], ensure_ascii=False, default=str)
             payload[key] = {
-                type_id_of(artifact_type): [latest_id, version]
-                for artifact_type, (latest_id, version) in cursor.items()
+                type_id_of(artifact_type): dict(vector)
+                for artifact_type, vector in cursor.items()
             }
         return payload
 
     @staticmethod
     def _deserialize_step_cursors(
-        payload: Mapping[str, Mapping[str, Sequence[Any]]],
-    ) -> dict[Any, dict[type, tuple[str, int]]]:
-        cursors: dict[Any, dict[type, tuple[str, int]]] = {}
+        payload: Mapping[str, Mapping[str, Any]],
+    ) -> dict[Any, dict[type, dict[str, int]]]:
+        cursors: dict[Any, dict[type, dict[str, int]]] = {}
         for key, values in payload.items():
             try:
                 agent, step, scope = json.loads(key)
             except (TypeError, ValueError):
                 continue
-            cursor: dict[type, tuple[str, int]] = {}
-            for type_id, pair in values.items():
+            cursor: dict[type, dict[str, int]] = {}
+            for type_id, raw in values.items():
                 try:
                     artifact_type = resolve(type_id)
                 except Exception:  # noqa: BLE001 — an unknown type is skipped
                     continue
-                if len(pair) != 2:
+                if isinstance(raw, Mapping):
+                    vector = {str(aid): int(ver) for aid, ver in raw.items()}
+                elif isinstance(raw, Sequence) and len(raw) == 2:
+                    # 0.2 preview shape: [latest id, max version]
+                    vector = {str(raw[0]): int(raw[1])}
+                else:
                     continue
-                cursor[artifact_type] = (str(pair[0]), int(pair[1]))
+                cursor[artifact_type] = vector
             cursors[(agent, step, scope)] = cursor
         return cursors
 

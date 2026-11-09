@@ -138,9 +138,9 @@ class StepCall:
     trigger: Artifact[Any] | None = None
     #: The step's correlation value for this run (e.g. its `query_id`).
     scope: Any = None
-    #: The highest version of each input artifact type this run saw.
-    #: A first slice of the per-step cursor (watermark scheduling comes next).
-    cursor: dict[type, int] = field(default_factory=dict)
+    #: Per-artifact input cursor: type -> {artifact id -> version seen}.
+    #: This is the step's watermark (what it has already consumed).
+    cursor: dict[type, dict[str, int]] = field(default_factory=dict)
 
     @property
     def effects(self) -> Effects:
@@ -374,10 +374,14 @@ class Step(Generic[TOut]):
         return context
 
     @property
-    def cursor(self) -> dict[type, int]:
-        """The input version cursor of the current run (type → version)."""
+    def cursor(self) -> dict[type, dict[str, int]]:
+        """The input cursor of the current run (type → {artifact id → version})."""
         call = current_step_call()
-        return dict(call.cursor) if call is not None else {}
+        if call is None:
+            return {}
+        return {
+            artifact_type: dict(vector) for artifact_type, vector in call.cursor.items()
+        }
 
     @property
     def scope_value(self) -> Any:

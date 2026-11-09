@@ -84,3 +84,35 @@ def test_watermark_cursors_survive_context_round_trip():
     restored = Context.from_dict(context.to_dict())
     execute(restored)
     assert runs["step"] == 1  # same cursor restored -> no re-run
+
+
+def test_watermark_tracks_every_artifact_of_a_consumed_type():
+    runs["step"] = 0
+    context = Context()
+    first = context.create(A(text="first"))
+    second = context.create(A(text="second"))
+    context.create(B(text="b"))
+    agent = Flow()
+    event = Event(EventType.ARTIFACT_CREATED, A, second.id)
+
+    def execute() -> None:
+        token = set_effects(Effects(context))
+        try:
+            asyncio.run(agent.execute(context, event))
+        finally:
+            reset_effects(token)
+
+    execute()
+    assert runs["step"] == 1
+
+    # An update to any consumed artifact has its own event -> runs once.
+    context.update(first.id, A(text="first2"))
+    event = Event(EventType.ARTIFACT_UPDATED, A, first.id)
+    execute()
+    assert runs["step"] == 2
+
+    # A new artifact of a consumed type has its own event and runs the step.
+    third = context.create(A(text="third"))
+    event = Event(EventType.ARTIFACT_CREATED, A, third.id)
+    execute()
+    assert runs["step"] == 3

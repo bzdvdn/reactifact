@@ -244,9 +244,9 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         step: Step[Any],
         artifacts: list[Artifact[Any]],
         scope_value: Any,
-    ) -> dict[type, tuple[str, int]]:
-        """The step's input watermark: latest id + max version per type."""
-        cursor: dict[type, tuple[str, int]] = {}
+    ) -> dict[type, dict[str, int]]:
+        """The step's input view: {type: {artifact id: version}}."""
+        cursor: dict[type, dict[str, int]] = {}
         for artifact in artifacts:
             if (
                 step.scope is not None
@@ -254,9 +254,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                 and getattr(artifact.data, step.scope, None) != scope_value
             ):
                 continue
-            artifact_type = type(artifact.data)
-            _, max_version = cursor.get(artifact_type, ("", -1))
-            cursor[artifact_type] = (artifact.id, max(max_version, artifact.version))
+            cursor.setdefault(type(artifact.data), {})[artifact.id] = artifact.version
         return cursor
 
     async def execute(self, context: Context, event: Event | None = None) -> None:
@@ -289,25 +287,25 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             )
             input_cursor = self._input_cursor(p, cursor_artifacts, scope_value)
             cursor_key = (self.name, p.name, scope_value)
-            if input_cursor and context._step_cursors.get(cursor_key) == input_cursor:
+            trigger_cursor = (
+                {type(trigger.data): {trigger.id: trigger.version}}
+                if trigger is not None
+                else {}
+            )
+            if (
+                trigger_cursor
+                and context._step_cursors.get(cursor_key) == trigger_cursor
+            ):
                 continue
             before = len(slot.operations) if slot is not None else 0
             started = time.monotonic()
-            cursor: dict[type, int] = {}
-            for artifact in (
-                [*step_inputs, trigger] if trigger is not None else step_inputs
-            ):
-                artifact_type = type(artifact.data)
-                cursor[artifact_type] = max(
-                    cursor.get(artifact_type, -1), artifact.version
-                )
             call = StepCall(
                 context=context,
                 inputs=step_inputs,
                 event=event,
                 trigger=trigger,
                 scope=scope_value,
-                cursor=cursor,
+                cursor={t: dict(v) for t, v in input_cursor.items()},
             )
             produce_token = set_current_produce(p.name)
             context_token = set_step_context(context)
@@ -315,8 +313,8 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             try:
                 result = await invoke_step(p, call)
                 p._apply_result(result)
-                if p.consumes:
-                    context._step_cursors[cursor_key] = input_cursor
+                if trigger_cursor:
+                    context._step_cursors[cursor_key] = trigger_cursor
             finally:
                 reset_step_call(call_token)
                 reset_step_context(context_token)
