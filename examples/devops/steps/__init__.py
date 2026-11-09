@@ -1,4 +1,4 @@
-"""devops produce — routing, domain reports, reply rendering.
+"""devops steps — routing, domain reports, reply rendering.
 
 Mirrors the pipeline: `router` (question → LLM agent's problem artifact) →
 `reports` (ToolAnswer of each agent → domain report) → `reply` (report →

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Produce, ProduceCall
+from reactifact import Artifact, Step
 from reactifact.tool_use import ToolAnswer
 
 from ..models import AnsibleReport, GitlabReport, K8sReport
 
 
-class _ReportBuilder(Produce[BaseModel]):
+class _ReportBuilder(Step):
     """Common report builder: ToolAnswer → domain report.
 
     The agent has already been filtered by the
@@ -20,26 +20,32 @@ class _ReportBuilder(Produce[BaseModel]):
 
     report_type: type[BaseModel] = BaseModel
 
-    async def produce(self, call: ProduceCall) -> None:
-        a = call.trigger
-        if a is None or not isinstance(a.data, ToolAnswer):
-            return None
-        problem = call.context.get(a.data.query_id)
+    async def run(self, answer: Artifact[ToolAnswer]) -> BaseModel | None:
+        problem = self.context.get(answer.data.query_id)
         qid = getattr(problem.data, "query_id", "") if problem else ""
-        self.effects.create(self.report_type(query_id=qid, text=a.data.text))
-        return None
+        return self.report_type(query_id=qid, text=answer.data.text)
 
 
 class K8sReportBuilder(_ReportBuilder):
-    artifact_type = K8sReport
+    consumes = (ToolAnswer,)
+    produces = (K8sReport,)
     report_type = K8sReport
 
 
 class GitlabReportBuilder(_ReportBuilder):
-    artifact_type = GitlabReport
+    consumes = (ToolAnswer,)
+    produces = (GitlabReport,)
     report_type = GitlabReport
 
 
 class AnsibleReportBuilder(_ReportBuilder):
-    artifact_type = AnsibleReport
+    consumes = (ToolAnswer,)
+    produces = (AnsibleReport,)
     report_type = AnsibleReport
+
+
+__all__ = [
+    "AnsibleReportBuilder",
+    "GitlabReportBuilder",
+    "K8sReportBuilder",
+]
