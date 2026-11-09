@@ -37,8 +37,13 @@ directory). Agents read them; they never persist them.
 
 ## 2. Artifact
 
-An `Artifact` is the pair `(id, data, created_at, …)` where `data` is a
-`pydantic` model. Artifacts are **first-class objects**, not string blobs.
+An `Artifact` is an immutable handle `(id, version, data, content_hash, …)`
+where `data` is a `pydantic` model. Artifacts are **first-class objects**, not
+string blobs. Every revision lives in the context's `ArtifactStore`; reads via
+`Context.artifact_version`/`version_history`/`find_versions`, while
+`Artifact.at/history` are compatibility bridges. Mutation is `Context.update`
+(or effects), never mutating `artifact.data` in place — the content hash is the
+identity.
 
 ```python
 class Evidence(BaseModel):

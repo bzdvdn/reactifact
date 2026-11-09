@@ -11,9 +11,10 @@ to replay itself when it needs a past or reconstructed state.
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 from typing import Any
 
-from .artifacts import Artifact
+from .artifacts import Artifact, blob_key, payload_content_hash
 from .commit import Commit, compute_commit_id
 from .patches import Create, Delete, Link, Relation, Unlink, Update
 from .relations import RelationKey
@@ -301,14 +302,40 @@ class CommitLog:
         clone._dict_cache = dict(self._dict_cache)
         return clone
 
-    def to_baseline_dict(self) -> dict[str, Any] | None:
-        """Serializes the compaction baseline (`None` when never compacted)."""
+    def to_baseline_dict(
+        self, blobs: dict[str, dict[str, Any]] | None = None
+    ) -> dict[str, Any] | None:
+        """Serializes the compaction baseline (`None` when never compacted).
+
+        With `blobs`, the baseline uses the same v2 version-index shape as the
+        live artifacts and stores every payload once.
+        """
         if self._baseline is None:
             return None
+        if blobs is None:
+            artifacts = {aid: art.to_dict() for aid, art in self._baseline.items()}
+        else:
+            artifacts = {}
+            for artifact_id, artifact in self._baseline.items():
+                payload = artifact.data.model_dump(mode="json")
+                content_hash = payload_content_hash(payload)
+                blobs[blob_key(artifact.data_type, content_hash)] = payload
+                artifacts[artifact_id] = {
+                    "current": artifact.version,
+                    "versions": [
+                        {
+                            "version": artifact.version,
+                            "data_type": artifact.data_type,
+                            "content_hash": content_hash,
+                            "commit_id": artifact.created_by_commit,
+                            "created_at": artifact.updated_at.isoformat(),
+                        }
+                    ],
+                }
         return {
             "version": self._baseline_version,
             "head_id": self._baseline_head_id,
-            "artifacts": {aid: art.to_dict() for aid, art in self._baseline.items()},
+            "artifacts": artifacts,
             "relations": [
                 rel.to_dict() for rel in (self._baseline_relations or {}).values()
             ],
@@ -352,10 +379,39 @@ class CommitLog:
         log = cls()
         log._commits = [Commit.from_dict(cd, blobs) for cd in commits]
         if baseline is not None:
-            log._baseline = {
-                aid: Artifact.from_dict(art_dict)
-                for aid, art_dict in baseline["artifacts"].items()
-            }
+            log._baseline = {}
+            for aid, art_dict in baseline["artifacts"].items():
+                if "versions" not in art_dict:
+                    log._baseline[aid] = Artifact.from_dict(art_dict)
+                    continue
+                if blobs is None:
+                    raise ValueError("a v2 baseline needs the blob map to load")
+                versions = art_dict["versions"]
+                current = art_dict.get("current")
+                record = next(
+                    (v for v in versions if v["version"] == current),
+                    versions[-1],
+                )
+                data_type = record["data_type"]
+                payload = blobs[blob_key(data_type, record["content_hash"])]
+                from .types import migrate_payload, resolve
+
+                model_class = resolve(data_type)
+                data = model_class.model_validate(migrate_payload(data_type, payload))
+                created_at = (
+                    datetime.fromisoformat(record["created_at"])
+                    if record.get("created_at")
+                    else None
+                )
+                log._baseline[aid] = Artifact(
+                    data=data,
+                    id=aid,
+                    version=int(record["version"]),
+                    content_hash=record["content_hash"],
+                    created_by_commit=record.get("commit_id"),
+                    created_at=created_at,
+                    updated_at=created_at,
+                )
             log._baseline_relations = {
                 (rel["source_id"], rel["relation"], rel["target_id"]): Relation(
                     rel["source_id"], rel["relation"], rel["target_id"]

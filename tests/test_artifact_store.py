@@ -169,3 +169,41 @@ def test_v2_roundtrip_keeps_deleted_history():
     restored = Context.from_dict(payload)
     assert restored.get(doc.id) is None
     assert [v.data.text for v in restored.version_history(doc.id)] == ["one", "two"]
+
+
+def test_v2_baseline_uses_blobs_and_roundtrips():
+    from reactifact.commit import Commit
+    from reactifact.patches import Create, Update
+
+    ctx = Context()
+    ctx.apply_commit(
+        Commit(
+            author="test",
+            message="create",
+            operations=[Create(Doc(text="one"), id="doc:1", artifact_id="doc:1")],
+        )
+    )
+    ctx.apply_commit(
+        Commit(
+            author="test",
+            message="update",
+            operations=[Update("doc:1", Doc(text="two"))],
+        )
+    )
+    ctx.compact(keep_commits=0)
+
+    payload = ctx.to_dict()
+    baseline = payload["commit_baseline"]
+    assert baseline is not None
+    info = baseline["artifacts"]["doc:1"]
+    assert info["current"] == info["versions"][0]["version"]
+    assert (
+        blob_key(
+            info["versions"][0]["data_type"],
+            info["versions"][0]["content_hash"],
+        )
+        in payload["blobs"]
+    )
+
+    restored = Context.from_dict(payload)
+    assert restored.get("doc:1").data.text == "two"

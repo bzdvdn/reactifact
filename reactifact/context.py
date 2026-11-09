@@ -1151,7 +1151,7 @@ class Context:
             "blobs": blobs,
             "relations": self._relations.to_dict(),
             "commits": self._log.to_dict(blobs),
-            "commit_baseline": self._log.to_baseline_dict(),
+            "commit_baseline": self._log.to_baseline_dict(blobs),
             # Pending triggers, so an interrupted run resumes after a process
             # restart instead of settling on an empty queue. `context_hash`
             # deliberately excludes these (state, not provenance): the queue

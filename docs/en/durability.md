@@ -16,9 +16,14 @@ log for `AppendBackend`:
   `rollback`/`replay` still work;
 - the **pending trigger queue** — the events no generation has dispatched yet.
 
-The payload carries a `format_version`; a payload from a newer reactifact is
-rejected explicitly, older ones go through the registered migrations
-(`Context.from_dict`).
+Artifact payloads are content-addressed in the snapshot: `blobs` stores each
+payload once under `(data_type, content_hash)`, artifact entries hold a version
+index, and commit `Create`/`Update` operations reference the same blobs via
+`data_ref`. `ctx.artifact_version()` / `version_history()` / `find_versions()`
+read that store; `Artifact.at/history` remain compatibility bridges. The
+payload carries a `format_version`; a payload from a newer reactifact is
+rejected explicitly, older ones (including v1 inline history) go through the
+registered migrations (`Context.from_dict`).
 
 With an **`AppendBackend`** (`SQLiteKVBackend`, `PostgreSQLKVBackend`) the store
 does not rewrite the whole Context on every commit: the first save (or the first

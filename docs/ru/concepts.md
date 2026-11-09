@@ -37,8 +37,13 @@ ctx = Context(
 
 ## 2. Artifact
 
-`Artifact` — пара `(id, data, created_at, …)`, где `data` — модель `pydantic`.
-Артефакты — **полноценные объекты**, а не строковые блобы.
+`Artifact` — неизменяемый handle `(id, version, data, content_hash, …)`, где
+`data` — модель `pydantic`. Артефакты — **полноценные объекты**, а не строковые
+блобы. Каждая ревизия живёт в `ArtifactStore` контекста; читать историю через
+`Context.artifact_version`/`version_history`/`find_versions`, а
+`Artifact.at/history` — compatibility-мосты. Мутация — только `Context.update`
+(или effects), не изменение `artifact.data` на месте: identity — это content
+hash.
 
 ```python
 class Evidence(BaseModel):
