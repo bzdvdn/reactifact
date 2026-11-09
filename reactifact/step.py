@@ -42,7 +42,16 @@ import types
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import Any, Generic, Union, cast, get_args, get_origin, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Generic,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import BaseModel
 from typing_extensions import TypeVar
@@ -65,6 +74,21 @@ class Latest(Generic[TOut]):
     triggers the step. It is the declarative replacement for
     `context.get(stage_id(...))` / `context.latest(T)` inside a step.
     """
+
+
+@dataclass(frozen=True)
+class When:
+    """`Annotated[T, When(predicate)]` — a condition on an input artifact.
+
+    `predicate` receives the artifact's `data` (the typed model), matching
+    `Consume.condition`'s wrapper-level callable. In a `consumes` declaration or
+    a typed `run()` parameter it becomes a `Consume(T, condition=...)`.
+    """
+
+    predicate: Callable[[Any], bool]
+
+    def __call__(self, artifact: Artifact[Any]) -> bool:
+        return self.predicate(artifact.data)
 
 
 #: The context of the step currently executing (for `self.context` on class
@@ -275,13 +299,50 @@ class Step(Generic[TOut]):
     ) -> tuple[Consume, ...] | None:
         if value is None:
             return None
-        if isinstance(value, Consume):
-            return (value,)
-        if isinstance(value, type):
-            return (Consume(value),)
-        return tuple(
-            item if isinstance(item, Consume) else Consume(item) for item in value
-        )
+        if isinstance(value, (Consume, type)) or get_origin(value) is Annotated:
+            items: Sequence[Any] = (value,)
+        else:
+            items = value
+        return tuple(_as_consume(item) for item in items)
+
+    @staticmethod
+    def _derive_consumes(target: Callable[..., Any]) -> tuple[Consume, ...] | None:
+        """Derive consumes from a typed run()/function signature."""
+        try:
+            hints = get_type_hints(target, include_extras=True)
+            signature = inspect.signature(target)
+        except Exception:  # noqa: BLE001 — unresolved annotations -> no derivation
+            return None
+        skip = {
+            "self",
+            "call",
+            "step_call",
+            "context",
+            "effects",
+            "event",
+            "trigger",
+            "inputs",
+        }
+        specs: list[Consume] = []
+        for name, param in signature.parameters.items():
+            if name in skip:
+                continue
+            annotation = hints.get(name, param.annotation)
+            when = None
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                annotation = args[0]
+                when = next((meta for meta in args[1:] if isinstance(meta, When)), None)
+            if get_origin(annotation) is Latest:
+                continue
+            types_, _, _ = _annotation_types(annotation)
+            for artifact_type in types_:
+                specs.append(
+                    Consume(artifact_type)
+                    if when is None
+                    else Consume(artifact_type, condition=when)
+                )
+        return tuple(specs) or None
 
     def __init__(
         self,
@@ -331,6 +392,8 @@ class Step(Generic[TOut]):
             resolved_consumes = self._normalize_consumes(
                 getattr(self.__class__, "reacts_to", None)
             )
+        if resolved_consumes is None and type(self).run is not Step.run:
+            resolved_consumes = self._derive_consumes(type(self).run)
         self.consumes = resolved_consumes
         # Deprecated aliases: 0.1.x code reads `.reacts_to` (types, not specs).
         self.reacts_to = (
@@ -506,12 +569,27 @@ class Step(Generic[TOut]):
             self.effects.create(result)
 
 
+def _as_consume(item: Any) -> Consume:
+    """Normalize a type/Consume/Annotated[T, When(...)] into a Consume."""
+    origin = get_origin(item)
+    if origin is Annotated:
+        args = get_args(item)
+        base = args[0]
+        when = next((meta for meta in args[1:] if isinstance(meta, When)), None)
+        return _as_consume(base) if when is None else Consume(base, condition=when)
+    if isinstance(item, Consume):
+        return item
+    return Consume(item)
+
+
 def _annotation_types(annotation: Any) -> tuple[list[type], bool, bool]:
     """(artifact types, is_list, optional) for a run() parameter annotation."""
     optional = False
     if annotation is inspect.Parameter.empty:
         return [], False, False
     origin = get_origin(annotation)
+    if origin is Annotated:
+        return _annotation_types(get_args(annotation)[0])
     if origin is list:
         args = get_args(annotation)
         inner = args[0] if args else Any
@@ -586,6 +664,17 @@ def _resolve_arg(
             found.append(call.trigger)
         return found
 
+    def _trigger_matches(expected: list[type]) -> bool:
+        return (
+            call.trigger is not None
+            and type(call.trigger.data) in expected
+            and (
+                scope is None
+                or scope_value is None
+                or getattr(call.trigger.data, scope, None) == scope_value
+            )
+        )
+
     origin = get_origin(annotation)
     if origin is Latest:
         args = get_args(annotation)
@@ -612,6 +701,9 @@ def _resolve_arg(
         found = _matches(inner_types)
         if is_list:
             return found
+        if _trigger_matches(inner_types):
+            assert call.trigger is not None
+            return call.trigger
         if found:
             return found[-1]
         if optional:
@@ -629,6 +721,9 @@ def _resolve_arg(
     found = _matches(types_)
     if is_list:
         return [artifact.data for artifact in found]
+    if _trigger_matches(types_):
+        assert call.trigger is not None
+        return call.trigger.data
     if found:
         return found[-1].data
     if optional:
@@ -742,6 +837,14 @@ def step(
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func
+        if instance.consumes is None:
+            instance.consumes = Step._derive_consumes(func)
+            if instance.consumes is not None:
+                instance.reacts_to = tuple(
+                    consume.artifact_type
+                    for consume in instance.consumes
+                    if consume.artifact_type is not None
+                )
         return instance
 
     return decorator

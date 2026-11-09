@@ -63,6 +63,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Unlink",
             "Update",
             "View",
+            "When",
             "bind",
             "configure_logging",
             "consume",
