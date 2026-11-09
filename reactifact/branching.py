@@ -30,7 +30,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
-from .artifacts import Artifact, ArtifactStore
+from .artifacts import Artifact
 from .checkpoints import AppendBackend, KVBackend
 from .commit import Commit
 from .context import Context
@@ -52,18 +52,12 @@ class MergeConflict(Exception):
 def clone_context(source: Context) -> Context:
     """Deep copy of `source`'s live state (artifacts, log, relations)."""
     new_ws = Context()
-    for artifact in source._artifacts.values():
-        new_artifact = Artifact(
-            data=artifact.data.model_copy(deep=True),
-            id=artifact.id,  # <-- important!
-            created_by_commit=artifact.created_by_commit,
-        )
-        new_artifact._history = [v.model_copy(deep=True) for v in artifact._history]
-        new_artifact._version = artifact._version
-        new_artifact.created_at = artifact.created_at
-        new_artifact.updated_at = artifact.updated_at
-        new_ws._artifacts[artifact.id] = new_artifact
-    new_ws._store = ArtifactStore.from_artifacts(new_ws._artifacts)
+    new_ws._store = source._store.copy(deep=True)
+    new_ws._artifacts = {}
+    for artifact_id in source._artifacts:
+        current = new_ws._store.current_artifact(artifact_id)
+        if current is not None:
+            new_ws._artifacts[artifact_id] = current
     new_ws._log = source._log.copy()
     new_ws._relations = source._relations.copy()
     new_ws._step_cursors = {
@@ -228,13 +222,13 @@ def merge_contexts(
             target._store.delete(op.artifact_id)
             removed.add(op.artifact_id)
     for artifact_id, data in pending.items():
-        existing = target._artifacts.get(artifact_id)
-        if existing is None:
-            target._artifacts[artifact_id] = Artifact(data=data, id=artifact_id)
-            target._store.create(data, artifact_id)
-        else:
-            existing.update(data)
+        if artifact_id in target._artifacts:
             target._store.update(artifact_id, data)
+        else:
+            target._store.create(data, artifact_id)
+        applied = target._store.current_artifact(artifact_id)
+        assert applied is not None
+        target._artifacts[artifact_id] = applied
 
     for rel in other.relations():
         if rel.source_id in removed or rel.target_id in removed:

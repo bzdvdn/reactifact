@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from reactifact import Context
 from reactifact.artifacts import Artifact
 
 
@@ -19,45 +20,47 @@ def test_create_artifact():
 
 def test_update_artifact():
     person_v1 = Person(name="Alice", age=30)
-    artifact = Artifact(data=person_v1)
+    context = Context()
+    created = context.create(person_v1)
 
     person_v2 = Person(name="Alice", age=31)
-    artifact.update(person_v2)
+    updated = context.update(created.id, person_v2)
+    assert updated is not None
 
-    assert artifact.data.age == 31
-    assert artifact.version == 1
-    assert len(artifact.history) == 1
-    # Verify that the old version is preserved in history
-    assert artifact.history[0].age == 30
-    # And that it hasn't changed after the update
-    assert artifact.history[0].name == "Alice"
+    assert updated.data.age == 31
+    assert updated.version == 1
+    assert len(updated.history) == 1
+    # The old version is preserved in the store
+    assert updated.history[0].age == 30
+    assert updated.history[0].name == "Alice"
 
 
 def test_history_is_immutable():
-    person = Person(name="Bob", age=25)
-    artifact = Artifact(data=person)
-    artifact.update(Person(name="Bob", age=26))
+    context = Context()
+    created = context.create(Person(name="Bob", age=25))
+    context.update(created.id, Person(name="Bob", age=26))
+    artifact = context.get(created.id)
+    assert artifact is not None
 
-    # Attempting to mutate history through the returned list must not affect the artifact
+    # Mutating the returned list must not affect the artifact
     history = artifact.history
     history.clear()
-    assert len(artifact.history) == 1  # history unchanged
+    assert len(artifact.history) == 1
 
 
 def test_artifact_diff():
-    person_v1 = Person(name="Alice", age=30, address={"city": "NY"})
-    artifact = Artifact(data=person_v1)
+    context = Context()
+    created = context.create(Person(name="Alice", age=30, address={"city": "NY"}))
 
-    person_v2 = Person(name="Alice", age=31, address={"city": "LA"})
-    artifact.update(person_v2)
+    context.update(created.id, Person(name="Alice", age=31, address={"city": "LA"}))
+    artifact = context.get(created.id)
+    assert artifact is not None
 
-    # Between versions 0 and 1, age and address.city must have changed
     diff = artifact.diff(0, 1)
     assert "age" in diff["changed"]
     assert diff["changed"]["age"]["old"] == 30
     assert diff["changed"]["age"]["new"] == 31
     assert "address" in diff["changed"]
-    # Inside address, city must have changed
     assert "city" in diff["changed"]["address"]["changed"]
     assert diff["changed"]["address"]["changed"]["city"]["old"] == "NY"
     assert diff["changed"]["address"]["changed"]["city"]["new"] == "LA"

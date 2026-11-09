@@ -1,3 +1,5 @@
+from dataclasses import FrozenInstanceError
+
 from pydantic import BaseModel
 from reactifact import Context
 from reactifact.artifacts import artifact_content_hash
@@ -64,3 +66,40 @@ def test_compaction_trims_versions_authoritatively():
 
     assert ctx.artifact_version(doc.id, 0) is None
     assert [v.version for v in ctx.version_history(doc.id)] == [1, 2]
+
+
+def test_artifact_handles_are_frozen_snapshots():
+    ctx = Context()
+    first = ctx.create(Doc(text="one"))
+    second = ctx.update(first.id, Doc(text="two"))
+    assert second is not None
+
+    assert first.version == 0
+    assert first.data.text == "one"
+    assert second.version == 1
+    assert second.data.text == "two"
+    assert ctx.get(first.id) is not None
+    assert ctx.get(first.id).data.text == "two"
+
+    import pytest
+
+    with pytest.raises(FrozenInstanceError):
+        first.data = Doc(text="mutated")
+
+
+def test_snapshot_preserves_absolute_artifact_versions():
+    ctx = Context()
+    doc = ctx.create(Doc(text="one"))
+    ctx.update(doc.id, Doc(text="two"))
+    ctx.update(doc.id, Doc(text="three"))
+
+    snapshot = ctx.at(0)
+
+    current = snapshot.get(doc.id)
+    assert current is not None
+    assert current.version == 2
+    assert [v.data.text for v in snapshot.version_history(doc.id)] == [
+        "one",
+        "two",
+        "three",
+    ]

@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -30,9 +30,8 @@ def artifact_content_hash(data: BaseModel) -> str:
 class ArtifactVersion:
     """One immutable artifact revision, addressed by content hash.
 
-    `Artifact`/`Context` keep their mutable convenience API for now, but every
-    revision is readable through this immutable record: the commit that wrote
-    it, its sha256 and the payload at that exact version.
+    The commit that wrote it, its sha256 and the payload at that exact version.
+    `Artifact` is a frozen handle over one of these records.
     """
 
     artifact_id: str
@@ -64,141 +63,154 @@ def compute_dict_diff(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any
     return diff
 
 
+@dataclass(frozen=True, init=False)
 class Artifact(Generic[TData]):
-    """Wrapper around a Pydantic model with versioning."""
+    """An immutable snapshot/handle for one artifact version.
+
+    `data` is a Pydantic payload; `_store` is an internal reference used by the
+    deprecated `history`/`at`/`diff` bridges. Mutation goes through `Context`.
+    """
+
+    id: str
+    data: TData
+    data_type: str
+    version: int
+    content_hash: str
+    created_at: datetime
+    updated_at: datetime
+    created_by_commit: str | None
+    _store: ArtifactStore | None = field(default=None, repr=False, compare=False)
 
     def __init__(
         self,
         data: TData,
         id: str | None = None,
         created_by_commit: str | None = None,
-    ):
-        self.id = id or str(uuid.uuid4())
-        self.data = data
-        # Stable type id (reactifact.types): a registered `type_id`/`TYPE_ID`
-        # classvar, else the qualified name — so a rename/move can be tolerated
-        # via aliases instead of breaking a persisted session/replay.
-        self.data_type = type_id_of(type(data))
-        self.created_at = datetime.now(UTC)
-        self.updated_at = self.created_at
-        self.created_by_commit = created_by_commit
-        self._history: list[
-            TData
-        ] = []  # previous data versions (excluding the current one)
-        #: Absolute version counter — bumped by `update()`, independent of
-        #: `len(_history)`. `compact(keep_versions=…)` trims `_history` but must
-        #: not change `version` (it is part of `context_hash` and of commit
-        #: `Write`s), so it is tracked separately.
-        self._version = 0
-        # Memoized to_dict(), keyed by version: re-derived on every save()
-        # otherwise (session persistence saves after every commit, §reactifact.session)
-        # even though most artifacts in a large context are unchanged since the
-        # last save — see reactifact/session.py for the calling context.
-        self._dict_cache: tuple[int, dict[str, Any]] | None = None
-
-    def update(self, new_data: TData) -> None:
-        """Saves the current version to history and replaces the data."""
-        self._history.append(self.data)
-        self.data = new_data
-        self._version += 1
-        self.updated_at = datetime.now(UTC)
-
-    def trim_history(self, keep: int) -> None:
-        """Keeps only the last `keep` previous versions (0 drops them all).
-
-        `version` (and so `context_hash`) is unaffected — only the ability to
-        inspect older versions via `history`/`get_all_versions`/`diff` is
-        bounded. Used by `Context.compact`.
-        """
-        if keep < 0:
-            raise ValueError("keep must be >= 0")
-        if len(self._history) > keep:
-            self._history = self._history[-keep:] if keep else []
-            self._dict_cache = None
+        *,
+        version: int = 0,
+        content_hash: str | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
+        store: ArtifactStore | None = None,
+    ) -> None:
+        now = datetime.now(UTC)
+        object.__setattr__(self, "id", id or str(uuid.uuid4()))
+        object.__setattr__(self, "data", data)
+        object.__setattr__(self, "data_type", type_id_of(type(data)))
+        object.__setattr__(self, "version", version)
+        object.__setattr__(
+            self, "content_hash", content_hash or artifact_content_hash(data)
+        )
+        object.__setattr__(self, "created_at", created_at or now)
+        object.__setattr__(self, "updated_at", updated_at or now)
+        object.__setattr__(self, "created_by_commit", created_by_commit)
+        object.__setattr__(self, "_store", store)
 
     @property
     def history(self) -> list[TData]:
-        """Returns a copy of the list of previous versions (excluding the current one)."""
-        return list(self._history)
-
-    @property
-    def version(self) -> int:
-        """Current version (0 – original, 1 – after the first update, etc.)"""
-        return self._version
+        """Previous versions (deprecated bridge; use `Context.version_history`)."""
+        if self._store is None:
+            return []
+        return cast(
+            list[TData],
+            [
+                record.data
+                for record in self._store.history(self.id)
+                if record.version < self.version
+            ],
+        )
 
     def get_all_versions(self) -> list[TData]:
-        """Returns all data versions, including the current one, from oldest to newest."""
-        return self._history + [self.data]
+        """All retained versions, including the current one (deprecated bridge)."""
+        return self.history + [self.data]
 
     def at(self, version: int) -> TData:
-        """Read one historical version immutably (0 = original, current = `version`).
-
-        Unlike `get_all_versions()`, `version` is the artifact's absolute
-        version counter, not a list index. Raises when that version was trimmed
-        by `Context.compact(keep_versions=...)`.
-        """
-        if version == self._version:
+        """One retained version (deprecated bridge; use `Context.artifact_version`)."""
+        if version == self.version:
             return self.data
-        offset = version - (self._version - len(self._history))
-        if version < 0 or offset < 0 or offset >= len(self._history):
-            raise ValueError(
-                f"version {version} is not available for artifact {self.id!r} "
-                f"(current={self._version}, retained={len(self._history) + 1})"
-            )
-        return self._history[offset]
+        if self._store is not None:
+            record = self._store.version(self.id, version)
+            if record is not None:
+                return cast(TData, record.data)
+        raise ValueError(
+            f"version {version} is not available for artifact {self.id!r} "
+            f"(current={self.version})"
+        )
 
     def diff(self, old_version: int, new_version: int) -> dict[str, Any]:
-        """Returns a diff between two versions by their numbers (0 – the oldest)."""
+        """Diff two retained versions by list index (deprecated bridge)."""
         versions = self.get_all_versions()
         if old_version < 0 or new_version >= len(versions) or old_version > new_version:
             raise ValueError(
                 f"Invalid version indices: old={old_version}, new={new_version}"
             )
-        old_data = versions[old_version].model_dump()
-        new_data = versions[new_version].model_dump()
-        return compute_dict_diff(old_data, new_data)
+        return compute_dict_diff(
+            versions[old_version].model_dump(), versions[new_version].model_dump()
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serializes the artifact, including its full version history.
-
-        Memoized per `version` (bumped by `update()`): an unchanged artifact
-        returns the same dict instance on a later call instead of re-walking
-        `model_dump()` over its entire history again — the history only grows
-        monotonically, so a cache keyed by version can never go stale.
-        """
-        if self._dict_cache is not None and self._dict_cache[0] == self.version:
-            return self._dict_cache[1]
-        d = {
+        """Legacy v1 serialization; `Context.to_dict` still uses it."""
+        return {
             "id": self.id,
             "data_type": self.data_type,
             "data": self.data.model_dump(mode="json"),
-            "version": self._version,
+            "version": self.version,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "history": [v.model_dump(mode="json") for v in self._history],
+            "history": [v.model_dump(mode="json") for v in self.history],
             "created_by_commit": self.created_by_commit,
         }
-        self._dict_cache = (self.version, d)
-        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Artifact[Any]:
         data_type = d["data_type"]
         model_class = resolve(data_type)
         data: Any = model_class.model_validate(migrate_payload(data_type, d["data"]))
-        artifact = cls(
-            data=data, id=d["id"], created_by_commit=d.get("created_by_commit")
-        )
-        artifact.created_at = datetime.fromisoformat(d["created_at"])
-        artifact.updated_at = datetime.fromisoformat(d["updated_at"])
         history: list[Any] = [
             model_class.model_validate(migrate_payload(data_type, h))
-            for h in d["history"]
+            for h in d.get("history", [])
         ]
-        artifact._history = history
-        # Older payloads predate the explicit counter — fall back to history len.
-        artifact._version = int(d.get("version", len(artifact._history)))
-        return artifact
+        version = int(d.get("version", len(history)))
+        created_at = datetime.fromisoformat(d["created_at"])
+        updated_at = datetime.fromisoformat(d["updated_at"])
+
+        store = ArtifactStore()
+        first = version - len(history)
+        for offset, payload in enumerate(history):
+            record = ArtifactVersion(
+                artifact_id=d["id"],
+                version=first + offset,
+                data_type=data_type,
+                data=payload,
+                content_hash=artifact_content_hash(payload),
+                commit_id=None,
+                created_at=created_at,
+            )
+            store._versions.setdefault(d["id"], []).append(record)
+            store._index(record)
+        current = ArtifactVersion(
+            artifact_id=d["id"],
+            version=version,
+            data_type=data_type,
+            data=data,
+            content_hash=artifact_content_hash(data),
+            commit_id=d.get("created_by_commit"),
+            created_at=updated_at,
+        )
+        store._versions.setdefault(d["id"], []).append(current)
+        store._index(current)
+        store._current[d["id"]] = version
+
+        return cls(
+            data=data,
+            id=d["id"],
+            created_by_commit=d.get("created_by_commit"),
+            version=version,
+            content_hash=current.content_hash,
+            created_at=created_at,
+            updated_at=updated_at,
+            store=store,
+        )
 
     def __repr__(self) -> str:
         return f"<Artifact id={self.id!r} type={self.data.__class__.__name__} v{self.version}>"
@@ -207,9 +219,9 @@ class Artifact(Generic[TData]):
 class ArtifactStore:
     """Append-only, content-addressed artifact versions.
 
-    Phase 1: the store lives beside the mutable `Artifact` API. It is the
-    canonical lookup for revisions and content hashes; `_history` remains for
-    backward compatibility until the frozen-handle migration.
+    The canonical materialized state: current pointer per artifact, every
+    retained version, and a content-hash index. `Artifact` handles are frozen
+    views over these records; history lives here, not on the artifact.
     """
 
     def __init__(self) -> None:
@@ -284,6 +296,27 @@ class ArtifactStore:
     def current_version(self, artifact_id: str) -> int | None:
         return self._current.get(artifact_id)
 
+    def current_artifact(self, artifact_id: str) -> Artifact[Any] | None:
+        """The current version as an immutable handle."""
+        version = self._current.get(artifact_id)
+        if version is None:
+            return None
+        record = self.version(artifact_id, version)
+        if record is None:
+            return None
+        versions = self._versions[artifact_id]
+        first = versions[0] if versions else record
+        return Artifact(
+            data=record.data,
+            id=artifact_id,
+            created_by_commit=first.commit_id,
+            version=record.version,
+            content_hash=record.content_hash,
+            created_at=first.created_at,
+            updated_at=record.created_at,
+            store=self,
+        )
+
     def version(self, artifact_id: str, version: int) -> ArtifactVersion | None:
         versions = self._versions.get(artifact_id)
         if not versions:
@@ -341,6 +374,32 @@ class ArtifactStore:
             self._versions[artifact_id] = []
             return
         self._versions[artifact_id] = retained
+
+    def copy(self, *, deep: bool = True) -> ArtifactStore:
+        """Independent store; version records and commit ids are preserved."""
+        store = ArtifactStore()
+        for artifact_id, versions in self._versions.items():
+            copied: list[ArtifactVersion] = []
+            for record in versions:
+                data = record.data.model_copy(deep=True) if deep else record.data
+                replacement = replace(record, data=data)
+                copied.append(replacement)
+                store._index(replacement)
+            store._versions[artifact_id] = copied
+            if artifact_id in self._current:
+                store._current[artifact_id] = self._current[artifact_id]
+        return store
+
+    def extend(self, other: ArtifactStore, *, ids: set[str] | None = None) -> None:
+        """Absorb another store's versions (all, or a selected set of ids)."""
+        for artifact_id, versions in other._versions.items():
+            if ids is not None and artifact_id not in ids:
+                continue
+            self._versions[artifact_id] = list(versions)
+            for record in versions:
+                self._index(record)
+            if artifact_id in other._current:
+                self._current[artifact_id] = other._current[artifact_id]
 
     @classmethod
     def from_artifacts(cls, artifacts: dict[str, Artifact[Any]]) -> ArtifactStore:

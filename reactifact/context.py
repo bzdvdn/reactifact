@@ -267,8 +267,10 @@ class Context:
         if artifact.data == new_data:
             return artifact
         old_type = type(artifact.data)
-        artifact.update(new_data)
-        self._store.update(artifact_id, new_data, created_at=artifact.updated_at)
+        self._store.update(artifact_id, new_data)
+        updated = self._store.current_artifact(artifact_id)
+        assert updated is not None
+        self._artifacts[artifact_id] = updated
         new_type = type(new_data)
         if new_type is not old_type:
             self._by_type.get(old_type, set()).discard(artifact_id)
@@ -277,7 +279,7 @@ class Context:
             Event(
                 type=EventType.ARTIFACT_UPDATED,
                 artifact_type=type(new_data),
-                artifact_id=artifact.id,
+                artifact_id=artifact_id,
             )
         )
         for dependent in self._dependents_of(artifact_id):
@@ -289,7 +291,7 @@ class Context:
                 )
             )
             self._stale.add(dependent.id)
-        return artifact
+        return updated
 
     def delete(self, artifact_id: str) -> bool:
         """Deletes the artifact and generates ARTIFACT_DELETED."""
@@ -608,6 +610,12 @@ class Context:
         """Applies the commit to the repository: fills in parent/version, moves head."""
         self._log.append(commit)
         self._store.bind_commit(commit)
+        for write in commit.writes:
+            if write.op_type == "delete":
+                continue
+            refreshed = self._store.current_artifact(write.artifact_id)
+            if refreshed is not None:
+                self._artifacts[write.artifact_id] = refreshed
         # A commit that (re-)writes an artifact refreshes it against its
         # current reads — it can no longer be in the stale set.
         for write in commit.writes:
@@ -632,22 +640,23 @@ class Context:
                 existing = self._artifacts.get(artifact_id)
                 if existing is not None:
                     self._by_type.get(type(existing.data), set()).discard(artifact_id)
-                    existing.update(op.data)
                     self._store.update(artifact_id, op.data, commit_id=commit.id)
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
                 else:
-                    self._artifacts[artifact_id] = Artifact(
-                        op.data, id=artifact_id, created_by_commit=commit.id
-                    )
                     self._store.create(op.data, artifact_id, commit_id=commit.id)
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
+                applied = self._store.current_artifact(artifact_id)
+                assert applied is not None
+                self._artifacts[artifact_id] = applied
             elif isinstance(op, Update):
                 artifact = self._artifacts.get(op.artifact_id)
                 if artifact is None:
                     continue
                 old_type = type(artifact.data)
-                artifact.update(op.new_data)
                 self._store.update(op.artifact_id, op.new_data, commit_id=commit.id)
+                applied = self._store.current_artifact(op.artifact_id)
+                assert applied is not None
+                self._artifacts[op.artifact_id] = applied
                 new_type = type(op.new_data)
                 if new_type is not old_type:
                     self._by_type.get(old_type, set()).discard(op.artifact_id)
@@ -720,9 +729,8 @@ class Context:
         """
         dropped = self._log.compact(keep_commits)
         if keep_versions is not None:
-            for artifact in self._artifacts.values():
-                artifact.trim_history(keep_versions)
-                self._store.trim_history(artifact.id, keep_versions)
+            for artifact_id in self._artifacts:
+                self._store.trim_history(artifact_id, keep_versions)
         if dropped:
             self._recompute_stale()
         return dropped
@@ -844,11 +852,30 @@ class Context:
             by_type.setdefault(type(artifact.data), set()).add(aid)
         self._by_type = by_type
 
-    def _rebuild_artifacts_from_commits(
-        self, upto_version: int
-    ) -> dict[str, Artifact[Any]]:
-        state = self._log.replay_state(upto_version)
-        return {aid: Artifact(data=data, id=aid) for aid, data in state.items()}
+    def _replay_store(self, upto_version: int) -> ArtifactStore:
+        """Replay commits into a fresh store, preserving absolute version numbers
+        after the compaction baseline."""
+        store = ArtifactStore()
+        if self._log.baseline_version:
+            for artifact_id, data in self._log.replay_state(
+                self._log.baseline_version
+            ).items():
+                store.create(data, artifact_id)
+        for commit in self._log.commits_upto(upto_version):
+            for op in commit.operations:
+                if isinstance(op, Create):
+                    created_id = op.artifact_id or op.id
+                    if created_id is None:
+                        continue
+                    if store.current_version(created_id) is None:
+                        store.create(op.data, created_id, commit_id=commit.id)
+                    else:
+                        store.update(created_id, op.data, commit_id=commit.id)
+                elif isinstance(op, Update):
+                    store.update(op.artifact_id, op.new_data, commit_id=commit.id)
+                elif isinstance(op, Delete):
+                    store.delete(op.artifact_id)
+        return store
 
     def artifact_version(
         self, artifact_id: str, version: int
@@ -942,12 +969,14 @@ class Context:
             for op in commit.operations:
                 if isinstance(op, (Create, Update, Delete)) and op.artifact_id:
                     touched.add(op.artifact_id)
-        rebuilt = self._rebuild_artifacts_from_commits(version)
-        for aid, art in self._artifacts.items():
-            if aid not in touched:
-                rebuilt[aid] = art
-        self._artifacts = rebuilt
-        self._store = ArtifactStore.from_artifacts(self._artifacts)
+        replayed = self._replay_store(version)
+        replayed.extend(self._store, ids=set(self._artifacts) - touched)
+        self._store = replayed
+        self._artifacts = {}
+        for artifact_id in replayed._current:
+            current = replayed.current_artifact(artifact_id)
+            if current is not None:
+                self._artifacts[artifact_id] = current
 
         # Relations: those committed up to `version` plus the "working tree"
         # (created directly outside commits) are kept, as with artifacts. Links
@@ -1026,10 +1055,16 @@ class Context:
     def from_dict(cls, d: dict[str, Any]) -> Context:
         data = migrate_context_payload(dict(d))
         ws = cls()
-        for aid, art_dict in data["artifacts"].items():
+        ws._store = ArtifactStore()
+        for _aid, art_dict in data["artifacts"].items():
             artifact = Artifact.from_dict(art_dict)
-            ws._artifacts[aid] = artifact
-        ws._store = ArtifactStore.from_artifacts(ws._artifacts)
+            if artifact._store is not None:
+                ws._store.extend(artifact._store)
+        ws._artifacts = {}
+        for artifact_id in ws._store._current:
+            current = ws._store.current_artifact(artifact_id)
+            if current is not None:
+                ws._artifacts[artifact_id] = current
         ws._relations = RelationGraph.from_dict(data.get("relations", []))
         ws._log = CommitLog.from_dict(
             data["commits"],

@@ -744,14 +744,6 @@ class Runtime:
                 span.writes = self._trace.write_refs(patch, commit.writes)
                 span.relations = self._trace.relation_refs(patch)
             self.context.log_commit(commit)
-            # The commit id is content-addressed in `CommitLog.append`, so
-            # stamp `created_by_commit` after the id exists.
-            for write in commit.writes:
-                if write.op_type != "create":
-                    continue
-                created = self.context.get(write.artifact_id)
-                if created is not None:
-                    created.created_by_commit = commit.id
 
     def _has_pending_actions(self) -> bool:
         return self.dispatcher is not None and bool(self.context.pending_actions())
@@ -1174,7 +1166,6 @@ class Runtime:
                 else:
                     created = self.context.create(op.data, id=op.id)
                     op.artifact_id = created.id
-                    created.created_by_commit = commit.id
                     writes.append(
                         Write(
                             op.artifact_id,
