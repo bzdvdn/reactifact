@@ -14,7 +14,7 @@ import copy
 from typing import Any
 
 from .artifacts import Artifact
-from .commit import Commit
+from .commit import Commit, compute_commit_id
 from .patches import Create, Delete, Link, Relation, Unlink, Update
 from .relations import RelationKey
 
@@ -81,8 +81,16 @@ class CommitLog:
 
     def append(self, commit: Commit) -> None:
         """Fills in parent/version and moves head (was `Context.log_commit`)."""
-        commit.parent_id = self._head_id
+        if not commit.parent_ids:
+            if commit.parent_id is not None:
+                commit.parent_ids = [commit.parent_id]
+            elif self._head_id is not None:
+                commit.parent_ids = [self._head_id]
+        if commit.parent_id is None and commit.parent_ids:
+            commit.parent_id = commit.parent_ids[0]
         commit.context_version = self._version + 1
+        if not commit.id:
+            commit.id = compute_commit_id(commit)
         self._commits.append(commit)
         self._head_id = commit.id
         self._version += 1
@@ -118,6 +126,10 @@ class CommitLog:
     def history(self) -> list[Commit]:
         """Ordered chain of commits from the oldest to head."""
         return list(self._commits)
+
+    def graph(self) -> dict[str, list[str]]:
+        """The commit DAG: commit id → parent ids (oldest to head)."""
+        return {commit.id: list(commit.parent_ids) for commit in self._commits}
 
     def __len__(self) -> int:
         return len(self._commits)

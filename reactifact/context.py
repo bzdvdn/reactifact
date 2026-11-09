@@ -672,6 +672,10 @@ class Context:
     def commit_log(self) -> list[Commit]:
         return self._log.history()
 
+    def commit_graph(self) -> dict[str, list[str]]:
+        """The commit DAG as `{commit id: [parent ids]}`."""
+        return self._log.graph()
+
     @property
     def version(self) -> int:
         """Current Context version (number of applied commits)."""

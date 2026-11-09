@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import uuid
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -59,6 +60,26 @@ class Write:
         )
 
 
+def compute_commit_id(commit: Commit) -> str:
+    """Content address for a commit: parents + author/message + ops + refs.
+
+    Timestamps and `context_version` are deliberately excluded so the same
+    content on the same parents hashes identically across runs/replays.
+    """
+    payload = {
+        "parents": list(commit.parent_ids),
+        "author": commit.author,
+        "message": commit.message,
+        "operations": [op.to_dict() for op in commit.operations],
+        "reads": [read.to_dict() for read in commit.reads],
+        "writes": [write.to_dict() for write in commit.writes],
+    }
+    canonical = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 @dataclass
 class Commit:
     """A record of one applied patch.
@@ -70,9 +91,15 @@ class Commit:
     author: str
     message: str
     operations: list[Operation]
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    #: Content-addressed id, filled by `CommitLog.append` when empty.
+    id: str = ""
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     parent_id: str | None = None
+    #: All parents of this commit. Normal commits have one; a merge commit has
+    #: two (target head + merged branch head) — this is what makes the history
+    #: a DAG rather than a chain. `parent_id` stays the first parent for
+    #: backward compatibility.
+    parent_ids: list[str] = field(default_factory=list)
     context_version: int | None = None
     reads: list[Read] = field(default_factory=list)
     writes: list[Write] = field(default_factory=list)
@@ -85,6 +112,7 @@ class Commit:
             "timestamp": self.timestamp.isoformat(),
             "operations": [op.to_dict() for op in self.operations],
             "parent_id": self.parent_id,
+            "parent_ids": list(self.parent_ids),
             "context_version": self.context_version,
             "reads": [r.to_dict() for r in self.reads],
             "writes": [w.to_dict() for w in self.writes],
@@ -99,6 +127,9 @@ class Commit:
             id=d["id"],
             timestamp=datetime.fromisoformat(d["timestamp"]),
             parent_id=d.get("parent_id"),
+            parent_ids=list(
+                d.get("parent_ids") or ([d["parent_id"]] if d.get("parent_id") else [])
+            ),
             context_version=d.get("context_version"),
             reads=[Read.from_dict(r) for r in d.get("reads", [])],
             writes=[Write.from_dict(w) for w in d.get("writes", [])],

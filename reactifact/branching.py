@@ -109,8 +109,14 @@ def merge_context_from(target: Context, other: Context) -> None:
             target.link(rel.source_id, rel.relation, rel.target_id)
             operations.append(Link(rel.source_id, rel.relation, rel.target_id))
     if operations:
+        parents = [p for p in (target.head_id, other.head_id) if p]
         target.log_commit(
-            Commit(author="merge", message="Merged Context", operations=operations)
+            Commit(
+                author="merge",
+                message="Merged Context",
+                operations=operations,
+                parent_ids=parents,
+            )
         )
 
 
@@ -234,8 +240,14 @@ def merge_contexts(
             operations.append(Link(rel.source_id, rel.relation, rel.target_id))
 
     if operations:
+        parents = [p for p in (target.head_id, other.head_id) if p]
         target.log_commit(
-            Commit(author="merge", message=message, operations=operations)
+            Commit(
+                author="merge",
+                message=message,
+                operations=operations,
+                parent_ids=parents,
+            )
         )
         # merge mutates `_artifacts` directly (create/update/delete above),
         # bypassing the incremental hooks in `create()`/`update()`/
