@@ -7,16 +7,61 @@ from typing import Any, Generic, TypeVar
 from pydantic import BaseModel
 
 from ..agents import create_agent
+from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
+from ..effects import Effects
 from ..providers import LLMProvider
-from ..step import Step, step
+from ..step import Step
 from ..structured import structured_llm
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Question
 
 TSchema = TypeVar("TSchema", bound=BaseModel)
+
+
+class _StructuredStep(Step[Any]):
+    def __init__(
+        self,
+        schema: type[BaseModel],
+        system: str,
+        question_type: type[BaseModel],
+        *,
+        attempts: int,
+        temperature: float | None,
+        max_tokens: int | None,
+    ) -> None:
+        super().__init__(produces=schema, consumes=[question_type])
+        self.schema = schema
+        self.system = system
+        self.question_type = question_type
+        self.attempts = attempts
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        trigger: Artifact[Any] | None,
+        inputs: list[Artifact[Any]],
+    ) -> None:
+        question = _question_of(trigger, inputs, self.question_type)
+        if question is None:
+            return None
+        body = await structured_llm(
+            context,
+            schema=self.schema,
+            system=self.system,
+            user=_text_of(question.data),
+            attempts=self.attempts,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+        if body is None:
+            return None
+        effects.create_once_from(question, body)
 
 
 def _structured_produce(
@@ -28,26 +73,14 @@ def _structured_produce(
     temperature: float | None,
     max_tokens: int | None,
 ) -> Step[Any]:
-    @step(schema)
-    async def _run(call: Any) -> None:
-        question = _question_of(call, question_type)
-        if question is None:
-            return None
-        body = await structured_llm(
-            call.context,
-            schema=schema,
-            system=system,
-            user=_text_of(question.data),
-            attempts=attempts,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        if body is None:
-            return None
-        call.effects.create_once_from(question, body)
-        return None
-
-    return _run
+    return _StructuredStep(
+        schema,
+        system,
+        question_type,
+        attempts=attempts,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
 
 class QuickAgent(Generic[TSchema]):

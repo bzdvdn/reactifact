@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -47,7 +47,9 @@ def _default_resources(
 
 
 def _question_of(
-    call: Any, question_type: type[BaseModel] = Question
+    trigger: Artifact[Any] | None,
+    inputs: list[Artifact[Any]],
+    question_type: type[BaseModel] = Question,
 ) -> Artifact[Any] | None:
     """The triggering question if this run was woken by one, else the first input.
 
@@ -55,13 +57,12 @@ def _question_of(
     use a domain-shaped input. Any custom type must expose a `text: str` field
     (that's what the facade sends as the LLM query/prompt).
 
-    Preferring `call.trigger` keeps a reused `Context` correct: after a second
+    Preferring the trigger artifact keeps a reused `Context` correct: after a second
     question exists, `find(inputs, Question)` would still return the first one.
     """
-    trigger = cast("Artifact[Any] | None", call.trigger)
     if trigger is not None and isinstance(trigger.data, question_type):
         return trigger
-    return find(call.inputs, question_type)
+    return find(inputs, question_type)
 
 
 def _text_of(value: BaseModel) -> str:

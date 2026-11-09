@@ -14,11 +14,12 @@ from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
+from ..effects import Effects
 from ..providers import LLMProvider
 from ..recipes import fan_out_sources, find_all, keyword_score, materialize_doc
 from ..resources import RuntimeResources
 from ..sources import CSVSource, FileSystemSource, Source, SourceRef
-from ..step import Step, step
+from ..step import Step
 from ..structured import llm_reply
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Answer, Doc, Question
@@ -143,32 +144,97 @@ def _default_answer_builder(
     return build
 
 
-def _search_produce(limit: int, question_type: type[BaseModel]) -> Step[Any]:
-    @step(SourceRef)
-    async def _search(call: Any) -> None:
-        question = _question_of(call, question_type)
+class _SearchStep(Step[Any]):
+    def __init__(self, limit: int, question_type: type[BaseModel]) -> None:
+        super().__init__(produces=SourceRef, consumes=[question_type])
+        self.limit = limit
+        self.question_type = question_type
+
+    async def run(
+        self,
+        context: Context,
+        trigger: Artifact[Any] | None,
+        inputs: list[Artifact[Any]],
+    ) -> None:
+        question = _question_of(trigger, inputs, self.question_type)
         if question is None:
             return None
         await fan_out_sources(
-            call.context, _text_of(question.data), owner_id=question.id, limit=limit
+            context,
+            _text_of(question.data),
+            owner_id=question.id,
+            limit=self.limit,
         )
-        return None
 
-    return _search
+
+def _search_produce(limit: int, question_type: type[BaseModel]) -> Step[Any]:
+    return _SearchStep(limit, question_type)
+
+
+class _ResolveStep(Step[Any]):
+    def __init__(self, doc_type: type[BaseModel], doc_builder: DocBuilder) -> None:
+        super().__init__(produces=doc_type, consumes=[SourceRef])
+        self.doc_builder = doc_builder
+
+    async def run(self, context: Context, trigger: Artifact[SourceRef]) -> None:
+        await materialize_doc(context, trigger, self.doc_builder)
 
 
 def _resolve_produce(doc_type: type[BaseModel], doc_builder: DocBuilder) -> Step[Any]:
-    @step(doc_type)
-    async def _resolve(call: Any) -> None:
-        refs = [a for a in call.inputs if isinstance(a.data, SourceRef)]
-        trigger = call.trigger
-        if trigger is not None and isinstance(trigger.data, SourceRef):
-            refs = [trigger]
-        for ref_artifact in refs:
-            await materialize_doc(call.context, ref_artifact, doc_builder)
-        return None
+    return _ResolveStep(doc_type, doc_builder)
 
-    return _resolve
+
+class _AnswerStep(Step[Any]):
+    def __init__(
+        self,
+        system: str,
+        *,
+        question_type: type[BaseModel],
+        doc_type: type[BaseModel],
+        answer_type: type[BaseModel],
+        answer_builder: AnswerBuilder,
+        doc_text: Callable[[BaseModel], str],
+        doc_locator: Callable[[BaseModel], str],
+    ) -> None:
+        super().__init__(
+            produces=answer_type,
+            consumes=[Consume(doc_type), Consume(question_type, wakes=False)],
+        )
+        self.system = system
+        self.question_type = question_type
+        self.doc_type = doc_type
+        self.answer_builder = answer_builder
+        self.doc_text = doc_text
+        self.doc_locator = doc_locator
+
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        trigger: Artifact[Any] | None,
+        inputs: list[Artifact[Any]],
+    ) -> None:
+        question = context.latest(self.question_type) or _question_of(
+            trigger, inputs, self.question_type
+        )
+        docs = find_all(inputs, self.doc_type)
+        if question is None or not docs:
+            return None
+        prompt = "\n\n".join(
+            f"[{self.doc_locator(doc.data)}]\n{self.doc_text(doc.data)}" for doc in docs
+        )
+        text = await llm_reply(
+            context,
+            system=self.system,
+            user=f"Question: {_text_of(question.data)}\n\nSources:\n{prompt}",
+        )
+        if not text:
+            return None
+        handle = effects.create_once_from(question, self.answer_builder(text, docs))
+        if handle is None:
+            return None
+        for doc in docs:
+            handle.link("supported_by", doc)
 
 
 def _answer_produce(
@@ -181,32 +247,15 @@ def _answer_produce(
     doc_text: Callable[[BaseModel], str],
     doc_locator: Callable[[BaseModel], str],
 ) -> Step[Any]:
-    @step(answer_type)
-    async def _answer(call: Any) -> None:
-        question = call.context.latest(question_type) or _question_of(
-            call, question_type
-        )
-        docs = find_all(call.inputs, doc_type)
-        if question is None or not docs:
-            return None
-        prompt = "\n\n".join(
-            f"[{doc_locator(doc.data)}]\n{doc_text(doc.data)}" for doc in docs
-        )
-        text = await llm_reply(
-            call.context,
-            system=system,
-            user=f"Question: {_text_of(question.data)}\n\nSources:\n{prompt}",
-        )
-        if not text:
-            return None
-        handle = call.effects.create_once_from(question, answer_builder(text, docs))
-        if handle is None:
-            return None
-        for doc in docs:
-            handle.link("supported_by", doc)
-        return None
-
-    return _answer
+    return _AnswerStep(
+        system,
+        question_type=question_type,
+        doc_type=doc_type,
+        answer_type=answer_type,
+        answer_builder=answer_builder,
+        doc_text=doc_text,
+        doc_locator=doc_locator,
+    )
 
 
 class QuickRAG(Generic[TAnswer]):
