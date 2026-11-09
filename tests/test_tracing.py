@@ -411,6 +411,7 @@ def test_trace_memoizes_artifact_dump(tmp_path):
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(ctx, agents=[Greeter2(), Greeter2()], tracer=Tracer(store=store))
     ctx.create(CountingQuestion(text="q"))
+    CountingQuestion.dumps = 0  # content-addressing hashed it at create time
     asyncio.run(runtime.arun())
 
     assert CountingQuestion.dumps == 1

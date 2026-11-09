@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
@@ -202,3 +202,174 @@ class Artifact(Generic[TData]):
 
     def __repr__(self) -> str:
         return f"<Artifact id={self.id!r} type={self.data.__class__.__name__} v{self.version}>"
+
+
+class ArtifactStore:
+    """Append-only, content-addressed artifact versions.
+
+    Phase 1: the store lives beside the mutable `Artifact` API. It is the
+    canonical lookup for revisions and content hashes; `_history` remains for
+    backward compatibility until the frozen-handle migration.
+    """
+
+    def __init__(self) -> None:
+        self._current: dict[str, int] = {}
+        self._versions: dict[str, list[ArtifactVersion]] = {}
+        self._by_content: dict[tuple[str, str], set[tuple[str, int]]] = {}
+
+    def _index(self, record: ArtifactVersion) -> None:
+        key = (record.data_type, record.content_hash)
+        self._by_content.setdefault(key, set()).add(
+            (record.artifact_id, record.version)
+        )
+
+    def create(
+        self,
+        data: BaseModel,
+        artifact_id: str,
+        *,
+        commit_id: str | None = None,
+        created_at: datetime | None = None,
+    ) -> ArtifactVersion:
+        if artifact_id in self._current:
+            raise ValueError(f"artifact {artifact_id!r} already exists")
+        record = ArtifactVersion(
+            artifact_id=artifact_id,
+            version=0,
+            data_type=type_id_of(type(data)),
+            data=data,
+            content_hash=artifact_content_hash(data),
+            commit_id=commit_id,
+            created_at=created_at or datetime.now(UTC),
+        )
+        self._versions[artifact_id] = [record]
+        self._current[artifact_id] = 0
+        self._index(record)
+        return record
+
+    def update(
+        self,
+        artifact_id: str,
+        data: BaseModel,
+        *,
+        commit_id: str | None = None,
+        created_at: datetime | None = None,
+    ) -> ArtifactVersion | None:
+        current = self._current.get(artifact_id)
+        if current is None:
+            return None
+        versions = self._versions[artifact_id]
+        last = versions[-1]
+        data_type = type_id_of(type(data))
+        content_hash = artifact_content_hash(data)
+        if last.data_type == data_type and last.content_hash == content_hash:
+            return last
+        record = ArtifactVersion(
+            artifact_id=artifact_id,
+            version=last.version + 1,
+            data_type=data_type,
+            data=data,
+            content_hash=content_hash,
+            commit_id=commit_id,
+            created_at=created_at or datetime.now(UTC),
+        )
+        versions.append(record)
+        self._current[artifact_id] = record.version
+        self._index(record)
+        return record
+
+    def delete(self, artifact_id: str) -> bool:
+        return self._current.pop(artifact_id, None) is not None
+
+    def current_version(self, artifact_id: str) -> int | None:
+        return self._current.get(artifact_id)
+
+    def version(self, artifact_id: str, version: int) -> ArtifactVersion | None:
+        versions = self._versions.get(artifact_id)
+        if not versions:
+            return None
+        first = versions[0].version
+        offset = version - first
+        if offset < 0 or offset >= len(versions):
+            return None
+        return versions[offset]
+
+    def history(self, artifact_id: str) -> list[ArtifactVersion]:
+        return list(self._versions.get(artifact_id, ()))
+
+    def find_versions(
+        self, content_hash: str, data_type: str | None = None
+    ) -> list[ArtifactVersion]:
+        found: list[ArtifactVersion] = []
+        if data_type is not None:
+            keys = [(data_type, content_hash)]
+        else:
+            keys = [key for key in self._by_content if key[1] == content_hash]
+        for key in keys:
+            for artifact_id, version in self._by_content.get(key, ()):
+                record = self.version(artifact_id, version)
+                if record is not None:
+                    found.append(record)
+        found.sort(key=lambda record: (record.artifact_id, record.version))
+        return found
+
+    def bind_commit(self, commit: Any) -> None:
+        """Stamps versions written by `commit` with its id (runtime applied them
+        before the commit id existed)."""
+        for write in commit.writes:
+            if write.op_type == "delete":
+                continue
+            record = self.version(write.artifact_id, write.version)
+            if record is None or record.commit_id is not None:
+                continue
+            replacement = replace(record, commit_id=commit.id)
+            versions = self._versions[write.artifact_id]
+            versions[versions.index(record)] = replacement
+
+    def trim_history(self, artifact_id: str, keep: int) -> None:
+        """Keeps the current version plus the last `keep` previous versions."""
+        versions = self._versions.get(artifact_id)
+        if not versions:
+            return
+        current = self._current.get(artifact_id)
+        retained = (
+            versions[-keep - 1 :]
+            if current is not None
+            else (versions[-keep:] if keep else [])
+        )
+        if not retained:
+            self._versions[artifact_id] = []
+            return
+        self._versions[artifact_id] = retained
+
+    @classmethod
+    def from_artifacts(cls, artifacts: dict[str, Artifact[Any]]) -> ArtifactStore:
+        store = cls()
+        for artifact_id, artifact in artifacts.items():
+            history = artifact.history
+            first_version = artifact.version - len(history)
+            records: list[ArtifactVersion] = []
+            for offset, data in enumerate([*history, artifact.data]):
+                version = first_version + offset
+                record = ArtifactVersion(
+                    artifact_id=artifact_id,
+                    version=version,
+                    data_type=type_id_of(type(data)),
+                    data=data,
+                    content_hash=artifact_content_hash(data),
+                    commit_id=(
+                        artifact.created_by_commit
+                        if version == artifact.version
+                        else None
+                    ),
+                    created_at=(
+                        artifact.updated_at
+                        if version == artifact.version
+                        else artifact.created_at
+                    ),
+                )
+                records.append(record)
+                store._index(record)
+            store._versions[artifact_id] = records
+            store._current[artifact_id] = artifact.version
+        return store

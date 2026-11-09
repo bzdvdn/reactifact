@@ -8,7 +8,11 @@ from typing import Any, TypedDict, TypeVar, cast, overload
 
 from pydantic import BaseModel
 
-from .artifacts import Artifact, ArtifactVersion, artifact_content_hash
+from .artifacts import (
+    Artifact,
+    ArtifactStore,
+    ArtifactVersion,
+)
 from .checkpoints import CheckpointBackend, FileBackend, KVBackend
 from .commit import Commit
 from .commit_log import CommitLog
@@ -139,6 +143,7 @@ class Context:
 
     def __init__(self, resources: RuntimeResources | None = None):
         self._artifacts: dict[str, Artifact[Any]] = {}
+        self._store = ArtifactStore()
         self._events: list[Event] = []
         self._log = CommitLog()
         self.resources = resources or RuntimeResources()
@@ -235,6 +240,7 @@ class Context:
             id = self.resources.id_factory(type(data).__name__)
         artifact = Artifact(data=data, id=id)
         self._artifacts[artifact.id] = artifact
+        self._store.create(data, artifact.id, created_at=artifact.created_at)
         self._by_type.setdefault(type(data), set()).add(artifact.id)
         self._events.append(
             Event(
@@ -262,6 +268,7 @@ class Context:
             return artifact
         old_type = type(artifact.data)
         artifact.update(new_data)
+        self._store.update(artifact_id, new_data, created_at=artifact.updated_at)
         new_type = type(new_data)
         if new_type is not old_type:
             self._by_type.get(old_type, set()).discard(artifact_id)
@@ -290,6 +297,7 @@ class Context:
         if artifact is None:
             return False
         self._stale.discard(artifact_id)
+        self._store.delete(artifact_id)
         self._by_type.get(type(artifact.data), set()).discard(artifact_id)
         self._events.append(
             Event(
@@ -599,6 +607,7 @@ class Context:
     def log_commit(self, commit: Commit) -> None:
         """Applies the commit to the repository: fills in parent/version, moves head."""
         self._log.append(commit)
+        self._store.bind_commit(commit)
         # A commit that (re-)writes an artifact refreshes it against its
         # current reads — it can no longer be in the stale set.
         for write in commit.writes:
@@ -624,11 +633,13 @@ class Context:
                 if existing is not None:
                     self._by_type.get(type(existing.data), set()).discard(artifact_id)
                     existing.update(op.data)
+                    self._store.update(artifact_id, op.data, commit_id=commit.id)
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
                 else:
                     self._artifacts[artifact_id] = Artifact(
                         op.data, id=artifact_id, created_by_commit=commit.id
                     )
+                    self._store.create(op.data, artifact_id, commit_id=commit.id)
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
             elif isinstance(op, Update):
                 artifact = self._artifacts.get(op.artifact_id)
@@ -636,6 +647,7 @@ class Context:
                     continue
                 old_type = type(artifact.data)
                 artifact.update(op.new_data)
+                self._store.update(op.artifact_id, op.new_data, commit_id=commit.id)
                 new_type = type(op.new_data)
                 if new_type is not old_type:
                     self._by_type.get(old_type, set()).discard(op.artifact_id)
@@ -643,6 +655,7 @@ class Context:
             elif isinstance(op, Delete):
                 artifact = self._artifacts.pop(op.artifact_id, None)
                 if artifact is not None:
+                    self._store.delete(op.artifact_id)
                     self._by_type.get(type(artifact.data), set()).discard(
                         op.artifact_id
                     )
@@ -709,6 +722,7 @@ class Context:
         if keep_versions is not None:
             for artifact in self._artifacts.values():
                 artifact.trim_history(keep_versions)
+                self._store.trim_history(artifact.id, keep_versions)
         if dropped:
             self._recompute_stale()
         return dropped
@@ -839,70 +853,52 @@ class Context:
     def artifact_version(
         self, artifact_id: str, version: int
     ) -> ArtifactVersion | None:
-        """One immutable artifact revision, reconstructed from commits when needed.
+        """One immutable artifact revision from the version store.
 
-        `version` is the artifact's absolute version counter (0 = create). The
-        result carries the payload, its sha256 and the commit that wrote it —
-        the content-addressed view of a revision, even after `_history` was
-        trimmed (as long as the commit log still has it).
+        `version` is the artifact's absolute version counter (0 = create).
+        Compaction is authoritative: trimmed versions return `None`. The
+        current version resolves the producing commit lazily when the record
+        was written before the commit existed (the runtime path).
         """
         artifact = self._artifacts.get(artifact_id)
-        if artifact is None:
+        record = self._store.version(artifact_id, version)
+        if record is None:
             return None
-        commit: Commit | None = None
-        data: BaseModel | None = None
-        if version == artifact.version:
-            data = artifact.data
-            commit = self._log.producing_commit(artifact_id)
-        else:
-            current = -1
-            for candidate in self._log.history():
-                for op in candidate.operations:
-                    if (
-                        isinstance(op, Create)
-                        and (op.artifact_id or op.id) == artifact_id
-                    ):
-                        current += 1
-                        candidate_data = op.data
-                    elif isinstance(op, Update) and op.artifact_id == artifact_id:
-                        current += 1
-                        candidate_data = op.new_data
-                    else:
-                        continue
-                    if current == version:
-                        data = candidate_data
-                        commit = candidate
-                        break
-                if data is not None:
-                    break
-            if data is None:
-                try:
-                    data = artifact.at(version)
-                except ValueError:
-                    return None
-        if data is None:
-            return None
-        return ArtifactVersion(
-            artifact_id=artifact_id,
-            version=version,
-            data_type=type_id_of(type(data)),
-            data=data,
-            content_hash=artifact_content_hash(data),
-            commit_id=commit.id if commit is not None else None,
-            created_at=commit.timestamp if commit is not None else None,
-        )
+        if (
+            record.commit_id is None
+            and artifact is not None
+            and version == artifact.version
+        ):
+            producing = self._log.producing_commit(artifact_id)
+            if producing is not None:
+                return ArtifactVersion(
+                    artifact_id=record.artifact_id,
+                    version=record.version,
+                    data_type=record.data_type,
+                    data=record.data,
+                    content_hash=record.content_hash,
+                    commit_id=producing.id,
+                    created_at=producing.timestamp,
+                )
+        return record
 
     def version_history(self, artifact_id: str) -> list[ArtifactVersion]:
         """All readable revisions of an artifact, oldest to newest."""
-        artifact = self._artifacts.get(artifact_id)
-        if artifact is None:
+        stored = self._store.history(artifact_id)
+        if not stored:
             return []
         versions: list[ArtifactVersion] = []
-        for version in range(artifact.version + 1):
+        for version in range(stored[0].version, stored[-1].version + 1):
             item = self.artifact_version(artifact_id, version)
             if item is not None:
                 versions.append(item)
         return versions
+
+    def find_versions(
+        self, content_hash: str, *, data_type: str | None = None
+    ) -> list[ArtifactVersion]:
+        """Every stored revision with this payload hash (content addressing)."""
+        return self._store.find_versions(content_hash, data_type)
 
     def at(self, version: int) -> Context:
         """An immutable snapshot view of this Context at a commit version.
@@ -951,6 +947,7 @@ class Context:
             if aid not in touched:
                 rebuilt[aid] = art
         self._artifacts = rebuilt
+        self._store = ArtifactStore.from_artifacts(self._artifacts)
 
         # Relations: those committed up to `version` plus the "working tree"
         # (created directly outside commits) are kept, as with artifacts. Links
@@ -1032,6 +1029,7 @@ class Context:
         for aid, art_dict in data["artifacts"].items():
             artifact = Artifact.from_dict(art_dict)
             ws._artifacts[aid] = artifact
+        ws._store = ArtifactStore.from_artifacts(ws._artifacts)
         ws._relations = RelationGraph.from_dict(data.get("relations", []))
         ws._log = CommitLog.from_dict(
             data["commits"],

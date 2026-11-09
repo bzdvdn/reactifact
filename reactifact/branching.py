@@ -30,7 +30,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
-from .artifacts import Artifact
+from .artifacts import Artifact, ArtifactStore
 from .checkpoints import AppendBackend, KVBackend
 from .commit import Commit
 from .context import Context
@@ -63,6 +63,7 @@ def clone_context(source: Context) -> Context:
         new_artifact.created_at = artifact.created_at
         new_artifact.updated_at = artifact.updated_at
         new_ws._artifacts[artifact.id] = new_artifact
+    new_ws._store = ArtifactStore.from_artifacts(new_ws._artifacts)
     new_ws._log = source._log.copy()
     new_ws._relations = source._relations.copy()
     new_ws._step_cursors = {
@@ -224,13 +225,16 @@ def merge_contexts(
     for op in operations:
         if isinstance(op, Delete):
             target._artifacts.pop(op.artifact_id, None)
+            target._store.delete(op.artifact_id)
             removed.add(op.artifact_id)
     for artifact_id, data in pending.items():
         existing = target._artifacts.get(artifact_id)
         if existing is None:
             target._artifacts[artifact_id] = Artifact(data=data, id=artifact_id)
+            target._store.create(data, artifact_id)
         else:
             existing.update(data)
+            target._store.update(artifact_id, data)
 
     for rel in other.relations():
         if rel.source_id in removed or rel.target_id in removed:
