@@ -1,8 +1,9 @@
 # Why reactifact — the idea in one page
 
 This is the *design argument*, not a feature list. If you already know what
-reactifact does, this page explains the *why*: why effects instead of graphs,
-why versioned state, why determinism is a philosophy rather than an option.
+reactifact does, this page explains the *why*: why effects, why the dependency
+graph is derived rather than drawn, why versioned state, why determinism is a
+philosophy rather than an option.
 The invariants behind every claim live in [constitution.md](../constitution.md).
 
 ## If you know Celery, you already know the model
@@ -173,8 +174,15 @@ forks, a steering second endpoint — the building blocks (`run_message`,
 
 ## Does this mean "no graphs ever"?
 
-No. Where a workflow is genuinely fixed, reactifact still expresses it — but the
-point is you are **not forced** into a graph when the problem is open-ended.
+No — and the docs should not claim that. There is always a dependency graph
+under the hood: steps are nodes, artifact versions and `reads` are edges, and the
+runtime walks it. The difference is **authorship**: LangGraph asks you to draw
+that graph; reactifact derives it from typed step inputs and the committed
+artifacts, so it cannot drift from the code. The claim is "no graph to draw",
+not "no graph".
+
+Where a workflow is genuinely fixed, reactifact still expresses it — but the
+point is you are **not forced** to draw a graph when the problem is open-ended.
 The canonical patterns (ReAct, reflection, map-reduce, supervisor, summarize,
 time-travel, plan-and-execute) all have reference implementations in
 [`examples/`](examples.md) (see [port-matrix](port-matrix.md)); they come

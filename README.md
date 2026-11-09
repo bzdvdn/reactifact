@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to artifacts, not graphs" width="800">
+  <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to typed artifacts; the graph is derived, not drawn" width="800">
 </p>
 
 **Auditable agents for Python.** Build **knowledge assistants** over docs, spreadsheets and the web — where the path per question isn't a graph you can draw. Every answer is computed, versioned and reproducible — not a string you have to trust.
@@ -15,7 +15,7 @@
 > **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · runs offline, no API key
 > **Isn't:** a managed platform · a distributed task queue · a pre-built agent/tool marketplace
 
-A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy doc and a page off the web — and the *next* question needs a different subset. That is not one graph you can draw up front. You declare what artifacts exist and what agents can do with them; the runtime derives the order from state.
+A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy doc and a page off the web — and the *next* question needs a different subset. That is not one graph you can draw up front. You declare what artifacts exist and what agents can do with them; the runtime derives the order — and the dependency graph — from state. You don't draw the graph.
 
 Every derived artifact then links to what produced it
 (`Answer —supported_by→ Evidence —extracted_from→ Doc`), so *"why did it say
@@ -334,7 +334,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
   [Colab notebook](examples/quickstart.ipynb).
 - [Migrating](docs/en/migrating.md) — from LangGraph / CrewAI / LlamaIndex /
   plain Python: concept map, port-one-node, interop, checklist.
-- [Why reactifact](docs/en/why-reactifact.md) — the *design argument*: why effects, why no graph, why determinism.
+- [Why reactifact](docs/en/why-reactifact.md) — the *design argument*: why effects, why the graph is derived rather than drawn, why determinism.
 - [Comparison](docs/en/comparison.md) — reactifact vs LangGraph/CrewAI, feature by feature, and when *not* to use reactifact.
 - [Tutorial · llm-ladder](docs/en/examples.md#tutorial-ladder) — learn the workflow.
 - [docs/constitution.md](docs/constitution.md) — the full design rationale and invariants.

@@ -13,7 +13,8 @@ have to trust.
 A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy
 doc and a page off the web — and the *next* question needs a different subset.
 That is not one graph you can draw up front. You declare what artifacts exist and
-what agents can do with them; the runtime derives the order from state. Every
+what agents can do with them; the runtime derives the order — and the
+dependency graph — from state. You don't draw the graph. Every
 derived artifact then links to what produced it
 (`Answer —supported_by→ Evidence —extracted_from→ Doc`), so *"why did it say
 that?"* is a query, not a guess — and the run is reproducible (`context_hash`)
