@@ -32,9 +32,9 @@ from .models import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
-    ProduceRun,
     RelationRef,
     RunTrace,
+    StepRun,
     TagAssignment,
 )
 
@@ -742,7 +742,7 @@ class TraceStore:
                 writes=[ArtifactRef(**d) for d in json.loads(r[7])],
                 relations=[RelationRef(**d) for d in json.loads(r[8])],
                 llm_calls=[LLMCall(**d) for d in json.loads(r[9])],
-                produces=[ProduceRun(**d) for d in json.loads(r[10])],
+                produces=[StepRun(**d) for d in json.loads(r[10])],
                 tools=[ToolRun(**d) for d in json.loads(r[11])],
                 event_artifact_id=r[12],
                 contract=AgentContract(**json.loads(r[13])),

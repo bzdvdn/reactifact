@@ -29,9 +29,9 @@ from .models import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
-    ProduceRun,
     RelationRef,
     RunTrace,
+    StepRun,
     TagAssignment,
 )
 from .store import _SORT_COLUMNS, _like
@@ -568,7 +568,7 @@ class PostgresStore:
                 writes=[ArtifactRef(**d) for d in r[7]],
                 relations=[RelationRef(**d) for d in r[8]],
                 llm_calls=[LLMCall(**d) for d in r[9]],
-                produces=[ProduceRun(**d) for d in r[10]],
+                produces=[StepRun(**d) for d in r[10]],
                 tools=[ToolRun(**d) for d in r[11]],
                 event_artifact_id=r[12],
                 contract=AgentContract(**r[13]),

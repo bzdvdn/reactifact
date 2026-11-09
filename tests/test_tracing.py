@@ -1232,3 +1232,9 @@ def test_langfuse_and_otlp_emit_tool_child_spans():
     spans = client.requests[-1][1]["resourceSpans"][0]["scopeSpans"][0]["spans"]
     tool_span = next(s for s in spans if s["name"] == "execute_tool search")
     assert attr(tool_span, "gen_ai.operation.name") == {"stringValue": "execute_tool"}
+
+
+def test_produce_run_alias_points_to_step_run():
+    from reactifact.tracing import ProduceRun, StepRun
+
+    assert ProduceRun is StepRun

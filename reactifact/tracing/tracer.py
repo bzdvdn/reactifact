@@ -30,9 +30,9 @@ from .models import (
     AgentSpan,
     ArtifactRef,
     LLMCall,
-    ProduceRun,
     RelationRef,
     RunTrace,
+    StepRun,
     TraceLimits,
 )
 from .store import TraceSink, TraceStore
@@ -542,7 +542,7 @@ class RunTracer:
                     priority=agent.priority,
                 ),
                 produces=[
-                    ProduceRun(name=name, operations=operations, latency_ms=latency)
+                    StepRun(name=name, operations=operations, latency_ms=latency)
                     for name, operations, latency in (produces or [])
                 ],
                 tools=tools or [],

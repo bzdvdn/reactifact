@@ -104,18 +104,22 @@ class AgentContract(BaseModel):
     priority: int = 0
 
 
-class ProduceRun(BaseModel):
-    """One produce execution within an agent span (§54).
+class StepRun(BaseModel):
+    """One step execution within an agent span (§54).
 
-    An agent runs one or more ``Produce``s per event; the span records which
-    ones actually ran and how much each contributed (``operations`` = authored
-    effect operations, so the produce that did the work is distinguishable from
-    one that merely matched the event).
+    An agent runs one or more steps per event; the span records which ones
+    actually ran and how much each contributed (``operations`` = authored effect
+    operations, so the step that did the work is distinguishable from one that
+    merely matched the event).
     """
 
     name: str
     operations: int = 0
     latency_ms: float = 0.0
+
+
+#: 0.1.x compatibility alias; use `StepRun` in new code.
+ProduceRun = StepRun
 
 
 class TraceLimits(BaseModel):
@@ -149,7 +153,7 @@ class AgentSpan(BaseModel):
     #: The agent's declared consumes/produces/tools (for the UI contract view).
     contract: AgentContract = Field(default_factory=AgentContract)
     #: The produces that ran for this event, in execution order.
-    produces: list[ProduceRun] = Field(default_factory=list)
+    produces: list[StepRun] = Field(default_factory=list)
     #: Tool executions that happened during this agent run (name/latency/status).
     tools: list[ToolRun] = Field(default_factory=list)
     reads: list[ArtifactRef] = Field(default_factory=list)
