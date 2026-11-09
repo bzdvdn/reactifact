@@ -42,7 +42,7 @@ to fill them in — the recipe stamps the real values on every create.
         consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                     Consume(PendingQuestion)]
         produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
-                    Produce(PendingQuestion)]  # widens allowed Create types, see verify.py
+                    Step(PendingQuestion)]  # widens allowed Create types, see verify.py
 
 Kept as an inert placeholder (not `also_creates=`, see `produce.py`) because
 none of the three real produces above is uniquely "the one that creates
@@ -63,7 +63,7 @@ from pydantic import BaseModel
 from ..artifacts import Artifact
 from ..context import Context
 from ..interrupt import PendingQuestion
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 TaskT = TypeVar("TaskT", bound=BaseModel)
@@ -101,8 +101,8 @@ class Router(Generic[RequestT, TaskT], ABC):
         `thread_field`/`route_field` are stamped afterwards regardless."""
         return self.task_type()
 
-    def produce(self) -> Produce[Any]:
-        return _RouteProduce(self)
+    def produce(self) -> Step[Any]:
+        return _RouteStep(self)
 
 
 class ApprovalGate(Generic[ReportT, FinalT], ABC):
@@ -129,8 +129,8 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
     def is_yes(self, answer: str) -> bool:
         return answer.strip().lower() in _YES
 
-    def produce(self) -> Produce[Any]:
-        return _ApprovalProduce(self)
+    def produce(self) -> Step[Any]:
+        return _ApprovalStep(self)
 
     def _final_id(self, thread_id: str) -> str:
         return f"final:{thread_id}"
@@ -154,12 +154,12 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
         return None
 
 
-class _RouteProduce(Produce[Any]):
+class _RouteStep(Step[Any]):
     def __init__(self, owner: Router[Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.task_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         request = call.trigger
@@ -179,12 +179,12 @@ class _RouteProduce(Produce[Any]):
         return None
 
 
-class _ApprovalProduce(Produce[Any]):
+class _ApprovalStep(Step[Any]):
     def __init__(self, owner: ApprovalGate[Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger

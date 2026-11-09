@@ -9,7 +9,7 @@ request is in flight, and that data is often richer than a bare `session_id`
 `contextvars.ContextVar` set right before that call is visible from there
 through `Runtime.arun()`: same asyncio task, no thread/task hop in between.
 
-`SeedIdentity` is the other half: a plain reactive `Produce` that reads that
+`SeedIdentity` is the other half: a plain reactive `Step` that reads that
 contextvar once per turn and writes it as an ordinary, create-or-refresh
 artifact into the *same* `Context` the turn's other artifacts live in —
 deliberately not a `resources`-side dict keyed by `session_id`:
@@ -43,12 +43,12 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 IdentityT = TypeVar("IdentityT", bound=BaseModel)
 
 
-class SeedIdentity(Produce[IdentityT], Generic[IdentityT]):
+class SeedIdentity(Step[IdentityT], Generic[IdentityT]):
     """Writes `identity_var`'s current value as an `identity_type` artifact
     (id `identity_id`) once per turn.
 
@@ -76,7 +76,7 @@ class SeedIdentity(Produce[IdentityT], Generic[IdentityT]):
         self._extract = extract
         self._fallback = fallback
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         raw = self._identity_var.get()
         identity: IdentityT | None
         if raw is not None and self._extract is not None:

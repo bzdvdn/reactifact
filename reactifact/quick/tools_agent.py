@@ -37,7 +37,7 @@ class _QuickLLMAgent(LLMAgent):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.consumes = [Consume(question_type)]
-        self.produces = []
+        self.steps = []
         super().__init__(name=name)
 
 
@@ -61,7 +61,7 @@ class _QuickHITLLMAgent(HITLLMAgent):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.consumes = [Consume(question_type)]
-        self.produces = []
+        self.steps = []
         super().__init__(name=name)
 
 

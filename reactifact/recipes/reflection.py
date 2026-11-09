@@ -47,7 +47,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 TopicT = TypeVar("TopicT", bound=BaseModel)
 DraftT = TypeVar("DraftT", bound=BaseModel)
@@ -57,7 +57,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     """Subclass with the four domain hooks; `produces()` gives the four
-    `Produce`s to wire into an `Agent` (see module docstring)."""
+    `Step`s to wire into an `Agent` (see module docstring)."""
 
     topic_type: type[TopicT]
     draft_type: type[DraftT]
@@ -97,7 +97,7 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     async def finish(self, context: Context, draft: Artifact[DraftT]) -> FinalT:
         """Builds the final artifact once `draft` is accepted or out of rounds."""
 
-    def produces(self) -> list[Produce[Any]]:
+    def produces(self) -> list[Step[Any]]:
         return [_Draft(self), _Critic(self), _Rewrite(self), _Finalize(self)]
 
     def _draft_id(self, topic_id: str) -> str:
@@ -116,12 +116,12 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
         return value if isinstance(value, str) else None
 
 
-class _Draft(Produce[Any]):
+class _Draft(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger
@@ -149,12 +149,12 @@ class _Draft(Produce[Any]):
         return None
 
 
-class _Critic(Produce[Any]):
+class _Critic(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.review_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger
@@ -190,12 +190,12 @@ class _Critic(Produce[Any]):
         return None
 
 
-class _Rewrite(Produce[Any]):
+class _Rewrite(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger
@@ -224,12 +224,12 @@ class _Rewrite(Produce[Any]):
         return None
 
 
-class _Finalize(Produce[Any]):
+class _Finalize(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger

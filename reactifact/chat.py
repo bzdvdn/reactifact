@@ -510,7 +510,7 @@ class ChatAssistant:
             create_agent(
                 "memory",
                 consumes=[Consume.by_base(t) for t in message_types],
-                produces=[produce],
+                steps=[produce],
             )
         ]
 

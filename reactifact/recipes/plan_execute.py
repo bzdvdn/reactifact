@@ -43,7 +43,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 GoalT = TypeVar("GoalT", bound=BaseModel)
 StepT = TypeVar("StepT", bound=BaseModel)
@@ -53,7 +53,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     """Subclass with the three domain hooks; `produces()` gives the three
-    `Produce`s to wire into an `Agent` (see module docstring)."""
+    `Step`s to wire into an `Agent` (see module docstring)."""
 
     goal_type: type[GoalT]
     step_type: type[StepT]
@@ -85,7 +85,7 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     ) -> FinalT:
         """Combine every step's result (in order) into the final artifact."""
 
-    def produces(self) -> list[Produce[Any]]:
+    def produces(self) -> list[Step[Any]]:
         return [_Planner(self), _Executor(self), _Finisher(self)]
 
     def _step_id(self, goal_id: str, index: int) -> str:
@@ -110,12 +110,12 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
         return value if isinstance(value, str) else None
 
 
-class _Planner(Produce[Any]):
+class _Planner(Step[Any]):
     def __init__(self, owner: PlanExecute[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.step_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         goal = call.trigger
@@ -133,12 +133,12 @@ class _Planner(Produce[Any]):
         return None
 
 
-class _Executor(Produce[Any]):
+class _Executor(Step[Any]):
     def __init__(self, owner: PlanExecute[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.result_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger
@@ -168,12 +168,12 @@ class _Executor(Produce[Any]):
         return None
 
 
-class _Finisher(Produce[Any]):
+class _Finisher(Step[Any]):
     def __init__(self, owner: PlanExecute[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         owner = self.owner
         artifact = call.trigger

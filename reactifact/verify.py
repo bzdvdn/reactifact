@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 from .context import Context
 from .eval import MetricFn, core_metrics
-from .produce import Produce, ProduceCall
+from .step import Step, StepCall
 
 #: Used when neither the agent nor `RuntimeResources.verification_threshold` sets one.
 DEFAULT_THRESHOLD = 0.7
@@ -55,7 +55,7 @@ class VerificationFailed(BaseModel):
     overall: float = 0.0
 
 
-class Verify(Produce[VerificationResult]):
+class Verify(Step[VerificationResult]):
     """Scores a live `Answer`-shaped artifact with `eval.py` metrics.
 
     `threshold`: explicit per-instance cutoff. `None` (default) resolves at
@@ -75,13 +75,13 @@ class Verify(Produce[VerificationResult]):
     On top of `VerificationResult`, this creates a `PendingQuestion`
     (`on_fail="ask"`) or a `VerificationFailed` (`on_fail="retry"`) — the
     containing agent's `produces` must declare those too (a bare
-    `Produce(PendingQuestion)`/`Produce(VerificationFailed)` widens the
+    `Step(PendingQuestion)`/`Step(VerificationFailed)` widens the
     allowed `Create` types without adding real logic — same convention
     `HITLLMAgent` uses for `Observation`/`PendingQuestion`, `llm_agent.py`):
 
         class Answerer(Agent):
             consumes = [Consume(Question)]
-            produces = [BuildAnswer(), Verify(), Produce(PendingQuestion)]
+            produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
     """
 
     artifact_type = VerificationResult
@@ -108,7 +108,7 @@ class Verify(Produce[VerificationResult]):
         configured = context.resources.verification_threshold
         return configured if configured is not None else DEFAULT_THRESHOLD
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         answer = call.trigger
         if answer is None or type(answer.data).__name__ != self.answer_type:

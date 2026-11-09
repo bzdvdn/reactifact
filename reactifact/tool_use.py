@@ -1,4 +1,4 @@
-"""Tool-use for LLM agents: \"LLM decides → tool → … → answer\" as a Produce.
+"""Tool-use for LLM agents: \"LLM decides → tool → … → answer\" as a Step.
 
 Two loop variants:
 - `ToolUse` — a blocking loop in a single produce (simple, atomic);
@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from .context import Context
 from .events import Event
 from .interrupt import PendingQuestion
-from .produce import Produce, ProduceCall
+from .step import Step, StepCall
 from .structured import structured_llm
 from .tools import Tool, execute_tool
 
@@ -70,7 +70,7 @@ class _FinalAnswer(BaseModel):
     text: str = ""
 
 
-class _ToolLoopBase(Produce[ToolAnswer]):
+class _ToolLoopBase(Step[ToolAnswer]):
     """Shared plumbing for `ToolUse`/`ToolUseHITL`: tool registry + `_run_tool`.
 
     Both loops offer the same tool set the same way and execute a tool call
@@ -190,7 +190,7 @@ class ToolUse(_ToolLoopBase):
         self.max_steps = max_steps
         self.deferred_tool_groups = list(deferred_tool_groups)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         artifact = call.trigger
         if artifact is None or isinstance(artifact.data, ToolAnswer):
@@ -206,7 +206,7 @@ class ToolUse(_ToolLoopBase):
         history: list[str] = []
         # group_id -> {tool name -> Tool}, populated lazily by `load_tools`;
         # local to this call, not `self` — `ToolUse` instances are shared
-        # across concurrent produce() runs (§ Produce is declared once).
+        # across concurrent produce() runs (§ Step is declared once).
         loaded_groups: dict[str, dict[str, Tool]] = {}
         budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
@@ -418,7 +418,7 @@ class ToolUseHITL(_ToolLoopBase):
         # App callback: human answer → status message (kind="status").
         self.resume_announce = resume_announce
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         event = call.event
         resolved = self._resolve(context, event)

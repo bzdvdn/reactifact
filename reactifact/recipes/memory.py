@@ -16,7 +16,7 @@ Two shapes cover the common cases, and they are *not* interchangeable:
   without folding first, so using it in place of this recipe loses content
   instead of condensing it.
 
-All are plain `Produce`s — drop them into an `Agent.produces` list next to
+All are plain `Step`s — drop them into an `Agent.produces` list next to
 whatever else reacts to the message type.
 
 Domain owns *how* to summarize (the `summarize` callback) and *what* the
@@ -35,7 +35,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 from ..structured import OnStructuredError, llm_reply
 
 MsgT = TypeVar("MsgT", bound=BaseModel)
@@ -91,7 +91,7 @@ def _default_digest_text(artifact: Artifact[Any]) -> str:
     return str(getattr(artifact.data, "text", artifact.data))
 
 
-class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
+class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
     """Condenses the recent window of `message_type` artifacts into a summary
     artifact every `every` messages (§27).
 
@@ -130,7 +130,7 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.id_of = id_of
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         messages = _collect_messages(context, self.message_types)
         count = len(messages)
@@ -149,7 +149,7 @@ class WindowSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         return None
 
 
-class WindowPruner(Produce[MsgT], Generic[MsgT]):
+class WindowPruner(Step[MsgT], Generic[MsgT]):
     """Deletes `message_type` artifacts older than `keep` (ordered by
     `order_key`, default `created_at`). Standalone-useful — pair it with
     `WindowSummarizer` for full sliding-window memory, or use it alone to
@@ -174,7 +174,7 @@ class WindowPruner(Produce[MsgT], Generic[MsgT]):
         self.keep = keep
         self.order_key = order_key
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         messages = sorted(
             _collect_messages(context, self.message_types), key=self.order_key
@@ -190,7 +190,7 @@ class WindowPruner(Produce[MsgT], Generic[MsgT]):
         return None
 
 
-class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
+class RollingDigestSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
     """Folds everything older than `window` into one growing digest, once the
     conversation exceeds `trigger` messages (§27, §37).
 
@@ -245,7 +245,7 @@ class RollingDigestSummarizer(Produce[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.digest_id = digest_id
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         messages = sorted(
             _collect_messages(context, self.message_types), key=self.order_key

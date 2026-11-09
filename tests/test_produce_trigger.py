@@ -125,7 +125,7 @@ class DeletionAware(Produce[Marker]):
     live runtime (see the unit tests below for why)."""
 
     artifact_type = Marker
-    reacts_to = (Marker,)
+    consumes = (Consume(Marker, event_types=[EventType.ARTIFACT_DELETED]),)
 
     async def produce(self, call):
         self.effects.create(Marker(tag="deleted" if call.trigger is None else "alive"))

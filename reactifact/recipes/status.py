@@ -9,12 +9,12 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 
 
-class StatusMachine(Produce[StatusT], Generic[StatusT]):
+class StatusMachine(Step[StatusT], Generic[StatusT]):
     """Deterministic `status` lifecycle for an artifact type (§67).
 
     Subclass it, set `artifact_type`/`terminal`, implement `next_status` (and
@@ -47,7 +47,7 @@ class StatusMachine(Produce[StatusT], Generic[StatusT]):
     ) -> None:
         """Hook called right before a transition (progress announces, §53)."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         context = call.context
         artifact = call.trigger
         if artifact is None:

@@ -354,7 +354,7 @@ function agentHtml(agent,list){
   let writes=0,llm=0,total=0;
   for(const s of list){writes+=(s.writes||[]).length;llm+=(s.llm_calls||[]).length;total+=Number(s.latency_ms||0);}
   const flow='<span class="contract-flow"><span class="cf-label">consumes</span>'+consumeChips+
-    '<span class="arrow">→</span><span class="cf-label">produces</span>'+produceChips+'</span>';
+    '<span class="arrow">→</span><span class="cf-label">steps</span>'+produceChips+'</span>';
   return '<details class="agent" open><summary><span class="caret">▸</span><b>'+escapeHtml(agent)+'</b>'+
     flow+
     '<span class="muted">'+list.length+' spans · '+(total/list.length).toFixed(1)+' ms avg</span>'+
@@ -378,7 +378,7 @@ function spanHtml(s){
       (s.event_artifact_id?' <code>'+escapeHtml(shortId(s.event_artifact_id))+'</code>':'')+'</span>'
     : '<span class="trigger">event '+escapeHtml(s.event_type||'')+'</span>';
   const flow='<span class="contract-flow"><span class="cf-label">consumes</span>'+consumeChips+
-    '<span class="arrow">→</span><span class="cf-label">produces</span>'+produceChips+'</span>';
+    '<span class="arrow">→</span><span class="cf-label">steps</span>'+produceChips+'</span>';
   const reads=(s.reads||[]).length?('<div class="io"><h3>Consumes / inputs</h3>'+artsBlock(s.reads)+'</div>'):'';
   const writes=(s.writes||[]).length?('<div class="io"><h3>Outputs / writes</h3>'+artsBlock(s.writes)+'</div>'):'';
   const io=(reads||writes)?'<div class="io-grid">'+reads+writes+'</div>':'';
@@ -400,7 +400,7 @@ function producesBlock(list,contract){
     if(!p)return '<div class="produce-row muted"><span class="chip produce muted">'+escapeHtml(n)+'</span><span class="muted">did not run</span></div>';
     return '<div class="produce-row"><span class="chip produce" data-filter-kind="produce" data-filter-value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</span><span class="muted">'+Number(p.operations||0)+' ops · '+Number(p.latency_ms||0).toFixed(1)+' ms</span></div>';
   }).join('');
-  return '<div class="llm"><h3>Produces</h3>'+rows+'</div>';
+  return '<div class="llm"><h3>Steps</h3>'+rows+'</div>';
 }
 function artHtml(a){
   const op=('<span class="tag">'+escapeHtml(a.op_type||'read')+'</span>');

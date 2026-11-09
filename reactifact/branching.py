@@ -65,6 +65,9 @@ def clone_context(source: Context) -> Context:
         new_ws._artifacts[artifact.id] = new_artifact
     new_ws._log = source._log.copy()
     new_ws._relations = source._relations.copy()
+    new_ws._step_cursors = {
+        key: dict(value) for key, value in source._step_cursors.items()
+    }
     new_ws._recompute_stale()
     new_ws._reindex_by_type()
     return new_ws

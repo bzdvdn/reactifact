@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
 from typing import Any
 
@@ -12,7 +12,15 @@ from .context import Context
 from .effects import current_effects
 from .events import Event, EventType
 from .patches import Patch
-from .produce import Produce, ProduceCall
+from .step import (
+    Step,
+    StepCall,
+    invoke_step,
+    reset_step_call,
+    reset_step_context,
+    set_step_call,
+    set_step_context,
+)
 from .tools import reset_current_produce, set_current_produce
 from .triggers import Trigger
 
@@ -48,15 +56,19 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
 
     name: str = ""
     consumes: Sequence[Consume] | None = None
-    produces: Sequence[Produce[Any]] | None = None
+    #: The steps this agent runs. Canonical spelling; `produces` is a
+    #: deprecated alias kept for 0.1.x code.
+    steps: Sequence[Step[Any]] | None = None
+    #: Deprecated alias for `steps` (class-level and instance-level).
+    produces: Sequence[Step[Any]] | None = None
     #: Declarative capability labels (§25), consumed by the adaptive policy.
     capabilities: tuple[str, ...] = ()
     #: Explicit trigger override — for the *imperative* style (`Agent`
-    #: subclass overriding `run()` directly, no `consumes`/`produces` at
-    #: all, see `run()`'s own docstring). That style never calls
+    #: subclass overriding `run()` directly, no `consumes`/`steps` at all,
+    #: see `run()`'s own docstring). That style never calls
     #: `_collect_inputs()`, so `Consume` has nothing to attach to; `triggers`
     #: is the only way such an agent says when to wake up. For the
-    #: declarative style (`consumes`/`produces`, the common case), leave this
+    #: declarative style (`consumes`/`steps`, the common case), leave this
     #: unset — `triggers` auto-derives from `consumes` instead, and a
     #: `Consume` that should feed inputs without also waking the agent uses
     #: `Consume(..., wakes=False)` rather than a second, hand-maintained list.
@@ -68,12 +80,24 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     # the runtime default (max_concurrency). Use it to throttle LLM-bound
     # producers (rate limits) independently of cheap I/O (file reads).
     concurrency_limit: int | None = None
+    #: Whether the runtime auto-schedules this agent from matching events.
+    #: `False` keeps it out of reactive scheduling (run it explicitly).
+    wakes: bool | Callable[[Event, Context | None], bool] = True
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        legacy = cls.__dict__.get("produces")
+        if legacy is not None and "steps" not in cls.__dict__:
+            cls.steps = legacy
 
     def __init__(
         self,
         name: str | None = None,
         triggers: list[Trigger] | None = None,
         priority: int | None = None,
+        *,
+        steps: Sequence[Step[Any]] | None = None,
+        wakes: bool | Callable[[Event, Context | None], bool] | None = None,
     ):
         self.name = name or self.name or self.__class__.__name__
 
@@ -81,14 +105,37 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             priority if priority is not None else getattr(self.__class__, "priority", 0)
         )
 
+        existing_steps = self.__dict__.get("steps")
+        existing_produces = self.__dict__.get("produces")
+        resolved: Sequence[Step[Any]] | None
+        if steps is not None:
+            resolved = steps
+        elif existing_steps is not None:
+            resolved = existing_steps
+        elif existing_produces is not None:
+            resolved = existing_produces
+        else:
+            resolved = getattr(self.__class__, "steps", None)
+            if resolved is None:
+                resolved = getattr(self.__class__, "produces", None)
+        self.steps = list(resolved) if resolved is not None else None
+        # Deprecated instance-level alias: keep it in sync with `steps`.
+        self.produces = self.steps
+
         if triggers is not None:
             self.triggers = list(triggers)
         elif self.triggers:
             self.triggers = list(self.triggers)
         elif self.consumes is not None:
             self.triggers = self._generate_triggers_from_consumes()
+        elif self.steps:
+            self.triggers = self._generate_triggers_from_steps()
         else:
             self.triggers = []
+
+        self.wakes = (
+            wakes if wakes is not None else getattr(self.__class__, "wakes", True)
+        )
 
         self._validate_contracts()
 
@@ -96,6 +143,14 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         result = []
         for c in self.consumes or []:
             result.extend(c.to_triggers())
+        return result
+
+    def _generate_triggers_from_steps(self) -> list[Trigger]:
+        """Derive the agent's wake set from its steps' `consumes` contracts."""
+        result: list[Trigger] = []
+        for step in self.steps or []:
+            for consume in step.consume_specs() or ():
+                result.extend(consume.to_triggers())
         return result
 
     def _validate_contracts(self) -> None:
@@ -106,15 +161,20 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                         f"Agent {self.name!r}: consumes must contain Consume "
                         f"instances, got {type(c)}"
                     )
-        if self.produces is not None:
-            for p in self.produces:
-                if not isinstance(p, Produce):
+        if self.steps is not None:
+            for p in self.steps:
+                if not isinstance(p, Step):
                     raise TypeError(
-                        f"Agent {self.name!r}: produces must contain Produce "
+                        f"Agent {self.name!r}: steps must contain Step "
                         f"instances, got {type(p)}"
                     )
 
     def matches(self, event: Event, context: Context | None = None) -> bool:
+        if callable(self.wakes):
+            if not self.wakes(event, context):
+                return False
+        elif not self.wakes:
+            return False
         return bool(self.matching_triggers(event, context))
 
     def matching_triggers(
@@ -131,7 +191,19 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         """Public access to the consumed artifacts.
 
         Used by the runtime to record the reads linkage (provenance) on run.
+        When the agent has no explicit `consumes`, this is the union of its
+        steps' own `consumes`.
         """
+        if self.consumes is None and self.steps:
+            inputs: list[Artifact[Any]] = []
+            seen: set[str] = set()
+            for step in self.steps:
+                for artifact in step.collect_inputs(context):
+                    if artifact.id in seen:
+                        continue
+                    seen.add(artifact.id)
+                    inputs.append(artifact)
+            return inputs
         return self._collect_inputs(context)
 
     def _collect_inputs(self, context: Context) -> list[Artifact[Any]]:
@@ -154,8 +226,8 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         return inputs
 
     async def run(self, event: Event, context: Context) -> Patch | None:
-        """Default: runs `self.produces` via `execute()` (the effects-first
-        path — write a `Produce` subclass or `@produce` function instead of
+        """Default: runs `self.steps` via `execute()` (the effects-first
+        path — write a `Step` subclass or `@step` function instead of
         overriding this).
 
         Overriding `run()` to return a `Patch` by hand is a low-level,
@@ -167,6 +239,26 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         await self.execute(context, event)
         return None
 
+    @staticmethod
+    def _input_cursor(
+        step: Step[Any],
+        artifacts: list[Artifact[Any]],
+        scope_value: Any,
+    ) -> dict[type, tuple[str, int]]:
+        """The step's input watermark: latest id + max version per type."""
+        cursor: dict[type, tuple[str, int]] = {}
+        for artifact in artifacts:
+            if (
+                step.scope is not None
+                and scope_value is not None
+                and getattr(artifact.data, step.scope, None) != scope_value
+            ):
+                continue
+            artifact_type = type(artifact.data)
+            _, max_version = cursor.get(artifact_type, ("", -1))
+            cursor[artifact_type] = (artifact.id, max(max_version, artifact.version))
+        return cursor
+
     async def execute(self, context: Context, event: Event | None = None) -> None:
         """Runs the agent's produces (usually on an event).
 
@@ -177,24 +269,57 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         agent-level escape hatch for custom Agent subclasses that assemble a
         change-set by hand; the runtime merges its result after the effects.)
         """
-        if not self.produces:
+        if not self.steps:
             return None
         inputs = self._collect_inputs(context)
         slot = current_effects()
         log = _produce_runs.get()
-        for p in self.produces:
+        for p in self.steps:
             runs, trigger = self._resolve_produce_call(p, event, context)
             if not runs:
                 continue
+            step_inputs = p.collect_inputs(context) if p.consumes else inputs
+            scope_value = (
+                getattr(trigger.data, p.scope, None)
+                if p.scope is not None and trigger is not None
+                else None
+            )
+            cursor_artifacts = (
+                [*step_inputs, trigger] if trigger is not None else step_inputs
+            )
+            input_cursor = self._input_cursor(p, cursor_artifacts, scope_value)
+            cursor_key = (self.name, p.name, scope_value)
+            if input_cursor and context._step_cursors.get(cursor_key) == input_cursor:
+                continue
             before = len(slot.operations) if slot is not None else 0
             started = time.monotonic()
-            call = ProduceCall(
-                context=context, inputs=inputs, event=event, trigger=trigger
+            cursor: dict[type, int] = {}
+            for artifact in (
+                [*step_inputs, trigger] if trigger is not None else step_inputs
+            ):
+                artifact_type = type(artifact.data)
+                cursor[artifact_type] = max(
+                    cursor.get(artifact_type, -1), artifact.version
+                )
+            call = StepCall(
+                context=context,
+                inputs=step_inputs,
+                event=event,
+                trigger=trigger,
+                scope=scope_value,
+                cursor=cursor,
             )
             produce_token = set_current_produce(p.name)
+            context_token = set_step_context(context)
+            call_token = set_step_call(call)
             try:
-                await p.produce(call)
+                result = await invoke_step(p, call)
+                p._apply_result(result)
+                if p.consumes:
+                    context._step_cursors[cursor_key] = input_cursor
             finally:
+                reset_step_call(call_token)
+                reset_step_context(context_token)
                 reset_current_produce(produce_token)
                 # Record the produce even when it raises — a failing produce is
                 # exactly what a trace should show (the span is then the error
@@ -210,11 +335,11 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
 
     @staticmethod
     def _resolve_produce_call(
-        p: Produce[Any], event: Event | None, context: Context
+        p: Step[Any], event: Event | None, context: Context
     ) -> tuple[bool, Artifact[Any] | None]:
-        """Whether to call `p.produce()` for `event`, and the triggering
-        artifact to put on the `ProduceCall.trigger` field (see `Produce`'s
-        docstring, and `ProduceCall`'s, for the full contract).
+        """Whether to call `p.run()` for `event`, and the triggering
+        artifact to put on the `StepCall.trigger` field (see `Step`'s
+        docstring, and `StepCall`'s, for the full contract).
 
         `p.reacts_to is None` (the default): unrestricted, matching the
         pre-`reacts_to` behavior where every produce ran on every event this
@@ -236,13 +361,20 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         not a race, so the produce still runs with `trigger=None` —
         deletion-reacting code is expected to handle that itself.
         """
+        consumes = p.consume_specs()
         if event is None:
-            return (p.reacts_to is None), None
-        if p.reacts_to is not None and event.artifact_type not in p.reacts_to:
-            return False, None
+            return (consumes is None), None
+        if consumes is not None:
+            matched = any(
+                trigger.matches(event, context)
+                for consume in consumes
+                for trigger in consume.to_triggers()
+            )
+            if not matched:
+                return False, None
         trigger = context.get(event.artifact_id)
         if (
-            p.reacts_to is not None
+            consumes is not None
             and trigger is None
             and event.type is not EventType.ARTIFACT_DELETED
         ):
@@ -254,11 +386,13 @@ def create_agent(
     name: str,
     *,
     consumes: Sequence[Consume] | None = None,
-    produces: Sequence[Produce[Any]] | None = None,
+    steps: Sequence[Step[Any]] | None = None,
+    produces: Sequence[Step[Any]] | None = None,
     capabilities: tuple[str, ...] = (),
     priority: int = 0,
     concurrency_limit: int | None = None,
     triggers: list[Trigger] | None = None,
+    wakes: bool | Callable[[Event, Context | None], bool] = True,
 ) -> Agent:
     """Builds an Agent instance without subclassing.
 
@@ -270,7 +404,7 @@ def create_agent(
     echo = create_agent(
         name="echo",
         consumes=[Consume(Question)],
-        produces=[echo_produce],          # a Produce or @produce(...) function
+        steps=[echo_step],                # a Step or @step(...) function
     )
     ```
 
@@ -279,15 +413,22 @@ def create_agent(
     (see `Agent.triggers`'s own docstring) — the ordinary declarative case
     should leave it unset and use `Consume(..., wakes=False)` instead.
     """
+    if steps is not None and produces is not None:
+        raise TypeError(
+            "Pass either steps= or produces=, not both: produces is the deprecated alias for steps."
+        )
+    resolved_steps = steps if steps is not None else produces
     agent = Agent(
-        name=name, triggers=triggers if triggers is not None else [], priority=priority
+        name=name,
+        triggers=triggers,
+        priority=priority,
+        steps=resolved_steps,
+        wakes=wakes,
     )
     if consumes is not None:
         agent.consumes = consumes
         if triggers is None:
             agent.triggers = agent._generate_triggers_from_consumes()
-    if produces is not None:
-        agent.produces = produces
     agent.capabilities = capabilities
     agent.concurrency_limit = concurrency_limit
     agent._validate_contracts()

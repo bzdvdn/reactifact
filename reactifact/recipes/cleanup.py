@@ -6,7 +6,7 @@ read again once a terminal artifact exists for that key, and exist only to
 keep each stage's output typed and inspectable in between. Left alone,
 `Context` (and anything that checkpoints it wholesale, e.g. `SessionStore`)
 grows without bound as more turns/threads accumulate. Every app that has hit
-this has hand-rolled the same `Produce[Terminal]` subclass: react to the
+this has hand-rolled the same `Step[Terminal]` subclass: react to the
 terminal artifact, recover its correlation key, delete each scratch id if
 present. `EphemeralCleanup` (and `PrefixedEphemeralCleanup` for the common
 `f"{prefix}:{key}"` id shape, §42's own stable-id idiom) is that subclass,
@@ -26,12 +26,12 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
 
-class EphemeralCleanup(Produce[TerminalT], Generic[TerminalT]):
+class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
     """Deletes a set of "scratch" artifacts once a terminal artifact exists
     for their shared correlation key.
 
@@ -42,7 +42,7 @@ class EphemeralCleanup(Produce[TerminalT], Generic[TerminalT]):
     was already cleaned up, is silently skipped, not an error).
 
     Never itself creates an artifact — `artifact_type` only satisfies
-    `Produce`'s constructor and names what triggers this. `Runtime` only
+    `Step`'s constructor and names what triggers this. `Runtime` only
     validates declared types against `Create` operations, never `Delete`, so
     this produce needs no `also_creates` and never widens anything.
     """
@@ -62,7 +62,7 @@ class EphemeralCleanup(Produce[TerminalT], Generic[TerminalT]):
         a fixed list of stage prefixes (see `PrefixedEphemeralCleanup` for
         that exact shape pre-built)."""
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         terminal = call.trigger
         if terminal is None:
             return None

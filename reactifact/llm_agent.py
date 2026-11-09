@@ -23,7 +23,7 @@ from .consume import Consume
 from .context import Context
 from .events import Event
 from .interrupt import PendingQuestion
-from .produce import Produce
+from .step import Step
 from .structured import SYSTEM_STRUCTURED, structured_llm
 from .tool_use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
 from .tools import Tool
@@ -108,8 +108,8 @@ class LLMAgent(Agent):
             *user_consumes,
             Consume.by_field(ToolAnswer, "agent", llm_name),
         ]
-        user_produces = list(self.produces) if self.produces else []
-        self.produces = [
+        user_steps = list(self.steps) if self.steps else []
+        self.steps = [
             ToolUse(
                 name=llm_name,
                 system=self.system,
@@ -119,8 +119,8 @@ class LLMAgent(Agent):
                 max_tokens=self.max_tokens,
                 deferred_tool_groups=self.deferred_tool_groups,
             ),
-            Produce(ToolAnswer),
-            *user_produces,
+            Step(ToolAnswer),
+            *user_steps,
         ]
         super().__init__(name=name, **kwargs)
 
@@ -155,8 +155,8 @@ class HITLLMAgent(Agent):
                 condition=lambda a: a.data.notes.get("agent") == llm_name,
             ),
         ]
-        user_produces = list(self.produces) if self.produces else []
-        self.produces = [
+        user_steps = list(self.steps) if self.steps else []
+        self.steps = [
             ToolUseHITL(
                 name=llm_name,
                 system=self.system,
@@ -168,9 +168,9 @@ class HITLLMAgent(Agent):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             ),
-            Produce(ToolAnswer),
-            Produce(Observation),
-            Produce(PendingQuestion),
-            *user_produces,
+            Step(ToolAnswer),
+            Step(Observation),
+            Step(PendingQuestion),
+            *user_steps,
         ]
         super().__init__(name=name, **kwargs)

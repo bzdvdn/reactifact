@@ -14,11 +14,11 @@ from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
-from ..produce import Produce, produce
 from ..providers import LLMProvider
 from ..recipes import fan_out_sources, find_all, keyword_score, materialize_doc
 from ..resources import RuntimeResources
 from ..sources import CSVSource, FileSystemSource, Source, SourceRef
+from ..step import Step, step
 from ..structured import llm_reply
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Answer, Doc, Question
@@ -143,8 +143,8 @@ def _default_answer_builder(
     return build
 
 
-def _search_produce(limit: int, question_type: type[BaseModel]) -> Produce[Any]:
-    @produce(SourceRef)
+def _search_produce(limit: int, question_type: type[BaseModel]) -> Step[Any]:
+    @step(SourceRef)
     async def _search(call: Any) -> None:
         question = _question_of(call, question_type)
         if question is None:
@@ -157,10 +157,8 @@ def _search_produce(limit: int, question_type: type[BaseModel]) -> Produce[Any]:
     return _search
 
 
-def _resolve_produce(
-    doc_type: type[BaseModel], doc_builder: DocBuilder
-) -> Produce[Any]:
-    @produce(doc_type)
+def _resolve_produce(doc_type: type[BaseModel], doc_builder: DocBuilder) -> Step[Any]:
+    @step(doc_type)
     async def _resolve(call: Any) -> None:
         refs = [a for a in call.inputs if isinstance(a.data, SourceRef)]
         trigger = call.trigger
@@ -182,8 +180,8 @@ def _answer_produce(
     answer_builder: AnswerBuilder,
     doc_text: Callable[[BaseModel], str],
     doc_locator: Callable[[BaseModel], str],
-) -> Produce[Any]:
-    @produce(answer_type)
+) -> Step[Any]:
+    @step(answer_type)
     async def _answer(call: Any) -> None:
         question = call.context.latest(question_type) or _question_of(
             call, question_type
@@ -270,17 +268,17 @@ class QuickRAG(Generic[TAnswer]):
             create_agent(
                 name="search",
                 consumes=[Consume(question_type)],
-                produces=[_search_produce(limit, question_type)],
+                steps=[_search_produce(limit, question_type)],
             ),
             create_agent(
                 name="resolve",
                 consumes=[Consume(SourceRef)],
-                produces=[_resolve_produce(doc_type, doc_builder)],
+                steps=[_resolve_produce(doc_type, doc_builder)],
             ),
             create_agent(
                 name="answer",
                 consumes=[Consume(doc_type), Consume(question_type, wakes=False)],
-                produces=[
+                steps=[
                     _answer_produce(
                         answer_system,
                         question_type=question_type,

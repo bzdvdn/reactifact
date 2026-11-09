@@ -47,6 +47,7 @@ from .request import current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import Runtime
 from .session import Session, SessionStore
+from .step import Latest, Step, StepCall, step
 from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
@@ -70,6 +71,7 @@ __all__ = [
     "FakeLLM",
     "FunctionTool",
     "Handle",
+    "Latest",
     "Link",
     "Message",
     "MergeConflict",
@@ -78,6 +80,8 @@ __all__ = [
     "PendingQuestion",
     "Produce",
     "ProduceCall",
+    "Step",
+    "StepCall",
     "Relation",
     "ResourceKey",
     "ResourceScope",
@@ -106,5 +110,6 @@ __all__ = [
     "get_logger",
     "produce",
     "register_type",
+    "step",
     "tool",
 ]

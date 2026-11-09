@@ -263,7 +263,7 @@ def _card(
 ) -> AgentCard:
     skills: list[AgentSkill] = []
     for agent in agents:
-        produces = agent.produces or []
+        produces = agent.steps or []
         types = sorted(
             {p.artifact_type.__name__ for p in produces if p.artifact_type is not None}
         )

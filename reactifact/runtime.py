@@ -409,13 +409,16 @@ class Runtime:
         needing a second, inert `Produce(OtherType)` placeholder in this
         agent's `produces` list just to widen this set.
         """
-        if agent.produces is None:
+        if agent.steps is None:
             return  # no restrictions
         allowed_types: set[type] = set()
-        for p in agent.produces:
-            if p.artifact_type is not None:
-                allowed_types.add(p.artifact_type)
-            allowed_types.update(p.also_creates)
+        for p in agent.steps:
+            if p.produces:
+                allowed_types.update(p.produces)
+            else:
+                if p.artifact_type is not None:
+                    allowed_types.add(p.artifact_type)
+                allowed_types.update(p.also_creates)
         if not allowed_types:
             return
         for op in patch.operations:
@@ -423,8 +426,7 @@ class Runtime:
                 raise ValueError(
                     f"Agent '{agent.name}' created artifact of type {type(op.data).__name__}, "
                     f"which is not declared in produces: {[t.__name__ for t in allowed_types]}. "
-                    "Declare it via the produce's `also_creates=(...),` or a "
-                    "`Produce(...)` placeholder in the agent's `produces`."
+                    "Declare it via the step's `produces=(...)` (or `also_creates`)."
                 )
 
     def _enforce_authorization(self, patch: Patch) -> None:

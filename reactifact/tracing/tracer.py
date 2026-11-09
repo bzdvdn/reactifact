@@ -518,7 +518,7 @@ class RunTracer:
                 if c.artifact_type is not None
             ]
             produces_declared = [
-                getattr(p, "name", type(p).__name__) for p in (agent.produces or [])
+                getattr(p, "name", type(p).__name__) for p in (agent.steps or [])
             ]
             declared_tools = getattr(agent, "tools", ()) or ()
             if isinstance(declared_tools, dict):

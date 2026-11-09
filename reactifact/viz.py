@@ -61,7 +61,7 @@ def blueprint(
         aid = f"A{i}"
         produces = [
             p
-            for p in agent.produces or ()
+            for p in agent.steps or ()
             if getattr(p, "artifact_type", None) is not None
         ]
         agent_label = agent.name or f"agent{i}"

@@ -10,8 +10,8 @@ from ..agents import create_agent
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
-from ..produce import Produce, produce
 from ..providers import LLMProvider
+from ..step import Step, step
 from ..structured import structured_llm
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Question
@@ -27,8 +27,8 @@ def _structured_produce(
     attempts: int,
     temperature: float | None,
     max_tokens: int | None,
-) -> Produce[Any]:
-    @produce(schema)
+) -> Step[Any]:
+    @step(schema)
     async def _run(call: Any) -> None:
         question = _question_of(call, question_type)
         if question is None:
@@ -84,7 +84,7 @@ class QuickAgent(Generic[TSchema]):
         self.agent = create_agent(
             name=name,
             consumes=[Consume(question_type)],
-            produces=[
+            steps=[
                 _structured_produce(
                     schema,
                     system,

@@ -25,6 +25,7 @@ from .patches import (
 from .relations import RelationGraph
 from .resources import RuntimeResources
 from .streaming import EventHub, ProgressEvent, QueueEvent
+from .types import resolve, type_id_of
 
 TData = TypeVar("TData", bound=BaseModel)
 TArtifact = TypeVar("TArtifact", bound=BaseModel)
@@ -51,6 +52,7 @@ class SerializedContext(TypedDict, total=False):
     events: list[dict[str, Any]]
     fork_name: str
     base: SerializedContext | None
+    step_cursors: dict[str, dict[str, list[Any]]]
 
 
 #: from_version -> migration that upgrades the payload by one version.
@@ -163,6 +165,10 @@ class Context:
         # A Context can be saved under several keys (a session + named
         # branches), so this is keyed rather than a single global marker.
         self._persisted: dict[str, tuple[int, int]] = {}
+        #: Per-step input cursors (watermark scheduling): step key →
+        #: {artifact type: (latest id, max version)}. In-memory for now;
+        #: persistence/replay of cursors is a later core milestone.
+        self._step_cursors: dict[Any, dict[type, tuple[str, int]]] = {}
         # Compatibility view for the single-session case (last marked key).
         self._persisted_version = -1
         self._persisted_compacted_at = 0
@@ -868,6 +874,39 @@ class Context:
         self._recompute_stale()
         self._reindex_by_type()
 
+    def _serialize_step_cursors(self) -> dict[str, dict[str, list[Any]]]:
+        """Serializes watermark cursors with stable type ids (JSON-safe keys)."""
+        payload: dict[str, dict[str, list[Any]]] = {}
+        for (agent, step, scope), cursor in self._step_cursors.items():
+            key = json.dumps([agent, step, scope], ensure_ascii=False, default=str)
+            payload[key] = {
+                type_id_of(artifact_type): [latest_id, version]
+                for artifact_type, (latest_id, version) in cursor.items()
+            }
+        return payload
+
+    @staticmethod
+    def _deserialize_step_cursors(
+        payload: Mapping[str, Mapping[str, Sequence[Any]]],
+    ) -> dict[Any, dict[type, tuple[str, int]]]:
+        cursors: dict[Any, dict[type, tuple[str, int]]] = {}
+        for key, values in payload.items():
+            try:
+                agent, step, scope = json.loads(key)
+            except (TypeError, ValueError):
+                continue
+            cursor: dict[type, tuple[str, int]] = {}
+            for type_id, pair in values.items():
+                try:
+                    artifact_type = resolve(type_id)
+                except Exception:  # noqa: BLE001 — an unknown type is skipped
+                    continue
+                if len(pair) != 2:
+                    continue
+                cursor[artifact_type] = (str(pair[0]), int(pair[1]))
+            cursors[(agent, step, scope)] = cursor
+        return cursors
+
     def to_dict(self) -> SerializedContext:
         return {
             "format_version": CONTEXT_FORMAT_VERSION,
@@ -884,6 +923,7 @@ class Context:
             "events": [event.to_dict() for event in self._events],
             "fork_name": self._fork_name,
             "base": self._base.to_dict() if self._base is not None else None,
+            "step_cursors": self._serialize_step_cursors(),
         }
 
     @classmethod
@@ -905,6 +945,7 @@ class Context:
         ws._base = (
             Context.from_dict(data["base"]) if data.get("base") is not None else None
         )
+        ws._step_cursors = cls._deserialize_step_cursors(data.get("step_cursors", {}))
         ws._recompute_stale()
         ws._reindex_by_type()
         ws.mark_persisted(ws.version)

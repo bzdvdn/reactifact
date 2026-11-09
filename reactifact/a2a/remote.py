@@ -2,7 +2,7 @@
 
 `A2AAgentTool` lets an *LLM* call a remote agent. This is the other half: a
 remote agent the **runtime schedules** — the analogue of LangGraph's
-`A2ARemoteGraph`. A `Produce` consumes a typed input artifact, sends it to a
+`A2ARemoteGraph`. A `Step` consumes a typed input artifact, sends it to a
 remote A2A agent with `message/send`, and creates a typed output artifact from
 the reply; provenance, budget, guardrails and eval all apply as for a local
 agent.
@@ -30,7 +30,7 @@ from typing import Any
 from ..agents import Agent, create_agent
 from ..consume import Consume
 from ..interrupt import PendingQuestion
-from ..produce import Produce, ProduceCall
+from ..step import Step, StepCall
 from .client import A2AClient
 from .models import Message, Task
 
@@ -58,8 +58,8 @@ def _reply_text(result: Task | Message) -> str:
     return "\n".join(part.as_text() for a in result.artifacts for part in a.parts)
 
 
-class A2ARemoteProduce(Produce[Any]):
-    """A `Produce` that delegates its trigger to a remote A2A agent.
+class A2ARemoteProduce(Step[Any]):
+    """A `Step` that delegates its trigger to a remote A2A agent.
 
     `output_type` is the artifact created from the reply (default builder calls
     `output_type(text=reply)`; pass `build_output` for anything else).
@@ -91,7 +91,7 @@ class A2ARemoteProduce(Produce[Any]):
         )
         super().__init__(artifact_type=output_type, also_creates=(PendingQuestion,))
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         trigger = call.trigger
         if trigger is None:
             return
@@ -172,7 +172,16 @@ def remote_agent(
             and artifact.data.notes.get("a2a_agent") == name
         ),
     )
-    return create_agent(name, consumes=[*consumes, resume], produces=[produce])
+    return create_agent(name, consumes=[*consumes, resume], steps=[produce])
 
 
-__all__ = ["A2ARemoteProduce", "BuildOutput", "MessageOf", "remote_agent"]
+__all__ = [
+    "A2ARemoteProduce",
+    "A2ARemoteStep",
+    "BuildOutput",
+    "MessageOf",
+    "remote_agent",
+]
+
+#: Canonical Step-era alias; `A2ARemoteProduce` is the 0.1.x name.
+A2ARemoteStep = A2ARemoteProduce

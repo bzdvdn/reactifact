@@ -9,7 +9,9 @@ from reactifact import (
     Produce,
     ProduceCall,
     Runtime,
+    Step,
     produce,
+    step,
 )
 
 
@@ -157,15 +159,22 @@ def test_plain_two_arg_factory_kwarg_was_removed():
         Produce(Marker, factory=plain_factory)  # type: ignore[call-arg]
 
 
-def test_produce_decorator_does_not_warn(recwarn):
-    """The @produce decorator never touches the deprecated factory= path —
-    locks in that the canonical style stays warning-free."""
+def test_step_decorator_does_not_warn(recwarn):
+    """The canonical @step decorator stays warning-free."""
 
-    @produce(Marker)
+    @step(Marker)
     async def _f(call):
         return None
 
     assert len(recwarn) == 0
+
+
+def test_produce_decorator_is_a_deprecated_alias(recwarn):
+    @produce(Marker)
+    async def _f(call):
+        return None
+
+    assert any(issubclass(w.category, DeprecationWarning) for w in recwarn)
 
 
 # --- The event reaches produce ---
@@ -215,9 +224,9 @@ def test_produce_name_is_readable_for_traces():
         artifact_type = Marker
 
     assert Named().name == "Named"
-    assert Produce(Marker).name == "Produce[Marker]"
+    assert Step(Marker).name == "Step[Marker]"
 
-    @produce(Marker)
+    @step(Marker)
     def my_marker(call):
         call.effects.create(Marker(value="x"))
 
