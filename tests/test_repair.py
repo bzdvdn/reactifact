@@ -130,10 +130,24 @@ def test_full_pipeline_to_approval(tmp_path):
     ctx.create(UserMsg(text="да", session_id="s"))
     asyncio.run(runtime.arun())
 
-    project = ctx.list_artifacts(Project)[0].data
+    project_artifact = ctx.list_artifacts(Project)[0]
+    project = project_artifact.data
     assert project.stage == "assistant"
     assert project.approved is True
     assert not ctx.has_pending_question()
+
+    versions = ctx.version_history(project_artifact.id)
+    assert [v.data.stage for v in versions] == [
+        "collect",
+        "design_choice",
+        "plan",
+        "estimate",
+        "final_approval",
+        "assistant",
+    ]
+    assert len({v.content_hash for v in versions}) == len(versions)
+    assert all(v.commit_id is not None for v in versions)
+    assert ctx.find_versions(versions[0].content_hash) == [versions[0]]
 
 
 def test_rollback_on_budget_change(tmp_path):
