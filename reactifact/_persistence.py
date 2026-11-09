@@ -102,8 +102,14 @@ def _apply_working_tree(context: Context, payload: dict[str, Any]) -> None:
     for artifact_id in list(context._artifacts):
         if artifact_id not in committed and artifact_id not in artifacts:
             context._artifacts.pop(artifact_id, None)
+            context._store.delete(artifact_id)
     for artifact_id, artifact_dict in artifacts.items():
-        context._artifacts[artifact_id] = Artifact.from_dict(artifact_dict)
+        artifact = Artifact.from_dict(artifact_dict)
+        if artifact._store is not None:
+            context._store.extend(artifact._store)
+        current = context._store.current_artifact(artifact_id)
+        if current is not None:
+            context._artifacts[artifact_id] = current
 
     committed_relations = context._log.replay_relations(context.version)
     wanted: dict[Any, Relation] = {}

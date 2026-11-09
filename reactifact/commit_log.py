@@ -314,8 +314,13 @@ class CommitLog:
             ],
         }
 
-    def to_dict(self) -> list[dict[str, Any]]:
-        """Serializes the commit chain, memoized per commit id.
+    def to_dict(
+        self, blobs: dict[str, dict[str, Any]] | None = None
+    ) -> list[dict[str, Any]]:
+        """Serializes the commit chain, memoized per commit id when inline.
+
+        With `blobs`, operations are emitted as `data_ref` and payloads are
+        written into the shared blob map (v2 persistence).
 
         A commit is immutable once appended (`writes` is filled in before
         `Context.log_commit()` and never touched again), so re-serializing an
@@ -323,6 +328,8 @@ class CommitLog:
         is pure waste for a long-lived context — only new commits since the
         last call actually get `Commit.to_dict()` called on them.
         """
+        if blobs is not None:
+            return [c.to_dict(blobs) for c in self._commits]
         result = []
         for c in self._commits:
             cached = self._dict_cache.get(c.id)
@@ -340,9 +347,10 @@ class CommitLog:
         version: int | None,
         head_id: str | None,
         baseline: dict[str, Any] | None = None,
+        blobs: dict[str, dict[str, Any]] | None = None,
     ) -> CommitLog:
         log = cls()
-        log._commits = [Commit.from_dict(cd) for cd in commits]
+        log._commits = [Commit.from_dict(cd, blobs) for cd in commits]
         if baseline is not None:
             log._baseline = {
                 aid: Artifact.from_dict(art_dict)

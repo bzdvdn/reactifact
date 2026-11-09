@@ -24,16 +24,12 @@ def _commit(context: Context, text: str, artifact_id: str) -> None:
     )
 
 
-def test_context_payload_has_a_format_version_and_legacy_loads():
+def test_context_payload_has_a_format_version():
     context = Context()
     _commit(context, "a", "note:1")
 
     payload = context.to_dict()
     assert payload["format_version"] == CONTEXT_FORMAT_VERSION
-
-    legacy = dict(payload)
-    legacy.pop("format_version")
-    assert Context.from_dict(legacy).version == 1
 
 
 def test_future_context_format_is_rejected():

@@ -15,15 +15,25 @@ TData = TypeVar("TData", bound=BaseModel)
 ArtifactType = type[BaseModel]
 
 
-def artifact_content_hash(data: BaseModel) -> str:
-    """sha256 over an artifact payload's canonical JSON (content addressing)."""
-    payload = json.dumps(
-        data.model_dump(mode="json"),
+def payload_content_hash(payload: dict[str, Any]) -> str:
+    """sha256 over a canonical JSON payload (content addressing)."""
+    canonical = json.dumps(
+        payload,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def artifact_content_hash(data: BaseModel) -> str:
+    """sha256 over an artifact payload's canonical JSON (content addressing)."""
+    return payload_content_hash(data.model_dump(mode="json"))
+
+
+def blob_key(data_type: str, content_hash: str) -> str:
+    """Key of a payload in the v2 persisted `blobs` map."""
+    return f"{data_type}:{content_hash}"
 
 
 @dataclass(frozen=True)

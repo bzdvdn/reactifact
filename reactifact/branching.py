@@ -52,7 +52,7 @@ class MergeConflict(Exception):
 def clone_context(source: Context) -> Context:
     """Deep copy of `source`'s live state (artifacts, log, relations)."""
     new_ws = Context()
-    new_ws._store = source._store.copy(deep=True)
+    new_ws._store = source._store.copy(deep=False)
     new_ws._artifacts = {}
     for artifact_id in source._artifacts:
         current = new_ws._store.current_artifact(artifact_id)

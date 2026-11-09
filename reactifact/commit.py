@@ -104,13 +104,21 @@ class Commit:
     reads: list[Read] = field(default_factory=list)
     writes: list[Write] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, blobs: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+        operations = (
+            [op.to_dict() for op in self.operations]
+            if blobs is None
+            else [
+                op.to_ref_dict(blobs) if hasattr(op, "to_ref_dict") else op.to_dict()
+                for op in self.operations
+            ]
+        )
         return {
             "id": self.id,
             "author": self.author,
             "message": self.message,
             "timestamp": self.timestamp.isoformat(),
-            "operations": [op.to_dict() for op in self.operations],
+            "operations": operations,
             "parent_id": self.parent_id,
             "parent_ids": list(self.parent_ids),
             "context_version": self.context_version,
@@ -119,11 +127,13 @@ class Commit:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Commit:
+    def from_dict(
+        cls, d: dict[str, Any], blobs: dict[str, dict[str, Any]] | None = None
+    ) -> Commit:
         return cls(
             author=d["author"],
             message=d["message"],
-            operations=[operation_from_dict(op) for op in d["operations"]],
+            operations=[operation_from_dict(op, blobs) for op in d["operations"]],
             id=d["id"],
             timestamp=datetime.fromisoformat(d["timestamp"]),
             parent_id=d.get("parent_id"),

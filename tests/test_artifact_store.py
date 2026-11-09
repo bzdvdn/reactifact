@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 from pydantic import BaseModel
 from reactifact import Context
-from reactifact.artifacts import artifact_content_hash
+from reactifact.artifacts import artifact_content_hash, blob_key
 
 
 class Doc(BaseModel):
@@ -103,3 +103,69 @@ def test_snapshot_preserves_absolute_artifact_versions():
         "two",
         "three",
     ]
+
+
+def test_v2_payload_uses_blobs_and_version_index():
+    ctx = Context()
+    doc = ctx.create(Doc(text="one"))
+    ctx.update(doc.id, Doc(text="two"))
+
+    payload = ctx.to_dict()
+    assert payload["format_version"] == 2
+    info = payload["artifacts"][doc.id]
+    assert info["current"] == 1
+    assert [v["version"] for v in info["versions"]] == [0, 1]
+    assert len(payload["blobs"]) == 2
+    hash_key = blob_key(
+        info["versions"][1]["data_type"], info["versions"][1]["content_hash"]
+    )
+    assert payload["blobs"][hash_key]["text"] == "two"
+
+    restored = Context.from_dict(payload)
+    assert [v.data.text for v in restored.version_history(doc.id)] == ["one", "two"]
+    assert restored.get(doc.id).data.text == "two"
+
+
+def test_v2_deduplicates_identical_payloads():
+    ctx = Context()
+    ctx.create(Doc(text="same"), id="doc:1")
+    ctx.create(Doc(text="same"), id="doc:2")
+
+    payload = ctx.to_dict()
+    assert len(payload["blobs"]) == 1
+    assert len(payload["artifacts"]) == 2
+
+
+def test_v2_commit_operations_reference_blobs():
+    from reactifact.commit import Commit
+    from reactifact.patches import Create
+
+    ctx = Context()
+    ctx.apply_commit(
+        Commit(
+            author="test",
+            message="add",
+            operations=[Create(Doc(text="committed"), id="doc:1", artifact_id="doc:1")],
+        )
+    )
+
+    payload = ctx.to_dict()
+    operation = payload["commits"][0]["operations"][0]
+    assert "data" not in operation
+    assert operation["data_ref"]["type"]
+    restored = Context.from_dict(payload)
+    assert restored.get("doc:1").data.text == "committed"
+
+
+def test_v2_roundtrip_keeps_deleted_history():
+    ctx = Context()
+    doc = ctx.create(Doc(text="one"))
+    ctx.update(doc.id, Doc(text="two"))
+    ctx.delete(doc.id)
+
+    payload = ctx.to_dict()
+    assert payload["artifacts"][doc.id]["current"] is None
+
+    restored = Context.from_dict(payload)
+    assert restored.get(doc.id) is None
+    assert [v.data.text for v in restored.version_history(doc.id)] == ["one", "two"]

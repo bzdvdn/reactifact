@@ -12,6 +12,8 @@ from .artifacts import (
     Artifact,
     ArtifactStore,
     ArtifactVersion,
+    blob_key,
+    payload_content_hash,
 )
 from .checkpoints import CheckpointBackend, FileBackend, KVBackend
 from .commit import Commit
@@ -29,14 +31,14 @@ from .patches import (
 from .relations import RelationGraph
 from .resources import RuntimeResources
 from .streaming import EventHub, ProgressEvent, QueueEvent
-from .types import resolve, type_id_of
+from .types import migrate_payload, resolve, type_id_of
 
 TData = TypeVar("TData", bound=BaseModel)
 TArtifact = TypeVar("TArtifact", bound=BaseModel)
 
 #: Current persisted-envelope version. Bump when `to_dict`'s shape changes and
 #: register a migration in `_CONTEXT_MIGRATIONS` for the previous version.
-CONTEXT_FORMAT_VERSION = 1
+CONTEXT_FORMAT_VERSION = 2
 
 
 class SerializedContext(TypedDict, total=False):
@@ -50,6 +52,7 @@ class SerializedContext(TypedDict, total=False):
     version: int
     head_id: str | None
     artifacts: dict[str, dict[str, Any]]
+    blobs: dict[str, dict[str, Any]]
     relations: list[dict[str, Any]]
     commits: list[dict[str, Any]]
     commit_baseline: dict[str, Any] | None
@@ -59,8 +62,91 @@ class SerializedContext(TypedDict, total=False):
     step_cursors: dict[str, dict[str, dict[str, int]]]
 
 
+def _v1_artifacts_to_v2(
+    artifacts: dict[str, dict[str, Any]],
+    blobs: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    converted: dict[str, dict[str, Any]] = {}
+    for artifact_id, artifact in artifacts.items():
+        data_type = artifact["data_type"]
+        history = list(artifact.get("history", []))
+        version = int(artifact.get("version", len(history)))
+        first = version - len(history)
+        versions: list[dict[str, Any]] = []
+        for offset, payload in enumerate([*history, artifact["data"]]):
+            content_version = first + offset
+            content_hash = payload_content_hash(payload)
+            blobs[blob_key(data_type, content_hash)] = payload
+            versions.append(
+                {
+                    "version": content_version,
+                    "data_type": data_type,
+                    "content_hash": content_hash,
+                    "commit_id": (
+                        artifact.get("created_by_commit")
+                        if content_version == version
+                        else None
+                    ),
+                    "created_at": (
+                        artifact.get("updated_at")
+                        if content_version == version
+                        else artifact.get("created_at")
+                    ),
+                }
+            )
+        converted[artifact_id] = {"current": version, "versions": versions}
+    return converted
+
+
+def _v1_commits_to_v2(
+    commits: list[dict[str, Any]],
+    blobs: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    converted: list[dict[str, Any]] = []
+    for commit in commits:
+        commit = dict(commit)
+        operations: list[dict[str, Any]] = []
+        for operation in commit.get("operations", []):
+            operation = dict(operation)
+            if operation.get("type") in {"create", "update"} and "data" in operation:
+                data_type = operation["data_type"]
+                payload = operation.pop("data")
+                operation.pop("data_type", None)
+                content_hash = payload_content_hash(payload)
+                blobs[blob_key(data_type, content_hash)] = payload
+                operation["data_ref"] = {
+                    "type": data_type,
+                    "hash": content_hash,
+                }
+            operations.append(operation)
+        commit["operations"] = operations
+        converted.append(commit)
+    return converted
+
+
+def _migrate_1_to_2(data: dict[str, Any]) -> dict[str, Any]:
+    """v1 (inline artifact history + inline commit payloads) -> v2 blobs."""
+    blobs: dict[str, dict[str, Any]] = {}
+    data = dict(data)
+    data["artifacts"] = _v1_artifacts_to_v2(data.get("artifacts", {}), blobs)
+    data["commits"] = _v1_commits_to_v2(data.get("commits", []), blobs)
+    baseline = data.get("commit_baseline")
+    if baseline is not None:
+        baseline = dict(baseline)
+        baseline["artifacts"] = _v1_artifacts_to_v2(
+            baseline.get("artifacts", {}), blobs
+        )
+        data["commit_baseline"] = baseline
+    if isinstance(data.get("base"), dict):
+        data["base"] = _migrate_1_to_2(data["base"])
+    data["blobs"] = blobs
+    return data
+
+
 #: from_version -> migration that upgrades the payload by one version.
-_CONTEXT_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {}
+_CONTEXT_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    1: _migrate_1_to_2,
+}
 
 
 def migrate_context_payload(data: dict[str, Any]) -> dict[str, Any]:
@@ -1033,13 +1119,38 @@ class Context:
         return cursors
 
     def to_dict(self) -> SerializedContext:
+        blobs: dict[str, dict[str, Any]] = {}
+        artifacts: dict[str, dict[str, Any]] = {}
+        for artifact_id, versions in self._store._versions.items():
+            entries: list[dict[str, Any]] = []
+            for record in versions:
+                payload = record.data.model_dump(mode="json")
+                blobs[blob_key(record.data_type, record.content_hash)] = payload
+                entries.append(
+                    {
+                        "version": record.version,
+                        "data_type": record.data_type,
+                        "content_hash": record.content_hash,
+                        "commit_id": record.commit_id,
+                        "created_at": (
+                            record.created_at.isoformat()
+                            if record.created_at is not None
+                            else None
+                        ),
+                    }
+                )
+            artifacts[artifact_id] = {
+                "current": self._store.current_version(artifact_id),
+                "versions": entries,
+            }
         return {
             "format_version": CONTEXT_FORMAT_VERSION,
             "version": self._log.version,
             "head_id": self._log.head_id,
-            "artifacts": {aid: art.to_dict() for aid, art in self._artifacts.items()},
+            "artifacts": artifacts,
+            "blobs": blobs,
             "relations": self._relations.to_dict(),
-            "commits": self._log.to_dict(),
+            "commits": self._log.to_dict(blobs),
             "commit_baseline": self._log.to_baseline_dict(),
             # Pending triggers, so an interrupted run resumes after a process
             # restart instead of settling on an empty queue. `context_hash`
@@ -1054,12 +1165,37 @@ class Context:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Context:
         data = migrate_context_payload(dict(d))
+        blobs: dict[str, dict[str, Any]] = data.get("blobs", {})
         ws = cls()
-        ws._store = ArtifactStore()
-        for _aid, art_dict in data["artifacts"].items():
-            artifact = Artifact.from_dict(art_dict)
-            if artifact._store is not None:
-                ws._store.extend(artifact._store)
+        for artifact_id, info in data.get("artifacts", {}).items():
+            records: list[ArtifactVersion] = []
+            for version in info.get("versions", []):
+                data_type = version["data_type"]
+                content_hash = version["content_hash"]
+                payload = blobs[blob_key(data_type, content_hash)]
+                model_class = resolve(data_type)
+                payload_data = model_class.model_validate(
+                    migrate_payload(data_type, payload)
+                )
+                record = ArtifactVersion(
+                    artifact_id=artifact_id,
+                    version=int(version["version"]),
+                    data_type=data_type,
+                    data=payload_data,
+                    content_hash=content_hash,
+                    commit_id=version.get("commit_id"),
+                    created_at=(
+                        datetime.fromisoformat(version["created_at"])
+                        if version.get("created_at")
+                        else None
+                    ),
+                )
+                records.append(record)
+                ws._store._index(record)
+            ws._store._versions[artifact_id] = records
+            current = info.get("current")
+            if current is not None:
+                ws._store._current[artifact_id] = int(current)
         ws._artifacts = {}
         for artifact_id in ws._store._current:
             current = ws._store.current_artifact(artifact_id)
@@ -1071,6 +1207,7 @@ class Context:
             version=data.get("version"),
             head_id=data.get("head_id"),
             baseline=data.get("commit_baseline"),
+            blobs=blobs,
         )
         ws._events = [Event.from_dict(e) for e in data.get("events", [])]
         ws._fork_name = data.get("fork_name", "")
