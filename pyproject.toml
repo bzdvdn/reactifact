@@ -164,3 +164,4 @@ warn_unused_ignores = true
 # "unknown import symbol" and cascading into false positives on `RunOutcome`.
 [tool.pyright]
 pythonVersion = "3.11"
+exclude = ["build", "dist", ".venv", ".scratch", "**/__pycache__"]

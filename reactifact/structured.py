@@ -169,6 +169,7 @@ async def structured_llm(
 
     request = _request(f"{instruction}\n\n{user}")
     total = max(attempts, 1)
+    parsed = None
     for attempt in range(total):
         try:
             response = await llm.complete(request)
@@ -281,6 +282,7 @@ async def json_schema_llm(
 
     request = _request(f"{instruction}\n\n{user}")
     total = max(attempts, 1)
+    parsed = None
     for attempt in range(total):
         try:
             response = await llm.complete(request)

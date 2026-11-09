@@ -26,6 +26,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 
+from ..artifacts import ArtifactType
 from ..step import Step, StepCall
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
@@ -47,7 +48,7 @@ class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
     this produce needs no `also_creates` and never widens anything.
     """
 
-    artifact_type: type[TerminalT] | None = None
+    artifact_type: ArtifactType | None = None
 
     @abstractmethod
     def correlation_of(self, terminal_artifact_id: str) -> str | None:

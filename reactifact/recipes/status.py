@@ -7,7 +7,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..artifacts import Artifact
+from ..artifacts import Artifact, ArtifactType
 from ..context import Context
 from ..step import Step, StepCall
 
@@ -23,7 +23,7 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
     lifecycle in reaction to events — no manual transition graph (§21, §24).
     """
 
-    artifact_type: type[StatusT] | None = None
+    artifact_type: ArtifactType | None = None
     terminal: frozenset[str] = frozenset()
     #: Which field of the artifact data carries the lifecycle key / status.
     query_id_field: str = "query_id"

@@ -265,11 +265,9 @@ class Step(Generic[TOut]):
     ) -> tuple[ArtifactType, ...] | None:
         if value is None:
             return None
-        if isinstance(value, tuple):
-            return value
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            return tuple(value)
-        return (value,)
+        if isinstance(value, type):
+            return (value,)
+        return tuple(value)
 
     @staticmethod
     def _normalize_consumes(
