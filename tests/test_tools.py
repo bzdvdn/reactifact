@@ -102,7 +102,7 @@ def test_single_agent_loop_and_report():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -167,7 +167,7 @@ def test_deferred_tool_group_loads_on_demand_once():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class DeferredAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -215,7 +215,7 @@ def test_two_agents_do_not_crossfire():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class BuildGitlabReport(Produce[GitlabReport]):
         artifact_type = GitlabReport
@@ -225,7 +225,7 @@ def test_two_agents_do_not_crossfire():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(GitlabReport(text=a.data.text))
+            call.effects.create(GitlabReport(text=a.data.text))
 
     class K8sAgent(Agent):
         consumes = [
@@ -296,7 +296,7 @@ def test_tool_failure_is_returned_to_llm():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -327,7 +327,7 @@ def test_budget_max_tool_calls_stops_loop():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -357,7 +357,7 @@ def test_unknown_tool_reported_to_llm():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -416,7 +416,7 @@ def test_llm_agent_tools_only_no_produces():
                 or a.data.agent != "helperagent"
             ):
                 return None
-            self.effects.create(ChatReply(text=a.data.text))
+            call.effects.create(ChatReply(text=a.data.text))
 
     class BaseChat(Agent):
         consumes = [Consume.by_field(ToolAnswer, "agent", "helperagent")]
@@ -450,7 +450,7 @@ def test_forced_answer_when_loop_hits_step_limit():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
@@ -481,7 +481,7 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(HITLLMAgent):
         system = "Ты эксперт по k8s. Используй tool kubectl."
@@ -537,7 +537,7 @@ def test_max_asks_caps_rephrased_clarifications():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(HITLLMAgent):
         system = "агент"
@@ -579,7 +579,7 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(HITLLMAgent):
         system = "агент"
@@ -623,7 +623,7 @@ def test_hitl_destructive_tool_denied_is_not_executed():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(HITLLMAgent):
         system = "агент"
@@ -664,7 +664,7 @@ def test_max_approvals_caps_repeated_destructive_calls():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(K8sReport(text=a.data.text))
+            call.effects.create(K8sReport(text=a.data.text))
 
     class K8sAgent(HITLLMAgent):
         system = "агент"

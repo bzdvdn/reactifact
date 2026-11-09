@@ -25,7 +25,7 @@ def _active_effects(context: Context) -> Effects:
     if effects is None:
         raise RuntimeError(
             "fan_out_sources/materialize_doc must run inside a produce "
-            "(the runtime provides `self.effects` for the turn)"
+            "(the runtime provides `effects` for the turn)"
         )
     return effects
 

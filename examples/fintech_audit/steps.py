@@ -43,9 +43,8 @@ def _question(context: Context) -> Artifact[Question] | None:
 @step(produces=(Table, Policy), consumes=SourceRef)
 async def materialize(call: StepCall) -> None:
     """Resolves a `SourceRef` into a `Table` (CSV) or a `Policy` (Markdown)."""
+    assert call.trigger is not None
     ref = call.trigger
-    if ref is None or not isinstance(ref.data, SourceRef):
-        return None
     source = call.context.resources.get_source(ref.data.source_id)
     if source is None:
         return None
@@ -87,9 +86,8 @@ def _budget_for(table: Table, category: str) -> float | None:
 @step(produces=Spend, consumes=Table)
 async def compute_spend(call: StepCall) -> None:
     """Sums `cloud` spend by month — deterministic arithmetic, not a model."""
+    assert call.trigger is not None
     table = call.trigger
-    if table is None or not isinstance(table.data, Table):
-        return None
     if not table.data.locator.endswith("transactions.csv"):
         return None
     by_month: dict[str, float] = {}
@@ -119,9 +117,8 @@ async def compute_spend(call: StepCall) -> None:
 @step(produces=Variance, consumes=Spend)
 async def compute_variance(call: StepCall) -> None:
     """Actual vs budget, and whether the variance crosses the policy line."""
+    assert call.trigger is not None
     spend = call.trigger
-    if spend is None or not isinstance(spend.data, Spend):
-        return None
     budget_table = next(
         (
             table
@@ -185,9 +182,8 @@ def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
 @step(produces=AuditAnswer, consumes=Variance)
 async def answer(call: StepCall) -> None:
     """States the computed figures in prose, citing the sources it rests on."""
+    assert call.trigger is not None
     variance = call.trigger
-    if variance is None or not isinstance(variance.data, Variance):
-        return None
     v = variance.data
     verdict = "exceeds" if not v.within_policy else "is within"
     text = (

@@ -47,7 +47,8 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..step import Step, StepCall
+from ..effects import Effects
+from ..step import Step
 
 TopicT = TypeVar("TopicT", bound=BaseModel)
 DraftT = TypeVar("DraftT", bound=BaseModel)
@@ -121,10 +122,11 @@ class _Draft(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -144,7 +146,7 @@ class _Draft(Step[Any]):
                 owner.status_field: owner.draft_status,
             }
         )
-        handle = self.effects.create(stamped, id=draft_id)
+        handle = effects.create(stamped, id=draft_id)
         handle.link("from_topic", topic_id)
         return None
 
@@ -154,10 +156,11 @@ class _Critic(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.review_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -183,10 +186,10 @@ class _Critic(Step[Any]):
         stamped = review_data.model_copy(
             update={owner.round_field: round_, owner.topic_field: topic_id}
         )
-        handle = self.effects.create(stamped, id=review_id)
+        handle = effects.create(stamped, id=review_id)
         handle.link("reviews", draft)
         if score >= owner.accept_at:
-            self.effects.update(draft, **{owner.status_field: owner.accepted_status})
+            effects.update(draft, **{owner.status_field: owner.accepted_status})
         return None
 
 
@@ -195,10 +198,11 @@ class _Rewrite(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -220,7 +224,7 @@ class _Rewrite(Step[Any]):
         update_fields[owner.round_field] = round_ + 1
         update_fields[owner.status_field] = owner.draft_status
         update_fields[owner.topic_field] = topic_id
-        self.effects.update(draft, **update_fields)
+        effects.update(draft, **update_fields)
         return None
 
 
@@ -229,10 +233,11 @@ class _Finalize(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         topic_id = owner._topic_id_of(artifact)
@@ -252,6 +257,6 @@ class _Finalize(Step[Any]):
         final_data = await owner.finish(context, draft)
         if hasattr(final_data, owner.topic_field):
             final_data = final_data.model_copy(update={owner.topic_field: topic_id})
-        handle = self.effects.create(final_data, id=final_id)
+        handle = effects.create(final_data, id=final_id)
         handle.link("based_on", draft)
         return None

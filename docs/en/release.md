@@ -80,7 +80,7 @@ above. A few changes worth knowing if you're crossing them (see also
   pass `temperature=0.7` explicitly (per-call or on the provider) if your code
   relied on the old implicit default.
 - **0.1.0-rc1** — `Produce` no longer returns a `Patch`; it writes
-  `self.effects.create/update/link/ask/resume` and returns `None` (see
+  `effects.create/update/link/ask/resume` and returns `None` (see
   [effects](effects.md)). `InterruptPatch`, `Patch.merge_existing_patch` and
   `Patch.to_dict` were removed.
 

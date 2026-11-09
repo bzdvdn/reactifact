@@ -30,7 +30,7 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
     reacts_to = (ResolvedDocuments,)
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
         )
 
@@ -40,7 +40,7 @@ class DirectFinalize(Produce[DraftAnswer]):
     reacts_to = (DecisionReply,)
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="direct")
         )
 
@@ -84,7 +84,7 @@ class UnrestrictedRecorder(Produce[DraftAnswer]):
     artifact_type = DraftAnswer
 
     async def produce(self, call):
-        self.effects.create(DraftAnswer(query_id="q1", source="unrestricted"))
+        call.effects.create(DraftAnswer(query_id="q1", source="unrestricted"))
 
 
 class UnrestrictedAgent(Agent):
@@ -114,7 +114,7 @@ class SingleTypeReactor(Produce[DraftAnswer]):
         super().__init__(reacts_to=ResolvedDocuments)
 
     async def produce(self, call):
-        self.effects.create(DraftAnswer(query_id="q1", source="single-type"))
+        call.effects.create(DraftAnswer(query_id="q1", source="single-type"))
 
 
 class SingleTypeAgent(Agent):

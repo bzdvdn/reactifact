@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Step, StepCall
+from reactifact import Artifact, Consume, Context, Effects, Step
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -22,11 +22,12 @@ class ExtractEvidence(Step):
     consumes = (TypedDoc,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        doc_artifact = call.trigger
-        if doc_artifact is None or not isinstance(doc_artifact.data, TypedDoc):
-            return None
+    async def run(
+        self,
+        context: Context,
+        doc_artifact: Artifact[TypedDoc],
+        effects: Effects,
+    ) -> None:
         doc = doc_artifact.data
         context.announce(
             f"Extracting key facts from «{doc.path}»...",
@@ -45,7 +46,7 @@ class ExtractEvidence(Step):
         )
         evidence_id = f"evidence:{doc.query_id}:{doc.path}"
         # provenance (§34): Evidence —extracted_from→ TypedDoc
-        evidence = self.effects.create(
+        evidence = effects.create(
             Evidence(
                 query_id=doc.query_id,
                 text=text,
@@ -67,8 +68,9 @@ class VerifyClaims(Step):
     state rather than something hidden in a string (§36, §69).
     """
 
-    consumes = (Evidence,)
+    consumes = (Evidence, Consume(Claim, wakes=False))
     produces = (Claim,)
+    scope = "query_id"
 
     @staticmethod
     def _similarity(a: str, b: str) -> float:
@@ -77,11 +79,13 @@ class VerifyClaims(Step):
             return 0.0
         return len(ta & tb) / min(len(ta), len(tb))
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        evidence_art = call.trigger
-        if evidence_art is None or not isinstance(evidence_art.data, Evidence):
-            return None
+    async def run(
+        self,
+        context: Context,
+        evidence_art: Artifact[Evidence],
+        claims: list[Artifact[Claim]],
+        effects: Effects,
+    ) -> None:
         evidence = evidence_art.data
         doc = source_doc_of(context, evidence_art)
         doc_text = doc.data.content if doc is not None else ""
@@ -105,9 +109,7 @@ class VerifyClaims(Step):
                     a_text
                 ) != has_negation(b_text):
                     conflicting.update({aid, bid})
-            for other in context.list_artifacts(Claim):
-                if other.data.query_id != evidence.query_id:
-                    continue
+            for other in claims:
                 if self._similarity(a_text, other.data.text) >= 0.5 and has_negation(
                     a_text
                 ) != has_negation(other.data.text):
@@ -124,7 +126,7 @@ class VerifyClaims(Step):
                 if support >= 0.6
                 else ("weak" if support >= 0.35 else "unverified")
             )
-            claim = self.effects.create(
+            claim = effects.create(
                 Claim(
                     query_id=evidence.query_id,
                     text=sentence,
@@ -141,13 +143,9 @@ class VerifyClaims(Step):
                 if self._similarity(a_text, b_text) >= 0.5 and has_negation(
                     a_text
                 ) != has_negation(b_text):
-                    self.effects.link(aid, "contradicted_by", bid)
-                    self.effects.link(bid, "contradicted_by", aid)
-        for other in context.list_artifacts(Claim):
-            if (
-                other.id in conflicting
-                and other.data.query_id == evidence.query_id
-                and not other.data.conflict
-            ):
-                self.effects.update(other, conflict=True)
+                    effects.link(aid, "contradicted_by", bid)
+                    effects.link(bid, "contradicted_by", aid)
+        for other in claims:
+            if other.id in conflicting and not other.data.conflict:
+                effects.update(other, conflict=True)
         return None

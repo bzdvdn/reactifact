@@ -184,13 +184,13 @@ print("supported_by:", evidence.data.text)  # provenance you can trace, not just
 ARTIFACT CREATED / UPDATED
        │
        ▼
-     AGENTS REACT ──self.effects──► Effects ──compile──► Patch
+     AGENTS REACT ──effects──► Effects ──compile──► Patch
        ▲                                                      │
        └──────────────────────────────────────────────────────┘
                                                         Context v+1
 ```
 
-A produce writes what should change (`self.effects.create/update/link/ask`) and
+A step writes what should change (`effects.create/update/link/ask`) and
 returns `None`; the runtime compiles the effect set into one **atomic** `Patch`
 and moves the context to the next version. The `event` that wakes an agent is
 *derived* from that same change — the causal chain can never drift from the
@@ -238,7 +238,7 @@ by hand. Run it yourself: `uv run python -m examples.ledger.main`.
 
 - **Context** — versioned working state, git-like commits, `diff`/`rollback`/`merge`.
 - **Artifact** — a first-class typed object (`Claim`, `Evidence`, `Answer`), not a string blob.
-- **Effects** — an agent states its change via `self.effects.create/update/link/ask`; the runtime compiles it.
+- **Effects** — an agent states its change via `effects.create/update/link/ask`; the runtime compiles it.
 - **Patch** — the compiled, validated change-set applied as one atomic commit.
 - **Agent** — a thin container declaring `consumes`/`produces`; logic lives in a `Produce`.
 - **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped).

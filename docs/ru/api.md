@@ -79,7 +79,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | --- | --- |
 | `Artifact` | пара `(id, data)`; `data` — модель pydantic |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | стабильная персистентная идентичность типа: переименование/перенос модели больше не ломает загрузку старых сессий/коммитов/событий. `type_id_of`/`resolve`/`migrate_payload`; дефолтный id — qualified name |
-| `Patch` | скомпилированный набор изменений рантайма (транспорт); produces пишут `self.effects`, `Patch` собирает рантайм |
+| `Patch` | скомпилированный набор изменений рантайма (транспорт); produces пишут эффекты (`effects`/`call.effects`), `Patch` собирает рантайм |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | скомпилированные операции, которые несёт патч (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | записи операций, из которых строятся патчи |
 
@@ -93,7 +93,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Produce` / `produce` | производитель: пишет `self.effects` (или слот `effects` в функции-декораторе) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to`; `.name` — читаемая метка для трейсов/логов (имя класса, имя функции `@produce` или `Produce[Model]` для пустого widening-produce) |
+| `Produce` / `produce` | производитель: пишет эффекты через инжектированный параметр `effects: Effects` (класс) или `call.effects` (функция) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to`; `.name` — читаемая метка для трейсов/логов (имя класса, имя функции `@produce` или `Produce[Model]` для пустого widening-produce) |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -102,7 +102,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `DeferredToolGroup` (`reactifact.tool_use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
-| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `self.effects.resume(...)` |
+| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)` |
 | `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
 | `PendingAction` | записанный внешний side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); выполняется один раз через `Runtime(dispatcher=...)`, затем `dispatched` / `failed` (`retry_action` возвращает в очередь) |
 
@@ -248,7 +248,7 @@ OTLP/Langfuse-приёмников.
 | `find(inputs, Model)` / `find_all(inputs, Model)` | типизированный поиск в `inputs` продьюса без `next(... isinstance ...)` |
 | `fan_out_sources(context, query, owner_id, …)` | идемпотентный поиск fan-out → рефы + патч |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | ленивый реф → документ с провенансом |
-| `StatusMachine` | детерминированный жизненный цикл артефакта (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
+| `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), `terminal`, `on_transition` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений; `message_type` может быть последовательностью типов |
 | `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | многоходовой разговор, обобщённый над моделью сообщения (вашей или дефолтной `ConversationMessage`): добавлять ходы, рендерить поток в провайдерские `Message` (хелперы `turn_count` / `conversation_state`) |

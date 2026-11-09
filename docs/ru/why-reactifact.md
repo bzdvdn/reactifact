@@ -44,25 +44,27 @@ effects; почему граф зависимостей выводится, а �
 делать*, а runtime сам решает, что запускать дальше — **исходя из изменения
 состояния**. Агенты реагируют на события. Рисовать нечего.
 
-## Почему `self.effects`, а не «вернуть патч»
+## Почему effects, а не «вернуть патч»
 
 Во многих фреймворках производитель *возвращает* свой результат (вызов
 инструмента, сообщение, словарь), а какой-то оркестратор применяет его. В
 reactifact авторство устроено наоборот (§24):
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+from reactifact import Effects
+
+async def run(self, effects: Effects) -> None:
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
-    self.effects.update(turn, status="answered")
+    effects.update(turn, status="answered")
     return None
 ```
 
 Почему выбрана такая форма?
 
-- **Автор описывает намерение, а не обвязку.** `self.effects` читается как
+- **Автор описывает намерение, а не обвязку.** `effects` читается как
   предложение: *создай это, свяжи с тем, обнови статус*. Вы никогда не
   собираете `Patch` — его собирает runtime.
 - **Работаешь с артефактами, а не с id.** `evidence` создан здесь, связан
@@ -76,7 +78,7 @@ async def produce(self, call: ProduceCall) -> None:
 - **Параллельная безопасность — по построению.** У каждого produce свой слот
   эффектов; одновременно работающие продюсеры не видят чужое незавершённое
   состояние (§42).
-- **HITL появляется сам собой.** `self.effects.ask(...)` — просто ещё один
+- **HITL появляется сам собой.** `effects.ask(...)` — просто ещё один
   эффект (§60); человек — не особый случай, прикрученный сбоку.
 
 Если внутри produce хочется писать `Patch()` — остановитесь. Это работа
@@ -170,8 +172,8 @@ Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→
 
 | Слой | Что это | Кто пишет |
 | --- | --- | --- |
-| **Produce** | реакция: условие → LLM/расчёт → `self.effects.*` → `None` | вы |
-| **Effects** | описанный набор изменений в границах хода | вы, через `self.effects` |
+| **Produce** | реакция: условие → LLM/расчёт → `effects.*` → `None` | вы |
+| **Effects** | описанный набор изменений в границах хода | вы, через инжектированный `effects` |
 | **Patch** | *скомпилированные* операции, применяемые одним коммитом | runtime |
 
 ## Почему даже прикладной слой тонкий
@@ -188,8 +190,8 @@ Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→
 
 Нет. Если рабочий процесс действительно фиксирован, reactifact умеет выразить и
 его — но суть в том, что вас **не принуждают** рисовать граф там, где задача
-открыта. Канонические паттерны (ReAct, reflection, map-reduce, supervisor,
-summarize, time-travel, plan-and-execute) имеют эталонные реализации в
+открыта. Многие канонические паттерны (ReAct, RAG, ветвление/слияние,
+стадийное перепланирование) имеют эталонные реализации в
 [`examples/`](examples.md) (см. [port-matrix](port-matrix.md)); они возникают
 из *состояния и produces*, а не из заранее нарисованной диаграммы.
 

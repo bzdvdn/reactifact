@@ -2,39 +2,31 @@
 
 from __future__ import annotations
 
-from reactifact import Step, StepCall
+from typing import Annotated
+
+from reactifact import Artifact, Context, Step, When
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, ChatReply, ResearchTurn, UserQuery
-from .common import GREETING_RE, GREETING_TEXT, RESEARCH_RE, user_query
+from .common import GREETING_RE, GREETING_TEXT, RESEARCH_RE
 
 
 class PlannerReply(Step):
-    """ChatReply: greeting / direct reply. None for research questions."""
+    """ChatReply: greeting / direct reply; research goes to PlannerTurn."""
 
-    consumes = (UserQuery,)
+    consumes = (
+        Annotated[UserQuery, When(lambda query: not RESEARCH_RE.search(query.text))],
+    )
     produces = (ChatReply,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        event = call.event
-        user = user_query(context, event)
-        if user is None or event is None:
-            return None
+    async def run(self, context: Context, query: Artifact[UserQuery]) -> ChatReply:
+        user = query.data
         text = user.text.strip()
         context.announce("Thinking...", kind="status")
 
         if GREETING_RE.match(text):
             context.announce("Replying to the greeting", kind="status")
-            self.effects.create(
-                ChatReply(
-                    query_id=event.artifact_id, text=GREETING_TEXT, kind="greeting"
-                )
-            )
-            return None
-
-        if RESEARCH_RE.search(text):
-            return None  # research branch
+            return ChatReply(query_id=query.id, text=GREETING_TEXT, kind="greeting")
 
         context.announce("Replying from general knowledge", kind="status")
         answer = await structured_llm(
@@ -47,29 +39,19 @@ class PlannerReply(Step):
             if answer
             else "This question doesn't require consulting the documentation."
         )
-        self.effects.create(
-            ChatReply(query_id=event.artifact_id, text=reply, kind="direct")
-        )
-        return None
+        return ChatReply(query_id=query.id, text=reply, kind="direct")
 
 
 class PlannerTurn(Step):
     """ResearchTurn: for questions that need a source search."""
 
-    consumes = (UserQuery,)
+    consumes = (
+        Annotated[UserQuery, When(lambda query: bool(RESEARCH_RE.search(query.text)))],
+    )
     produces = (ResearchTurn,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        event = call.event
-        user = user_query(context, event)
-        if user is None or event is None:
-            return None
+    async def run(self, context: Context, query: Artifact[UserQuery]) -> ResearchTurn:
+        user = query.data
         text = user.text.strip()
-        if not RESEARCH_RE.search(text):
-            return None
         context.announce("Question requires a documentation search", kind="status")
-        self.effects.create(
-            ResearchTurn(query_id=event.artifact_id, text=text, status="researching")
-        )
-        return None
+        return ResearchTurn(query_id=query.id, text=text, status="researching")

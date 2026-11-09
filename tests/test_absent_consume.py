@@ -23,7 +23,7 @@ class FileTicket(Produce[Filed]):
 
     async def produce(self, call):
         for i in call.inputs:
-            self.effects.create(Filed(thread_id=i.data.thread_id))
+            call.effects.create(Filed(thread_id=i.data.thread_id))
 
 
 class TicketGate(Agent):

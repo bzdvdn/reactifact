@@ -36,8 +36,8 @@ class Pass(Produce[Note]):
     artifact_type = Note
 
     async def produce(self, call: ProduceCall):
-        note1 = self.effects.create(Note(text="v1"), id="note:1")
-        self.effects.create(Note(text="v2"), id="note:2")
+        note1 = call.effects.create(Note(text="v1"), id="note:1")
+        call.effects.create(Note(text="v2"), id="note:2")
         note1.link("supported_by", "note:2")
         return None
 

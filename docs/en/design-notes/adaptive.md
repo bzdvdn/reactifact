@@ -91,10 +91,8 @@ afterward.
 - `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
   `relation_balance_metric`, types.
 - Runtime hook (`scheduler=` param), `Agent.capabilities`.
-- `examples/adaptive` — two competing artists + HITL approval.
 - `examples/medic_lab` — `medic_lab_scheduler()` wires `relation_balance_metric`
   into both the console (`chat.py`) and web (`api/chat.py`) entrypoints.
-- `tests/test_adaptive.py` — ranking, pruning, fallback, LLM tie-break,
   offline skip, HITL pin, demo runs, `relation_balance_metric` (weights,
   custom relation names, end-to-end scheduling).
 - `tests/test_medic_lab.py` — `medic_lab_scheduler()` prioritizes the

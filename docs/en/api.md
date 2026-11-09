@@ -75,7 +75,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Artifact` | the `(id, data)` pair; `data` is a pydantic model |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | stable persisted type identity: a rename/move of a model no longer breaks loading old sessions/commits/events. `type_id_of`/`resolve`/`migrate_payload`; default id is the qualified name |
-| `Patch` | the runtime's compiled change-set (transport); produces write `self.effects`, `Patch` is assembled by the runtime |
+| `Patch` | the runtime's compiled change-set (transport); produces write effects (`effects`/`call.effects`), `Patch` is assembled by the runtime |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | op records from which patches are built |
 
@@ -89,7 +89,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Produce` / `produce` | the work unit: writes `self.effects` (or `effects` slot in a decorated function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set; `.name` is a readable trace/log label (class name, the `@produce` function's name, or `Produce[Model]` for a bare widening produce) |
+| `Produce` / `produce` | the work unit: writes effects through the injected `effects: Effects` parameter (class) or `call.effects` (function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set; `.name` is a readable trace/log label (class name, the `@produce` function's name, or `Produce[Model]` for a bare widening produce) |
 | `Trigger` | secondary (non-artifact) enter condition for a produce; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -98,7 +98,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `DeferredToolGroup` (`reactifact.tool_use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
-| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `self.effects.resume(...)` |
+| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)` |
 | `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the produce; `None` if it already exists |
 | `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 
@@ -244,7 +244,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `find(inputs, Model)` / `find_all(inputs, Model)` | typed lookup in a produce's `inputs` without `next(... isinstance ...)` |
 | `fan_out_sources(context, query, owner_id, …)` | idempotent fan-out search → refs + patch |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | lazy ref → document with provenance |
-| `StatusMachine` | deterministic artifact lifecycle (`next_status`, `terminal`, `on_transition`, `query_id_field`/`status_field`) |
+| `StatusMachine` / `StatusState` | deterministic artifact lifecycle: `next_status(state)` over key-scoped inputs (`all`/`any`/`latest`), `terminal`, `on_transition` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count; `message_type` may be a sequence of types |
 | `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful; `message_type` may be a sequence of types |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | multi-turn conversation generic over a message model (yours, or the default `ConversationMessage`): append turns, render the thread to provider `Message`s (`turn_count` / `conversation_state` helpers) |

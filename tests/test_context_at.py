@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Runtime
+from reactifact import Agent, Context, Effects, Runtime
 from reactifact.step import Step
 
 
@@ -17,8 +17,8 @@ class Make(Step):
     consumes = (A,)
     produces = (Out,)
 
-    async def run(self, a: A) -> None:
-        self.effects.upsert(Out(text=a.text), id="out")
+    async def run(self, a: A, effects: Effects) -> None:
+        effects.upsert(Out(text=a.text), id="out")
 
 
 class Flow(Agent):

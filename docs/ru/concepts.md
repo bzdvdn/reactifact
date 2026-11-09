@@ -61,16 +61,19 @@ class Evidence(BaseModel):
 
 ## 3. Effects и Patch
 
-Авторская поверхность — **`self.effects`** (см. [Контракт produce](effects.md),
-§24): produce пишет `create/update/link/ask` и возвращает `None`. Рантайm
-компилирует набор эффектов в один атомарный **`Patch`** — скомпилированный
-транспорт.
+Авторская поверхность — слот **effects** (см. [Контракт produce](effects.md),
+§24): produce пишет `create/update/link/ask` и возвращает `None`. Класс-шаг
+объявляет `effects: Effects` в `run()`; функция `@produce`/`@step` использует
+`call.effects`. Рантайм компилирует набор эффектов в один атомарный
+**`Patch`** — скомпилированный транспорт.
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
-    answer = self.effects.create(Answer(query_id=qid, text=text), id="answer:q1")
+from reactifact import Effects
+
+async def run(self, effects: Effects) -> None:
+    answer = effects.create(Answer(query_id=qid, text=text), id="answer:q1")
     answer.link("supported_by", evidence_id)
-    self.effects.update(some_artifact, status="answered")
+    effects.update(some_artifact, status="answered")
     return None
 ```
 
@@ -134,22 +137,28 @@ class RepairFlow(Agent):
 ## 5. Produce
 
 `Produce[M]` — место, где происходит работа. Его **авторская поверхность —
-`self.effects`** (§24): produce пишет, что должно измениться
-(`effects.create/update/link/ask`), и возвращает `None`. Рантайm компилирует
+инжектированный слот effects** (§24): класс-шаг объявляет `effects: Effects` в
+`run()`, функциональный шаг использует `call.effects`; так или иначе produce
+пишет, что должно измениться (`effects.create/update/link/ask`), и возвращает
+`None`. Рантайм компилирует
 слот эффектов в один атомарный патч — коммит, события, трейс, валидация те же,
 но сам produce никогда не собирает `Patch` (этот тип теперь транспорт рантайма).
 
 ```python
+from reactifact import Effects
+
 class EstimateStage(Produce[Project]):
     artifact_type = Project
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, project_art: Project, effects: Effects) -> None:
         ...
-        self.effects.update(project_art, stage="estimate")
+        effects.update(project_art, stage="estimate")
         return None
 ```
 
-`produce()` всегда принимает ровно один аргумент, `call` — `ProduceCall` с
+Класс-форма инжектит типизированные входы и `effects: Effects` в `run()`;
+функциональная форма `@produce`/`@step` по-прежнему принимает ровно один
+аргумент, `call` — `ProduceCall` с
 `.context`/`.inputs`/`.event`/`.trigger`/`.effects`. Про `.trigger`
 (резолвленный артефакт за `.event`, гарантированно не `None` вместе с
 `reacts_to`) — см. [patterns](patterns.md).

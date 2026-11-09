@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Runtime
+from reactifact import Agent, Artifact, Context, Effects, Runtime
 from reactifact.step import Latest, Step
 
 
@@ -25,8 +25,8 @@ class Compose(Step):
     produces = (Answer,)
     scope = "query_id"
 
-    async def run(self, question: Question, docs: list[Doc]) -> None:
-        self.effects.upsert(
+    async def run(self, question: Question, docs: list[Doc], effects: Effects) -> None:
+        effects.upsert(
             Answer(query_id=question.query_id, text="+".join(d.text for d in docs)),
             id=f"answer:{question.query_id}",
         )
@@ -56,9 +56,9 @@ class Related(Step):
     produces = (Answer,)
     scope = "query_id"
 
-    async def run(self, question: Question) -> None:
+    async def run(self, question: Question, effects: Effects) -> None:
         docs = self.related_all(Doc)
-        self.effects.upsert(
+        effects.upsert(
             Answer(
                 query_id=question.query_id, text="+".join(d.data.text for d in docs)
             ),
@@ -127,7 +127,7 @@ class CursorStep(Step):
     async def run(self, call, question: Question) -> None:
         assert call.trigger is not None
         vector = call.cursor.get(Question, {})
-        self.effects.upsert(
+        call.effects.upsert(
             Answer(
                 query_id=question.query_id,
                 text=str(vector.get(call.trigger.id, -1)),
@@ -147,3 +147,43 @@ def test_call_cursor_exposes_input_versions():
     context.update(question.id, Question(query_id="q1", text="two"))
     asyncio.run(runtime.arun())
     assert context.get("cursor-answer").data.text == "1"
+
+
+class CollectDocs(Step):
+    consumes = (Question, Doc)
+    produces = (Answer,)
+    scope = "query_id"
+
+    async def run(
+        self,
+        question: Question,
+        docs: list[Artifact[Doc]],
+        effects: Effects,
+    ) -> None:
+        assert all(isinstance(doc, Artifact) for doc in docs)
+        effects.upsert(
+            Answer(
+                query_id=question.query_id,
+                text="+".join(doc.data.text for doc in docs),
+            ),
+            id=f"collect:{question.query_id}",
+        )
+
+
+class CollectAgent(Agent):
+    steps = [CollectDocs()]
+
+
+def test_typed_artifact_lists_are_scoped_to_the_trigger():
+    context = Context()
+    context.create(Question(query_id="q1", text="one"))
+    context.create(Question(query_id="q2", text="two"))
+    context.create(Doc(query_id="q1", text="a"))
+    context.create(Doc(query_id="q2", text="b"))
+    context.create(Doc(query_id="q1", text="c"))
+
+    asyncio.run(Runtime(context, agents=[CollectAgent()]).arun())
+
+    answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
+    assert answers["q1"] == "a+c"
+    assert answers["q2"] == "b"

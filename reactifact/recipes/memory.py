@@ -35,7 +35,8 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..step import Step, StepCall
+from ..effects import Effects
+from ..step import Step
 from ..structured import OnStructuredError, llm_reply
 
 MsgT = TypeVar("MsgT", bound=BaseModel)
@@ -130,8 +131,7 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.id_of = id_of
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(self, context: Context, effects: Effects) -> None:
         messages = _collect_messages(context, self.message_types)
         count = len(messages)
         if count == 0 or count % self.every != 0:
@@ -145,7 +145,7 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         text = await self.summarize(context, history)
         if text is None:
             text = self.fallback(history)
-        self.effects.create(self.build(round_no, text), id=summary_id)
+        effects.create(self.build(round_no, text), id=summary_id)
         return None
 
 
@@ -174,8 +174,7 @@ class WindowPruner(Step[MsgT], Generic[MsgT]):
         self.keep = keep
         self.order_key = order_key
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(self, context: Context, effects: Effects) -> None:
         messages = sorted(
             _collect_messages(context, self.message_types), key=self.order_key
         )
@@ -186,7 +185,7 @@ class WindowPruner(Step[MsgT], Generic[MsgT]):
         if not old:
             return None
         for message in old:
-            self.effects.delete(message.id)
+            effects.delete(message.id)
         return None
 
 
@@ -245,8 +244,7 @@ class RollingDigestSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         self.order_key = order_key
         self.digest_id = digest_id
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(self, context: Context, effects: Effects) -> None:
         messages = sorted(
             _collect_messages(context, self.message_types), key=self.order_key
         )
@@ -262,9 +260,9 @@ class RollingDigestSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
             text = self.fallback(previous_text, stale)
         # `create(..., id=...)` doubles as refresh when the id already exists
         # (§42/§43) — no separate update-vs-create branch needed.
-        self.effects.create(self.build(text), id=self.digest_id)
+        effects.create(self.build(text), id=self.digest_id)
         for message in stale:
-            self.effects.delete(message.id)
+            effects.delete(message.id)
         return None
 
 

@@ -7,11 +7,11 @@
 
 | Делай | Не делай | Почему |
 | --- | --- | --- |
-| Пиши `self.effects.create/update/link/ask(...)`, возвращай `None` | Собирай `Patch` вручную в обычном produce | Runtime компилирует один атомарный патч на produce — ручная сборка это лазейка, а не дефолт |
+| Пиши `effects.create/update/link/ask(...)`, возвращай `None` | Собирай `Patch` вручную в обычном produce | Runtime компилирует один атомарный патч на produce — ручная сборка это лазейка, а не дефолт |
 | Оформляй допустимость через ранний `return None` | Полагайся на порядок планирования, чтобы пропустить неготовую работу | Допустимость — решение по состоянию, а не удачное стечение планирования (§69) |
 | Используй стабильные id (`answer:{qid}`) или `effects.create_once(...)` | Выводи id из счётчика или таймстампа | Идемпотентные перезапуски — одно и то же событие дважды не должно дублировать состояние |
 | Возвращай `None` при отсутствии модели / неудачном парсинге, показывай честный fallback | Подставляй «уверенно звучащий» канонический ответ при сбое LLM-вызова | Детерминированная работа остаётся детерминированной; сбой генерации должен быть виден, а не замаскирован |
-| Держи `next_status`/скоринг чистыми функциями `(context, key) -> ...` | Подмешивай LLM-вызовы или побочные эффекты в `StatusMachine.next_status` | Чистые функции тестируются без runtime |
+| Держи `next_status`/скоринг чистыми функциями `(state) -> ...` | Подмешивай LLM-вызовы или побочные эффекты в `StatusMachine.next_status` | Чистые функции тестируются без runtime |
 | Используй `Runtime(isolate_errors=True, on_agent_error=...)` только когда осознанно решил, что частичный прогресс приемлем | Ставь `isolate_errors` по умолчанию, чтобы заглушить исключения | По умолчанию — fail-loud (§69); изоляция ошибок — явное продуктовое решение, а не страховка |
 | Записывай внешний side effect через `effects.act(...)`, а I/O делай в `Runtime(dispatcher=...)` | Отправляй письмо / дёргай webhook прямо в `produce()` | Намерение — закоммиченное состояние: replay, retry и merge не могут пере-отправить его (§42) |
 
@@ -29,14 +29,14 @@ class PendingQuestion(BaseModel):
     notes: dict[str, Any] = {}     # маршрутизация ("какой агент спросил")
 ```
 
-Produce создаёт его через `self.effects.ask(...)`, а ответ человека приходит
-через `self.effects.resume(...)` (эффект, помечающий `PendingQuestion` отвеченным,
+Produce создаёт его через `effects.ask(...)`, а ответ человека приходит
+через `effects.resume(...)` (эффект, помечающий `PendingQuestion` отвеченным,
 §60):
 
 ```python
-self.effects.ask("Утвердить смету?", kind="approval")
+effects.ask("Утвердить смету?", kind="approval")
 # ... web/UI видит ожидающий вопрос и показывает состояние «ожидание» ...
-self.effects.resume(question_artifact, "да")
+effects.resume(question_artifact, "да")
 return None
 ```
 
@@ -72,12 +72,12 @@ class Notify(Produce[Receipt]):
     async def produce(self, call: ProduceCall) -> None:
         order = call.trigger
         # стабильный ключ из содержания -> идемпотентные перезапуски и merge
-        self.effects.act(
+        effects.act(
             "notify",
             key=f"notify:{order.data.id}:email",
             payload={"to": order.data.email, "order": order.data.id},
         )
-        self.effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
+        effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
         return None
 
 
@@ -241,7 +241,7 @@ class Planner(Produce[PlanStep]):
             return None  # не Goal, либо план уже построен (§42)
         steps = await plan_steps(goal.data.text)  # structured LLM или фолбэк
         for index, instruction in enumerate(steps):
-            self.effects.create(PlanStep(index=index, instruction=instruction), ...)
+            effects.create(PlanStep(index=index, instruction=instruction), ...)
 
 
 class Executor(Produce[StepResult]):
@@ -255,7 +255,7 @@ class Executor(Produce[StepResult]):
                 continue  # уже выполнен
             if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
                 return None  # ждём результат предыдущего шага (§69)
-            self.effects.create(StepResult(...), id=f"result:{step.id}")
+            effects.create(StepResult(...), id=f"result:{step.id}")
             return None  # один шаг за поколение; следующий результат перезапустит нас
 ```
 
@@ -269,7 +269,7 @@ None` — это и есть весь механизм упорядочиван�
 `Combine` из `map_reduce`: ждёт результата каждого шага, затем собирает
 финальный ответ.
 
-Полный порт — в `examples/plan_execute` (структурированное планирование с
+Полный паттерн — в `reactifact.recipes.PlanExecute` (структурированное планирование с
 детерминированным однотаговым фолбэком и финишером).
 
 ## Корреляция между типами артефактов
@@ -363,7 +363,7 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
     reacts_to = (ResolvedDocuments,)
 
     async def produce(self, call: ProduceCall) -> None:
-        self.effects.create(
+        effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
         )
 ```
@@ -511,12 +511,12 @@ session = await store.open(session_id, resources=resources)
 
 ## Детерминизм как привычка
 
-- **Контракт produce**: пишите `self.effects.create/update/link/ask(...)` и
+- **Контракт produce**: пишите `effects.create/update/link/ask(...)` и
   возвращайте `None`; рантайm компилирует слот в один атомарный патч (§24).
   `Patch` — транспорт, в обычном produce его почти не печатают.
 - Право на запуск — гард, а не удачный порядок планировщика (`return None` рано).
 - Предпочитайте стабильные id (`answer:{qid}`, `ref:{sid}:{owner}`) →
-  идемпотентные повторы. `self.effects.create_once(Model(...), id=...)`
+  идемпотентные повторы. `effects.create_once(Model(...), id=...)`
   сворачивает гард «уже сделано» прямо в вызов — `None` в ответ значит
   пропустить, а не собирать гард руками перед каждым `create`.
 - Чистые функции решений (`next_status`) тестируются без runtime.

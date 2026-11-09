@@ -1,31 +1,19 @@
 # Examples
 
-Twenty-three working applications ship in `examples/` (in-repo, not packaged) — the ones below, the canonical ports and `llm_ladder`. They
-are the reference implementations for the [recipes](recipes.md),
+Eight working applications ship in `examples/` (in-repo, not packaged). They are
+the reference implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
-examples are split into a `produce/` package (stages) + thin
+examples are split into a `steps/` package (stages) plus thin
 `web.py`/`chat.py`/`main.py` entries.
 
 All demos run **with or without API keys**: configure `.env` (copy
 `.env.example`) for LLM/embedder/image providers, or let them fall back to
 deterministic demo mode.
 
-The session-chat demos (`knowledge`, `devops`, `research`, `repair`) build
-their web layer on the canonical `reactifact.chat` + `reactifact.web` contract —
-each supplies only the domain hooks (agents, input model, terminal reply),
-the SSE transport and session persistence come from the framework. Ports
-(`reflection` …) and `adaptive` are CLI-only by design.
-
-## Tutorial ladder
-
-- `llm_ladder` — the **recommended starting point**: the LLM workflow from a
-  single call (level 1) through patching artifacts (level 2) to a full
-  state-changing session with lifecycle (level 3). Self-contained, offline
-  fallbacks, model mode via `.env`. See [index](index.md#llm-ladder).
-
-```bash
-uv run python ./examples/llm_ladder/level1.py
-```
+The session-chat demos (`knowledge`, `devops`, `repair`) build their web layer
+on the canonical `reactifact.chat` + `reactifact.web` contract — each supplies
+only the domain hooks (agents, input model, terminal reply), and the SSE
+transport and session persistence come from the framework.
 
 ## `starter_app` — a copy-pasteable web app over the quick cases
 
@@ -54,21 +42,10 @@ uv run python ./examples/knowledge/web.py    # FastAPI/SSE + trace dashboard
 uv run python ./examples/knowledge/chat.py   # interactive CLI
 ```
 
-Key files: `produce/` (common, router, search, evidence, calc, lifecycle),
+Key files: `steps/` (common, router, search, evidence, calc, lifecycle),
 `agents.py`, `web.py`.
 
-## `research` — goes to the web
-
-**What it shows:** `WebSource` with real URL discovery; *lazy* page resolution
-only for pages the model ranks relevant (§6); evidence → verified claims →
-answer with URL provenance; `StatusMachine` turn lifecycle.
-
-```bash
-uv run python ./examples/research/web.py
-uv run python ./examples/research/chat.py
-```
-
-## `medic-lab` — hypothesis laboratory
+## `medic_lab` — hypothesis laboratory
 
 **What it shows:** one question spawns competing hypotheses; each is
 investigated over an evidence pool; **scored** by support/contradiction counts
@@ -100,43 +77,6 @@ evaluators), tags passes `eval` / failures `eval:failed`, and `web.py` mounts
 uv run python ./examples/devops/web.py      # SSE UI + trace dashboard
 uv run python ./examples/devops/safety.py   # custom guardrails, end to end
 uv run python ./examples/devops/online_eval.py   # online-eval over served runs
-```
-
-## `a2a` — an agent served over A2A, and called back
-
-**What it shows:** the Agent2Agent protocol in both directions — a reactifact
-agent exposed as an A2A server (`create_a2a_router`: Agent Card + JSON-RPC), and
-a client that calls it directly (`A2AClient`) as well as schedules the remote
-agent as a **local node** (`remote_agent`), including a remote `input-required`
-surface as a local `PendingQuestion`. Deterministic and offline (in-process over
-`httpx.ASGITransport`; no LLM, no network).
-
-```bash
-uv run python -m examples.a2a.demo
-```
-
-Details: [`examples/a2a`](https://github.com/bzdvdn/reactifact/blob/master/examples/a2a/README.md)
-and [A2A docs](a2a.md).
-
-## `incident_commander` — a full harness, composed
-
-**What it shows:** every harness-level building block wired together in one
-scenario instead of five separate toy demos — branch & merge
-(`Context.branch()`/`merge()`, §39-§40), each relevant place investigated
-independently on its own fork — *relevant* decided by a deterministic
-keyword classifier, not "always fork everything" — sub-agent delegation
-(`agent_tool.AgentAsTool`, a DBA specialist consulted on the database fork),
-a token-bounded rolling synthesis
-(`context_builder.TokenBudgetContextBuilder`), a destructive-tool approval
-gate (`tool_use.ToolUseHITL`, the actual fix pauses for a yes/no), and
-inline verification before the incident is considered resolved
-(`verify.Verify`, `provenance_grounded` required). Runs fully offline via a
-scripted provider (`ToolUseHITL`'s decision loop has no offline fallback of
-its own) or with a real key.
-
-```bash
-uv run python -m examples.incident_commander.main
-uv run python -m examples.incident_commander.main --context-max-tokens 30
 ```
 
 ## `repair` — budget-aware replanning (Russian by design)
@@ -184,42 +124,8 @@ uv run python -m examples.forklab.main --mermaid  # merged provenance graph
 uv run python -m examples.forklab.main --conflict # explicit MergeConflict + policy
 ```
 
-The same pattern is the natural base for rewriting `medic-lab`: hypotheses
+The same pattern is the natural base for rewriting `medic_lab`: hypotheses
 become real forks instead of tag-routed channels.
-
-## `ledger` — minimal recompute (reactive dependency graph)
-
-**What it shows:** a tiny cost model (hours × rate → labor cost → tax/discount
-→ total), built to make one point concretely, with numbers: dependencies are
-declared on artifact *types* via `Consume`, not wired between nodes sharing one
-blob of state — so editing one fact recomputes exactly what actually consumed
-it, and nothing else. `Artifact.version` is the proof: a formula that never
-consumed the edited fact is never even invoked for that edit, not
-"invoked-and-decided-not-to-update." No LLM, fully deterministic (§67) — same
-offline-proof spirit as `forklab`, but for reactive invalidation instead of
-branch/merge.
-
-```bash
-uv run python -m examples.ledger.main
-```
-
-## `outbox` — one intent, one send (§42)
-
-**What it shows:** an external side effect (a notification) recorded as
-`PendingAction` *state* by the produce and performed by `Runtime(dispatcher=...)`
-only after the commit — so replay, retries and merged branches reconstruct the
-decision without repeating the action. Seven cases, all offline and deterministic
-(§67): commit→dispatch, re-derivation (stable key → no resend), two producers in
-one generation (drain dedupes), two merged branches (merge is clean, delivery
-once), replay (state rebuilt, nothing re-sent), a failing dispatcher
-(`failed` is state → `retry_action` re-arms), and an app-owned retry wrapper
-around the dispatcher (backoff lives in the app). The honest caveat — delivery
-is still at-least-once, so the dispatcher must honor `idempotency_key` — is
-stated rather than hidden. No LLM.
-
-```bash
-.venv/bin/python -m examples.outbox.main
-```
 
 ## `fintech_audit` — auditable, reproducible answer
 
@@ -243,68 +149,10 @@ See also [`reactifact/audit.py`](../reference.md) (`build_report`,
 `context_hash`, `report_to_markdown`) and [Observability](observability.md) for
 shipping such a run to a sink with `redactor=`.
 
-## `support_copilot` — grounded reply, or escalate, never hallucinate
-
-**What it shows:** a support agent with two honest outcomes — the docs cover the
-question → a grounded reply made of the matched document's own text, citing it
-via `supported_by` provenance; nothing matches → the runtime **escalates to a
-human** (`effects.ask(...)` → `PendingQuestion`), and the human's answer becomes
-the reply. "I don't know" is a first-class state, not an invented answer. No
-model required.
-
-```bash
-uv run python -m examples.support_copilot.main
-```
-
-## `repo_agent` — a coding agent behind an approval gate
-
-**What it shows:** an LLM + tools agent where `git_commit` is
-`@tool(destructive=True)` — the model may decide to call it, but the runtime
-turns that into a `PendingQuestion(kind="approve")` and only runs the commit
-after a human `resume`. Safe tools (`read_file`, `run_tests`) run freely. The
-gate is a property of the `Tool`, not of the prompt, so it holds regardless of
-what the model outputs. Offline (scripted provider, local tools).
-
-```bash
-uv run python -m examples.repo_agent.main
-```
-
-## `adaptive` — hybrid scheduling
-
-**What it shows:** the adaptive planner (`reactifact.scheduler`) in action — hard
-filter rules prune capabilities, a deterministic metric ranks the rest, an
-optional LLM breaks ties, `rank_limit` caps the number of agents that actually
-run; HITL-enabled agents are pinned, none starve.
-
-```bash
-uv run python -m examples.adaptive.main            # "money" → picked: b
-uv run python -m examples.adaptive.main --tag x    # rule prunes b entirely
-```
-
-## Canonical ports (offline-capable mini-demos)
-
-Small, self-contained ports of the classic agent patterns — every one runs
-`uv run python -m examples.<name>.main` and is mapped in the
-[port matrix](port-matrix.md). `plan_execute`, `supervisor`, and `reflection`
-each also ship a `main_recipe.py` running the identical scenario on the
-corresponding `reactifact.recipes` class (`python -m examples.<name>.main_recipe`)
-— compare the two to see exactly what the recipe takes off your hands.
-
-- `reflection` — generate → critique → regenerate a draft until a guard passes.
-- `map_reduce` — chunk a document, per-chunk produces, then aggregate
-  (`fan_out` + `combine`).
-- `supervisor` — a supervisor delegates *specialist* produces (HITL approvals).
-- `summarize` — conversation memory summarization (short → long window).
-- `time_travel` — `Context.branch()`, run two strategies in parallel,
-  three-way `merge()`.
-- `plan_execute` — planner drafts ordered steps, executor runs exactly one
-  per generation gated on the previous step's result, finisher synthesizes
-  the answer once every step has one; see [patterns](patterns.md#plan-and-execute-draft-once-run-one-step-at-a-time).
-
 ## Running tests
 
 ```bash
-.venv/bin/python -m pytest      # 543 tests (2 skipped without TEST_PG_DSN)
+.venv/bin/python -m pytest      # full suite (PostgreSQL cases skip without TEST_PG_DSN)
 .venv/bin/mypy                  # strict typing across the repo
 .venv/bin/ruff check            # lint
 ```

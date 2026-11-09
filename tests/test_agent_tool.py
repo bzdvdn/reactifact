@@ -69,7 +69,7 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(MainReport(text=a.data.text))
+            call.effects.create(MainReport(text=a.data.text))
 
     class MainAgent(LLMAgent):
         system = "Делегируй специалисту при необходимости."
@@ -130,7 +130,7 @@ def test_agent_as_tool_isolated_from_parent_history():
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(MainReport(text=a.data.text))
+            call.effects.create(MainReport(text=a.data.text))
 
     class MainAgent(LLMAgent):
         system = "агент"
@@ -181,7 +181,7 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
-            self.effects.create(MainReport(text=a.data.text))
+            call.effects.create(MainReport(text=a.data.text))
 
     class MainAgent(LLMAgent):
         system = "агент"

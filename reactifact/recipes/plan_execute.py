@@ -43,7 +43,8 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..step import Step, StepCall
+from ..effects import Effects
+from ..step import Step
 
 GoalT = TypeVar("GoalT", bound=BaseModel)
 StepT = TypeVar("StepT", bound=BaseModel)
@@ -115,10 +116,11 @@ class _Planner(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.step_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        goal = call.trigger
+        goal = trigger
         if goal is None or not isinstance(goal.data, owner.goal_type):
             return None
         if owner._ordered_steps(context, goal.id):
@@ -128,7 +130,7 @@ class _Planner(Step[Any]):
             stamped = step_data.model_copy(
                 update={owner.goal_field: goal.id, owner.index_field: index}
             )
-            handle = self.effects.create(stamped, id=owner._step_id(goal.id, index))
+            handle = effects.create(stamped, id=owner._step_id(goal.id, index))
             handle.link("from_goal", goal.id)
         return None
 
@@ -138,10 +140,11 @@ class _Executor(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.result_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         goal_id = owner._goal_id_of(artifact)
@@ -162,7 +165,7 @@ class _Executor(Step[Any]):
                     owner.index_field: getattr(step.data, owner.index_field),
                 }
             )
-            handle = self.effects.create(stamped, id=result_id)
+            handle = effects.create(stamped, id=result_id)
             handle.link("executes", step)
             return None  # one step per generation; the new result re-triggers this
         return None
@@ -173,10 +176,11 @@ class _Finisher(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         goal_id = owner._goal_id_of(artifact)
@@ -197,7 +201,7 @@ class _Finisher(Step[Any]):
         final_data = await owner.finish(context, goal, results)
         if hasattr(final_data, owner.goal_field):
             final_data = final_data.model_copy(update={owner.goal_field: goal_id})
-        handle = self.effects.create(final_data, id=owner._final_id(goal_id))
+        handle = effects.create(final_data, id=owner._final_id(goal_id))
         for result in results:
             handle.link("supported_by", result)
         return None

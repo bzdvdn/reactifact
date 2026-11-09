@@ -172,7 +172,7 @@ effect, and the answer is just another patch:
 
 ```python
 # inside a produce
-self.effects.ask("Approve this estimate?", kind="approval")
+effects.ask("Approve this estimate?", kind="approval")
 # later, from your API, when the human answers:
 ctx.resume(question_id, "approved")   # emits an update → agents react
 ```

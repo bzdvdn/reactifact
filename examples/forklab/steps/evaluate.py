@@ -32,7 +32,7 @@ class Evaluate(Step):
         top = ranked[:TOPN]
 
         answer_id = "answer:merged"
-        answer = self.effects.create(
+        answer = call.effects.create(
             Answer(
                 text=await self._synthesize(context, top, ranked),
                 sources=[e.data.source for e in top],

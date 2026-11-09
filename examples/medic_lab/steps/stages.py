@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Step, StepCall
+from reactifact import Artifact, Context, Effects, Step, StepCall, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -105,7 +107,7 @@ class Generator(Step):
 
         for i, statement in enumerate(statements):
             hyp_id = f"hyp:{question_id}:{i}"
-            hypothesis = self.effects.create(
+            hypothesis = call.effects.create(
                 Hypothesis(question_id=question_id, statement=statement, status="open"),
                 id=hyp_id,
             )
@@ -116,14 +118,12 @@ class Generator(Step):
 class Investigator(Step):
     """Per-hypothesis channel: search sources tagged with the hypothesis."""
 
-    consumes = (Consume.by_status(Hypothesis, "open"),)
+    consumes = (Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],)
     produces = (SourceRef, SearchDone)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        hyp_art = call.trigger
-        if hyp_art is None or not isinstance(hyp_art.data, Hypothesis):
-            return None
+    async def run(
+        self, context: Context, hyp_art: Artifact[Hypothesis], effects: Effects
+    ) -> None:
         hyp = hyp_art.data
         question = context.get(hyp.question_id)
         if question is None or not isinstance(question.data, Question):
@@ -162,14 +162,14 @@ class Investigator(Step):
                 f"  «{sid}» → {n} pages", kind="status", count=n, source=sid
             ),
         )
-        self.effects.create(
+        effects.create(
             SearchDone(
                 hypothesis_id=hyp_art.id, round=depth, question_id=hyp.question_id
             ),
             id=marker,
         )
         if hyp.status == "open":
-            self.effects.update(hyp_art, status="investigating")
+            effects.update(hyp_art, status="investigating")
         return None
 
 
@@ -179,11 +179,7 @@ class Resolver(Step):
     consumes = (SourceRef,)
     produces = (TypedDoc,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        ref_art = call.trigger
-        if ref_art is None or not isinstance(ref_art.data, SourceRef):
-            return None
+    async def run(self, context: Context, ref_art: Artifact[SourceRef]) -> None:
         ref = ref_art.data
         context.announce(f"Reading «{ref.locator}»...", kind="status", path=ref.locator)
 
@@ -216,11 +212,9 @@ class ExtractEvidence(Step):
     consumes = (TypedDoc,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        doc_art = call.trigger
-        if doc_art is None or not isinstance(doc_art.data, TypedDoc):
-            return None
+    async def run(
+        self, context: Context, doc_art: Artifact[TypedDoc], effects: Effects
+    ) -> None:
         doc = doc_art.data
         body = await _extract_prompt.call(
             context, user=f"Extract the key factual claims of this page:\n{doc.content}"
@@ -234,7 +228,7 @@ class ExtractEvidence(Step):
             source=doc.path,
             score=doc.score,
         )
-        evidence_handle = self.effects.create(evidence, id=evidence_id)
+        evidence_handle = effects.create(evidence, id=evidence_id)
         evidence_handle.link("extracted_from", doc_art)
         # deterministic support/contradiction per hypothesis (§67, §36)
         for hyp_art in hypotheses_of(context, doc.question_id):
@@ -251,11 +245,9 @@ class ClaimBuilder(Step):
     consumes = (Evidence,)
     produces = (Claim,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        ev_art = call.trigger
-        if ev_art is None or not isinstance(ev_art.data, Evidence):
-            return None
+    async def run(
+        self, context: Context, ev_art: Artifact[Evidence], effects: Effects
+    ) -> None:
         evidence = ev_art.data
         docs = context.related(ev_art.id, relation="extracted_from")
         doc_text = docs[0].data.content if docs else ""
@@ -268,7 +260,7 @@ class ClaimBuilder(Step):
                 else ("weak" if support >= 0.35 else "unverified")
             )
             claim_id = f"claim:{ev_art.id}:{i}"
-            claim = self.effects.create(
+            claim = effects.create(
                 Claim(
                     question_id=evidence.question_id,
                     hypothesis_id=evidence.hypothesis_id,
@@ -288,11 +280,9 @@ class CrossChecker(Step):
     consumes = (Claim,)
     produces = (Claim,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        claim_art = call.trigger
-        if claim_art is None or not isinstance(claim_art.data, Claim):
-            return None
+    async def run(
+        self, context: Context, claim_art: Artifact[Claim], effects: Effects
+    ) -> None:
         claim = claim_art.data
         for other in context.list_artifacts(Claim):
             if (
@@ -304,5 +294,5 @@ class CrossChecker(Step):
             if token_support(claim.text, other.data.text) >= 0.3 and negatory(
                 claim.text
             ) != negatory(other.data.text):
-                self.effects.link(claim_art.id, "contradicted_by", other.id)
+                effects.link(claim_art.id, "contradicted_by", other.id)
         return None

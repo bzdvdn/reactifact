@@ -161,7 +161,7 @@ The framework therefore should not make the developer encode the exact execution
 The canonical model is:
 
 ```text
-Agent(Context) → Effects      # self.effects.create/update/link/ask
+Agent(Context) → Effects      # effects.create/update/link/ask
                    │
                    ▼  runtime compiles (§24)
                Patch (atomic) → Context v+1
@@ -186,8 +186,8 @@ Example:
 ```python
 class Researcher(Produce[Evidence]):
     async def produce(self, call: ProduceCall) -> None:
-        self.effects.create(Evidence(...))
-        self.effects.update(task_id, status="researching")
+        effects.create(Evidence(...))
+        effects.update(task_id, status="researching")
         return None   # nothing applied until the runtime compiles the effects
 ```
 
@@ -572,7 +572,7 @@ This is one of the project's deliberate departures from embedding-first RAG.
 # 10. Agent
 
 An Agent is a component capable of interpreting Context and describing a
-change-set: produces write `self.effects` (§24); the runtime compiles them into
+change-set: produces write `effects` (§24); the runtime compiles them into
 a `Patch`.
 
 Minimal conceptual interface:
@@ -637,7 +637,7 @@ They are not necessarily a rigid execution graph.
 # 12. Patch
 
 A Patch is the *compiled* change-set the runtime applies. The authoring
-surface is `self.effects` (§24): a produce writes `create/update/link/ask` and
+surface is `effects` (§24): a produce writes `create/update/link/ask` and
 returns `None`; the runtime compiles the effect set into one atomic `Patch`
 (commit, events, validation, trace). `Patch` is transport — applications rarely
 build one directly (exceptions: the `Agent.run` escape hatch and advanced
@@ -1744,7 +1744,7 @@ Artifacts should have stable identities. In core, this is unconditional: `Source
 
 Idempotency covers the *state*, not the environment: a repeated produce
 would still re-send an email. The shipped split is an **outbox**. A produce
-records an intent artifact — `self.effects.act(kind=..., key=..., payload=...)`
+records an intent artifact — `effects.act(kind=..., key=..., payload=...)`
 creates a `PendingAction` under the stable id `action:{key}` — and the runtime
 performs it *after the commit*, once per id, through `Runtime(dispatcher=...)`.
 The produce never does the I/O itself. Replay reconstructs the record without
@@ -2542,7 +2542,7 @@ ctx.create(Question(text="How is authentication implemented?"))
 ```
 
 Agents are thin containers (§48): all logic lives in a `Produce` class that
-writes `self.effects.create/update/link/ask` and returns `None`; the runtime
+writes `effects.create/update/link/ask` and returns `None`; the runtime
 compiles the effects into one `Patch`. `consumes`/`produces` are the artifact
 contracts that drive the scheduler:
 
@@ -2551,7 +2551,7 @@ class Researcher(Produce[Evidence]):
     artifact_type = Evidence
 
     async def produce(self, call: ProduceCall) -> None:
-        ...  # writes self.effects.create/update/link/ask, returns None
+        ...  # writes effects.create/update/link/ask, returns None
 
 
 class Verifier(Produce[VerifiedClaim]):
@@ -2583,7 +2583,7 @@ runtime.run()
 ```
 
 `Agent.run` in the framework's terminology is `Produce.produce`:
-interpret a relevant Context view, describe changes via `self.effects`, and let
+interpret a relevant Context view, describe changes via `effects`, and let
 the runtime compile + apply them.
 
 ---
@@ -2719,7 +2719,7 @@ connectors**: application code on top of the `Source` API (typically under
 Implement:
 
 ```python
-Produce.produce(Context) -> None          # writes self.effects.*; runtime compiles
+Produce.produce(Context) -> None          # writes effects.*; runtime compiles
 # Effects(create/update/link/ask) -▶ Patch: the atomic, validated change
 # plus the thin Agent container: consumes / produces declarations
 ```
@@ -3133,7 +3133,7 @@ Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff cle
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent produces); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
-| Produce authoring — Effects (§24) | §12, §24 | implemented — `self.effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function), both taking exactly one argument, `call: ProduceCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects` — replaced the earlier individually-recognized `(context, inputs, event=None)`/by-name-sniffed parameters, one discoverable object instead of a growing parameter list); `.trigger` (the artifact behind `.event`) is a guaranteed non-`None` live artifact when the produce also declares `reacts_to=(Type, …)` — which itself restricts *which* triggering event a produce runs on, for an agent whose several produces don't all care about the same one; `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
+| Produce authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function), both taking exactly one argument, `call: ProduceCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects` — replaced the earlier individually-recognized `(context, inputs, event=None)`/by-name-sniffed parameters, one discoverable object instead of a growing parameter list); `.trigger` (the artifact behind `.event`) is a guaranteed non-`None` live artifact when the produce also declares `reacts_to=(Type, …)` — which itself restricts *which* triggering event a produce runs on, for an agent whose several produces don't all care about the same one; `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |

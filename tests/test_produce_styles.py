@@ -33,7 +33,7 @@ class MarkerProduce(Produce):
         artifact = call.trigger
         if artifact is None or not isinstance(artifact.data, Input):
             return None
-        self.effects.create(Marker(value=artifact.data.text.upper()))
+        call.effects.create(Marker(value=artifact.data.text.upper()))
         return None
 
 
@@ -80,7 +80,7 @@ def test_produce_decorator_style():
     assert markers[0].data.value == "Привет"
 
 
-# --- Style 2b: the @produce decorator with an effects slot (like self.effects) ---
+# --- Style 2b: the @produce decorator with an effects slot (like call.effects) ---
 
 
 @produce(Marker)
@@ -113,7 +113,7 @@ def test_produce_decorator_effects_style():
     assert relations[0].target_id == artifact.id
 
 
-# --- Style 2c: effects slot also covers update/ask (full self.effects surface) ---
+# --- Style 2c: effects slot also covers update/ask (full call.effects surface) ---
 
 
 class Task(BaseModel):
@@ -187,7 +187,7 @@ class RecordProduce(Produce):
 
     async def produce(self, call: ProduceCall):
         received["id"] = call.event.artifact_id if call.event is not None else None
-        self.effects.create(Marker(value="recorded"))
+        call.effects.create(Marker(value="recorded"))
         return None
 
 

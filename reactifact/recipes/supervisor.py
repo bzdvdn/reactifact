@@ -49,7 +49,7 @@ none of the three real produces above is uniquely "the one that creates
 `PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
 own HITL machinery calls `effects.ask(...)` at runtime. `also_creates` is the
 better fit when a *single* produce's own body is the one writing the extra
-type (`self.effects.create(Bar(...))` inside an `artifact_type = Foo`
+type (`effects.create(Bar(...))` inside an `artifact_type = Foo`
 produce) — declare it there directly instead of adding a placeholder here.
 """
 
@@ -62,8 +62,9 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
+from ..effects import Effects
 from ..interrupt import PendingQuestion
-from ..step import Step, StepCall
+from ..step import Step
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 TaskT = TypeVar("TaskT", bound=BaseModel)
@@ -159,10 +160,11 @@ class _RouteStep(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.task_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        request = call.trigger
+        request = trigger
         if request is None or not isinstance(request.data, owner.request_type):
             return None
         task_id = f"task:{request.id}"
@@ -174,7 +176,7 @@ class _RouteStep(Step[Any]):
         task_data = owner.build_task(context, request, route).model_copy(
             update={owner.thread_field: request.id, owner.route_field: route}
         )
-        handle = self.effects.create(task_data, id=task_id)
+        handle = effects.create(task_data, id=task_id)
         handle.link("for_request", request.id)
         return None
 
@@ -184,10 +186,11 @@ class _ApprovalStep(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
         owner = self.owner
-        artifact = call.trigger
+        artifact = trigger
         if artifact is None:
             return None
         thread_id = owner._thread_id_of(artifact)
@@ -207,7 +210,7 @@ class _ApprovalStep(Step[Any]):
             if q.data.kind == "approve" and q.data.notes.get("thread") == thread_id
         ]
         if not thread_questions:
-            self.effects.ask(
+            effects.ask(
                 owner.approval_question(context, report),
                 kind="approve",
                 notes={"thread": thread_id},
@@ -224,6 +227,6 @@ class _ApprovalStep(Step[Any]):
         )
         if hasattr(final_data, owner.thread_field):
             final_data = final_data.model_copy(update={owner.thread_field: thread_id})
-        handle = self.effects.create(final_data, id=owner._final_id(thread_id))
+        handle = effects.create(final_data, id=owner._final_id(thread_id))
         handle.link("based_on", report)
         return None

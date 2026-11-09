@@ -35,7 +35,7 @@ refs = await fan_out_sources(
     on_count=lambda source, n: context.announce(
         f"{source}: {n} hits", kind="status"
     ),
-)  # each SourceRef is created in the current produce's effects (self.effects)
+)  # each SourceRef is created in the current produce's effects (effects)
 ```
 
 What it does:
@@ -83,8 +83,7 @@ Status machines are the pattern for "an artifact that moves through states"
 transition graph, a `StatusMachine` is a **pure function of current state**:
 
 ```python
-from reactifact import Artifact, Context
-from reactifact.recipes import StatusMachine
+from reactifact.recipes import StatusMachine, StatusState
 
 
 class EvaluateTurn(StatusMachine[ResearchTurn]):
@@ -93,31 +92,35 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
     query_id_field = "query_id"                  # owner key field (default)
     status_field = "status"                      # status field (default)
 
-    def next_status(self, context: Context, key: str) -> str | None:
+    def next_status(self, state: StatusState) -> str | None:
         """Pure function: which status the lifecycle deserves now."""
-        if any(a.data.query_id == key for a in context.list_artifacts(Answer)):
+        if state.any(Answer):
             return "answered"
         return None
 
     def on_transition(self, context, key, old_status, new_status) -> None:
-        context.announce(f"Research status: {old → new}",
+        context.announce(f"Research status: {old_status} → {new_status}",
                          kind="status", query_id=key)
 ```
 
-Mechanics (all inherited from `produce`):
+Mechanics (all inherited from `Step`):
 
 - Woken by any event; the event maps to a lifecycle via `owner_key` (reads
   `query_id_field` of the artifact data, falling back to its `id`).
 - Picks the first matching `artifact_type` artifact; `terminal` statuses stop
   the machine.
+- `next_status` receives a `StatusState`: the target plus this step's inputs
+  already restricted to `key`. `state.all(T)`, `state.any(T)` and
+  `state.latest(T)` replace the repeated `list_artifacts(T)` +
+  `query_id == key` filtering.
 - `next_status` decides the new status; `None` or unchanged ⇒ nothing happens.
 - Right before applying the change, `on_transition` is called — your hook for
   progress announces.
-- The transition is an effect: `self.effects.update(target, **{status_field: new})`.
+- The transition is an effect: `effects.update(target, **{status_field: new})`.
 
 Put your *verify* logic into another `produce` that react on status changes —
 the machine and the verifier are separate, deterministic, and unit-testable.
-The knowledge/research demos' `EvaluateTurn` are the canonical instance of
+The knowledge demo's `EvaluateTurn` is the canonical instance of
 this recipe.
 
 ## `WindowSummarizer` / `WindowPruner` — bounded conversation memory (§27, §37)
@@ -170,7 +173,7 @@ class Flow(Agent):
   so one window bounds a heterogeneous thread; `WindowPruner` takes the same
   shape.
 
-See `examples/summarize/main.py` for the full runnable demo.
+See `tests/test_recipes_memory.py` for the runnable cases.
 
 ## `RollingDigestSummarizer` — one growing memory instead of per-round checkpoints (§27, §37)
 
@@ -354,7 +357,7 @@ not estimated — name the source and column it came from.
 Plan-and-Execute (LangChain/AutoGPT-style): a plan is drafted once, its steps
 run **one at a time** — each gated on its predecessor's result — and a final
 answer is synthesized once every step has one. Ported from
-`examples/plan_execute`'s hand-rolled `Planner`/`Executor`/`Finisher`
+The `PlanExecute` recipe's `Planner`/`Executor`/`Finisher`
 (141 + 14 lines), generalized: the recipe owns ordering, gating, idempotent
 re-entry, and completion detection; you only implement the three decisions
 that need judgement.
@@ -393,12 +396,11 @@ class FlowAgent(Agent):
 - Provenance: the final artifact is linked `supported_by` → every step
   result (§34).
 
-See `examples/plan_execute/main_recipe.py` for the full runnable demo
-(compare it to `produce.py`+`agents.py` in the same directory).
+See `tests/test_recipe_plan_execute.py` for the runnable cases.
 
 ## `Router` / `ApprovalGate` — classify, then ask before finalizing (§60, §67)
 
-Two independent pieces, ported from `examples/supervisor`'s hand-rolled
+Two independent pieces: a router and an approval gate. The pattern mirrors
 `RouteTask`/`Supervisor` produces:
 
 - `Router` — classify a request into one of a fixed set of routes,
@@ -447,11 +449,11 @@ class Flow(Agent):
 `Specialist` — actually doing the routed work — stays fully your own
 `Produce`; there's nothing generic about "what a route does".
 
-See `examples/supervisor/main_recipe.py` for the full runnable demo.
+See `tests/test_recipe_supervisor.py` for the runnable cases.
 
 ## `ReflectionLoop` — generate → critique → regenerate (§24, §42, §69)
 
-LangGraph's "Reflection" pattern, ported from `examples/reflection`'s
+LangGraph's "Reflection" pattern. The recipe mirrors the hand-rolled
 hand-rolled `DraftIt`/`Critic`/`Rewrite`/`Finalize` produces. Unlike
 `PlanExecute` (immutable, indexed steps), the working state is *one mutable
 draft artifact per topic*, updated in place each round — matching the
@@ -490,7 +492,7 @@ class Flow(Agent):
   three produces.
 - Supports several topics concurrently in one `Context`.
 
-See `examples/reflection/main_recipe.py` for the full runnable demo.
+See `tests/test_recipe_reflection.py` for the runnable cases.
 
 ## `changed_fields` / `earliest_stage` / `downstream_fields` — change → rebuild
 

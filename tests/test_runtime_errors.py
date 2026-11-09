@@ -61,7 +61,7 @@ class Survive(Produce[Ok]):
     async def produce(self, call: ProduceCall):
         if call.context.get("ok") is not None:
             return None
-        self.effects.create(Ok(), id="ok")
+        call.effects.create(Ok(), id="ok")
         return None
 
 
@@ -122,7 +122,7 @@ class Flaky(Produce[Done]):
         _attempts["n"] += 1
         if _attempts["n"] == 1:
             raise RuntimeError("transient failure")
-        self.effects.create(Done())
+        call.effects.create(Done())
 
 
 class FlakyAgent(Agent):

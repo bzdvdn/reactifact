@@ -31,7 +31,7 @@ One other thing `Step`/`Agent` accepts is *not* on that list on purpose:
   hatch for cases a `Step` genuinely can't express — not a third everyday
   style to reach for on a first pass. `reactifact.llm_agent.StructuredGenerateAgent`
   is the one built-in exception (writes via `current_effects()` directly
-  instead of `self.effects`, since `Agent` — unlike `Step` — has no
+  instead of the `effects` parameter, since `Agent` — unlike `Step` — has no
   `effects` property); no example under `examples/` overrides `run()`.
 """
 
@@ -151,7 +151,7 @@ class StepCall:
       `None`, but purely as a convenience — there's no per-type contract to
       enforce, so it's never a reason `Agent.execute()` skips the call.
     - `effects` — the produce-scoped `Effects` authoring surface (the same
-      contextvar-backed slot as a class-style `Step`'s `self.effects`;
+      contextvar-backed slot as a class-style `Step`'s `effects` parameter;
       exposed here too since a `@step`-decorated function has no `self`
       to hang it from).
     """
@@ -206,7 +206,7 @@ class Step(Generic[TOut]):
     (`Step(Foo, also_creates=[Bar])`). `Runtime._validate_patch_types`
     checks every `Create` op an agent's generation produces against the union
     of `artifact_type`/`also_creates` across that agent's `produces` list —
-    without declaring `Bar` here, a `self.effects.create(Bar(...))` inside
+    without declaring `Bar` here, an `effects.create(Bar(...))` inside
     `artifact_type = Foo`'s own `step()` raises "not declared in produces"
     at commit time, since nothing recorded that this produce is allowed to
     write it. Before `also_creates` existed, the only way to widen that set
@@ -273,7 +273,7 @@ class Step(Generic[TOut]):
     produces: tuple[ArtifactType, ...] | None = None
     #: Input contract: the artifact types this step reads and reacts to. The
     #: runtime gates the step on these and collects them into `StepCall.inputs`.
-    consumes: tuple[Consume | ArtifactType, ...] | None = None
+    consumes: tuple[Any, ...] | None = None
     #: Correlation field for same-run lookups, e.g. `scope = "query_id"`.
     #: When set, typed inputs and `related()` are restricted to artifacts whose
     #: field equals the trigger's — one turn/session, not the whole context.
@@ -475,27 +475,6 @@ class Step(Generic[TOut]):
         artifacts = self.related_all(artifact_type)
         return artifacts[-1] if artifacts else None
 
-    @property
-    def effects(self) -> Effects:
-        """The produce-scoped effect slot (authoring surface, §24).
-
-        Only meaningful *inside* `step()`: the runtime pushes a fresh slot
-        per execution. Returns an error outside a run. Equivalent to (and
-        backed by the same contextvar as) `call.effects` on the `StepCall`
-        the current `step()` call received — kept here too so a
-        class-style produce can write `self.effects.create(...)` without
-        threading `call` through every helper method.
-        """
-        from .effects import current_effects
-
-        slot = current_effects()
-        if slot is None:
-            raise RuntimeError(
-                "Step.effects is only available while the runtime executes "
-                "this produce — write effects inside step(), not before it."
-            )
-        return slot
-
     async def run(self, *args: Any, **kwargs: Any) -> Any:
         """Do this step's work. Override this in new code.
 
@@ -549,7 +528,7 @@ class Step(Generic[TOut]):
     def name(self, value: str) -> None:
         self._name = value
 
-    def _apply_result(self, result: Any) -> None:
+    def _apply_result(self, result: Any, effects: Effects) -> None:
         """Writes a `@step`-decorated function's return-style result into
         the effect slot (§24).
 
@@ -560,13 +539,13 @@ class Step(Generic[TOut]):
             return
         if isinstance(result, Patch):
             for op in result.operations:
-                self.effects.add(op)
+                effects.add(op)
             return
         if isinstance(result, list):
             for item in result:
-                self.effects.create(item)
+                effects.create(item)
         else:
-            self.effects.create(result)
+            effects.create(result)
 
 
 def _as_consume(item: Any) -> Consume:
@@ -676,6 +655,13 @@ def _resolve_arg(
         )
 
     origin = get_origin(annotation)
+    if origin is list:
+        args = get_args(annotation)
+        inner = args[0] if args else Any
+        if get_origin(inner) is Artifact:
+            inner_args = get_args(inner)
+            inner_types, _, _ = _annotation_types(inner_args[0] if inner_args else Any)
+            return _matches(inner_types)
     if origin is Latest:
         args = get_args(annotation)
         inner_types, is_list, optional = _annotation_types(args[0] if args else Any)

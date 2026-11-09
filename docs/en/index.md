@@ -64,7 +64,7 @@ re-running the pipeline hashes identically — or verify a saved run:
                                    EVENT (created/updated)
                                           │
                                           ▼
-CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──self.effects──► EFFECTS
+CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──effects──► EFFECTS
    ▲                 │                                            │
    │                 │                                            │  compile
    └────── CONTEXT' ◄────────────────┘ PATCH ◄────────────────────┘
@@ -80,7 +80,7 @@ with them*. The runtime does the plumbing.
 | A program follows a graph / plan | Agents **react** to state changes |
 | Messages are strings | **Typed artifacts** (`Claim`, `Evidence`, `Answer`, …) |
 | Orchestration is explicit | Orchestration **falls out of the state** |
-| A unit of work *returns* a change | A produce **writes effects** (`self.effects`) — the runtime compiles them |
+| A unit of work *returns* a change | A produce **writes effects** (`effects`) — the runtime compiles them |
 | Retries/rollback are manual | Context is **versioned** (git-like commits, diff, rollback) |
 | "Who produced this?" is lost | **Provenance** links every derived artifact to its inputs |
 
@@ -88,17 +88,17 @@ with them*. The runtime does the plumbing.
 
 At the heart of the loop is how a produce makes a change. Many frameworks ask a
 unit of work to *return* its result, and some orchestrator applies it. reactifact
-inverts authorship: a produce **states what should change** via `self.effects`
+inverts authorship: a produce **states what should change** via `effects`
 (create / update / link / ask) and returns `None`; the runtime compiles the
 effect set into one atomic patch — the whole step lands (or none of it does).
 
 ```python
 async def produce(self, call: ProduceCall) -> None:
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
-    self.effects.update(turn, status="answered")
+    effects.update(turn, status="answered")
     return None
 ```
 

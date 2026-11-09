@@ -61,7 +61,7 @@ won't show up as one.
 - Self-triggering: an agent that both `consumes` and `produces` the same
   artifact type re-fires itself on its own output unless a guard
   (`if <already-done-condition>: return None`) stops it — see the
-  `already planned (§42)`/`already executed` guards in `examples/plan_execute`
+  `already planned (§42)`/`already executed` guards in `PlanExecute`
   for the pattern.
 - `reactifact trace` again: repeated writes to the same artifact id across
   generations in the diagram is the direct symptom.

@@ -89,10 +89,17 @@ def test_history_keeps_every_user_message_with_append_backend(tmp_path):
     history = asyncio.run(assistant.history("s1"))
     messages = history["messages"]
     assert [m["role"] for m in messages] == [
-        "user", "assistant", "user", "assistant", "user", "assistant"
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
     ]
     assert [m["text"] for m in messages if m["role"] == "user"] == [
-        "first", "second", "third"
+        "first",
+        "second",
+        "third",
     ]
 
 

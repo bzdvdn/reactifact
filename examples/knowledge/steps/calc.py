@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Step, StepCall
+from reactifact import Artifact, Context, Effects, Step
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -68,11 +68,12 @@ class CalculateAggregate(Step):
     consumes = (Spreadsheet,)
     produces = (Calculation,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        sheet_art = call.trigger
-        if sheet_art is None or not isinstance(sheet_art.data, Spreadsheet):
-            return None
+    async def run(
+        self,
+        context: Context,
+        sheet_art: Artifact[Spreadsheet],
+        effects: Effects,
+    ) -> None:
         sheet = sheet_art.data
         question = next(
             (
@@ -109,7 +110,7 @@ class CalculateAggregate(Step):
             path=sheet.path,
         )
         calc_id = f"calc:{sheet.query_id}:{sheet_art.id}"
-        calc = self.effects.create(
+        calc = effects.create(
             Calculation(
                 query_id=sheet.query_id,
                 description=description,

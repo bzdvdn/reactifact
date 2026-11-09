@@ -25,13 +25,15 @@ override for itself — set once, applies to every `Verify` in a `Runtime`:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .artifacts import Artifact
 from .context import Context
+from .effects import Effects
 from .eval import MetricFn, core_metrics
-from .step import Step, StepCall
+from .step import Step
 
 #: Used when neither the agent nor `RuntimeResources.verification_threshold` sets one.
 DEFAULT_THRESHOLD = 0.7
@@ -108,9 +110,10 @@ class Verify(Step[VerificationResult]):
         configured = context.resources.verification_threshold
         return configured if configured is not None else DEFAULT_THRESHOLD
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        answer = call.trigger
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
+        answer = trigger
         if answer is None or type(answer.data).__name__ != self.answer_type:
             return None
 
@@ -127,7 +130,7 @@ class Verify(Step[VerificationResult]):
         threshold = self._resolve_threshold(context)
         passed = overall >= threshold and not required_failed
 
-        self.effects.create(
+        effects.create(
             VerificationResult(
                 answer_id=answer.id,
                 overall=round(overall, 4),
@@ -141,7 +144,7 @@ class Verify(Step[VerificationResult]):
             return None
 
         if self.on_fail == "retry":
-            self.effects.create(
+            effects.create(
                 VerificationFailed(answer_id=answer.id, overall=round(overall, 4))
             )
             return None
@@ -149,7 +152,7 @@ class Verify(Step[VerificationResult]):
         reason = f"score={overall:.2f}, порог={threshold:.2f}"
         if required_failed:
             reason += f", провалены обязательные метрики: {', '.join(required_failed)}"
-        self.effects.ask(
+        effects.ask(
             f"Ответ не прошёл верификацию ({reason}). Принять как есть?",
             kind="approve",
             notes={"answer_id": answer.id, "overall": overall},

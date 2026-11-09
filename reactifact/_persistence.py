@@ -110,9 +110,7 @@ def _apply_working_tree(context: Context, payload: dict[str, Any]) -> None:
     for item in payload.get("relations") or []:
         relation = Relation.from_dict(item)
         wanted[(relation.source_id, relation.relation, relation.target_id)] = relation
-    context._relations = RelationGraph.from_mapping(
-        {**committed_relations, **wanted}
-    )
+    context._relations = RelationGraph.from_mapping({**committed_relations, **wanted})
     order = payload.get("order")
     if order:
         rank = {artifact_id: index for index, artifact_id in enumerate(order)}

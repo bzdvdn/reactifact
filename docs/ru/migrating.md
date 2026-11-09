@@ -19,7 +19,7 @@
 | --- | --- |
 | node + `add_edge` / `add_conditional_edges` | `Produce` + `Consume(Type)` — ребро *и есть* «кто потребляет этот тип» |
 | общий `TypedDict`/dict state, мутируемый узлами | типизированные версионируемые `Artifact`'ы в `Context` |
-| reducer (`Annotated[list, add]`) | `self.effects.create/update/link(...)`, компилируемые в один атомарный `Patch` |
+| reducer (`Annotated[list, add]`) | `effects.create/update/link(...)`, компилируемые в один атомарный `Patch` |
 | checkpointer / thread state | `Context` (git-подобный), `Session`/`SessionStore`, `context.branch()`/`merge()` |
 | `interrupt()` / `Command(resume=...)` | `effects.ask(...)` → `PendingQuestion`, ответ через `effects.resume(...)` |
 | subgraph / вложенный агент | `AgentAsTool` (изолированный вложенный рантайм) или `context.branch()` |
@@ -110,20 +110,20 @@ answerer = create_agent(
 state["facts"].append({"text": "...", "source": url})
 
 # теперь: типизированные артефакты + провенанс
-fact = self.effects.create(Fact(text="...", source=url))
+fact = effects.create(Fact(text="...", source=url))
 fact.link("extracted_from", doc)
 ```
 
 Ничего не мутируется на месте: update — это новая версия, поэтому
 `context.diff(v1, v2)` — реальная операция, а провенанс
 (`supported_by`/`derived_from`/…) — тот же граф, которым рантайм решает, что
-перезапускать, а не логгер сбоку. См. [`examples/ledger`](https://github.com/bzdvdn/reactifact/tree/master/examples/ledger)
+перезапускать, а не логгер сбоку. См. `reactifact.recipes.changed_fields` / `downstream_fields`
 — аргумент про пересчёт, сделанный наглядно.
 
 ## 4. Checkpointing, потоки, time-travel
 
 - Диалоги сохраняйте через `SessionStore(FileKVBackend(...))` + `ChatAssistant`
-  (`examples/support_copilot`, `examples/knowledge`).
+  (`examples/knowledge`).
 - Форкайте разведку через `context.branch()`, гоняйте агентов на каждой ветке и
   `merge()` обратно — с настоящим `MergeConflict`, когда обе ветки трогают один
   артефакт (`examples/forklab`).
@@ -135,13 +135,13 @@ fact.link("extracted_from", doc)
 
 ```python
 # спросить
-self.effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
+effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
 # ответить (из HTTP-хендлера / CLI)
 context.resume(question.id, "yes")
 ```
 
 Человек — просто ещё одна реакция (`PendingQuestion` — артефакт); тулы
-гейтятся так же — см. `examples/repo_agent` (тул `@tool(destructive=True)`,
+гейтятся так же — см. `ToolUseHITL` (тул `@tool(destructive=True)`,
 который выполняется только после одобрения) и `examples/devops`.
 
 ## 6. RAG-цепочка → источники
@@ -155,7 +155,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 
 Для полного контроля соберите тот же пайплайн руками через `fan_out_sources` +
 `materialize_doc` и произведите `Answer`, связанный `supported_by` с
-документами (`examples/knowledge`, `examples/research`). Поиск — это
+документами (`examples/knowledge`). Поиск — это
 возможность `Source` (filesystem/CSV/embeddings/web), а не захардкоженная
 цепочка: меняете источник, агенты остаются.
 
@@ -215,7 +215,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 
 - **`add_edge` нет.** Если хочется его добавить — ребро это `Consume(ProducedType)`
   на нижестоящем агенте.
-- **`effects`, а не `return patch`.** Пишите `self.effects.*` и возвращайте
+- **`effects`, а не `return patch`.** Пишите `effects.*` и возвращайте
   `None`; рантайм компилирует набор эффектов в один атомарный коммит (возврат
   `Patch` из `Produce` — низкоуровневый escape hatch, не идиома).
 - **Артефакты — не сообщения.** Вход модели собирается из `context.view(...)` /

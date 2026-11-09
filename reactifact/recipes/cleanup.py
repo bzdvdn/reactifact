@@ -22,12 +22,14 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..artifacts import ArtifactType
-from ..step import Step, StepCall
+from ..artifacts import Artifact, ArtifactType
+from ..context import Context
+from ..effects import Effects
+from ..step import Step
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
@@ -63,16 +65,18 @@ class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
         a fixed list of stage prefixes (see `PrefixedEphemeralCleanup` for
         that exact shape pre-built)."""
 
-    async def run(self, call: StepCall) -> None:
-        terminal = call.trigger
+    async def run(
+        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
+    ) -> None:
+        terminal = trigger
         if terminal is None:
             return None
         correlation_id = self.correlation_of(terminal.id)
         if not correlation_id:
             return None
         for artifact_id in self.scratch_ids(correlation_id):
-            if call.context.get(artifact_id) is not None:
-                self.effects.delete(artifact_id)
+            if context.get(artifact_id) is not None:
+                effects.delete(artifact_id)
         return None
 
 

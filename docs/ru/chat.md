@@ -177,7 +177,7 @@ assistant = ChatAssistant(
 
 ```python
 # внутри produce
-self.effects.ask("Approve this estimate?", kind="approval")
+effects.ask("Approve this estimate?", kind="approval")
 # позже, из вашего API, когда человек отвечает:
 ctx.resume(question_id, "approved")   # эмитит update → агенты реагируют
 ```

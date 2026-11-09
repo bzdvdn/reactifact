@@ -21,7 +21,7 @@ class RecordCollected(Produce[Collected]):
     artifact_type = Collected
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             Collected(
                 texts=sorted(
                     i.data.text for i in call.inputs if isinstance(i.data, Evidence)

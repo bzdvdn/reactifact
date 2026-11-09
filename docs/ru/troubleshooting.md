@@ -62,7 +62,7 @@ runtime решал, что запускать?**
 - Самозапуск: агент, который одновременно `consumes` и `produces` один и тот
   же тип артефакта, перезапускает себя на собственном выводе, если гард
   (`if <условие-уже-сделано>: return None`) его не останавливает — см. гарды
-  `already planned (§42)`/`already executed` в `examples/plan_execute`.
+  `already planned (§42)`/`already executed` в `PlanExecute`.
 - Снова `reactifact trace`: повторные записи в один и тот же id артефакта на
   диаграмме через несколько поколений — прямой симптом.
 

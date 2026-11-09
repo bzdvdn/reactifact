@@ -86,7 +86,7 @@ class BuildReport(Produce[Report]):
         a = call.trigger
         if a is None or not isinstance(a.data, ToolAnswer):
             return None
-        self.effects.create(Report(text=a.data.text))
+        call.effects.create(Report(text=a.data.text))
         return None
 
 

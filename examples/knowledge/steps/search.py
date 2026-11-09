@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Step, StepCall
+from typing import Annotated
+
+from reactifact import Artifact, Consume, Context, Effects, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 
@@ -13,23 +15,23 @@ from .common import SCOUT_LIMIT
 class ScoutSources(Step):
     """Fan-out over all configured sources, with idempotency (§24, §42).
 
-    Effects-based: `fan_out_sources` writes the refs into `self.effects`, this
+    Effects-based: `fan_out_sources` writes the refs into `effects`, this
     produce adds the idempotency marker, and the runtime commits the slot once.
     """
 
-    consumes = (ResearchTurn,)
+    consumes = (ResearchTurn, Consume(SearchDone, wakes=False))
     produces = (SourceRef, SearchDone)
+    scope = "query_id"
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        turn_artifact = call.trigger
-        if turn_artifact is None or not isinstance(turn_artifact.data, ResearchTurn):
-            return None
-        turn = turn_artifact.data
+    async def run(
+        self,
+        context: Context,
+        turn: ResearchTurn,
+        searches: list[Artifact[SearchDone]],
+        effects: Effects,
+    ) -> None:
         # Idempotency (§42): once searched, don't restart the cascade.
-        if any(
-            s.data.query_id == turn.query_id for s in context.list_artifacts(SearchDone)
-        ):
+        if searches:
             return None
         await fan_out_sources(
             context,
@@ -48,7 +50,7 @@ class ScoutSources(Step):
                 source=sid,
             ),
         )
-        self.effects.create(
+        effects.create(
             SearchDone(query_id=turn.query_id), id=f"scouted:{turn.query_id}"
         )
         return None
@@ -57,17 +59,13 @@ class ScoutSources(Step):
 class ResolveRef(Step):
     """Lazy materialization of a text ref (§6); text documents only."""
 
-    consumes = (SourceRef,)
+    consumes = (
+        Annotated[SourceRef, When(lambda ref: not ref.metadata.get("structured"))],
+    )
     produces = (TypedDoc,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        ref_artifact = call.trigger
-        if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
-            return None
+    async def run(self, context: Context, ref_artifact: Artifact[SourceRef]) -> None:
         ref = ref_artifact.data
-        if ref.metadata.get("structured"):
-            return None  # not our branch: spreadsheets go to ResolveTable
         context.announce(
             f"Reading document «{ref.locator}» from {ref.source_id}...",
             kind="status",
@@ -97,17 +95,18 @@ class ResolveRef(Step):
 class ResolveTable(Step):
     """Spreadsheet: structured data stays structured, not text (§29)."""
 
-    consumes = (SourceRef,)
+    consumes = (
+        Annotated[SourceRef, When(lambda ref: bool(ref.metadata.get("structured")))],
+    )
     produces = (Spreadsheet,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        ref_artifact = call.trigger
-        if ref_artifact is None or not isinstance(ref_artifact.data, SourceRef):
-            return None
+    async def run(
+        self,
+        context: Context,
+        ref_artifact: Artifact[SourceRef],
+        effects: Effects,
+    ) -> None:
         ref = ref_artifact.data
-        if not ref.metadata.get("structured"):
-            return None  # not our branch: text documents go to ResolveRef
         source = context.resources.get_source(ref.source_id)
         if source is None:
             return None
@@ -124,7 +123,7 @@ class ResolveTable(Step):
         columns = list(payload.get("columns", []))
         rows = [list(r) for r in payload.get("rows", [])]
         sheet_id = f"sheet:{ref.stable_id()}"
-        sheet = self.effects.create(
+        sheet = effects.create(
             Spreadsheet(
                 source_id=ref.source_id,
                 path=ref.locator,

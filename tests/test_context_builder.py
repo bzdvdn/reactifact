@@ -17,7 +17,7 @@ class RecordSeen(Produce[Seen]):
     artifact_type = Seen
 
     async def produce(self, call):
-        self.effects.create(Seen(texts=[i.data.text for i in call.inputs]))
+        call.effects.create(Seen(texts=[i.data.text for i in call.inputs]))
 
 
 class Collector(Agent):
@@ -34,7 +34,7 @@ class RecordItemsOnly(Produce[Seen]):
     artifact_type = Seen
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             Seen(texts=[i.data.text for i in call.inputs if isinstance(i.data, Item)])
         )
 

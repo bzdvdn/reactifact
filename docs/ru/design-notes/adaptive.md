@@ -94,7 +94,6 @@ runtime = Runtime(
 - `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
   `relation_balance_metric`, типы.
 - Хук в runtime (параметр `scheduler=`), `Agent.capabilities`.
-- `examples/adaptive` — два конкурирующих «художника» + HITL-подтверждение.
 - `examples/medic_lab` — `medic_lab_scheduler()` подключает
   `relation_balance_metric` и в консольный (`chat.py`), и в веб (`api/chat.py`)
   вход.

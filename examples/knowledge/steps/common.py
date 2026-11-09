@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from reactifact import Artifact, Context, Event
+from reactifact import Artifact, Context
 
 from ..models import Answer, ChatReply, UserQuery
 
@@ -135,13 +135,6 @@ def truncate_at_word(text: str, limit: int) -> str:
         return text
     cut = text.rfind(" ", 0, limit)
     return text[: cut if cut > 0 else limit].rstrip()
-
-
-def user_query(context: Context, event: Event | None) -> UserQuery | None:
-    artifact = context.get(event.artifact_id) if event is not None else None
-    if artifact is not None and isinstance(artifact.data, UserQuery):
-        return artifact.data
-    return None
 
 
 # --- claim verification helpers (§35, §36) ----------------------------------

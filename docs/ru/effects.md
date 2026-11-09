@@ -3,37 +3,40 @@
 Один абзац, который стоит держать в голове, читая любой пример или пиша
 produce:
 
-> **Produce описывает, что должно измениться, записывая `self.effects`; рантайm
+> **Produce описывает, что должно измениться, записывая effects; рантайм
 > компилирует эти эффекты в один атомарный патч и коммитит его. Вам почти
 > никогда не нужно собирать `Patch` самому — это транспорт рантайма.**
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
+from reactifact import Effects
+
+async def run(self, doc: Document, turn: Turn, effects: Effects) -> None:
     if <guard>:                     # право на запуск — решение состояния
         return None
     # эффекты: «дифф, выраженный как намерение»
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)     # doc: Artifact
     answer.link("supported_by", evidence)    # evidence: хэндл эффекта
-    self.effects.update(turn, status="answered")
-    self.effects.ask("Утвердить смету?", kind="approval")   # HITL (§60)
+    effects.update(turn, status="answered")
+    effects.ask("Утвердить смету?", kind="approval")   # HITL (§60)
     return None
 ```
 
-`call` (`ProduceCall`) — единственный аргумент, который получает любой
-produce: `.context`/`.inputs`/`.event`/`.trigger`/`.effects` (последнее — то
-же самое, что `self.effects` выше; пригодится для функциональной формы ниже,
-у которой нет `self`).
+Класс-шаг, который пишет эффекты, объявляет параметр `effects: Effects` в
+`run()` — рантайм инжектит слот, скоуженный на прогон. Функция `@produce`/
+`@step` получает единственный аргумент `call: ProduceCall` и пишет
+`call.effects`; это один и тот же набор эффектов, просто разный способ до
+него добраться (у функциональной формы нет `self`).
 
 ## Идемпотентность: `create_once` и `upsert`
 
 Пересобираемому id (`f"answer:{qid}"`) обычно нужен гард — почти в каждом
-produce перед `self.effects.create(...)` он и стоит. `create_once` сворачивает
+produce перед `effects.create(...)` он и стоит. `create_once` сворачивает
 его прямо в вызов:
 
 ```python
-handle = self.effects.create_once(Answer(...), id=f"answer:{qid}")
+handle = effects.create_once(Answer(...), id=f"answer:{qid}")
 if handle is None:
     return None  # уже отвечено — делать нечего
 ```
@@ -43,7 +46,7 @@ if handle is None:
 намерение там, где «может уже существовать» — это план, а не сюрприз:
 
 ```python
-self.effects.upsert(Summary(...), id=f"summary:{doc_id}")
+effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
 ## Внешние эффекты: `act` (outbox)
@@ -53,7 +56,7 @@ self.effects.upsert(Summary(...), id=f"summary:{doc_id}")
 runtime выполнит его после коммита:
 
 ```python
-self.effects.act(
+effects.act(
     "notify", key=f"notify:{order_id}:email", payload={"to": email}
 )
 ```
@@ -69,26 +72,27 @@ self.effects.act(
 
 | Слой | Что это | Кто пишет |
 | --- | --- | --- |
-| **Produce** | реакция: guard → LLM/расчёт → `self.effects.*` → `None` | приложение (вы) |
-| **Effects** | заявленный набор изменений (creates/updates/links/questions) на ход | вы, через `self.effects` |
-| **Patch** | *скомпилированные* операции, которые рантайm применяет одним коммитом | рантайm (и легаси/продвинутые сборки) |
+| **Produce** | реакция: guard → LLM/расчёт → `effects.*` → `None` | приложение (вы) |
+| **Effects** | заявленный набор изменений (creates/updates/links/questions) на ход | вы, через инжектированный `effects` |
+| **Patch** | *скомпилированные* операции, которые рантайм применяет одним коммитом | рантайм (и легаси/продвинутые сборки) |
 
 Ничего не применяется, пока produce не завершится — **атомарность структурная**
 (§41), никакого rollback. События, валидация по `produces`, трейс
 reads/writes/relations — всё строится из тех же скомпилированных операций.
 
-## Почему `self.effects` «амбиентен»
+## Почему effects инжектятся
 
-`self.effects` живёт в слоте, скоуженном на прогон: рантайm ставит его перед
-каждым исполнением и снимает после (contextvar) — безопасно при параллельных
-produce и **невидимо** для вас: вы его не создаёте, не называете, не передаёте.
+Слот эффектов скоужен на прогон: рантайм ставит его перед каждым исполнением
+и снимает после (contextvar) — безопасно при параллельных produce. Класс-шаг
+называет его параметром (`effects: Effects`); функциональный шаг добирается до
+того же слота через `call.effects`. Вы его не создаёте и не передаёте явно.
 Хэндлы собираются поперёк стейтментов (`evidence` создан выше, связан ниже) —
 поэтому вызовы читаются «про артефакты», а не «про id».
 
 ## Где `Patch` ещё появляется
 
 - **`Agent.run`** — люк для кастомных (не-Produce) агентов, собирающих набор
-  изменений вручную; рантайm сшивает их после эффектов.
+  изменений вручную; рантайм сшивает их после эффектов.
 - **Рецепты** (`fan_out_sources`, `materialize_doc`) и `StatusMachine` пишут в
   слот; tool-цикл (`ToolUse`/`ToolUseHITL`) и HITL (`effects.ask`) — тоже
   эффекты.
@@ -98,13 +102,13 @@ produce и **невидимо** для вас: вы его не создаёте
 ## Правило
 
 ```text
-guard → решить → описать (self.effects) → return None
+guard → решить → описать (effects) → return None
 ```
 
-Если внутри produce хочется написать `Patch()` — остановитесь и используйте
-`self.effects`; компилирует рантайm.
+Если внутри produce хочется написать `Patch()` — остановитесь и пишите
+эффекты; компилирует рантайм.
 
-## Функция-форма `@produce` — тот же авторский слой
+## Функция-форма `@produce` / `@step` — тот же авторский слой
 
 Декоратор-produce получает тот же `call.effects` — один аргумент, `call`,
 ровно как в класс-форме выше:

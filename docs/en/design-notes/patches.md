@@ -180,7 +180,7 @@ Option A mostly delivers already. Worth a spike on a branch, not a fast commit.
 ## 10. Decision (updated)
 
 **`Effects` was adopted as the authoring surface** (§24). A produce writes
-`self.effects.create/update/link/ask(...)` and returns `None`; the runtime
+`effects.create/update/link/ask(...)` and returns `None`; the runtime
 pushes a fresh effect slot per execution (contextvar — concurrency-safe) and
 compiles it into one atomic patch. `Patch` is now the runtime's *transport*
 type, not something users assemble:
@@ -189,7 +189,7 @@ type, not something users assemble:
   the tool loop (`ToolUse`/`ToolUseHITL`) and HITL (`effects.ask`) all use
   effects; `Patch`-returns remain only as an internal/advanced escape hatch.
 - The `merge_existing_patch` / responder-glue boiler in the examples is gone —
-  produces are linear: guard → compute → `self.effects.*` → `None`.
+  produces are linear: guard → compute → `effects.*` → `None`.
 - Atomicity stays structural (nothing is applied until the runtime compiles the
   slot), so no rollback machinery was needed — the "imperative B" concern does
   not apply to declarative effects. Runtime op ordering: a produce's *returned*

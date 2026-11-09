@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Step, StepCall
+from reactifact import Artifact, Context, Effects, Step, StepCall, When
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -93,7 +93,7 @@ class Steer(Step):
         steer_id = f"steer:{question_id}:{question.data.depth}"
         if context.get(steer_id) is not None:
             return None  # same round already steering (idempotent, §42)
-        self.effects.ask(
+        call.effects.ask(
             "All hypotheses have been evaluated. Deepen one, "
             "or stop for the final report?\n\n"
             f"{_ranking_block(context, question_id)}\n\n"
@@ -109,14 +109,15 @@ class Steer(Step):
 class Deepen(Step):
     """Human answer: deepen hypothesis N (reopens its channel) or stop."""
 
-    consumes = (Consume.by_field(PendingQuestion, "answered", True),)
+    consumes = (Annotated[PendingQuestion, When(lambda q: q.answered)],)
     produces = (PendingQuestion,)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        q_art = call.trigger
-        if q_art is None or not isinstance(q_art.data, PendingQuestion):
-            return None
+    async def run(
+        self,
+        context: Context,
+        q_art: Artifact[PendingQuestion],
+        effects: Effects,
+    ) -> None:
         q = q_art.data
         if not q.answered or q.kind != "steer":
             return None
@@ -138,7 +139,7 @@ class Deepen(Step):
                         kind="status",
                         hypothesis=hyp_art.id,
                     )
-                    self.effects.update(hyp_art, status="open")
+                    effects.update(hyp_art, status="open")
                     question = context.get(question_id)
                     if question is not None and isinstance(question.data, Question):
                         if context.resources.llm is not None:
@@ -154,7 +155,7 @@ class Deepen(Step):
                             existing = dict(question.data.deepen_queries or {})
                             existing[hyp_art.id] = queries
                             updates["deepen_queries"] = existing
-                        self.effects.update(question, **updates)
+                        effects.update(question, **updates)
         return None
 
     async def _deepen_queries(
@@ -255,7 +256,7 @@ class Reporter(Step):
                 uncertainty_ = "insufficient evidence."
         else:
             uncertainty_ = "see the ranked hypotheses below."
-        self.effects.create(
+        call.effects.create(
             ResearchReport(
                 question_id=question_id,
                 answer=synthesized,

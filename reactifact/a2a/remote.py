@@ -28,9 +28,12 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from ..agents import Agent, create_agent
+from ..artifacts import Artifact
 from ..consume import Consume
+from ..context import Context
+from ..effects import Effects
 from ..interrupt import PendingQuestion
-from ..step import Step, StepCall
+from ..step import Step
 from .client import A2AClient
 from .models import Message, Task
 
@@ -91,8 +94,12 @@ class A2ARemoteProduce(Step[Any]):
         )
         super().__init__(artifact_type=output_type, also_creates=(PendingQuestion,))
 
-    async def run(self, call: StepCall) -> None:
-        trigger = call.trigger
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        trigger: Artifact[Any] | None,
+    ) -> None:
         if trigger is None:
             return
         data = trigger.data
@@ -102,7 +109,7 @@ class A2ARemoteProduce(Step[Any]):
                 return
             notes = data.notes
             original = (
-                call.context.get(notes["a2a_input_id"])
+                context.get(notes["a2a_input_id"])
                 if notes.get("a2a_input_id")
                 else None
             )
@@ -123,7 +130,7 @@ class A2ARemoteProduce(Step[Any]):
                 else "The remote agent needs more input."
             )
             input_id = data.notes.get("a2a_input_id", "") if resuming else trigger.id
-            call.effects.ask(
+            effects.ask(
                 question,
                 kind="clarify",
                 notes={
@@ -134,7 +141,7 @@ class A2ARemoteProduce(Step[Any]):
                 },
             )
             return
-        call.effects.create(self._build_output(_reply_text(result), source))
+        effects.create(self._build_output(_reply_text(result), source))
 
 
 def remote_agent(

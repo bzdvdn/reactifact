@@ -84,8 +84,7 @@ doc = await materialize_doc(
 графа переходов `StatusMachine` — **чистая функция текущего состояния**:
 
 ```python
-from reactifact import Artifact, Context
-from reactifact.recipes import StatusMachine
+from reactifact.recipes import StatusMachine, StatusState
 
 
 class EvaluateTurn(StatusMachine[ResearchTurn]):
@@ -94,9 +93,9 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
     query_id_field = "query_id"                        # owner-ключ (по умолчанию)
     status_field = "status"                            # поле статуса (по умолчанию)
 
-    def next_status(self, context: Context, key: str) -> str | None:
+    def next_status(self, state: StatusState) -> str | None:
         """Чистая функция: какой статус жизненный цикл заслуживает сейчас."""
-        if any(a.data.query_id == key for a in context.list_artifacts(Answer)):
+        if state.any(Answer):
             return "answered"
         return None
 
@@ -105,17 +104,20 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
                          kind="status", query_id=key)
 ```
 
-Механика (всё унаследовано от `produce`):
+Механика (всё унаследовано от `Step`):
 
 - Будет разбужен любым событием; событие сопоставляется с жизненным циклом через
   `owner_key` (читает `query_id_field` данных артефакта с фолбэком на его `id`).
 - Берёт первый подходящий артефакт `artifact_type`; `terminal`-статусы
   останавливают машину.
+- `next_status` получает `StatusState`: target плюс входы шага, уже
+  отфильтрованные по `key`. `state.all(T)`, `state.any(T)` и `state.latest(T)`
+  заменяют повторяющийся `list_artifacts(T)` + проверку `query_id == key`.
 - `next_status` решает новый статус; `None` или отсутствие изменения ⇒ ничего не
   происходит.
 - Непосредственно перед применением вызывается `on_transition` — ваш хук для
   прогресс-аннонсов.
-- Переход — это эффект: `self.effects.update(target, **{status_field: new})`.
+- Переход — это эффект: `effects.update(target, **{status_field: new})`.
 
 Логику *проверки* кладите в отдельный `produce`, реагирующий на смену статуса, —
 машина и верификатор разделены, детерминированы и тестируются по отдельности.
@@ -170,7 +172,7 @@ class Flow(Agent):
 - `render`/`order_key`/`id_of` переопределяемы, если дефолты (рендер по
   role/text, сортировка по `created_at`) не подходят вашему артефакту.
 
-Полное рабочее демо — в `examples/summarize/main.py`.
+Рабочие кейсы — в `tests/test_recipes_memory.py`.
 
 ## `RollingDigestSummarizer` — одна растущая память вместо чекпоинтов по раундам (§27, §37)
 
@@ -357,7 +359,7 @@ not estimated — name the source and column it came from.
 Plan-and-Execute (в духе LangChain/AutoGPT): план строится один раз, его шаги
 выполняются **строго по одному**, каждый гейтится на результат предыдущего, а
 финальный ответ синтезируется, когда результат есть у всех шагов. Портировано
-из ручных `Planner`/`Executor`/`Finisher` в `examples/plan_execute`
+из ручных `Planner`/`Executor`/`Finisher` в `reactifact.recipes.PlanExecute`
 (141 + 14 строк), обобщено: рецепт владеет порядком, гейтингом, идемпотентным
 re-entry и детекцией завершения; вы реализуете только три решения, которые
 реально требуют суждения.
@@ -396,13 +398,13 @@ class FlowAgent(Agent):
 - Провенанс: финальный артефакт линкуется `supported_by` → на каждый
   результат шага (§34).
 
-Полное рабочее демо — `examples/plan_execute/main_recipe.py` (сравните с
+Рабочие кейсы — `tests/test_recipe_plan_execute.py` (сравните с
 `produce.py`+`agents.py` в той же папке).
 
 ## `Router` / `ApprovalGate` — классификация, затем подтверждение перед финализацией (§60, §67)
 
 Два независимых класса, портированных из ручных `RouteTask`/`Supervisor` в
-`examples/supervisor`:
+`ApprovalGate`:
 
 - `Router` — классифицирует запрос в один из фиксированного набора
   маршрутов, идемпотентно, с детерминированным fallback, когда вызов
@@ -450,12 +452,12 @@ class Flow(Agent):
 `Specialist` — собственно работа маршрута — остаётся полностью вашим
 `Produce`; в «что делает маршрут» нет ничего обобщаемого.
 
-Полное рабочее демо — `examples/supervisor/main_recipe.py`.
+Рабочие кейсы — `tests/test_recipe_supervisor.py`.
 
 ## `ReflectionLoop` — generate → critique → regenerate (§24, §42, §69)
 
 Паттерн "Reflection" из LangGraph, портирован из ручных
-`DraftIt`/`Critic`/`Rewrite`/`Finalize` в `examples/reflection`. В отличие от
+`DraftIt`/`Critic`/`Rewrite`/`Finalize` в `reactifact.recipes.ReflectionLoop`. В отличие от
 `PlanExecute` (неизменяемые, индексированные шаги), рабочее состояние здесь —
 **один мутируемый артефакт черновика на тему**, обновляемый на месте каждый
 раунд — как и в портируемом примере (`effects.update(draft, ...)`).
@@ -494,7 +496,7 @@ class Flow(Agent):
   `if round + 1 > MAX_ROUNDS`.
 - Поддерживает несколько тем одновременно в одном `Context`.
 
-Полное рабочее демо — `examples/reflection/main_recipe.py`.
+Рабочие кейсы — `tests/test_recipe_reflection.py`.
 
 ## `changed_fields` / `earliest_stage` / `downstream_fields` — «изменить → пересобрать»
 

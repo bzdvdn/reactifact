@@ -18,7 +18,7 @@ If you only take one idea away:
 | --- | --- |
 | node + `add_edge` / `add_conditional_edges` | a `Produce` + a `Consume(Type)` — the edge *is* "who consumes this type" |
 | a shared `TypedDict`/dict state, mutated by nodes | typed, versioned `Artifact`s in the `Context` |
-| reducer (`Annotated[list, add]`) | `self.effects.create/update/link(...)` compiled into one atomic `Patch` |
+| reducer (`Annotated[list, add]`) | `effects.create/update/link(...)` compiled into one atomic `Patch` |
 | checkpointer / thread state | `Context` (git-like), `Session`/`SessionStore`, `context.branch()`/`merge()` |
 | `interrupt()` / `Command(resume=...)` | `effects.ask(...)` → `PendingQuestion`, answered with `effects.resume(...)` |
 | subgraph / nested agent | `AgentAsTool` (isolated nested runtime) or `context.branch()` |
@@ -108,20 +108,20 @@ Two things to notice, because they're the migration's real work:
 state["facts"].append({"text": "...", "source": url})
 
 # after: typed artifacts + provenance
-fact = self.effects.create(Fact(text="...", source=url))
+fact = effects.create(Fact(text="...", source=url))
 fact.link("extracted_from", doc)
 ```
 
 Nothing is mutated in place: an update is a new version, so `context.diff(v1,
 v2)` is a real operation and provenance (`supported_by`/`derived_from`/…) is the
 same graph the runtime uses to decide what to re-run — not a logger bolted on.
-See [`examples/ledger`](https://github.com/bzdvdn/reactifact/tree/master/examples/ledger) for the recompute argument
+See `reactifact.recipes.changed_fields` / `downstream_fields` for the recompute argument
 made concrete.
 
 ## 4. Checkpointing, threads, time-travel
 
 - Persist conversations with `SessionStore(FileKVBackend(...))` +
-  `ChatAssistant` (`examples/support_copilot`, `examples/knowledge`).
+  `ChatAssistant` (`examples/knowledge`).
 - Fork an exploration with `context.branch()`, run different agents on each
   fork, and `merge()` them back — with a real `MergeConflict` when both forks
   touch the same artifact (`examples/forklab`).
@@ -132,13 +132,13 @@ made concrete.
 
 ```python
 # ask
-self.effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
+effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
 # resume (from your HTTP handler / CLI)
 context.resume(question.id, "yes")
 ```
 
 The human is just another reaction (`PendingQuestion` is an artifact); tools can
-be gated the same way — see `examples/repo_agent` (a `@tool(destructive=True)`
+be gated the same way — see `ToolUseHITL` (a `@tool(destructive=True)`
 that only runs after an approval) and `examples/devops`.
 
 ## 6. RAG chain → sources
@@ -152,7 +152,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 
 For full control, compose the same pipeline by hand with `fan_out_sources` +
 `materialize_doc` and produce an `Answer` linked `supported_by` the documents
-(`examples/knowledge`, `examples/research`). Retrieval is a `Source` capability
+(`examples/knowledge`). Retrieval is a `Source` capability
 (filesystem/CSV/embeddings/web), not a hardcoded chain — swap the source, keep
 the agents.
 
@@ -211,7 +211,7 @@ the agents.
 
 - **There is no `add_edge`.** If you find yourself wanting one, the edge is a
   `Consume(ProducedType)` on the downstream agent.
-- **`effects`, not `return patch`.** Write `self.effects.*` and return `None`; the
+- **`effects`, not `return patch`.** Write `effects.*` and return `None`; the
   runtime compiles the effect set into one atomic commit (`Produce` returning a
   `Patch` is the low-level escape hatch, not the idiom).
 - **Artifacts aren't messages.** Model input is built from a `context.view(...)`

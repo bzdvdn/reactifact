@@ -68,8 +68,8 @@ class MultiCreateProduce(Produce[Output]):
     async def produce(self, call):
         if not call.inputs:
             return None
-        self.effects.create(Output(text=call.inputs[0].data.text.upper()))
-        self.effects.create(Extra(text=call.inputs[0].data.text.lower()))
+        call.effects.create(Output(text=call.inputs[0].data.text.upper()))
+        call.effects.create(Extra(text=call.inputs[0].data.text.lower()))
 
 
 class UndeclaredMultiCreateProduce(Produce[Output]):
@@ -80,8 +80,8 @@ class UndeclaredMultiCreateProduce(Produce[Output]):
     async def produce(self, call):
         if not call.inputs:
             return None
-        self.effects.create(Output(text=call.inputs[0].data.text.upper()))
-        self.effects.create(Extra(text=call.inputs[0].data.text.lower()))
+        call.effects.create(Output(text=call.inputs[0].data.text.upper()))
+        call.effects.create(Extra(text=call.inputs[0].data.text.lower()))
 
 
 def test_also_creates_widens_the_agents_allowed_create_types():
@@ -121,7 +121,7 @@ class RecordMixed(Produce[Output]):
     artifact_type = Output
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             Output(text=",".join(sorted(i.data.text for i in call.inputs)))
         )
 

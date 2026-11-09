@@ -3,37 +3,40 @@
 One paragraph to keep in your head while reading any example or writing a
 produce:
 
-> **A produce describes what should change by writing `self.effects`; the
-> runtime compiles those effects into one atomic patch and commits it. You
-> almost never build a `Patch` yourself — it is the runtime's transport.**
+> **A produce describes what should change by writing effects; the runtime
+> compiles those effects into one atomic patch and commits it. You almost never
+> build a `Patch` yourself — it is the runtime's transport.**
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
+from reactifact import Effects
+
+async def run(self, doc: Document, turn: Turn, effects: Effects) -> None:
     if <guard>:                     # eligibility is a decision of the state
         return None
     # effects: the produce's "diff, expressed"
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)     # doc: Artifact
     answer.link("supported_by", evidence)    # evidence: an effect handle
-    self.effects.update(turn, status="answered")
-    self.effects.ask("Approve the estimate?", kind="approval")   # HITL (§60)
+    effects.update(turn, status="answered")
+    effects.ask("Approve the estimate?", kind="approval")   # HITL (§60)
     return None
 ```
 
-`call` (a `ProduceCall`) is the one argument every produce receives —
-`.context`/`.inputs`/`.event`/`.trigger`/`.effects` (the last one identical to
-`self.effects` above; useful for the function form below, which has no
-`self`).
+A class-style step that writes effects declares an `effects: Effects` parameter
+in `run()` — the runtime injects the produce-scoped slot. A `@produce`/`@step`
+function receives the single `call: ProduceCall` argument and writes
+`call.effects`; both are the same effect set, just a different way to reach it
+(the function form has no `self`).
 
 ## Idempotency sugar: `create_once` and `upsert`
 
 A re-derived id (`f"answer:{qid}"`) needs a guard — every produce above the
-`self.effects.create(...)` line usually has one. `create_once` folds it into
+`effects.create(...)` line usually has one. `create_once` folds it into
 the call itself:
 
 ```python
-handle = self.effects.create_once(Answer(...), id=f"answer:{qid}")
+handle = effects.create_once(Answer(...), id=f"answer:{qid}")
 if handle is None:
     return None  # already answered — nothing to do
 ```
@@ -44,7 +47,7 @@ for the call sites where "this may already exist" is the point, not a
 surprise:
 
 ```python
-self.effects.upsert(Summary(...), id=f"summary:{doc_id}")
+effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
 ## Outbound side effects: `act` (the outbox)
@@ -54,7 +57,7 @@ changes the *world* and must not be repeated by a replay or retry. Record the
 intent and let the runtime perform it after the commit:
 
 ```python
-self.effects.act(
+effects.act(
     "notify", key=f"notify:{order_id}:email", payload={"to": email}
 )
 ```
@@ -70,21 +73,23 @@ dispatcher, and [durability](durability.md) for the at-least-once contract.
 
 | Layer | What it is | Who writes it |
 | --- | --- | --- |
-| **Produce** | the reaction: guard → LLM/calc → `self.effects.*` → `None` | the application (you) |
-| **Effects** | the stated change-set (creates/updates/links/questions), scoped to the turn | you, via `self.effects` |
+| **Produce** | the reaction: guard → LLM/calc → `effects.*` → `None` | the application (you) |
+| **Effects** | the stated change-set (creates/updates/links/questions), scoped to the turn | you, through the injected `effects` |
 | **Patch** | the *compiled* operations the runtime applies as one commit | the runtime (and legacy/advanced assemblies) |
 
 Nothing is applied until the produce returns — **atomicity is structural** (§41),
 no rollback machinery. Events, validation against `produces`, and trace
 reads/writes/relations are all derived from the same compiled ops.
 
-## Why `self.effects` is ambient
+## Why effects are injected
 
-`self.effects` lives in a produce-scoped slot that the runtime pushes before
-each execution and pops after (a contextvar) — safe under parallel produces, and
-**invisible** to you: you never construct it, never name it, never pass it. You
-can build handles across statements (`evidence` created above is linked below),
-which is why the call sites read "about artifacts", not "about ids".
+The effects slot is produce-scoped: the runtime pushes a fresh one before
+each execution and pops it after (a contextvar) — safe under parallel produces.
+A class step names it as a parameter (`effects: Effects`); a function step
+reaches the same slot through `call.effects`. You never construct it or pass it
+explicitly. You can build handles across statements (`evidence` created above is
+linked below), which is why the call sites read "about artifacts", not "about
+ids".
 
 ## Where `Patch` still shows up
 
@@ -99,13 +104,13 @@ which is why the call sites read "about artifacts", not "about ids".
 ## The rule of thumb
 
 ```text
-guard → decide → describe (self.effects) → return None
+guard → decide → describe (effects) → return None
 ```
 
-If you find yourself writing `Patch()` inside a produce — stop and use
-`self.effects`; the runtime does the compiling.
+If you find yourself writing `Patch()` inside a produce — stop and write
+effects; the runtime does the compiling.
 
-## The function form (`@produce`) — same authoring surface
+## The function form (`@produce` / `@step`) — same authoring surface
 
 A decorator produce receives the same `call.effects` — one argument, `call`,
 exactly like the class form above:

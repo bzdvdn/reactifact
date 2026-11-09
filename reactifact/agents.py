@@ -260,7 +260,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     async def execute(self, context: Context, event: Event | None = None) -> None:
         """Runs the agent's produces (usually on an event).
 
-        Effects-first (§24): produces write `self.effects.*`/`call.effects.*`
+        Effects-first (§24): class steps write `effects.*`, function steps `call.effects.*`
         and return None; the *runtime* compiles the effect slot into one
         atomic patch. This method
         only *runs* the produces — it does not build a patch. (`run` remains the
@@ -312,7 +312,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             call_token = set_step_call(call)
             try:
                 result = await invoke_step(p, call)
-                p._apply_result(result)
+                p._apply_result(result, call.effects)
                 if trigger_cursor:
                     context._step_cursors[cursor_key] = trigger_cursor
             finally:

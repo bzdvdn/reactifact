@@ -82,7 +82,7 @@ async def summarize(call):
 
 - **External side effects inside a produce.** An email, a file write, or a
   third-party API call made *directly* in a produce can be repeated by a retry.
-  Do not do that — record an intent instead: `self.effects.act(kind=..., key=...,
+  Do not do that — record an intent instead: `effects.act(kind=..., key=...,
   payload=...)` writes a `PendingAction` and `Runtime(dispatcher=...)` performs
   it once after the intent commits (see the outbox pattern in
   [Patterns](patterns.md#outbox-external-side-effects)). The framework still
@@ -131,7 +131,7 @@ outbound effects (email, webhooks, payments) in production you own four things:
 
 With those four in place it is production-ready; if you want the framework
 itself to keep retrying with no app timer, that is a broker/relay — out of scope
-by design (§75). `examples/outbox` shows the dispatcher-level retry wrapper.
+by design (§75). Implement the dispatcher-level retry wrapper in the app.
 
 ## Schema evolution
 

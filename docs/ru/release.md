@@ -53,7 +53,7 @@ Changelog). При бампе версии:
   генерации — другое, ошибки не будет — если код полагался на старый неявный
   дефолт, передайте `temperature=0.7` явно (на вызов или на провайдер).
 - **0.1.0-rc1** — `Produce` больше не возвращает `Patch`; вместо этого пишет
-  `self.effects.create/update/link/ask/resume` и возвращает `None` (см.
+  `effects.create/update/link/ask/resume` и возвращает `None` (см.
   [effects](effects.md)). `InterruptPatch`, `Patch.merge_existing_patch` и
   `Patch.to_dict` удалены.
 

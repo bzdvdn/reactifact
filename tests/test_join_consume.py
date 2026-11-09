@@ -23,7 +23,7 @@ class RecordApproval(Produce[Approval]):
     artifact_type = Approval
 
     async def produce(self, call):
-        self.effects.create(
+        call.effects.create(
             Approval(parts=sorted(type(i.data).__name__ for i in call.inputs))
         )
 

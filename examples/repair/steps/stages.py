@@ -6,7 +6,7 @@ estimate (catalog, no LLM) → final_approval (HITL gate) → assistant (open-en
 post-approval). Routing follows the project's stage field — the runtime/wake
 model builds the links from the artifact state, without a manual graph.
 
-Effects-based: produces write `self.effects.create/update/ask` and return None;
+Effects-based: produces write `call.effects.create/update/ask` and return None;
 the runtime compiles one atomic patch per produce (§24).
 """
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reactifact import Context, PendingQuestion, Step, StepCall
+from reactifact import Context, Effects, PendingQuestion, Step, StepCall
 from reactifact.artifacts import Artifact
 from reactifact.recipes import changed_fields
 from reactifact.structured import llm_reply
@@ -64,7 +64,7 @@ class CollectStage(Step):
         context = call.context
         project_art = _project_artifact(context)
         if project_art is None:
-            self.effects.create(Project())
+            call.effects.create(Project())
             return None
         project = project_art.data
         if project.stage != "collect":
@@ -75,8 +75,8 @@ class CollectStage(Step):
         context.announce("Думаю…", kind="status")
         fast = fast_reply(msg.data.text)
         if fast is not None:
-            self.effects.update(project_art, handled_msg=msg.id)
-            self.effects.create(_reply(context, msg.id, fast), id=f"reply:{msg.id}")
+            call.effects.update(project_art, handled_msg=msg.id)
+            call.effects.create(_reply(context, msg.id, fast), id=f"reply:{msg.id}")
             return None
 
         info = ensure_geometry(
@@ -85,8 +85,8 @@ class CollectStage(Step):
         missing = [f for f in REQUIRED_FACTS if getattr(info, f) is None]
         if missing:
             labeled = ", ".join(FACT_LABELS[f] for f in missing)
-            self.effects.update(project_art, info=info, handled_msg=msg.id)
-            self.effects.create(
+            call.effects.update(project_art, info=info, handled_msg=msg.id)
+            call.effects.create(
                 _reply(context, msg.id, f"Уточните, пожалуйста: {labeled}."),
                 id=f"reply:{msg.id}",
             )
@@ -94,8 +94,8 @@ class CollectStage(Step):
 
         options = await _make_design_options(context, info)
         if options is None:
-            self.effects.update(project_art, info=info, handled_msg=msg.id)
-            self.effects.create(
+            call.effects.update(project_art, info=info, handled_msg=msg.id)
+            call.effects.create(
                 _reply(
                     context,
                     msg.id,
@@ -108,14 +108,14 @@ class CollectStage(Step):
         previews = "\n".join(
             f"{i + 1}. {o.name} — {o.description}" for i, o in enumerate(options)
         )
-        self.effects.update(
+        call.effects.update(
             project_art,
             info=info,
             design_options=options,
             stage="design_choice",
             handled_msg=msg.id,
         )
-        self.effects.create(
+        call.effects.create(
             _reply(
                 context,
                 msg.id,
@@ -149,9 +149,9 @@ class PickStage(Step):
         pick = _parse_pick(msg.data.text.strip(), project.design_options)
         if pick is None:
             return await _handle_style_change(
-                self, context, project_art, project, msg, project.info
+                call.effects, context, project_art, project, msg, project.info
             )
-        self.effects.update(
+        call.effects.update(
             project_art,
             design_choice=pick.name,
             palette=pick.palette,
@@ -160,7 +160,7 @@ class PickStage(Step):
             plan=[],
             estimate=None,
         )
-        self.effects.create(
+        call.effects.create(
             _reply(context, msg.id, f"Отлично, «{pick.name}». Составляю план…"),
             id=f"reply:{msg.id}",
         )
@@ -187,7 +187,7 @@ class PlanStage(Step):
             return None
         project = project_art.data
         steps = await _make_plan(context, project)
-        self.effects.update(project_art, plan=steps, stage="estimate")
+        call.effects.update(project_art, plan=steps, stage="estimate")
         return None
 
 
@@ -211,7 +211,7 @@ class EstimateStage(Step):
         context.announce("Считаю смету…", kind="status")
         estimate = build_estimate(project.plan, catalog)
         estimate.warnings.extend(qa_budget_warning(estimate, project.info.budget))
-        self.effects.update(project_art, estimate=estimate, stage="final_approval")
+        call.effects.update(project_art, estimate=estimate, stage="final_approval")
         return None
 
 
@@ -233,14 +233,14 @@ class ApprovalStage(Step):
         if not pending:
             # entering the stage: ask the question immediately, without waiting for a new message
             if msg is not None and msg.id != project.handled_msg:
-                self.effects.ask(_approval_text(project), kind="approval")
-                self.effects.create(
+                call.effects.ask(_approval_text(project), kind="approval")
+                call.effects.create(
                     _reply(context, msg.id, _approval_text(project), kind="approval"),
                     id=f"reply:{msg.id}",
                 )
-                self.effects.update(project_art, handled_msg=msg.id)
+                call.effects.update(project_art, handled_msg=msg.id)
                 return None
-            self.effects.ask(_approval_text(project), kind="approval")
+            call.effects.ask(_approval_text(project), kind="approval")
             return None
 
         # the user answered the approval question
@@ -249,12 +249,12 @@ class ApprovalStage(Step):
         question_art = pending[0]
         answer = msg.data.text.strip()
         context.announce("Думаю…", kind="status")
-        self.effects.resume(question_art, answer)
+        call.effects.resume(question_art, answer)
         if _APPROVE_RE.match(answer):
-            self.effects.update(
+            call.effects.update(
                 project_art, approved=True, stage="assistant", handled_msg=msg.id
             )
-            self.effects.create(
+            call.effects.create(
                 _reply(
                     context,
                     msg.id,
@@ -283,7 +283,7 @@ class ApprovalStage(Step):
         )
         # no separate reply: the rebuild will pass and ApprovalStage will show
         # the updated proposal again (the same msg.id gets overwritten by it).
-        self.effects.update(project_art, **updates)
+        call.effects.update(project_art, **updates)
         return None
 
 
@@ -335,8 +335,8 @@ class AssistantStage(Step):
             # Honest fallback (§59): the model was unavailable or its reply did
             # not parse — still answer from the plan, not a canned placeholder.
             text = _assistant_fallback(project)
-        self.effects.create(_reply(context, msg.id, text), id=f"reply:{msg.id}")
-        self.effects.update(project_art, handled_msg=msg.id)
+        call.effects.create(_reply(context, msg.id, text), id=f"reply:{msg.id}")
+        call.effects.update(project_art, handled_msg=msg.id)
         return None
 
 
@@ -356,7 +356,7 @@ def _assistant_fallback(project: Project) -> str:
 
 
 async def _handle_style_change(
-    produce: PickStage,
+    effects: Effects,
     context: Context,
     project_art: Artifact[Project],
     project: Project,
@@ -383,18 +383,18 @@ async def _handle_style_change(
             "пол",
         )
     ):
-        return _hint(produce, context, msg.id)
+        return _hint(effects, context, msg.id)
 
     new_info = ensure_geometry(
         await _extract_info(context, msg.data.text, current_info)
     )
     if not changed_fields(current_info, new_info):
-        return _hint(produce, context, msg.id)
+        return _hint(effects, context, msg.id)
 
     context.announce("Обновляю варианты под ваш запрос…", kind="status")
     options = await _make_design_options(context, new_info)
     if options is None:
-        produce.effects.create(
+        effects.create(
             _reply(
                 context, msg.id, "Не удалось обновить варианты. Попробуйте ещё раз."
             ),
@@ -404,13 +404,13 @@ async def _handle_style_change(
     previews = "\n".join(
         f"{i + 1}. {o.name} — {o.description}" for i, o in enumerate(options)
     )
-    produce.effects.update(
+    effects.update(
         project_art,
         info=new_info,
         design_options=options,
         handled_msg=msg.id,
     )
-    produce.effects.create(
+    effects.create(
         _reply(
             context,
             msg.id,
@@ -422,8 +422,8 @@ async def _handle_style_change(
     return None
 
 
-def _hint(produce: PickStage, context: Context, msg_id: str) -> None:
-    produce.effects.create(
+def _hint(effects: Effects, context: Context, msg_id: str) -> None:
+    effects.create(
         _reply(context, msg_id, "Выберите номер варианта, например: 1"),
         id=f"reply:{msg_id}",
     )

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
-from reactifact import Consume, Context, Step, StepCall
-from reactifact.recipes import StatusMachine, match_skills
+from reactifact import Artifact, Consume, Context, Effects, Step, When
+from reactifact.recipes import StatusMachine, StatusState, match_skills
 from reactifact.sources import SourceRef
 from reactifact.structured import structured_llm
 
@@ -50,24 +51,13 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
     produces = (ResearchTurn,)
     terminal = frozenset({"answered", "insufficient"})
 
-    def next_status(self, context: Context, key: str) -> str | None:
+    def next_status(self, state: StatusState) -> str | None:
         """Pure function: which status the turn deserves in the current state."""
-        refs = [r for r in context.list_artifacts(SourceRef) if r.data.query_id == key]
-        evidences = [
-            e for e in context.list_artifacts(Evidence) if e.data.query_id == key
-        ]
-        calculations = [
-            c for c in context.list_artifacts(Calculation) if c.data.query_id == key
-        ]
-        searched = any(
-            s.data.query_id == key for s in context.list_artifacts(SearchDone)
-        )
-        answered = any(a.data.query_id == key for a in context.list_artifacts(Answer))
-        if answered:
+        if state.any(Answer):
             return "answered"
-        if refs and (evidences or calculations):
+        if state.any(SourceRef) and (state.any(Evidence) or state.any(Calculation)):
             return "answerable"
-        if searched and not refs:
+        if state.any(SearchDone) and not state.any(SourceRef):
             return "insufficient"
         return None
 
@@ -84,30 +74,27 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
 class BuildAnswer(Step):
     """Projection of all the query's evidence into an answer (§17, §34)."""
 
-    consumes = (Consume.by_field(ResearchTurn, "status", "answerable"),)
+    consumes = (
+        Annotated[ResearchTurn, When(lambda turn: turn.status == "answerable")],
+        Consume(Evidence, wakes=False),
+        Consume(Claim, wakes=False),
+        Consume(Calculation, wakes=False),
+        Consume(Spreadsheet, wakes=False),
+    )
     produces = (Answer,)
+    scope = "query_id"
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        turn_artifact = call.trigger
-        if turn_artifact is None or not isinstance(turn_artifact.data, ResearchTurn):
-            return None
-        turn = turn_artifact.data
-        if turn.status != "answerable":
-            return None
+    async def run(
+        self,
+        context: Context,
+        turn: ResearchTurn,
+        evidences: list[Artifact[Evidence]],
+        claims: list[Artifact[Claim]],
+        calculations: list[Artifact[Calculation]],
+        spreadsheets: list[Artifact[Spreadsheet]],
+        effects: Effects,
+    ) -> None:
         query_id = turn.query_id
-
-        evidences = [
-            e for e in context.list_artifacts(Evidence) if e.data.query_id == query_id
-        ]
-        claims = [
-            c for c in context.list_artifacts(Claim) if c.data.query_id == query_id
-        ]
-        calculations = [
-            c
-            for c in context.list_artifacts(Calculation)
-            if c.data.query_id == query_id
-        ]
         if not evidences and not calculations:
             return None
 
@@ -142,14 +129,7 @@ class BuildAnswer(Step):
             material_lines += (
                 f"\n\n⚠ Contradictions found between claims (n={len(conflicts)})."
             )
-        question = next(
-            (
-                t.data.text
-                for t in context.list_artifacts(ResearchTurn)
-                if t.data.query_id == query_id
-            ),
-            "",
-        )
+        question = turn.text
         conversation = conversation_text(context, query_id)
         prompt = "Assemble a coherent answer to the question based on the facts."
         if calculations:
@@ -167,9 +147,7 @@ class BuildAnswer(Step):
             context, schema=AnswerBody, user=prompt, on_error=_log_llm_outage
         )
         sources = [e.data.source for e in evidences] + [
-            f"{c.data.source_id}:{c.data.path}"
-            for c in context.list_artifacts(Spreadsheet)
-            if c.data.query_id == query_id
+            f"{c.data.source_id}:{c.data.path}" for c in spreadsheets
         ]
         if body is not None:
             text = body.text.strip()
@@ -205,7 +183,7 @@ class BuildAnswer(Step):
             sources=sources,
         )
         answer_id = f"answer:{query_id}"
-        answer = self.effects.create(
+        answer = effects.create(
             Answer(query_id=query_id, text=text, sources=sources),
             id=answer_id,
         )

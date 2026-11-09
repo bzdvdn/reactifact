@@ -132,5 +132,5 @@ class Evaluator(Step):
             if channel_done(context, hyp_art, depth):
                 fields = evaluate_hypothesis(context, hyp_art)
                 if fields is not None:
-                    self.effects.update(hyp_art, **fields)
+                    call.effects.update(hyp_art, **fields)
         return None

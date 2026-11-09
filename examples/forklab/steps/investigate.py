@@ -73,7 +73,7 @@ class DepthInvestigate(Step):
             return None
         context.announce("depth: wording 1 finding…", kind="status")
         doc_id, snippet, quality = _CATALOG[0]
-        self.effects.create(
+        call.effects.create(
             Evidence(
                 branch=strategy.data.branch,
                 source=doc_id,
@@ -102,7 +102,7 @@ class BreadthInvestigate(Step):
                 kind="status",
             )
             doc_id, snippet, quality = _CATALOG[offset]
-            self.effects.create(
+            call.effects.create(
                 Evidence(
                     branch=strategy.data.branch,
                     source=doc_id,

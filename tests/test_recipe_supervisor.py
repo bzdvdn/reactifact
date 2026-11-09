@@ -58,7 +58,7 @@ class Specialist(Produce[SpecialistReport]):
         task = call.trigger
         if task is None or not isinstance(task.data, Task):
             return None
-        report = self.effects.create(
+        report = call.effects.create(
             SpecialistReport(
                 thread=task.data.thread,
                 route=task.data.route,

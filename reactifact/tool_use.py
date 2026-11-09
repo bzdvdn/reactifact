@@ -20,10 +20,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .artifacts import Artifact
 from .context import Context
+from .effects import Effects
 from .events import Event
 from .interrupt import PendingQuestion
-from .step import Step, StepCall
+from .step import Step
 from .structured import structured_llm
 from .tools import Tool, execute_tool
 
@@ -190,16 +192,17 @@ class ToolUse(_ToolLoopBase):
         self.max_steps = max_steps
         self.deferred_tool_groups = list(deferred_tool_groups)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        artifact = call.trigger
-        if artifact is None or isinstance(artifact.data, ToolAnswer):
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        trigger: Artifact[Any] | None,
+    ) -> None:
+        if trigger is None or isinstance(trigger.data, ToolAnswer):
             return None  # final answer is handled by user produces
-        goal = getattr(artifact.data, "text", "") or ""
+        goal = getattr(trigger.data, "text", "") or ""
         text = await self._loop(context, goal)
-        self.effects.create(
-            ToolAnswer(agent=self.name, query_id=artifact.id, text=text)
-        )
+        effects.create(ToolAnswer(agent=self.name, query_id=trigger.id, text=text))
         return None
 
     async def _loop(self, context: Context, goal: str) -> str:
@@ -418,9 +421,13 @@ class ToolUseHITL(_ToolLoopBase):
         # App callback: human answer → status message (kind="status").
         self.resume_announce = resume_announce
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        event = call.event
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        event: Event | None,
+        trigger: Artifact[Any] | None,
+    ) -> None:
         resolved = self._resolve(context, event)
         if resolved is None:
             return None
@@ -435,7 +442,7 @@ class ToolUseHITL(_ToolLoopBase):
                 context.announce(
                     self.resume_announce(extra), kind="status", agent=self.name
                 )
-            self.effects.create(
+            effects.create(
                 Observation(
                     query_id=qid,
                     step=len(history) + 1,
@@ -447,7 +454,7 @@ class ToolUseHITL(_ToolLoopBase):
             return None
 
         if kind == "resume_approve":
-            question = call.trigger
+            question = trigger
             notes = question.data.notes if question is not None else {}
             tool_id = notes.get("tool_id", "")
             args = notes.get("args", {})
@@ -464,7 +471,7 @@ class ToolUseHITL(_ToolLoopBase):
                 )
             else:
                 result = f"Tool '{tool_id}' call was not approved by the user."
-            self.effects.create(
+            effects.create(
                 Observation(
                     query_id=qid,
                     step=len(history) + 1,
@@ -476,7 +483,7 @@ class ToolUseHITL(_ToolLoopBase):
             return None
 
         if len(history) >= self.max_steps:
-            await self._forced_answer(context, qid, goal, history)
+            await self._forced_answer(context, qid, goal, history, effects)
             return None
 
         decision = await structured_llm(
@@ -488,14 +495,14 @@ class ToolUseHITL(_ToolLoopBase):
             max_tokens=self.max_tokens,
         )
         if decision is None:
-            self._answer(qid, "Could not reach a decision.")
+            self._answer(qid, "Could not reach a decision.", effects)
             return None
         if decision.type == "answer":
-            self._answer(qid, decision.text)
+            self._answer(qid, decision.text, effects)
             return None
         if decision.type == "ask":
             if not decision.text:
-                self._answer(qid, "Question not specified.")
+                self._answer(qid, "Question not specified.", effects)
                 return None
             asked = [
                 q
@@ -509,7 +516,7 @@ class ToolUseHITL(_ToolLoopBase):
                     # the same question was already asked and awaits an answer
                     return None
                 # LLM asks the same thing again — nudge it to continue
-                self.effects.create(
+                effects.create(
                     Observation(
                         query_id=qid,
                         step=len(history) + 1,
@@ -532,7 +539,7 @@ class ToolUseHITL(_ToolLoopBase):
             )
             if asked_count >= self.max_asks:
                 # no more questions — continue with what we have
-                self.effects.create(
+                effects.create(
                     Observation(
                         query_id=qid,
                         step=len(history) + 1,
@@ -547,14 +554,14 @@ class ToolUseHITL(_ToolLoopBase):
                     )
                 )
                 return None
-            self.effects.ask(
+            effects.ask(
                 decision.text,
                 kind="clarify",
                 notes={"query_id": qid, "agent": self.name},
             )
             return None
         if not decision.tool:
-            self._answer(qid, "Tool not specified.")
+            self._answer(qid, "Tool not specified.", effects)
             return None
 
         target_tool = self.tools.get(decision.tool)
@@ -587,7 +594,7 @@ class ToolUseHITL(_ToolLoopBase):
                     if last_approved
                     else "Do not ask again; proceed without it."
                 )
-                self.effects.create(
+                effects.create(
                     Observation(
                         query_id=qid,
                         step=step,
@@ -605,7 +612,7 @@ class ToolUseHITL(_ToolLoopBase):
                 ]
             )
             if approvals_asked >= self.max_approvals:
-                self.effects.create(
+                effects.create(
                     Observation(
                         query_id=qid,
                         step=step,
@@ -618,7 +625,7 @@ class ToolUseHITL(_ToolLoopBase):
                     )
                 )
                 return None
-            self.effects.ask(
+            effects.ask(
                 f"Approve running destructive tool '{decision.tool}' with args "
                 f"{json.dumps(decision.args, ensure_ascii=False)}? (yes/no)",
                 kind="approve",
@@ -636,7 +643,7 @@ class ToolUseHITL(_ToolLoopBase):
         max_tool_calls = budget.max_tool_calls if budget is not None else None
         tracker = context.resources.budget_tracker
         if tracker is not None and tracker.exhausted(budget) is not None:
-            self.effects.create(
+            effects.create(
                 Observation(
                     query_id=qid,
                     step=len(history) + 1,
@@ -650,7 +657,7 @@ class ToolUseHITL(_ToolLoopBase):
             )
             return None
         if max_tool_calls is not None and len(tool_history) >= max_tool_calls:
-            self.effects.create(
+            effects.create(
                 Observation(
                     query_id=qid,
                     step=len(history) + 1,
@@ -669,7 +676,7 @@ class ToolUseHITL(_ToolLoopBase):
         result = await self._run_tool(
             self.tools, decision.tool, decision.args, context=context
         )
-        self.effects.create(
+        effects.create(
             Observation(
                 query_id=qid,
                 step=len(history) + 1,
@@ -680,8 +687,8 @@ class ToolUseHITL(_ToolLoopBase):
         )
         return None
 
-    def _answer(self, qid: str, text: str) -> None:
-        self.effects.create(ToolAnswer(agent=self.name, query_id=qid, text=text))
+    def _answer(self, qid: str, text: str, effects: Effects) -> None:
+        effects.create(ToolAnswer(agent=self.name, query_id=qid, text=text))
 
     def _resolve(
         self, context: Context, event: Event | None
@@ -721,7 +728,12 @@ class ToolUseHITL(_ToolLoopBase):
         return [o.data for o in observations]
 
     async def _forced_answer(
-        self, context: Context, qid: str, goal: str, history: list[Observation]
+        self,
+        context: Context,
+        qid: str,
+        goal: str,
+        history: list[Observation],
+        effects: Effects,
     ) -> None:
         forced = await structured_llm(
             context,
@@ -737,7 +749,7 @@ class ToolUseHITL(_ToolLoopBase):
             if forced is not None and forced.text
             else "Step limit reached; answer based on the available data."
         )
-        self._answer(qid, text)
+        self._answer(qid, text, effects)
 
     def _system_prompt(self) -> str:
         schemas = "\n".join(

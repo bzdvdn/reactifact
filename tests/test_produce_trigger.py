@@ -34,7 +34,7 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
     async def produce(self, call):
         trigger = call.trigger
         assert trigger is not None
-        self.effects.create(
+        call.effects.create(
             DraftAnswer(query_id=trigger.data.query_id, source="documents")
         )
 
@@ -50,7 +50,7 @@ class TwoTypeReactor(Produce[DraftAnswer]):
         trigger = call.trigger
         assert trigger is not None
         kind = type(trigger.data).__name__
-        self.effects.create(DraftAnswer(query_id=trigger.data.query_id, source=kind))
+        call.effects.create(DraftAnswer(query_id=trigger.data.query_id, source=kind))
 
 
 class BestEffortReactor(Produce[DraftAnswer]):
@@ -62,7 +62,7 @@ class BestEffortReactor(Produce[DraftAnswer]):
     async def produce(self, call):
         trigger = call.trigger
         source = "none" if trigger is None else type(trigger.data).__name__
-        self.effects.create(DraftAnswer(query_id="q", source=source))
+        call.effects.create(DraftAnswer(query_id="q", source=source))
 
 
 class FinalAgent(Agent):
@@ -128,7 +128,7 @@ class DeletionAware(Produce[Marker]):
     consumes = (Consume(Marker, event_types=[EventType.ARTIFACT_DELETED]),)
 
     async def produce(self, call):
-        self.effects.create(Marker(tag="deleted" if call.trigger is None else "alive"))
+        call.effects.create(Marker(tag="deleted" if call.trigger is None else "alive"))
 
 
 # The remaining two cases — an agent run with no event at all (the

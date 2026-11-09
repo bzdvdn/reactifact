@@ -10,7 +10,7 @@ class PendingQuestion(BaseModel):
     """Artifact awaiting a human response (HITL, constitution §60).
 
     Created by an agent (or directly) to block a step until user input.
-    A human answer is recorded via `self.effects.resume(question, answer)` (§60),
+    A human answer is recorded via `effects.resume(question, answer)` (§60),
     after which agents subscribed to `PendingQuestion(answered=True)` continue.
     """
 
@@ -32,7 +32,7 @@ class PendingAction(BaseModel):
 
     A produce must not perform external I/O itself — send a notification, call
     a webhook, deploy. It records the *intent* here via
-    `self.effects.act(kind=..., payload=..., key=...)`; the runtime dispatches
+    `effects.act(kind=..., payload=..., key=...)`; the runtime dispatches
     it (through `Runtime(dispatcher=...)`) once the intent is **committed**.
     That split is what makes the environment effect safe under replay/retry:
 

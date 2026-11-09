@@ -60,16 +60,20 @@ Rules of thumb:
 
 ## 3. Effects & Patch
 
-The authoring surface is **`self.effects`** (see
+The authoring surface is the **effects** slot (see
 [The produce contract](effects.md), §24): a produce writes
-`create/update/link/ask` and returns `None`. The runtime compiles the effect
-set into one atomic **`Patch`** — its compiled transport.
+`create/update/link/ask` and returns `None`. A class-style step declares
+`effects: Effects` in `run()`; a `@produce`/`@step` function uses
+`call.effects`. The runtime compiles the effect set into one atomic
+**`Patch`** — its compiled transport.
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
-    answer = self.effects.create(Answer(query_id=qid, text=text), id="answer:q1")
+from reactifact import Effects
+
+async def run(self, effects: Effects) -> None:
+    answer = effects.create(Answer(query_id=qid, text=text), id="answer:q1")
     answer.link("supported_by", evidence_id)
-    self.effects.update(some_artifact, status="answered")
+    effects.update(some_artifact, status="answered")
     return None
 ```
 
@@ -132,25 +136,29 @@ both.
 
 ## 5. Produce
 
-`Produce[M]` is where the work happens. Its **authoring surface is
-`self.effects`** (§24): a produce writes what should change
-(`effects.create/update/link/ask`) and returns `None`. The runtime compiles the
+`Produce[M]` is where the work happens. Its **authoring surface is the
+injected effects slot** (§24): a class step declares `effects: Effects` in
+`run()`, a function step uses `call.effects`; either way it writes what should
+change (`effects.create/update/link/ask`) and returns `None`. The runtime compiles the
 effect slot into one atomic patch — commit, events, trace, validation stay the
 same, but the produce itself never builds a `Patch` (that type is now the
 runtime's transport).
 
 ```python
+from reactifact import Effects
+
 class EstimateStage(Produce[Project]):
     artifact_type = Project
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, project_art: Project, effects: Effects) -> None:
         ...
-        self.effects.update(project_art, stage="estimate")
+        effects.update(project_art, stage="estimate")
         return None
 ```
 
-`produce()` always takes exactly one argument, `call` — a `ProduceCall` with
-`.context`/`.inputs`/`.event`/`.trigger`/`.effects`. See
+The class form injects typed inputs and `effects: Effects` into `run()`; the
+`@produce`/`@step` function form still takes exactly one argument, `call` — a
+`ProduceCall` with `.context`/`.inputs`/`.event`/`.trigger`/`.effects`. See
 [patterns](patterns.md) for `.trigger` (the resolved artifact behind
 `.event`, guaranteed non-`None` alongside `reacts_to`).
 

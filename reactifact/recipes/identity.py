@@ -43,7 +43,8 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..step import Step, StepCall
+from ..effects import Effects
+from ..step import Step
 
 IdentityT = TypeVar("IdentityT", bound=BaseModel)
 
@@ -76,7 +77,7 @@ class SeedIdentity(Step[IdentityT], Generic[IdentityT]):
         self._extract = extract
         self._fallback = fallback
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, effects: Effects) -> None:
         raw = self._identity_var.get()
         identity: IdentityT | None
         if raw is not None and self._extract is not None:
@@ -87,7 +88,7 @@ class SeedIdentity(Step[IdentityT], Generic[IdentityT]):
             if self._fallback is None:
                 return None
             identity = self._fallback()
-        self.effects.upsert(identity, id=self._identity_id)
+        effects.upsert(identity, id=self._identity_id)
         return None
 
 

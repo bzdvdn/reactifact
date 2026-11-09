@@ -4,11 +4,12 @@ The *authoring surface* of a produce. Instead of hand-assembling a `Patch` on
 every turn, a produce writes what should change into its effect slot, and the
 runtime compiles the slot into one atomic patch (commit + events + trace):
 
-    class Scout(Produce[SourceRef]):
-        async def run(self, call: ProduceCall) -> None:
-            refs = await fan_out_sources(call.context, query, owner_id=...)
-            self.effects.create(SearchDone(...), id=f"scouted:{qid}")
-            return None
+    class Scout(Step):
+        produces = (SourceRef, SearchDone)
+
+        async def run(self, query: Query, effects: Effects) -> None:
+            await fan_out_sources(context, query.text, owner_id=...)
+            effects.create(SearchDone(...), id=f"scouted:{qid}")
 
 `Effects` is produce-scoped and concurrency-safe: the runtime pushes a fresh
 slot via a contextvar before invoking the produce and pops it afterwards, so
@@ -119,7 +120,7 @@ class Effects:
         Folds the "already done" guard every produce needs for a re-derived
         id (`f"answer:{qid}"`) into the call itself:
 
-            handle = self.effects.create_once(Answer(...), id=f"answer:{qid}")
+            handle = effects.create_once(Answer(...), id=f"answer:{qid}")
             if handle is None:
                 return None  # already answered — nothing to do
 
@@ -145,7 +146,7 @@ class Effects:
         produce doesn't have to invent the id string (nor get it subtly wrong
         between its guard and its `create`):
 
-            answer = self.effects.create_once_from(question, Answer(...))
+            answer = effects.create_once_from(question, Answer(...))
             if answer is None:
                 return None  # already answered this question
 

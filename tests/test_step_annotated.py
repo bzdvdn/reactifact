@@ -2,7 +2,7 @@ import asyncio
 from typing import Annotated
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Runtime, When
+from reactifact import Agent, Context, Effects, Runtime, When
 from reactifact.step import Step
 
 
@@ -19,9 +19,11 @@ class PickOpen(Step):
     produces = (Out,)
 
     async def run(
-        self, ticket: Annotated[Ticket, When(lambda t: t.status == "open")]
+        self,
+        ticket: Annotated[Ticket, When(lambda t: t.status == "open")],
+        effects: Effects,
     ) -> None:
-        self.effects.upsert(Out(text=ticket.text), id=f"out:{ticket.text}")
+        effects.upsert(Out(text=ticket.text), id=f"out:{ticket.text}")
 
 
 class PickAgent(Agent):
@@ -43,8 +45,8 @@ class DeclaredConsume(Step):
     consumes = (Annotated[Ticket, When(lambda t: t.status == "open")],)
     produces = (Out,)
 
-    async def run(self, ticket: Ticket) -> None:
-        self.effects.upsert(Out(text=ticket.text), id=f"declared:{ticket.text}")
+    async def run(self, ticket: Ticket, effects: Effects) -> None:
+        effects.upsert(Out(text=ticket.text), id=f"declared:{ticket.text}")
 
 
 class DeclaredAgent(Agent):

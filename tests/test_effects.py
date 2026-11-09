@@ -109,7 +109,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
         artifact_type = Note
 
         async def produce(self, call: ProduceCall):
-            self.effects.upsert(Note(text="v2"), id="note:1")
+            call.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
     class Refresher(Agent):
@@ -130,15 +130,6 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
 
 def test_current_effects_none_outside_produce():
     assert current_effects() is None
-
-
-def test_produce_effects_raises_outside_runtime():
-    try:
-        _ = Greeting().effects
-    except RuntimeError:
-        pass
-    else:  # pragma: no cover
-        raise AssertionError("expected RuntimeError outside a produce")
 
 
 def test_effects_resume_answers_pending_question():
@@ -171,7 +162,7 @@ class Greeting(Produce[Note]):
 
     async def produce(self, call: ProduceCall):
         trigger = call.trigger
-        note = self.effects.create(Note(text="hi"), id="note:1")
+        note = call.effects.create(Note(text="hi"), id="note:1")
         note.link("supported_by", trigger)  # trigger: Doc artifact
         return None
 

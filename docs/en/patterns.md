@@ -7,11 +7,11 @@ each is concretely instantiated in `examples/`.
 
 | Do | Don't | Why |
 | --- | --- | --- |
-| Write `self.effects.create/update/link/ask(...)`, return `None` | Assemble a `Patch` by hand in an ordinary produce | The runtime compiles one atomic patch per produce — building it yourself is the escape hatch, not the default |
+| Write `effects.create/update/link/ask(...)`, return `None` | Assemble a `Patch` by hand in an ordinary produce | The runtime compiles one atomic patch per produce — building it yourself is the escape hatch, not the default |
 | Guard eligibility with an early `return None` | Rely on scheduling order to skip work that isn't ready | Eligibility is a state decision, not a lucky accident (§69) |
 | Use stable ids (`answer:{qid}`) or `effects.create_once(...)` | Re-derive an id from a counter or timestamp | Idempotent re-runs — the same event twice must not duplicate state |
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
-| Keep `next_status`/scoring functions pure `(context, key) -> ...` | Mix LLM calls or side effects into a `StatusMachine.next_status` | Pure functions are unit-testable without a runtime |
+| Keep `next_status`/scoring functions pure `(state) -> ...` | Mix LLM calls or side effects into a `StatusMachine.next_status` | Pure functions are unit-testable without a runtime |
 | Use `Runtime(isolate_errors=True, on_agent_error=...)` only when you've decided partial progress is acceptable | Reach for `isolate_errors` as a default to silence exceptions | Default is fail-loud (§69) — isolating errors is an explicit product decision, not a safety net |
 | Record an outbound side effect with `effects.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `produce()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
 
@@ -29,14 +29,14 @@ class PendingQuestion(BaseModel):
     notes: dict[str, Any] = {}     # routing info ("which agent asked")
 ```
 
-A produce creates one with `self.effects.ask(...)`, and the human's answer
-comes back through `self.effects.resume(...)` (an effect that marks the
+A produce creates one with `effects.ask(...)`, and the human's answer
+comes back through `effects.resume(...)` (an effect that marks the
 `PendingQuestion` answered, §60):
 
 ```python
-self.effects.ask("Approve the estimate?", kind="approval")
+effects.ask("Approve the estimate?", kind="approval")
 # ... the web/UI sees a pending question and shows a waiting state ...
-self.effects.resume(question_artifact, "да")
+effects.resume(question_artifact, "да")
 return None
 ```
 
@@ -72,12 +72,12 @@ class Notify(Produce[Receipt]):
     async def produce(self, call: ProduceCall) -> None:
         order = call.trigger
         # stable, content-derived key -> idempotent re-runs and merges
-        self.effects.act(
+        effects.act(
             "notify",
             key=f"notify:{order.data.id}:email",
             payload={"to": order.data.email, "order": order.data.id},
         )
-        self.effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
+        effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
         return None
 
 
@@ -239,7 +239,7 @@ class Planner(Produce[PlanStep]):
             return None  # not a Goal, or already planned (§42)
         steps = await plan_steps(goal.data.text)  # structured LLM, or a fallback
         for index, instruction in enumerate(steps):
-            self.effects.create(PlanStep(index=index, instruction=instruction), ...)
+            effects.create(PlanStep(index=index, instruction=instruction), ...)
 
 
 class Executor(Produce[StepResult]):
@@ -253,20 +253,20 @@ class Executor(Produce[StepResult]):
                 continue  # already executed
             if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
                 return None  # wait for the predecessor's result (§69)
-            self.effects.create(StepResult(...), id=f"result:{step.id}")
+            effects.create(StepResult(...), id=f"result:{step.id}")
             return None  # one step per generation; the next result re-triggers us
 ```
 
 The key move: the executor does **not** branch on `event.artifact_id` the way
 a per-chunk map-reduce produce does — it recomputes "which step is next" from
 state on every trigger (consuming both `PlanStep` and `StepResult`), the same
-"eligibility is a state decision" idiom `Combine` uses in `map_reduce`. That
+"eligibility is a state decision" idiom a combine step uses. That
 `if step.data.index > 0 and ... is None: return None` guard is the entire
 sequencing mechanism — no explicit control-flow graph, no manual "wait for
-node N" wiring. A `Finisher` produce mirrors `map_reduce`'s `Combine`: wait
+node N" wiring. A `Finisher` step mirrors a combine step: wait
 until every step has a result, then synthesize the final answer.
 
-See `examples/plan_execute` for the full port (structured planning with a
+See `reactifact.recipes.PlanExecute` for the full pattern (structured planning with a
 deterministic single-step fallback, and the finisher).
 
 ## Correlating across artifact types
@@ -360,7 +360,7 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
     reacts_to = (ResolvedDocuments,)
 
     async def produce(self, call: ProduceCall) -> None:
-        self.effects.create(
+        effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
         )
 ```
@@ -507,12 +507,12 @@ See [recipes](recipes.md). The rule of thumb for choosing between patterns:
 
 ## Determinism as a habit
 
-- The **produce contract**: write `self.effects.create/update/link/ask(...)` and
+- The **produce contract**: write `effects.create/update/link/ask(...)` and
   return `None`; the runtime compiles the slot into one atomic patch (§24).
   `Patch` is the transport — you rarely type it in an ordinary produce.
 - Make eligibility a guard, not a lucky scheduling accident (`return None` early).
 - Prefer stable ids (`answer:{qid}`, `ref:{sid}:{owner}`) → idempotent re-runs.
-  `self.effects.create_once(Model(...), id=...)` folds the "already done"
+  `effects.create_once(Model(...), id=...)` folds the "already done"
   guard into the call — `None` back means skip, don't rebuild the guard by
   hand above every `create`.
 - Pure decision functions (`next_status`) are unit-testable without a runtime.

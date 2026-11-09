@@ -64,7 +64,7 @@ answer sha256 5461290d…  ·  context sha256 24449f6f…
                                    EVENT (created/updated)
                                           │
                                           ▼
-CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──self.effects──► EFFECTS
+CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──effects──► EFFECTS
    ▲                 │                                            │
    │                 │                                            │  compile
    └────── CONTEXT' ◄────────────────┘ PATCH ◄────────────────────┘
@@ -80,7 +80,7 @@ CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──self.eff
 | Программа идёт по графу/плану    | Агенты **реагируют на изменения состояния**                       |
 | Сообщения — строки               | **Типизированные артефакты** (`Claim`, `Evidence`, `Answer`, …)   |
 | Оркестрация явная                | Оркестрация **выводится из состояния**                            |
-| Компонент _возвращает_ результат | Produce **пишет effects** (`self.effects`) — компилирует runtime  |
+| Компонент _возвращает_ результат | Produce **пишет effects** (`effects`) — компилирует runtime  |
 | Ретраи/откаты вручную            | Контекст **версионируется** (коммиты как в git, diff, rollback)   |
 | «Кто это произвёл?» теряется     | **Провенанс** связывает каждый производный артефакт с его входами |
 
@@ -88,17 +88,17 @@ CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──self.eff
 
 В центре цикла — то, как produce вносит изменение. Многие фреймворки просят производителя _вернуть_ результат, а какой-то оркестратор применяет его.
 reactifact переворачивает авторство: produce **формулирует, что должно
-измениться**, через `self.effects` (create / update / link / ask) и возвращает
+измениться**, через `effects` (create / update / link / ask) и возвращает
 `None`; runtime компилирует набор эффектов в один атомарный патч — либо
 применяется весь шаг, либо ничего.
 
 ```python
 async def produce(self, call: ProduceCall) -> None:
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
-    self.effects.update(turn, status="answered")
+    effects.update(turn, status="answered")
     return None
 ```
 

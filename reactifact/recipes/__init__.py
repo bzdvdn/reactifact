@@ -18,9 +18,9 @@ keep reappearing across agent codebases and the bundled examples:
   `SourceRef`s tagged with an owner (§8, §24, §42) — see `recipes.search`;
 - `materialize_doc` — lazily resolve a `SourceRef` into a document with a
   provenance edge (Reference → Artifact, §6, §34) — see `recipes.resolve`;
-- `StatusMachine` — a `Produce` that deterministically advances an artifact's
-  `status` lifecycle driven by a pure `next_status(context, key)` (§67, §69) —
-  see `recipes.status`;
+- `StatusMachine` — a step that deterministically advances an artifact's
+  `status` lifecycle driven by a pure `next_status(state)` over
+  key-scoped inputs (§67, §69) — see `recipes.status`;
 - `PlanExecute` — sequential plan → execute → finish: ordering, gating each
   step on its predecessor's result, and completion detection owned by the
   recipe; domain supplies `plan`/`execute_step`/`finish` (§24, §42, §69) —
@@ -94,7 +94,7 @@ from .resolve import materialize_doc
 from .rollback import changed_fields, downstream_fields, earliest_stage
 from .search import fan_out_sources
 from .skills import Skill, load_skills, match_skills
-from .status import StatusMachine
+from .status import StatusMachine, StatusState
 from .supervisor import ApprovalGate, Router
 from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
@@ -114,6 +114,7 @@ __all__ = [
     "SeedIdentity",
     "Skill",
     "StatusMachine",
+    "StatusState",
     "ToolLoopResult",
     "ToolObservation",
     "Transcript",

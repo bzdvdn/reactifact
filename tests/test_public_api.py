@@ -155,6 +155,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "SeedIdentity",
             "Skill",
             "StatusMachine",
+            "StatusState",
             "ToolLoopResult",
             "ToolObservation",
             "Transcript",

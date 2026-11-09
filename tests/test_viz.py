@@ -51,7 +51,7 @@ class AdvanceTurn(StatusMachine[Turn]):
     artifact_type = Turn
     terminal = frozenset()
 
-    def next_status(self, context, key):
+    def next_status(self, state):
         return "done"
 
 

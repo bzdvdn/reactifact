@@ -41,24 +41,26 @@ question is asking them to predict the future.
 runtime derives what can run next **from state changes**. Agents react. There is
 no graph to draw.
 
-## Why `self.effects` instead of "return a patch"
+## Why effects instead of "return a patch"
 
 In many frameworks a unit of work *returns* its change (a tool call, a message,
 a dict) and some orchestrator applies it. reactifact inverts authoring (§24):
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
-    evidence = self.effects.create(Evidence(...), id="evidence:q1")
-    answer = self.effects.create(Answer(...), id="answer:q1")
+from reactifact import Effects
+
+async def run(self, effects: Effects) -> None:
+    evidence = effects.create(Evidence(...), id="evidence:q1")
+    answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
-    self.effects.update(turn, status="answered")
+    effects.update(turn, status="answered")
     return None
 ```
 
 Why this shape?
 
-- **The author writes intent, not wiring.** `self.effects` reads like a
+- **The author writes intent, not wiring.** `effects` reads like a
   sentence: *create this, link that, bump the status*. You never assemble the
   `Patch` — the runtime does.
 - **You work with artifacts, not ids.** `evidence` is created here and linked a
@@ -69,7 +71,7 @@ Why this shape?
   `produces`, and the trace are all derived from the same compiled ops.
 - **Parallel-safe by construction.** Each produce gets its own slot; concurrent
   producers never see each other's half-built state (§42).
-- **HITL falls out.** `self.effects.ask(...)` is just another effect (§60); the
+- **HITL falls out.** `effects.ask(...)` is just another effect (§60); the
   human is not a special case bolted on the side.
 
 If you find yourself writing `Patch()` inside a produce — stop. That is the
@@ -159,8 +161,8 @@ agents see. No `if x: call y` plumbing — the state decides, the loop follows.
 
 | Layer | What it is | Who writes it |
 | --- | --- | --- |
-| **Produce** | the reaction: guard → LLM/calc → `self.effects.*` → `None` | you |
-| **Effects** | the stated change-set, scoped to the turn | you, via `self.effects` |
+| **Produce** | the reaction: guard → LLM/calc → `effects.*` → `None` | you |
+| **Effects** | the stated change-set, scoped to the turn | you, through the injected `effects` |
 | **Patch** | the *compiled* operations applied as one commit | the runtime |
 
 ## Why even the app-facing layer is thin
@@ -183,10 +185,10 @@ not "no graph".
 
 Where a workflow is genuinely fixed, reactifact still expresses it — but the
 point is you are **not forced** to draw a graph when the problem is open-ended.
-The canonical patterns (ReAct, reflection, map-reduce, supervisor, summarize,
-time-travel, plan-and-execute) all have reference implementations in
-[`examples/`](examples.md) (see [port-matrix](port-matrix.md)); they come
-out of *state and produces*, not out of a pre-drawn diagram.
+Many canonical patterns (ReAct, RAG, branch/merge, staged replanning) have
+reference implementations in [`examples/`](examples.md) (see
+[port-matrix](port-matrix.md)); they come out of *state and produces*, not out
+of a pre-drawn diagram.
 
 ## Where reactifact will not be a fit
 

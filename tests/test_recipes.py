@@ -58,7 +58,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
                 owner_id="job1",
                 limit=2,
             )
-            self.effects.create(Job(query_id="job1", text="scouted"), id="marker:job1")
+            call.effects.create(Job(query_id="job1", text="scouted"), id="marker:job1")
             return None
 
     class Engine(Agent):
@@ -134,7 +134,7 @@ class Fill(Produce[Job]):
         target = call.trigger
         if target is None:
             return None
-        self.effects.update(target, text="filled")
+        call.effects.update(target, text="filled")
         return None
 
 
@@ -142,8 +142,8 @@ class Survey(StatusMachine[Job]):
     artifact_type = Job
     terminal = frozenset({"done"})
 
-    def next_status(self, context, key):
-        jobs = [j for j in context.list_artifacts(Job) if j.data.query_id == key]
+    def next_status(self, state):
+        jobs = state.all(Job)
         return "done" if jobs and any(j.data.text for j in jobs) else None
 
 
@@ -186,7 +186,7 @@ class MakeScratch(Produce[Scratch]):
         question = call.trigger
         if question is None or not isinstance(question.data, Question):
             return None
-        self.effects.create_once(
+        call.effects.create_once(
             Scratch(query_id=question.id, text=question.data.text),
             id=f"scratch:{question.id}",
         )
@@ -201,7 +201,7 @@ class MakeFinal(Produce[Final]):
         scratch = call.trigger
         if scratch is None or not isinstance(scratch.data, Scratch):
             return None
-        self.effects.create_once(
+        call.effects.create_once(
             Final(text=scratch.data.text.upper()), id=f"final:{scratch.data.query_id}"
         )
 

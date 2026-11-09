@@ -3,7 +3,7 @@
 `Patch` (the container) and `Effects` (the authoring surface) both ultimately
 reduce to these dataclasses. They are what the runtime applies, validates,
 commits and replays — the *compiled* form of "what changed". Applications
-rarely touch them directly (they write `self.effects.*` instead).
+rarely touch them directly (they write `effects.*` instead).
 """
 
 from __future__ import annotations

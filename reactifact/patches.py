@@ -2,7 +2,7 @@
 
 `Patch` is the runtime's *transport*: an ordered set of `operations` (defined in
 `reactifact.operations`) that gets applied as one commit. The authoring surface of
-produces is `self.effects`; a `Patch` is built by the runtime (compiling the
+step is the `effects` slot; a `Patch` is built by the runtime (compiling the
 effects slot), by `Effects.to_patch`, and by custom `Agent.run` implementations
 that assemble a change-set by hand (the escape hatch).
 

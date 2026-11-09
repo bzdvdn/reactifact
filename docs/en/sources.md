@@ -56,7 +56,7 @@ idempotent.
 ## Lazy materialization
 
 `WebSource` (and remote sources generally) return *references*, not content.
-Resolving the actual document is explicit and lazy — the research demo fetches
+Resolving the actual document is explicit and lazy — the knowledge demo fetches
 only the pages it decides it needs, then links the matched document to the ref:
 
 ```text
