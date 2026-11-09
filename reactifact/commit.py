@@ -34,13 +34,20 @@ class Write:
     artifact_id: str
     version: int
     op_type: str  # create | update | delete
+    #: sha256 of the payload at this version (content addressing). None for
+    #: deletes and for older payloads; excluded from equality so structural
+    #: comparisons in tests keep working.
+    content_hash: str | None = field(default=None, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "artifact_id": self.artifact_id,
             "version": self.version,
             "op_type": self.op_type,
         }
+        if self.content_hash is not None:
+            payload["content_hash"] = self.content_hash
+        return payload
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Write:
@@ -48,6 +55,7 @@ class Write:
             artifact_id=d["artifact_id"],
             version=d["version"],
             op_type=d["op_type"],
+            content_hash=d.get("content_hash"),
         )
 
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
@@ -10,6 +13,35 @@ from .types import migrate_payload, resolve, type_id_of
 
 TData = TypeVar("TData", bound=BaseModel)
 ArtifactType = type[BaseModel]
+
+
+def artifact_content_hash(data: BaseModel) -> str:
+    """sha256 over an artifact payload's canonical JSON (content addressing)."""
+    payload = json.dumps(
+        data.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class ArtifactVersion:
+    """One immutable artifact revision, addressed by content hash.
+
+    `Artifact`/`Context` keep their mutable convenience API for now, but every
+    revision is readable through this immutable record: the commit that wrote
+    it, its sha256 and the payload at that exact version.
+    """
+
+    artifact_id: str
+    version: int
+    data_type: str
+    data: BaseModel
+    content_hash: str
+    commit_id: str | None = None
+    created_at: datetime | None = None
 
 
 def compute_dict_diff(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:

@@ -8,7 +8,7 @@ from typing import Any, TypedDict, TypeVar, cast, overload
 
 from pydantic import BaseModel
 
-from .artifacts import Artifact
+from .artifacts import Artifact, ArtifactVersion, artifact_content_hash
 from .checkpoints import CheckpointBackend, FileBackend, KVBackend
 from .commit import Commit
 from .commit_log import CommitLog
@@ -831,6 +831,74 @@ class Context:
     ) -> dict[str, Artifact[Any]]:
         state = self._log.replay_state(upto_version)
         return {aid: Artifact(data=data, id=aid) for aid, data in state.items()}
+
+    def artifact_version(
+        self, artifact_id: str, version: int
+    ) -> ArtifactVersion | None:
+        """One immutable artifact revision, reconstructed from commits when needed.
+
+        `version` is the artifact's absolute version counter (0 = create). The
+        result carries the payload, its sha256 and the commit that wrote it —
+        the content-addressed view of a revision, even after `_history` was
+        trimmed (as long as the commit log still has it).
+        """
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None:
+            return None
+        commit: Commit | None = None
+        data: BaseModel | None = None
+        if version == artifact.version:
+            data = artifact.data
+            commit = self._log.producing_commit(artifact_id)
+        else:
+            current = -1
+            for candidate in self._log.history():
+                for op in candidate.operations:
+                    if (
+                        isinstance(op, Create)
+                        and (op.artifact_id or op.id) == artifact_id
+                    ):
+                        current += 1
+                        candidate_data = op.data
+                    elif isinstance(op, Update) and op.artifact_id == artifact_id:
+                        current += 1
+                        candidate_data = op.new_data
+                    else:
+                        continue
+                    if current == version:
+                        data = candidate_data
+                        commit = candidate
+                        break
+                if data is not None:
+                    break
+            if data is None:
+                try:
+                    data = artifact.at(version)
+                except ValueError:
+                    return None
+        if data is None:
+            return None
+        return ArtifactVersion(
+            artifact_id=artifact_id,
+            version=version,
+            data_type=type_id_of(type(data)),
+            data=data,
+            content_hash=artifact_content_hash(data),
+            commit_id=commit.id if commit is not None else None,
+            created_at=commit.timestamp if commit is not None else None,
+        )
+
+    def version_history(self, artifact_id: str) -> list[ArtifactVersion]:
+        """All readable revisions of an artifact, oldest to newest."""
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None:
+            return []
+        versions: list[ArtifactVersion] = []
+        for version in range(artifact.version + 1):
+            item = self.artifact_version(artifact_id, version)
+            if item is not None:
+                versions.append(item)
+        return versions
 
     def at(self, version: int) -> Context:
         """An immutable snapshot view of this Context at a commit version.

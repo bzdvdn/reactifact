@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from .agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
-from .artifacts import Artifact
+from .artifacts import Artifact, artifact_content_hash
 from .budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
 from .commit import Commit, Read, Write
 from .context import Context
@@ -1155,16 +1155,37 @@ class Runtime:
                     upserted = self.context.update(op.id, op.data)
                     assert upserted is not None
                     op.artifact_id = op.id
-                    writes.append(Write(op.id, upserted.version, "update"))
+                    writes.append(
+                        Write(
+                            op.id,
+                            upserted.version,
+                            "update",
+                            artifact_content_hash(op.data),
+                        )
+                    )
                 else:
                     created = self.context.create(op.data, id=op.id)
                     op.artifact_id = created.id
                     created.created_by_commit = commit.id
-                    writes.append(Write(op.artifact_id, created.version, "create"))
+                    writes.append(
+                        Write(
+                            op.artifact_id,
+                            created.version,
+                            "create",
+                            artifact_content_hash(op.data),
+                        )
+                    )
             elif isinstance(op, Update):
                 updated = self.context.update(op.artifact_id, op.new_data)
                 if updated is not None:
-                    writes.append(Write(op.artifact_id, updated.version, "update"))
+                    writes.append(
+                        Write(
+                            op.artifact_id,
+                            updated.version,
+                            "update",
+                            artifact_content_hash(op.new_data),
+                        )
+                    )
             elif isinstance(op, Delete):
                 removed = self.context.get(op.artifact_id)
                 version = removed.version if removed is not None else 0
