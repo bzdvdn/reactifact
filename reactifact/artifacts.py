@@ -98,6 +98,23 @@ class Artifact(Generic[TData]):
         """Returns all data versions, including the current one, from oldest to newest."""
         return self._history + [self.data]
 
+    def at(self, version: int) -> TData:
+        """Read one historical version immutably (0 = original, current = `version`).
+
+        Unlike `get_all_versions()`, `version` is the artifact's absolute
+        version counter, not a list index. Raises when that version was trimmed
+        by `Context.compact(keep_versions=...)`.
+        """
+        if version == self._version:
+            return self.data
+        offset = version - (self._version - len(self._history))
+        if version < 0 or offset < 0 or offset >= len(self._history):
+            raise ValueError(
+                f"version {version} is not available for artifact {self.id!r} "
+                f"(current={self._version}, retained={len(self._history) + 1})"
+            )
+        return self._history[offset]
+
     def diff(self, old_version: int, new_version: int) -> dict[str, Any]:
         """Returns a diff between two versions by their numbers (0 – the oldest)."""
         versions = self.get_all_versions()

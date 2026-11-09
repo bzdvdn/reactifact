@@ -832,6 +832,28 @@ class Context:
         state = self._log.replay_state(upto_version)
         return {aid: Artifact(data=data, id=aid) for aid, data in state.items()}
 
+    def at(self, version: int) -> Context:
+        """An immutable snapshot view of this Context at a commit version.
+
+        `self` is not mutated (unlike `checkout`); the returned Context is a
+        detached copy with no pending events and no step cursors. Useful for
+        reading a historical state without rewinding the live run.
+        """
+        if not (0 <= version <= self.version):
+            raise ValueError(
+                f"Invalid snapshot version: {version} (head={self.version})"
+            )
+        if version < self.compacted_at:
+            raise ValueError(
+                f"cannot snapshot version {version}: history below the "
+                f"compaction baseline ({self.compacted_at}) was discarded"
+            )
+        snapshot = self.clone()
+        snapshot.checkout(version)
+        snapshot.replace_events([])
+        snapshot._step_cursors = {}
+        return snapshot
+
     def checkout(self, version: int) -> None:
         """Moves head back to a previous version (rollback along the commit chain).
 
