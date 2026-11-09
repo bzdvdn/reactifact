@@ -15,7 +15,7 @@ injectable, the whole pipeline runs with no network.
 
 ```python
 from pydantic import BaseModel
-from reactifact import Consume, Produce, create_agent
+from reactifact import Agent, Context, Effects, Runtime, Step, create_agent
 from reactifact.testing import ScenarioLab
 
 
@@ -27,14 +27,15 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Produce[Answer]):
-    artifact_type = Answer
+class Answerer(Step):
+    consumes = (Question,)
+    produces = (Answer,)
 
-    async def produce(self, call):
-        call.effects.create(Answer(text=call.trigger.data.text.upper()))
+    async def run(self, question: Question, effects: Effects) -> None:
+        effects.create(Answer(text=question.text.upper()))
 
 
-agent = create_agent("answerer", consumes=[Consume(Question)], produces=[Answerer()])
+agent = create_agent("answerer", steps=[Answerer()])
 
 result = ScenarioLab([agent]).run_sync(Question(text="hi"))
 

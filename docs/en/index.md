@@ -30,10 +30,10 @@ message or a graph edge.
 
 | Celery | reactifact |
 | --- | --- |
-| a task | `@produce(Model)` — a unit of work that writes an artifact |
+| a task | `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact |
 | `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
 | routing key / queue | `Consume(Type)` — which artifact type wakes the task |
-| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
+| chain / group / chord | several step `Consume`s / `produces`; the runtime derives the order |
 | result backend | the `Context` — typed, versioned artifacts |
 | worker | `Runtime` |
 
@@ -80,26 +80,26 @@ with them*. The runtime does the plumbing.
 | A program follows a graph / plan | Agents **react** to state changes |
 | Messages are strings | **Typed artifacts** (`Claim`, `Evidence`, `Answer`, …) |
 | Orchestration is explicit | Orchestration **falls out of the state** |
-| A unit of work *returns* a change | A produce **writes effects** (`effects`) — the runtime compiles them |
+| A unit of work *returns* a change | A step **writes effects** (`effects`) — the runtime compiles them |
 | Retries/rollback are manual | Context is **versioned** (git-like commits, diff, rollback) |
 | "Who produced this?" is lost | **Provenance** links every derived artifact to its inputs |
 
 ## Why effects instead of "return a change"?
 
-At the heart of the loop is how a produce makes a change. Many frameworks ask a
+At the heart of the loop is how a step makes a change. Many frameworks ask a
 unit of work to *return* its result, and some orchestrator applies it. reactifact
-inverts authorship: a produce **states what should change** via `effects`
-(create / update / link / ask) and returns `None`; the runtime compiles the
-effect set into one atomic patch — the whole step lands (or none of it does).
+inverts authorship: a step **states what should change** via `effects`
+(create / update / link / ask); the runtime compiles the effect set into one
+atomic patch — the whole step lands (or none of it does).
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
+async def run(self, doc: Document, turn: Turn, effects: Effects) -> Answer:
     evidence = effects.create(Evidence(...), id="evidence:q1")
     answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
     effects.update(turn, status="answered")
-    return None
+    return answer
 ```
 
 Because handles are objects, not ids, one statement can reference the artifact
@@ -137,7 +137,7 @@ first one's output exists, and the answer carries *proof* of where it came from:
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Consume, Context, Runtime, RuntimeResources, create_agent, produce
+from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
 
 
 class Question(BaseModel):
@@ -158,26 +158,22 @@ DOCS = {
 }
 
 
-@produce(Evidence)
+@step(produces=Evidence, consumes=Question)
 async def find_evidence(call):
-    question = next((a for a in call.inputs if isinstance(a.data, Question)), None)
-    if question is None:
-        return None
+    question = call.trigger
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
     if hit is not None:
         call.effects.create(Evidence(text=hit))
 
 
-@produce(Answer)
+@step(produces=Answer, consumes=Evidence)
 async def answer_from_evidence(call):
-    evidence = next((a for a in call.inputs if isinstance(a.data, Evidence)), None)
-    if evidence is None:
-        return None
+    evidence = call.trigger
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", consumes=[Consume(Question)], produces=[find_evidence])
-answer_agent = create_agent("answer", consumes=[Consume(Evidence)], produces=[answer_from_evidence])
+search_agent = create_agent("search", steps=[find_evidence])
+answer_agent = create_agent("answer", steps=[answer_from_evidence])
 
 ctx = Context(resources=RuntimeResources())
 runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
@@ -208,7 +204,7 @@ it's trimmed from.
   graph, why determinism, why versioned state.
 - [Comparison](comparison.md) — reactifact vs LangGraph/CrewAI, feature by
   feature, and when *not* to use reactifact.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Agent, Produce.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
 
 **Build with it**
 

@@ -13,7 +13,7 @@ each is concretely instantiated in `examples/`.
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
 | Keep `next_status`/scoring functions pure `(state) -> ...` | Mix LLM calls or side effects into a `StatusMachine.next_status` | Pure functions are unit-testable without a runtime |
 | Use `Runtime(isolate_errors=True, on_agent_error=...)` only when you've decided partial progress is acceptable | Reach for `isolate_errors` as a default to silence exceptions | Default is fail-loud (§69) — isolating errors is an explicit product decision, not a safety net |
-| Record an outbound side effect with `effects.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `produce()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
+| Record an outbound side effect with `effects.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `run()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
 
 Each row links to the fuller pattern below.
 
@@ -29,7 +29,7 @@ class PendingQuestion(BaseModel):
     notes: dict[str, Any] = {}     # routing info ("which agent asked")
 ```
 
-A produce creates one with `effects.ask(...)`, and the human's answer
+A step creates one with `effects.ask(...)`, and the human's answer
 comes back through `effects.resume(...)` (an effect that marks the
 `PendingQuestion` answered, §60):
 
@@ -56,21 +56,21 @@ idiom as `effects.create_once`.
 
 ## Outbox: external side effects
 
-A produce should never perform external I/O itself — send an email, call a
+A step should never perform external I/O itself — send an email, call a
 webhook, deploy. It records the **intent** and the runtime performs it, once,
 after the intent is committed:
 
-![The outbox: a produce records a PendingAction (no I/O), the runtime commits it, and only after the commit a dispatcher calls the world once per stable id. Replay, retry and merge rebuild state from the commit chain and never re-send.](../img/outbox-flow.svg)
+![The outbox: a step records a PendingAction (no I/O), the runtime commits it, and only after the commit a dispatcher calls the world once per stable id. Replay, retry and merge rebuild state from the commit chain and never re-send.](../img/outbox-flow.svg)
 
 ```python
-from reactifact import PendingAction, Runtime
+from reactifact import Artifact, Effects, PendingAction, Runtime, Step
 
 
-class Notify(Produce[Receipt]):
-    artifact_type = Receipt
+class Notify(Step):
+    consumes = (Order,)
+    produces = (Receipt,)
 
-    async def produce(self, call: ProduceCall) -> None:
-        order = call.trigger
+    async def run(self, order: Artifact[Order], effects: Effects) -> None:
         # stable, content-derived key -> idempotent re-runs and merges
         effects.act(
             "notify",
@@ -78,7 +78,6 @@ class Notify(Produce[Receipt]):
             payload={"to": order.data.email, "order": order.data.id},
         )
         effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
-        return None
 
 
 async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
@@ -121,7 +120,7 @@ Why it holds up:
 For "the model decides which tool to call" flows, use the built-in agents:
 
 ```python
-from reactifact import Consume, Produce
+from reactifact import Consume, Step
 from reactifact.llm_agent import HITLLMAgent
 
 class OpsAgent(HITLLMAgent):
@@ -131,7 +130,7 @@ class OpsAgent(HITLLMAgent):
     max_steps = 8
     max_asks = 2
     consumes = [Consume(Project)]
-    produces = [Produce(Report)]
+    steps = [Step(Report)]
 ```
 
 - `LLMAgent` — blocking loop: the LLM emits `tool_call`, the runtime runs the
@@ -224,50 +223,29 @@ the reading/writing provenance is recorded for you.
 
 ## Plan-and-execute: draft once, run one step at a time
 
-For a goal that decomposes into an ordered sequence of dependent steps
-(rather than independent chunks — see map-reduce above), split planning from
-execution into two produces instead of one big tool loop:
+For a goal that decomposes into an ordered sequence of dependent steps, use the
+`PlanExecute` recipe. The recipe owns ordering, gating, idempotent re-entry and
+completion; your domain supplies three hooks:
 
 ```python
-class Planner(Produce[PlanStep]):
-    artifact_type = PlanStep
+class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
+    goal_type = Goal
+    step_type = PlanStep
+    result_type = StepResult
+    final_type = FinalAnswer
 
-    async def produce(self, call: ProduceCall) -> None:
-        context = call.context
-        goal = call.trigger
-        if goal is None or context.list_artifacts(PlanStep):
-            return None  # not a Goal, or already planned (§42)
-        steps = await plan_steps(goal.data.text)  # structured LLM, or a fallback
-        for index, instruction in enumerate(steps):
-            effects.create(PlanStep(index=index, instruction=instruction), ...)
+    async def plan(self, context, goal): ...
+    async def execute_step(self, context, step, history): ...
+    async def finish(self, context, goal, results): ...
 
 
-class Executor(Produce[StepResult]):
-    artifact_type = StepResult
-
-    async def produce(self, call: ProduceCall) -> None:
-        context = call.context
-        steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
-        for step in steps:
-            if context.get(f"result:{step.id}") is not None:
-                continue  # already executed
-            if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
-                return None  # wait for the predecessor's result (§69)
-            effects.create(StepResult(...), id=f"result:{step.id}")
-            return None  # one step per generation; the next result re-triggers us
+class FlowAgent(Agent):
+    steps = Flow().produces()
 ```
 
-The key move: the executor does **not** branch on `event.artifact_id` the way
-a per-chunk map-reduce produce does — it recomputes "which step is next" from
-state on every trigger (consuming both `PlanStep` and `StepResult`), the same
-"eligibility is a state decision" idiom a combine step uses. That
-`if step.data.index > 0 and ... is None: return None` guard is the entire
-sequencing mechanism — no explicit control-flow graph, no manual "wait for
-node N" wiring. A `Finisher` step mirrors a combine step: wait
-until every step has a result, then synthesize the final answer.
-
-See `reactifact.recipes.PlanExecute` for the full pattern (structured planning with a
-deterministic single-step fallback, and the finisher).
+`PlanExecute` runs exactly one step per generation and re-triggers itself from
+the new `StepResult`; the last result triggers `finish`. See
+`tests/test_recipe_plan_execute.py` for the runnable cases.
 
 ## Correlating across artifact types
 
@@ -275,7 +253,7 @@ deterministic single-step fallback, and the finisher).
 type — it can't look at a *different* type's instance to decide whether to
 fire. The real cases that need that ("a `Report` and its answered
 `PendingQuestion` exist for the same thread", "no `HelpdeskTicket` has been
-filed for this thread yet") used to get hand-rolled *inside* `produce()`,
+filed for this thread yet") used to get hand-rolled *inside* `run()`,
 exactly the guard logic `consumes` exists to keep out of there.
 `reactifact.consume.CorrelatedConsume` (and its two single-purpose factories)
 puts that back where it belongs — on the class declaration:
@@ -291,13 +269,13 @@ class ApprovalGate(Agent):
             part_conditions={PendingQuestion: lambda d: d.answered},
         ),
     ]
-    produces = [RecordApproval()]
+    steps = [RecordApproval()]
 
 class TicketGate(Agent):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
     ]
-    produces = [FileTicket()]
+    steps = [FileTicket()]
 ```
 
 `JoinConsume(*parts, key=...)` fires once every listed type exists for the
@@ -306,86 +284,78 @@ only where no matching `absent_type` exists yet for the same key. Both are
 thin factories over `CorrelatedConsume(require=..., forbid=...)` — reach for
 `CorrelatedConsume` directly when a case needs *both* at once (required
 present **and** forbidden absent), which neither factory alone can express
-without nesting one inside the other. `produce()` reads `inputs` the same
+without nesting one inside the other. the step reads `inputs` the same
 way it would read a mixed list from several ordinary `Consume`s — no
 `isinstance`/scan guard needed inside the body.
 
-## Reacting to only one of several triggers
+## Selecting one of several triggers
 
-An agent with several `consumes` and several `produces` runs *every*
-produce on *every* matching event by default — `Agent.execute()` has no idea
-which of an agent's `Consume`s a given produce actually cares about. Without
-`reacts_to`, every produce ends up guarding itself by hand:
-
-```python
-async def produce(self, call: ProduceCall) -> None:
-    if call.event is None or not isinstance(call.trigger.data, ResolvedDocuments):
-        return None
-    ...
-```
-
-Declare `reacts_to = (TheType,)` on the `Produce` instead and
-`Agent.execute()` skips calling `produce()` at all for an event none of
-`reacts_to` matches:
+Each step owns its consume contract, so an agent with several steps does not
+need a global `reacts_to`: a step that consumes `ResolvedDocuments` simply does
+not run for a `DecisionReply` event.
 
 ```python
-class FinalizeWithDocuments(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
-    ...
+class FinalizeWithDocuments(Step):
+    consumes = (ResolvedDocuments,)
+    produces = (DraftAnswer,)
 
-class DirectFinalize(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (DecisionReply,)
-    ...
+    async def run(self, docs: Artifact[ResolvedDocuments]) -> DraftAnswer:
+        return DraftAnswer(query_id=docs.data.query_id, source="documents")
 
-class FinalAgent(Agent):
-    consumes = [Consume(ResolvedDocuments), Consume.by_field(DecisionReply, "route_action", "final")]
-    produces = [FinalizeWithDocuments(), DirectFinalize()]
+
+class DirectFinalize(Step):
+    consumes = (DecisionReply,)
+    produces = (DraftAnswer,)
+
+    async def run(self, reply: Artifact[DecisionReply]) -> DraftAnswer:
+        return DraftAnswer(query_id=reply.data.query_id, source="direct")
 ```
 
-This is exactly the shape that rules out reusing `artifact_type` for both
-directions: two produces here share one output type (`DraftAnswer`) but
-react to two different upstream events. `None` (the default) stays
-unrestricted — every existing `Produce` without `reacts_to` is unaffected.
+For conditional selectors, use `Consume.by_field`/`by_status` or
+`Annotated[T, When(...)]` on the step. The runtime skips the step entirely for
+events outside its contract, so the body needs no type guard. A DELETED event on
+the step's own consumed type is the one exception: `trigger` is `None` there
+(the data is gone); use `call.event`/`event: Event` when reacting to deletions.
 
-Once `reacts_to` narrows *which* event runs a produce, resolving that event's
-own artifact (`call.trigger`) is a real guarantee, not best-effort
-convenience — this is what actually removes the guard body entirely, not
-just the type check:
+## Reacting to deletions
+
+`Consume` listens to CREATED/UPDATED by default. A step that must react when an
+artifact disappears includes the event type explicitly:
 
 ```python
-class FinalizeWithDocuments(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
+from reactifact import Artifact, Consume, Context, Effects, Event, EventType, Step
 
-    async def produce(self, call: ProduceCall) -> None:
-        effects.create(
-            DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
-        )
+class ResetPlan(Step):
+    consumes = (
+        Consume(PlanStep, event_types=(EventType.ARTIFACT_DELETED,)),
+    )
+    produces = (Project,)
+
+    async def run(
+        self,
+        context: Context,
+        event: Event,
+        effects: Effects,
+    ) -> None:
+        assert context.get(event.artifact_id) is None
+        project = context.latest(Project)
+        if project is not None:
+            effects.update(project, plan=[], stage="plan")
 ```
 
-For a CREATED/UPDATED/STALE event, `Agent.execute()` skips calling
-`produce()` at all if `context.get(event.artifact_id)` no longer resolves —
-the artifact was deleted by another agent earlier in the same generation
-(the race `Trigger.matches()` already documents) — so `call.trigger` is
-never `None` when this produce actually runs, and the body needs no guard at
-all. A DELETED event on the produce's own `reacts_to` type is the one
-exception: `context.get(...)` correctly returning `None` *is* the event
-there, not a race, so the produce still runs, with `call.trigger` set to
-`None` — handle that yourself if you're reacting to deletions. Without
-`reacts_to`, `call.trigger` is still resolved and passed whenever
-`call.event` isn't `None`, but purely as a convenience — there's no per-type
-contract to enforce, so it never gates the call.
+Two rules for deletion-reactive steps:
 
-Not a reason to make `reacts_to` mandatory, though: several patterns above
-(`Combine`, `Finisher`, the plan-execute `Executor`) genuinely react
-uniformly across several consumed types by design — forcing a `reacts_to`
-declaration on them would be ceremony, not explicitness. `call.event` also
-still carries `artifact_id`/`artifact_type` after a DELETED event, when
-`call.trigger` necessarily can't (the data is gone) — keep `call.event`
-around for anything that needs to know *what* was deleted, not just that
-something was.
+- There is **no trigger artifact** — the data is gone. Take `event: Event`
+  (or `call.event`), not `Artifact[T]`; use `event.artifact_id` /
+  `event.artifact_type`.
+- The version store keeps history: `ctx.get(id)` is `None`, while
+  `ctx.version_history(id)` / `find_versions(...)` still return prior versions.
+
+Caveat: today `Context.delete()` emits only `ARTIFACT_DELETED` and does **not**
+mark dependents `STALE` (unlike `update()`). If deleting an input should
+invalidate derived artifacts, either handle it in an explicit
+deletion-reactive step or mark those dependents stale yourself. Treat this as
+the deletion contract until the core grows delete→stale invalidation.
 
 ## Reading input without waking up on it
 

@@ -30,7 +30,7 @@ async with mcp_stdio_tools(
     fs_agent = create_agent(
         "fs",
         consumes=[Consume(Question)],
-        produces=[ToolUse("Answer questions about files in /tmp.", tools)],
+        steps=[ToolUse("Answer questions about files in /tmp.", tools)],
     )
     # tools (and fs_agent) stay callable for the life of the `async with` block
 ```

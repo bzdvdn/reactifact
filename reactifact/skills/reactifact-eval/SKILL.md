@@ -17,7 +17,7 @@ provider-agnostic and need no hosted store.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Consume, Context, FakeLLM, Produce, Runtime, RuntimeResources, create_agent,
+    Agent, Context, Effects, FakeLLM, Runtime, RuntimeResources, Step, create_agent,
 )
 from reactifact.eval import (
     Dataset, answer_present, evaluate, from_metric, judge_relevance,
@@ -33,14 +33,19 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Produce[Answer]):
-    artifact_type = Answer
+class Answerer(Step):
+    consumes = (Question,)
+    produces = (Answer,)
 
-    async def produce(self, call):
-        call.effects.create(Answer(text=call.trigger.data.text.upper()))
+    async def run(self, question: Question, effects: Effects) -> None:
+        effects.create(Answer(text=question.text.upper()))
 
 
-agent = create_agent("answerer", consumes=[Consume(Question)], produces=[Answerer()])
+class AnswerAgent(Agent):
+    steps = [Answerer()]
+
+
+agent = AnswerAgent()
 
 
 def target(inputs):

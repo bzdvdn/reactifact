@@ -16,7 +16,7 @@ If you only take one idea away:
 
 | You have (LangGraph / LangChain / CrewAI / LlamaIndex) | reactifact |
 | --- | --- |
-| node + `add_edge` / `add_conditional_edges` | a `Produce` + a `Consume(Type)` — the edge *is* "who consumes this type" |
+| node + `add_edge` / `add_conditional_edges` | a `Step` + a `Consume(Type)` — the edge *is* "who consumes this type" |
 | a shared `TypedDict`/dict state, mutated by nodes | typed, versioned `Artifact`s in the `Context` |
 | reducer (`Annotated[list, add]`) | `effects.create/update/link(...)` compiled into one atomic `Patch` |
 | checkpointer / thread state | `Context` (git-like), `Session`/`SessionStore`, `context.branch()`/`merge()` |
@@ -43,11 +43,11 @@ graph.add_edge(START, "classify")
 graph.add_edge("classify", "answer")
 ```
 
-On reactifact the *edges disappear* — they become `consume`/`produce`:
+On reactifact the *edges disappear* — they become `consumes`/`produces`:
 
 ```python
 from pydantic import BaseModel
-from reactifact import Consume, Produce, ProduceCall, produce
+from reactifact import StepCall, step
 
 
 class Question(BaseModel):
@@ -63,32 +63,25 @@ class Reply(BaseModel):
     text: str
 
 
-@produce(Route)
-async def classify(call: ProduceCall) -> None:
+@step(produces=Route, consumes=Question)
+async def classify(call: StepCall) -> None:
     question = call.trigger
-    if question is None or not isinstance(question.data, Question):
-        return None
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
     call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
-@produce(Reply)
-async def answer(call: ProduceCall) -> None:
-    route = call.trigger  # this produce runs because a Route was created
-    if route is None or not isinstance(route.data, Route):
-        return None
+@step(produces=Reply, consumes=Route)
+async def answer(call: StepCall) -> None:
+    route = call.trigger  # this step runs because a Route was created
     # ... call the model with run-scoped input ...
     call.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
 ```
 
 ```python
-from reactifact import Consume, Context, Runtime, create_agent
+from reactifact import Context, Runtime, create_agent
 
-answerer = create_agent(
-    "answerer",
-    consumes=[Consume(Reply)],       # the "edge" from classify to answer
-    produces=[answer],
-)
+classifier = create_agent("classifier", steps=[classify])
+answerer = create_agent("answerer", steps=[answer])
 ```
 
 Two things to notice, because they're the migration's real work:
@@ -192,7 +185,7 @@ the agents.
 ## 10. Migration checklist
 
 - [ ] Every intermediate value is a **typed `Artifact`**, not a dict/`TypedDict`.
-- [ ] Each unit is a `Produce` that declares `consumes`/`produces`; no node calls
+- [ ] Each unit is a `Step` that declares `consumes`/`produces`; no node calls
       another directly.
 - [ ] Eligibility is a guard (`return None`), not a scheduling order.
 - [ ] Ids are **stable and re-derivable** (`f"answer:{qid}"`,
@@ -212,7 +205,7 @@ the agents.
 - **There is no `add_edge`.** If you find yourself wanting one, the edge is a
   `Consume(ProducedType)` on the downstream agent.
 - **`effects`, not `return patch`.** Write `effects.*` and return `None`; the
-  runtime compiles the effect set into one atomic commit (`Produce` returning a
+  runtime compiles the effect set into one atomic commit (`Step` returning a
   `Patch` is the low-level escape hatch, not the idiom).
 - **Artifacts aren't messages.** Model input is built from a `context.view(...)`
   / consumed artifacts, not a free-floating string list.

@@ -31,7 +31,7 @@ async with mcp_stdio_tools(
     fs_agent = create_agent(
         "fs",
         consumes=[Consume(Question)],
-        produces=[ToolUse("Отвечай на вопросы о файлах в /tmp.", tools)],
+        steps=[ToolUse("Отвечай на вопросы о файлах в /tmp.", tools)],
     )
     # tools (и fs_agent) работают, пока открыт блок `async with`
 ```

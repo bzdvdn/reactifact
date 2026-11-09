@@ -31,7 +31,7 @@ Register sources on `RuntimeResources(sources={...})`; an agent retrieves via
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Consume, Context, Produce, Runtime, RuntimeResources, create_agent,
+    Context, Effects, Runtime, RuntimeResources, Step, create_agent,
 )
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import Source, SourceRef
@@ -68,16 +68,16 @@ class MemorySource(Source):
         return self._docs[int(ref.locator)]
 
 
-class Scout(Produce[Note]):
-    artifact_type = Note
-    also_creates = (SourceRef,)  # fan_out_sources also writes SourceRef artifacts
+class Scout(Step):
+    consumes = (Question,)
+    produces = (Note, SourceRef)  # fan_out_sources also writes SourceRef artifacts
 
-    async def produce(self, call):
-        refs = await fan_out_sources(
-            call.context, call.trigger.data.text, owner_id="q1"
-        )
+    async def run(
+        self, context: Context, question: Question, effects: Effects
+    ) -> None:
+        refs = await fan_out_sources(context, question.text, owner_id="q1")
         for ref in refs:
-            call.effects.create(Note(text=f"{ref.title} (score={ref.score})"))
+            effects.create(Note(text=f"{ref.title} (score={ref.score})"))
 
 
 ctx = Context(
@@ -86,7 +86,7 @@ ctx = Context(
     )
 )
 ctx.create(Question(text="gpu costs"))
-agent = create_agent("scout", consumes=[Consume(Question)], produces=[Scout()])
+agent = create_agent("scout", steps=[Scout()])
 asyncio.run(Runtime(ctx, agents=[agent]).arun())
 
 assert ctx.list_artifacts(Note)              # ranked hits became artifacts
@@ -147,4 +147,4 @@ LLM calls.
 
 - `references/sources.md` — every source, `SourceRef`, and `fan_out_sources`.
 - `docs/en/sources.md`, `docs/en/recipes.md`.
-- Examples: `examples/knowledge`, `examples/research`, `examples/map_reduce`.
+- Examples: `examples/knowledge`, `examples/fintech_audit`.

@@ -62,21 +62,21 @@ created as an artifact (so it is versioned, traced and consumable downstream):
 
 ```python
 # not-run: illustrative — define Question/Sentiment for real
-from reactifact import Consume, create_agent
+from reactifact import Consume
 from reactifact.llm_agent import StructuredGenerateAgent
 
 
 class Classify(StructuredGenerateAgent):
+    name = "classify"
     schema = Sentiment
     consumes = [Consume(Question)]
-    produces = []  # StructuredGenerateAgent creates schema instances itself
 
     def build_prompt(self, inputs):
         question = inputs[0].data
         return f"Classify the sentiment of: {question.text}"
 
 
-agent = create_agent("classify", consumes=[Consume(Question)], produces=[Classify()])
+agent = Classify()
 ```
 
 Override `fallback(inputs) -> schema | None` for a deterministic path when the
@@ -92,7 +92,7 @@ signature):
 
 ```python
 # not-run: illustrative
-from reactifact import Consume, create_agent
+from reactifact import Consume
 from reactifact.llm_agent import LLMAgent
 from reactifact.tools import tool
 
@@ -109,7 +109,7 @@ class Researcher(LLMAgent):
     consumes = [Consume(Question)]
 
 
-agent = create_agent("researcher", consumes=[Consume(Question)], produces=[])
+agent = Researcher()
 ```
 
 Mark a tool `destructive=True` to route it through the human-approval gate.

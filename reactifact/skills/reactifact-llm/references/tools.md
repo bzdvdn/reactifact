@@ -54,7 +54,7 @@ loop, `temperature`/`max_tokens` override provider defaults, and
 of the first steps' schema and reveal them later — a simple two-stage
 toolset.
 
-`ToolUse` (a `Produce[ToolAnswer]`) is the underlying produce if you want to
+`ToolUse` (a `Step[ToolAnswer]`) is the underlying step if you want to
 compose the loop yourself; `ToolUseHITL` is the reactive variant that can pause
 for a human. Their artifacts — `ToolAnswer`, `Observation`, `PendingQuestion` —
 are ordinary types you can consume downstream.

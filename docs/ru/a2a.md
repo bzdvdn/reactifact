@@ -25,7 +25,7 @@ task = await client.send("Summarise the incident")
 print(task.status.state, task.artifacts[0].parts[0].text)
 
 researcher = A2AAgentTool(client, name="researcher")
-# agent = create_agent("lead", consumes=[Consume(Question)], produces=[...researcher...])
+# agent = create_agent("lead", steps=[...researcher...])
 ```
 
 Ещё у `A2AClient` есть `stream(message)` (асинхронный итератор событий
@@ -56,7 +56,7 @@ Runtime(ctx, agents=[translator, …]).arun()
 `PendingQuestion`; последующий `context.resume(...)` продолжает *тот же*
 удалённый таск и кладёт финальный артефакт. Передайте `message_of=` (вход → текст)
 и `build_output=` (ответ, вход → артефакт), если у типов нет поля `text`. Ниже
-уровнем лежит `A2ARemoteProduce` — тот самый `Produce`.
+уровнем лежит `A2ARemoteStep` — тот самый `Step`.
 
 ## Выставить reactifact-агентов
 

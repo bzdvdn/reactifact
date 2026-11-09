@@ -70,7 +70,7 @@ artifacts with `patch.link` provenance edges, §34), and `/sessions`. The
 ![Traces list: filterable by outcome and session, each row showing duration and span count.](../img/tracer-list.png)
 
 Opening a run shows work grouped by agent (span count, artifact types touched,
-and a `Consume → Produce` flow: the artifact type that triggered the agent, then
+and a `Consume → Step` flow: the artifact type that triggered the agent, then
 which produce ran with its authored-operation count — no-op produces dimmed) and
 the full sequence diagram — here the `devops` example's HITL ask/resume flow:
 `k8s` calls the model across several `artifact_created` spans, then `render`
@@ -194,7 +194,7 @@ runtime = Runtime(
 Spans are delivered once per turn end (delivery-once semantics); the Langfuse
 tracer maps read/write summaries into `input`/`output`, so the timeline is
 readable in their UI; each produce the agent ran also becomes a child
-observation, so the waterfall shows the `Consume → Produce` steps. The SQLite
+observation, so the waterfall shows the `Consume → Step` steps. The SQLite
 `TraceStore` stays a source for the web dashboard; Postgres mirrors the same
 `runs`/`spans` schema.
 
@@ -399,7 +399,7 @@ observation is fed to the LLM and recorded on `ToolLoopResult.observations`.
 
 ## Progress events (UI reactivity)
 
-For the animated "Думаю… / Составляю план… / Считаю смету…" lines, `Produce`s
+For the animated "Думаю… / Составляю план… / Считаю смету…" lines, `Step`s
 call `context.announce(message, kind=..., **payload)`. Those become
 `ProgressEvent`s on the `EventHub`, which the runtime yields to the SSE stream:
 

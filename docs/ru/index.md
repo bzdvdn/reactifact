@@ -30,7 +30,7 @@ Python-разработчик уже знает эту модель по Celery:
 
 | Celery | reactifact |
 | --- | --- |
-| задача (task) | `@produce(Model)` — единица работы, пишущая артефакт |
+| задача (task) | `Step` / `@step(produces=Model, consumes=Input)` — единица работы, пишущая артефакт |
 | `delay()` / `apply_async()` | вызывать не нужно: создание входного артефакта **и есть** триггер |
 | routing key / очередь | `Consume(Type)` — какой тип артефакта будит задачу |
 | chain / group / chord | несколько `consumes` / `produces`; порядок рантайм выводит сам |
@@ -80,33 +80,34 @@ CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──effects�
 | Программа идёт по графу/плану    | Агенты **реагируют на изменения состояния**                       |
 | Сообщения — строки               | **Типизированные артефакты** (`Claim`, `Evidence`, `Answer`, …)   |
 | Оркестрация явная                | Оркестрация **выводится из состояния**                            |
-| Компонент _возвращает_ результат | Produce **пишет effects** (`effects`) — компилирует runtime  |
+| Компонент _возвращает_ результат | Step **пишет effects** (`effects`) — компилирует runtime  |
 | Ретраи/откаты вручную            | Контекст **версионируется** (коммиты как в git, diff, rollback)   |
 | «Кто это произвёл?» теряется     | **Провенанс** связывает каждый производный артефакт с его входами |
 
 ## Почему effects вместо «вернуть изменение»?
 
-В центре цикла — то, как produce вносит изменение. Многие фреймворки просят производителя _вернуть_ результат, а какой-то оркестратор применяет его.
-reactifact переворачивает авторство: produce **формулирует, что должно
-измениться**, через `effects` (create / update / link / ask) и возвращает
-`None`; runtime компилирует набор эффектов в один атомарный патч — либо
-применяется весь шаг, либо ничего.
+В центре цикла — то, как шаг вносит изменение. Многие фреймворки просят
+единицу работы _вернуть_ результат, а какой-то оркестратор применяет его.
+reactifact переворачивает авторство: шаг **формулирует, что должно
+измениться**, через `effects` (create / update / link / ask); runtime
+компилирует набор эффектов в один атомарный патч — либо применяется весь шаг,
+либо ничего.
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
+async def run(self, doc: Document, turn: Turn, effects: Effects) -> Answer:
     evidence = effects.create(Evidence(...), id="evidence:q1")
     answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
     effects.update(turn, status="answered")
-    return None
+    return answer
 ```
 
 Поскольку handle — это объекты, а не id, одно выражение может ссылаться на
 артефакт, созданный другим. А так как компиляцией владеет runtime, ручной
 сборки `Patch` не бывает. Участие человека — просто ещё один эффект
 (`effects.ask(...)`). Подробнее — в [Почему reactifact](why-reactifact.md) и в
-[контракте produce](effects.md).
+[контракте шага](effects.md).
 
 ## Почему артефакты вместо сообщений?
 
@@ -138,7 +139,7 @@ _«почему агент так сказал?»_, проходя по связ
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Consume, Context, Runtime, RuntimeResources, create_agent, produce
+from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
 
 
 class Question(BaseModel):
@@ -159,26 +160,22 @@ DOCS = {
 }
 
 
-@produce(Evidence)
+@step(produces=Evidence, consumes=Question)
 async def find_evidence(call):
-    question = next((a for a in call.inputs if isinstance(a.data, Question)), None)
-    if question is None:
-        return None
+    question = call.trigger
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
     if hit is not None:
         call.effects.create(Evidence(text=hit))
 
 
-@produce(Answer)
+@step(produces=Answer, consumes=Evidence)
 async def answer_from_evidence(call):
-    evidence = next((a for a in call.inputs if isinstance(a.data, Evidence)), None)
-    if evidence is None:
-        return None
+    evidence = call.trigger
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", consumes=[Consume(Question)], produces=[find_evidence])
-answer_agent = create_agent("answer", consumes=[Consume(Evidence)], produces=[answer_from_evidence])
+search_agent = create_agent("search", steps=[find_evidence])
+answer_agent = create_agent("answer", steps=[answer_from_evidence])
 
 ctx = Context(resources=RuntimeResources())
 runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
@@ -209,7 +206,7 @@ print("supported_by:", evidence.data.text)  # провенанс, который
   без графа, почему детерминизм, почему версионируемое состояние.
 - [Сравнение](comparison.md) — reactifact vs LangGraph/CrewAI по пунктам, и когда
   reactifact *не* стоит использовать.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Agent, Produce.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
 
 **Строить на этом**
 

@@ -119,7 +119,7 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
   прогресс-аннонсов.
 - Переход — это эффект: `effects.update(target, **{status_field: new})`.
 
-Логику *проверки* кладите в отдельный `produce`, реагирующий на смену статуса, —
+Логику *проверки* кладите в отдельный шаг, реагирующий на смену статуса, —
 машина и верификатор разделены, детерминированы и тестируются по отдельности.
 `EvaluateTurn` в примерах knowledge/research — канонический образец этого
 рецепта.
@@ -127,7 +127,7 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
 ## `WindowSummarizer` / `WindowPruner` — ограниченная память диалога (§27, §37)
 
 Долгоживущая память чата — это просто состояние: артефакты-сообщения
-накапливаются, а два обычных `Produce` держат окно ограниченным — саммарайзер
+накапливаются, а два обычных шага держат окно ограниченным — саммарайзер
 сжимает недавнее окно каждые N сообщений, прунер удаляет то, что вышло за
 границы. Рецепт владеет размером окна, периодичностью и идемпотентностью;
 домен владеет тем, *как* суммировать и *как выглядит* артефакт саммари:
@@ -148,7 +148,7 @@ def build_summary(round_no: int, text: str) -> Summary:
 class Flow(Agent):
     name = "chat"
     consumes = [Consume(Msg)]
-    produces = [
+    steps = [
         WindowSummarizer(
             Msg, Summary,
             summarize=llm_summarizer("Сожми недавний диалог в короткую заметку-память."),
@@ -199,7 +199,7 @@ def build_digest(text: str) -> Digest:
 class Flow(Agent):
     name = "chat"
     consumes = [Consume(Msg)]
-    produces = [
+    steps = [
         RollingDigestSummarizer(
             Msg, Digest,
             summarize=llm_digest_summarizer("Fold the new messages into the running memory note."),
@@ -386,7 +386,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
 
 class FlowAgent(Agent):
     consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-    produces = Flow().produces()
+    steps = Flow().produces()
 ```
 
 - `step_type`/`result_type` должны нести поля `goal_field`/`index_field`
@@ -398,8 +398,7 @@ class FlowAgent(Agent):
 - Провенанс: финальный артефакт линкуется `supported_by` → на каждый
   результат шага (§34).
 
-Рабочие кейсы — `tests/test_recipe_plan_execute.py` (сравните с
-`produce.py`+`agents.py` в той же папке).
+Рабочие кейсы — `tests/test_recipe_plan_execute.py`.
 
 ## `Router` / `ApprovalGate` — классификация, затем подтверждение перед финализацией (§60, §67)
 
@@ -445,12 +444,12 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
 class Flow(Agent):
     consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                 Consume(PendingQuestion)]
-    produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
-                Produce(PendingQuestion)]  # расширяет разрешённые Create-типы (§ verify.py)
+    steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
+             Step(PendingQuestion)]  # расширяет разрешённые Create-типы (§ verify.py)
 ```
 
 `Specialist` — собственно работа маршрута — остаётся полностью вашим
-`Produce`; в «что делает маршрут» нет ничего обобщаемого.
+`Step`; в «что делает маршрут» нет ничего обобщаемого.
 
 Рабочие кейсы — `tests/test_recipe_supervisor.py`.
 
@@ -482,7 +481,7 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
 
 class Flow(Agent):
     consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-    produces = MyLoop().produces()
+    steps = MyLoop().produces()
 ```
 
 - `draft_type` должен нести `topic_field`/`round_field`/`status_field`

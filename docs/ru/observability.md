@@ -71,7 +71,7 @@ app.include_router(create_trace_router(store), prefix="/traces")
 ![Список трейсов: фильтр по outcome и session, у каждой строки — длительность и число спанов.](../img/tracer-list.png)
 
 Открытый запуск показывает работу по агентам (число спанов, типы затронутых
-артефактов и поток `Consume → Produce`: тип-потребитель, разбудивший агента,
+артефактов и поток `Consume → Step`: тип-потребитель, разбудивший агента,
 затем отработавший produce с числом его операций — no-op produces приглушены) и
 полную sequence-диаграмму — здесь HITL ask/resume поток примера `devops`: `k8s`
 несколько раз вызывает модель через `artifact_created`-спаны, затем `render`
@@ -197,7 +197,7 @@ runtime = Runtime(
 Трейсы доставляются один раз в конце хода (семантика доставки-один-раз); трейсер
 Langfuse мапит суммарные чтения/записи в `input`/`output`, чтобы таймлайн читался
 в их UI; каждый отработавший produce становится дочерней observation, так что
-waterfall показывает шаги `Consume → Produce`. SQLite `TraceStore` остаётся одним
+waterfall показывает шаги `Consume → Step`. SQLite `TraceStore` остаётся одним
 из источников для веб-дашборда; Postgres зеркалирует ту же схему `runs`/`spans`.
 
 И `TraceStore`, и `PostgresStore` реализуют `TraceReader` (async `query`/`get`),
@@ -404,7 +404,7 @@ resources = RuntimeResources(llm=from_env(), redactor=RegexRedactor())
 
 ## События прогресса (реактивность UI)
 
-Для анимированных строк «Думаю… / Составляю план… / Считаю смету…» `Produce`
+Для анимированных строк «Думаю… / Составляю план… / Считаю смету…» `Step`
 вызывают `context.announce(message, kind=..., **payload)`. Это превращается в
 `ProgressEvent` на `EventHub`, который runtime отдаёт в SSE-поток:
 

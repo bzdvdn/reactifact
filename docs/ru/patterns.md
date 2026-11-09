@@ -29,7 +29,7 @@ class PendingQuestion(BaseModel):
     notes: dict[str, Any] = {}     # маршрутизация ("какой агент спросил")
 ```
 
-Produce создаёт его через `effects.ask(...)`, а ответ человека приходит
+Шаг создаёт его через `effects.ask(...)`, а ответ человека приходит
 через `effects.resume(...)` (эффект, помечающий `PendingQuestion` отвеченным,
 §60):
 
@@ -56,21 +56,21 @@ return None
 
 ## Outbox: внешние side effects
 
-Produce никогда не должен сам выполнять внешний I/O — отправлять письмо,
+Шаг никогда не должен сам выполнять внешний I/O — отправлять письмо,
 дёргать webhook, деплоить. Он записывает **намерение**, а runtime выполняет его
 один раз после коммита намерения:
 
-![Outbox: produce записывает PendingAction (без I/O), runtime коммитит его, и только после коммита dispatcher один раз вызывает внешний мир на стабильный id. Replay, retry и merge пересобирают состояние из цепочки коммитов и ничего не пересылают.](../img/outbox-flow.svg)
+![Outbox: шаг записывает PendingAction (без I/O), runtime коммитит его, и только после коммита dispatcher один раз вызывает внешний мир на стабильный id. Replay, retry и merge пересобирают состояние из цепочки коммитов и ничего не пересылают.](../img/outbox-flow.svg)
 
 ```python
-from reactifact import PendingAction, Runtime
+from reactifact import Artifact, Effects, PendingAction, Runtime, Step
 
 
-class Notify(Produce[Receipt]):
-    artifact_type = Receipt
+class Notify(Step):
+    consumes = (Order,)
+    produces = (Receipt,)
 
-    async def produce(self, call: ProduceCall) -> None:
-        order = call.trigger
+    async def run(self, order: Artifact[Order], effects: Effects) -> None:
         # стабильный ключ из содержания -> идемпотентные перезапуски и merge
         effects.act(
             "notify",
@@ -78,7 +78,6 @@ class Notify(Produce[Receipt]):
             payload={"to": order.data.email, "order": order.data.id},
         )
         effects.create(Receipt(order_id=order.data.id), id=f"receipt:{order.data.id}")
-        return None
 
 
 async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
@@ -123,7 +122,7 @@ Runtime дренирует каждый закоммиченный, но ещё 
 агентов:
 
 ```python
-from reactifact import Consume, Produce
+from reactifact import Consume, Step
 from reactifact.llm_agent import HITLLMAgent
 
 class OpsAgent(HITLLMAgent):
@@ -133,7 +132,7 @@ class OpsAgent(HITLLMAgent):
     max_steps = 8
     max_asks = 2
     consumes = [Consume(Project)]
-    produces = [Produce(Report)]
+    steps = [Step(Report)]
 ```
 
 - `LLMAgent` — блокирующий цикл: LLM отдаёт `tool_call`, runtime выполняет
@@ -226,51 +225,29 @@ body = await structured_llm(context, schema=AnswerBody, user=text, on_error=aler
 
 ## Plan-and-execute: план, затем шаг за шагом
 
-Для цели, которая раскладывается на упорядоченную последовательность
-*зависимых* шагов (в отличие от независимых чанков map-reduce выше), разделите
-планирование и выполнение на два produce вместо одного большого tool-loop:
+Для цели, которая раскладывается в упорядоченную последовательность зависимых
+шагов, используйте рецепт `PlanExecute`. Он владеет порядком, гейтингом,
+идемпотентным повторным входом и завершением; домен поставляет три хука:
 
 ```python
-class Planner(Produce[PlanStep]):
-    artifact_type = PlanStep
+class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
+    goal_type = Goal
+    step_type = PlanStep
+    result_type = StepResult
+    final_type = FinalAnswer
 
-    async def produce(self, call: ProduceCall) -> None:
-        context = call.context
-        goal = call.trigger
-        if goal is None or context.list_artifacts(PlanStep):
-            return None  # не Goal, либо план уже построен (§42)
-        steps = await plan_steps(goal.data.text)  # structured LLM или фолбэк
-        for index, instruction in enumerate(steps):
-            effects.create(PlanStep(index=index, instruction=instruction), ...)
+    async def plan(self, context, goal): ...
+    async def execute_step(self, context, step, history): ...
+    async def finish(self, context, goal, results): ...
 
 
-class Executor(Produce[StepResult]):
-    artifact_type = StepResult
-
-    async def produce(self, call: ProduceCall) -> None:
-        context = call.context
-        steps = sorted(context.list_artifacts(PlanStep), key=lambda s: s.data.index)
-        for step in steps:
-            if context.get(f"result:{step.id}") is not None:
-                continue  # уже выполнен
-            if step.data.index > 0 and context.get(f"result:{steps[step.data.index-1].id}") is None:
-                return None  # ждём результат предыдущего шага (§69)
-            effects.create(StepResult(...), id=f"result:{step.id}")
-            return None  # один шаг за поколение; следующий результат перезапустит нас
+class FlowAgent(Agent):
+    steps = Flow().produces()
 ```
 
-Ключевой момент: исполнитель **не** ветвится по `event.artifact_id`, как это
-делает поштучный produce в map-reduce — он на каждом триггере заново вычисляет
-«какой шаг следующий» из состояния (подписан и на `PlanStep`, и на
-`StepResult`) — тот же идиом «допустимость — решение по состоянию», что и у
-`Combine` в `map_reduce`. Гард `if step.data.index > 0 and ... is None: return
-None` — это и есть весь механизм упорядочивания: без явного графа
-управления, без ручной проводки «жди узел N». Produce `Finisher` зеркалит
-`Combine` из `map_reduce`: ждёт результата каждого шага, затем собирает
-финальный ответ.
-
-Полный паттерн — в `reactifact.recipes.PlanExecute` (структурированное планирование с
-детерминированным однотаговым фолбэком и финишером).
+`PlanExecute` выполняет ровно один шаг за поколение и перезапускается от
+нового `StepResult`; последний результат запускает `finish`. Рабочие кейсы —
+`tests/test_recipe_plan_execute.py`.
 
 ## Корреляция между типами артефактов
 
@@ -293,13 +270,13 @@ class ApprovalGate(Agent):
             part_conditions={PendingQuestion: lambda d: d.answered},
         ),
     ]
-    produces = [RecordApproval()]
+    steps = [RecordApproval()]
 
 class TicketGate(Agent):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
     ]
-    produces = [FileTicket()]
+    steps = [FileTicket()]
 ```
 
 `JoinConsume(*parts, key=...)` срабатывает, когда для одного ключа существуют
@@ -312,83 +289,75 @@ forbid=...)` — берите `CorrelatedConsume` напрямую, когда �
 `produce()` читает `inputs` так же, как читал бы смешанный список от
 нескольких обычных `Consume` — без `isinstance`-сканирования внутри тела.
 
-## Реакция только на одно из нескольких событий
+## Выбор одного из нескольких триггеров
 
-Агент с несколькими `consumes` и несколькими `produces` по умолчанию
-запускает *каждый* produce на *каждое* подходящее событие —
-`Agent.execute()` не знает, какой из `Consume` агента волнует конкретный
-produce. Без `reacts_to` каждый produce вынужден сам себя гардить:
-
-```python
-async def produce(self, call: ProduceCall) -> None:
-    if call.event is None or not isinstance(call.trigger.data, ResolvedDocuments):
-        return None
-    ...
-```
-
-Вместо этого объявите `reacts_to = (TheType,)` на `Produce`, и
-`Agent.execute()` вообще не вызовет `produce()` для события, которое не
-подходит ни под один тип из `reacts_to`:
+У каждого шага свой контракт `consumes`, поэтому агенту с несколькими шагами не
+нужен глобальный `reacts_to`: шаг, потребляющий `ResolvedDocuments`, просто не
+запускается на событие `DecisionReply`.
 
 ```python
-class FinalizeWithDocuments(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
-    ...
+class FinalizeWithDocuments(Step):
+    consumes = (ResolvedDocuments,)
+    produces = (DraftAnswer,)
 
-class DirectFinalize(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (DecisionReply,)
-    ...
+    async def run(self, docs: Artifact[ResolvedDocuments]) -> DraftAnswer:
+        return DraftAnswer(query_id=docs.data.query_id, source="documents")
 
-class FinalAgent(Agent):
-    consumes = [Consume(ResolvedDocuments), Consume.by_field(DecisionReply, "route_action", "final")]
-    produces = [FinalizeWithDocuments(), DirectFinalize()]
+
+class DirectFinalize(Step):
+    consumes = (DecisionReply,)
+    produces = (DraftAnswer,)
+
+    async def run(self, reply: Artifact[DecisionReply]) -> DraftAnswer:
+        return DraftAnswer(query_id=reply.data.query_id, source="direct")
 ```
 
-Это ровно тот случай, который не даёт переиспользовать `artifact_type` для
-обоих направлений: два produce здесь делят один тип результата
-(`DraftAnswer`), но реагируют на два разных входящих события. `None` (по
-умолчанию) остаётся неограниченным — любой существующий `Produce` без
-`reacts_to` работает как прежде.
+Для условий используйте `Consume.by_field`/`by_status` или
+`Annotated[T, When(...)]` на шаге. Runtime пропускает шаг для событий вне
+контракта, поэтому тело не нуждается в type guard. Исключение — DELETED-событие
+для потребляемого типа: `trigger` там `None` (данных уже нет); используйте
+`call.event`/`event: Event`.
 
-Раз `reacts_to` уже ограничивает, на какое событие запускается produce,
-резолв артефакта этого события (`call.trigger`) — настоящая гарантия, а не
-удобство "на удачу", и именно она убирает гард целиком, а не только
-проверку типа:
+## Реакция на удаление
+
+`Consume` по умолчанию слушает CREATED/UPDATED. Шаг, которому важно исчезновение
+артефакта, явно включает тип события:
 
 ```python
-class FinalizeWithDocuments(Produce[DraftAnswer]):
-    artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
+from reactifact import Artifact, Consume, Context, Effects, Event, EventType, Step
 
-    async def produce(self, call: ProduceCall) -> None:
-        effects.create(
-            DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
-        )
+class ResetPlan(Step):
+    consumes = (
+        Consume(PlanStep, event_types=(EventType.ARTIFACT_DELETED,)),
+    )
+    produces = (Project,)
+
+    async def run(
+        self,
+        context: Context,
+        event: Event,
+        effects: Effects,
+    ) -> None:
+        assert context.get(event.artifact_id) is None
+        project = context.latest(Project)
+        if project is not None:
+            effects.update(project, plan=[], stage="plan")
 ```
 
-Для CREATED/UPDATED/STALE события `Agent.execute()` вообще не вызывает
-`produce()`, если `context.get(event.artifact_id)` больше не резолвится —
-артефакт был удалён другим агентом раньше в том же поколении (та самая
-гонка, которую уже документирует `Trigger.matches()`) — так что
-`call.trigger` никогда не будет `None`, когда этот produce реально
-запустился, и телу не нужен вообще никакой гард. Единственное исключение —
-DELETED-событие для собственного типа `reacts_to` produce: там
-`context.get(...)` корректно возвращает `None` — это и есть событие, а не
-гонка, — так что produce всё равно запускается, но с `call.trigger`, равным
-`None`; такое стоит обработать самостоятельно, если реагируете на удаления.
-Без `reacts_to` `call.trigger` по-прежнему резолвится и передаётся, когда
-`call.event` не `None`, но чисто как удобство — тут нет типового контракта,
-который нужно соблюдать, поэтому это никогда не гейтит вызов.
+Два правила для deletion-reactive шагов:
 
-Но это не повод делать `reacts_to` обязательным: некоторые паттерны выше
-(`Combine`, `Finisher`, `Executor` из plan-execute) намеренно реагируют
-единообразно сразу на несколько потребляемых типов — заставлять их
-объявлять `reacts_to` было бы ритуалом, а не явностью. `call.event` также
-по-прежнему несёт `artifact_id`/`artifact_type` после DELETED-события, когда
-`call.trigger` неизбежно не может (данных уже нет) — оставляйте `call.event`,
-если вам нужно знать, *что именно* удалено, а не просто факт удаления.
+- **Триггерного артефакта нет** — данных уже нет. Принимайте `event: Event`
+  (или `call.event`), а не `Artifact[T]`; используйте `event.artifact_id` /
+  `event.artifact_type`.
+- Version store хранит историю: `ctx.get(id)` — `None`, а
+  `ctx.version_history(id)` / `find_versions(...)` по-прежнему отдают прошлые
+  версии.
+
+Оговорка: сейчас `Context.delete()` эмитит только `ARTIFACT_DELETED` и **не**
+помечает зависимые артефакты `STALE` (в отличие от `update()`). Если удаление
+входа должно инвалидировать производные артефакты, либо обработайте это явным
+deletion-reactive шагом, либо пометьте dependents stale сами. Считайте это
+текущим контрактом удаления до появления delete→stale инвалидации в ядре.
 
 ## Чтение входа без пробуждения на нём
 

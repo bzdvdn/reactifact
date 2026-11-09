@@ -184,11 +184,14 @@ An agent reads a relevant view of the current Context and proposes changes.
 Example:
 
 ```python
-class Researcher(Produce[Evidence]):
-    async def produce(self, call: ProduceCall) -> None:
+class Researcher(Step):
+    consumes = (Task,)
+    produces = (Evidence,)
+
+    async def run(self, task: Task, effects: Effects) -> None:
         effects.create(Evidence(...))
         effects.update(task_id, status="researching")
-        return None   # nothing applied until the runtime compiles the effects
+        # nothing applied until the runtime compiles the effects
 ```
 
 The produce describes what should change (effects); the runtime compiles the
@@ -579,8 +582,7 @@ Minimal conceptual interface:
 
 ```python
 class Agent:
-    async def produce(self, call: ProduceCall) -> None:
-        ...
+    steps: list[Step]
 ```
 
 An Agent may use:
@@ -1209,7 +1211,7 @@ Researcher.capabilities = {
 Capabilities can later be used by an LLM planner or deterministic scheduler.
 
 In the shipped runtime the capability contract is declarative and explicit:
-`consumes`/`produces` artifact types (§10-§11, `Consume`/`Produce`). The
+`consumes`/`produces` artifact types (§10-§11, `Consume`/`Step`). The
 scheduler and the LLM router derive work from these declarations, and the
 runtime validates that an agent only creates artifacts it declared in
 `produces`.
@@ -2522,8 +2524,8 @@ from reactifact import (
     Consume,
     Context,
     Patch,
-    Produce,
     Runtime,
+    Step,
     RuntimeResources,
 )
 from reactifact.sources import FileSystemSource, SourceRef
@@ -2541,37 +2543,41 @@ ctx = Context(
 ctx.create(Question(text="How is authentication implemented?"))
 ```
 
-Agents are thin containers (§48): all logic lives in a `Produce` class that
-writes `effects.create/update/link/ask` and returns `None`; the runtime
-compiles the effects into one `Patch`. `consumes`/`produces` are the artifact
+Agents are thin containers (§48): all logic lives in `Step` classes that write
+`effects.create/update/link/ask` (or return a model); the runtime compiles the
+effects into one `Patch`. `consumes`/`produces` on each step are the artifact
 contracts that drive the scheduler:
 
 ```python
-class Researcher(Produce[Evidence]):
-    artifact_type = Evidence
+class Researcher(Step):
+    consumes = (Question, SourceRef)
+    produces = (Evidence,)
 
-    async def produce(self, call: ProduceCall) -> None:
-        ...  # writes effects.create/update/link/ask, returns None
+    async def run(
+        self, question: Question, ref: Artifact[SourceRef], effects: Effects
+    ) -> None:
+        ...  # writes effects.create/update/link/ask
 
 
-class Verifier(Produce[VerifiedClaim]):
-    artifact_type = VerifiedClaim
+class Verifier(Step):
+    consumes = (Evidence,)
+    produces = (VerifiedClaim,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, evidence: Evidence, effects: Effects) -> None:
         ...
 
 
-class Answerer(Produce[Answer]):
-    artifact_type = Answer
+class Answerer(Step):
+    consumes = (VerifiedClaim,)
+    produces = (Answer,)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, claim: VerifiedClaim, effects: Effects) -> None:
         ...
 
 
 class ResearcherAgent(Agent):
     name = "researcher"
-    consumes = [Consume(Question), Consume(SourceRef)]
-    produces = [Researcher()]
+    steps = [Researcher(), Verifier(), Answerer()]
 
 
 runtime = Runtime(
@@ -2582,7 +2588,7 @@ runtime = Runtime(
 runtime.run()
 ```
 
-`Agent.run` in the framework's terminology is `Produce.produce`:
+`Step.run` in the framework's terminology is the work unit:
 interpret a relevant Context view, describe changes via `effects`, and let
 the runtime compile + apply them.
 
@@ -2719,7 +2725,7 @@ connectors**: application code on top of the `Source` API (typically under
 Implement:
 
 ```python
-Produce.produce(Context) -> None          # writes effects.*; runtime compiles
+Step.run(...) -> Model | None             # writes effects.*; runtime compiles
 # Effects(create/update/link/ask) -▶ Patch: the atomic, validated change
 # plus the thin Agent container: consumes / produces declarations
 ```
@@ -3120,7 +3126,7 @@ Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff cle
 | Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
 | Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
 | GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
-| Agent contract (Produce / Consume containers) | §10-§13, §63 | implemented; `Consume(wakes=False)` reads a type as input without waking on it (the declarative alternative to a hand-synced `Agent.triggers=` override); `Consume(debounce=True)` collapses several same-generation events into one run, costing one against `Budget(max_runs=...)`; `reactifact.consume.CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across two artifact types by a shared key (join / absence-gate) instead of one type's own matching instances alone |
+| Agent contract (Step / Consume containers) | §10-§13, §63 | implemented; `Consume(wakes=False)` reads a type as input without waking on it (the declarative alternative to a hand-synced `Agent.triggers=` override); `Consume(debounce=True)` collapses several same-generation events into one run, costing one against `Budget(max_runs=...)`; `reactifact.consume.CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across two artifact types by a shared key (join / absence-gate) instead of one type's own matching instances alone |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
@@ -3133,45 +3139,35 @@ Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff cle
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent produces); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
-| Produce authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); two canonical authoring styles (subclass, `@produce` function), both taking exactly one argument, `call: ProduceCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects` — replaced the earlier individually-recognized `(context, inputs, event=None)`/by-name-sniffed parameters, one discoverable object instead of a growing parameter list); `.trigger` (the artifact behind `.event`) is a guaranteed non-`None` live artifact when the produce also declares `reacts_to=(Type, …)` — which itself restricts *which* triggering event a produce runs on, for an agent whose several produces don't all care about the same one; `Produce(factory=...)` deprecated, `Agent.run()` override documented as a low-level escape hatch, not a third style |
+| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); class steps take typed inputs + `effects: Effects`, `@step` functions take one `call: StepCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects`); `.trigger` is a live artifact for `consumes`-matched CREATED/UPDATED/STALE events; `Annotated[T, When(...)]`/`Consume.by_*` select conditions; `Agent.run()` override is a low-level escape hatch, not a third style |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |
-| Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which `Produce`(s) ran (`AgentSpan.produces`: name/operations/latency, including a produce that raised), shown as a `Consume → Produce` flow in the dashboard and as child observations in Langfuse |
+| Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which step(s) ran (`AgentSpan.produces`: name/operations/latency, including a step that raised), shown as a `Consume → Step` flow in the dashboard and as child observations in Langfuse |
 | Replay (§55) | §55 | implemented — `ReplayLLM` record/replay, state replay + `python -m reactifact replay` |
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
 | Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which produce/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
-| Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`, `examples/adaptive`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
+| Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
 | Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault **and stub** injection, record/replay, `reactifact scenario` CLI); provenance assertions (`ArtifactAssertions.linked`, `result.relations`), sync `run_sync`/`turn_sync`, golden snapshots (`assert_golden_file`), `result.explain()`, and an opt-in pytest plugin (`reactifact.testing.pytest_plugin`) |
 | MCP integration | — (post-constitution addition) | implemented — `reactifact.mcp`: `mcp_stdio_tools`/`mcp_http_tools` (HTTP with optional auth `headers=`) consume an external server's tools as ordinary `Tool`s; `create_mcp_server` exposes reactifact `Tool`s and, with `context=`, read-only `Context` resources, as an MCP server. Verified over the real protocol (in-memory transport) |
 
 Demos shipped in the repo (not in the wheel):
 
-- `examples/knowledge` — English multi-source chat: search → evidence → claim
+- `examples/knowledge` — multi-source chat: search → evidence → claim
   verification → answer, plus CSV calculation and a web dashboard.
-- `examples/research` — English research agent that *goes to the web*
-  (`WebSource`, live HTTP pages): lazy Reference → Artifact, verified claims,
-  answer with URL provenance (§32, §77).
-- `examples/medic-lab` — English **hypothesis laboratory** (§20, §36, §60):
-  a question spawns competing `Hypothesis` artifacts, each investigated over an
-  evidence pool in a per-hypothesis channel (`hypothesis_id`-tagged refs and
-  facts), scored deterministically by support/contradiction, cross-checked for
-  contradictions, and closed by a human steering pass that either deepens a
-  hypothesis or produces an honest ranked report.
-- `examples/devops` — English ops assistant: HITL tool agents, LLM tool router,
+- `examples/medic_lab` — hypothesis laboratory: competing hypotheses,
+  deterministic scoring, HITL steering, honest report.
+- `examples/devops` — ops assistant: HITL tool agents, LLM tool router,
   run-trace dashboard with auth.
 - `examples/repair` — budget-aware replanning demo. Its **chat and data are
   intentionally Russian** (a deliberate product choice, §68-adjacent); code and
   comments are English.
+- `examples/forklab` — branch/merge state exploration (§39-40).
+- `examples/fintech_audit` — auditable CSV answer with content hashes.
+- `examples/starter_app` — copy-pasteable FastAPI app over the quick cases.
+- `examples/chat` — minimal offline multi-turn chat.
 
-Plus canonical ports of classic agent-framework patterns (`reflection`,
-`map_reduce`, `supervisor`, `summarize`, `time_travel`, `plan_execute`, each
-runnable offline as `python -m examples.<name>.main`; see
-[port-matrix](en/port-matrix.md)), `forklab` (branch/merge, §39-40), `ledger`
-(reactive recompute, §42-44), `outbox` (outbound side effects as
-`PendingAction`s, §42), and `adaptive` (hybrid scheduling). The repository ships
-**twenty-three** example applications under `examples/` in total — the full
-catalog is in [Examples](en/examples.md).
+The full catalog is in [Examples](en/examples.md).
 
 Roadmap direction: domain connectors as examples, the evidence graph is now in
 the trace UI (§34, §54), an evaluation harness landed (§56), the testing

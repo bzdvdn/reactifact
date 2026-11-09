@@ -51,11 +51,11 @@ a queryable graph (`context.related(answer.id, "supported_by")`), not a log line
 
 The number is computed, and its provenance recorded, in plain Python — the model
 is never the source of truth (trimmed from
-[`examples/fintech_audit/produce.py`](examples/fintech_audit/produce.py)):
+[`examples/fintech_audit/steps.py`](examples/fintech_audit/steps.py)):
 
 ```python
-@produce(Variance, reacts_to=Spend)              # wakes when a Spend artifact exists
-async def compute_variance(call: ProduceCall) -> None:
+@step(produces=Variance, consumes=Spend)         # wakes when a Spend artifact exists
+async def compute_variance(call: StepCall) -> None:
     spend = call.trigger                         # the artifact that triggered this run
     budget = cloud_budget(call.context)          # read from budget.csv
     pct = (spend.data.total - budget) / budget   # deterministic — never the model
@@ -98,10 +98,10 @@ derives what runs next from state.
 
 | Celery | reactifact |
 | --- | --- |
-| a task | `@produce(Model)` — a unit of work that writes an artifact |
+| a task | `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact |
 | `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
 | routing key / queue | `Consume(Type)` — which artifact type wakes the task |
-| chain / group / chord | several `consumes` / `produces`; the runtime derives the order |
+| chain / group / chord | several step `Consume`s / `produces`; the runtime derives the order |
 | result backend | the `Context` — typed, versioned artifacts |
 | worker | `Runtime` |
 
@@ -124,7 +124,7 @@ from:
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Consume, Context, Runtime, RuntimeResources, create_agent, produce
+from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
 
 
 class Question(BaseModel):
@@ -145,26 +145,22 @@ DOCS = {
 }
 
 
-@produce(Evidence)
+@step(produces=Evidence, consumes=Question)
 async def find_evidence(call):
-    question = next((a for a in call.inputs if isinstance(a.data, Question)), None)
-    if question is None:
-        return None
+    question = call.trigger
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
     if hit is not None:
         call.effects.create(Evidence(text=hit))
 
 
-@produce(Answer)
+@step(produces=Answer, consumes=Evidence)
 async def answer_from_evidence(call):
-    evidence = next((a for a in call.inputs if isinstance(a.data, Evidence)), None)
-    if evidence is None:
-        return None
+    evidence = call.trigger
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", consumes=[Consume(Question)], produces=[find_evidence])
-answer_agent = create_agent("answer", consumes=[Consume(Evidence)], produces=[answer_from_evidence])
+search_agent = create_agent("search", steps=[find_evidence])
+answer_agent = create_agent("answer", steps=[answer_from_evidence])
 
 ctx = Context(resources=RuntimeResources())
 runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
@@ -216,31 +212,14 @@ Reactive. Deterministic. Accountable.
 Full breakdown, including where reactifact is *not* the right choice:
 [docs/en/comparison.md](docs/en/comparison.md).
 
-**Proof, not a claim** — [`examples/ledger`](examples/ledger) is a 4-artifact
-billing calc (`LaborCost`, `Tax`, `Discount`, `Total`) with no LLM, fully
-offline. Edit *one* fact and see what actually reruns:
-
-```text
->>> editing ONLY TaxRate (0.08 -> 0.12) — a fact nothing about
->>> LaborCost or Discount ever consumed.
-
-  LaborCost    value=500.0      version=0   # untouched
-  Tax          value=60.0       version=1   # recomputed
-  Discount     value=25.0       version=0   # untouched
-  Total        value=535.0      version=1   # recomputed
-```
-
-2 of 4 artifacts recompute — the 2 that actually depend on `TaxRate` —
-because `Artifact.version` tracks real consumption, not a graph edge you drew
-by hand. Run it yourself: `uv run python -m examples.ledger.main`.
-
 ## Core primitives
 
 - **Context** — versioned working state, git-like commits, `diff`/`rollback`/`merge`.
 - **Artifact** — a first-class typed object (`Claim`, `Evidence`, `Answer`), not a string blob.
 - **Effects** — an agent states its change via `effects.create/update/link/ask`; the runtime compiles it.
 - **Patch** — the compiled, validated change-set applied as one atomic commit.
-- **Agent** — a thin container declaring `consumes`/`produces`; logic lives in a `Produce`.
+- **Step** — the unit of work: declares `consumes`/`produces`, returns its output or writes effects.
+- **Agent** — a thin container of `steps`; the runtime derives triggers from their `consume` contracts.
 - **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped).
 - **Provenance** — every derived artifact links to what produced it
   (`Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→ Doc`).
@@ -299,31 +278,25 @@ Skills: `reactifact` (mental model), `reactifact-agents`, `reactifact-llm`,
 Offline-capable, no API keys required (deterministic fallbacks):
 
 ```bash
-uv run python ./examples/llm_ladder/level1.py  # the simplest LLM turn (offline too)
+uv run python ./examples/knowledge/web.py      # multi-source RAG + evidence + CSV calc
 uv run python ./examples/repair/web.py         # room renovation: plan, estimate, CSV export
 uv run python ./examples/devops/web.py         # HITL ops assistant + trace dashboard
+uv run python -m examples.starter_app.app      # copy-pasteable FastAPI app
 ```
-
-Classic-pattern ports run as one-liners too:
-`python -m examples.{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute,adaptive,ledger,outbox}.main`.
 
 Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
 — `examples/quickstart.ipynb` covers the four `quick` cases (`agent`/`rag`/`tools_agent`/`chat_agent`), offline by default.
 
 ## Examples (in-repo, not shipped)
 
+- `starter_app` — copy-pasteable FastAPI app: structured call, RAG, tools, session chat.
 - `knowledge` — multi-source chat: search → evidence → claim verification → answer, with CSV calculation.
-- `research` — goes to the web (`WebSource`): lazy page fetch → evidence → verified claims → answer with URL provenance.
-- `medic-lab` — hypothesis laboratory: competing hypotheses scored, HITL steering, honest report.
+- `medic_lab` — hypothesis laboratory: competing hypotheses scored, HITL steering, honest report.
 - `devops` — HITL tool agents + LLM tool router + trace dashboard.
 - `repair` — budget-aware replanning (chat/data in Russian by design).
 - `chat` — minimal offline single-model multi-turn conversation (`Conversation` + bounded `ChatMemory`).
 - `forklab` — deterministic branch & merge: two strategies on their own forks, three-way merge.
-- `ledger` — offline proof of reactive recompute: edit one fact, only its real `Consume`rs re-run.
-- `outbox` — one intent, one send: `effects.act(...)` + `Runtime(dispatcher=...)`, safe across replays, retries and merged branches (§42).
-- `llm_ladder` — the workflow from one LLM call to state-changing patches (3 levels).
-- `adaptive` — hybrid scheduler: rule filters + deterministic rank + LLM tie-break + `rank_limit`.
-- `{reflection,map_reduce,supervisor,summarize,time_travel,plan_execute}` — canonical ports (see [port-matrix](docs/en/port-matrix.md)).
+- `fintech_audit` — auditable, reproducible CSV answer with content hashes and provenance.
 
 ## Documentation
 
@@ -336,7 +309,6 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
   plain Python: concept map, port-one-node, interop, checklist.
 - [Why reactifact](docs/en/why-reactifact.md) — the *design argument*: why effects, why the graph is derived rather than drawn, why determinism.
 - [Comparison](docs/en/comparison.md) — reactifact vs LangGraph/CrewAI, feature by feature, and when *not* to use reactifact.
-- [Tutorial · llm-ladder](docs/en/examples.md#tutorial-ladder) — learn the workflow.
 - [docs/constitution.md](docs/constitution.md) — the full design rationale and invariants.
 - [Roadmap](docs/roadmap.md) — what's next, and what's deliberately out of scope.
 

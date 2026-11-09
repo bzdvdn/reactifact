@@ -53,7 +53,7 @@ qa.context    # the artifacts/provenance of the last ask()
 `rag(...)` links every `Answer` `supported_by` the `Doc`s it used, and each
 `Doc` `materialized_from` its `SourceRef` — the same provenance the
 hand-written pipeline below builds. When the facade no longer fits, drop to
-`Consume`/`Produce`/`Effects` with nothing to rewrite. See
+`Consume`/`Step`/`Effects` with nothing to rewrite. See
 [Patterns](patterns.md) for the full model.
 
 Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bzdvdn/reactifact/blob/master/examples/quickstart.ipynb)
@@ -151,8 +151,7 @@ citation string built by hand:
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Consume, Context, Runtime, RuntimeResources, create_agent
-from reactifact.produce import produce
+from reactifact import Context, Runtime, RuntimeResources, create_agent, step
 from reactifact.recipes import fan_out_sources, materialize_doc, find, keyword_score
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -170,35 +169,29 @@ class Answer(BaseModel):
     sources: list[str] = []
 
 
-@produce(SourceRef)
+@step(produces=SourceRef, consumes=Question)
 async def search(call):
-    question = find(call.inputs, Question)
-    if question is None:
-        return None
+    question = call.trigger
     await fan_out_sources(call.context, question.data.text, owner_id=question.id, limit=3)
 
 
-@produce(Doc)
+@step(produces=Doc, consumes=SourceRef)
 async def resolve(call):
-    ref = find(call.inputs, SourceRef)
-    if ref is None:
-        return None
+    ref = call.trigger
     await materialize_doc(call.context, ref, lambda ctx, ref, content: Doc(text=content))
 
 
-@produce(Answer)
+@step(produces=Answer, consumes=Doc)
 async def answer(call):
-    docs = [a for a in call.inputs if isinstance(a.data, Doc)]
-    if not docs:
-        return None
+    docs = call.inputs
     d = docs[0]
     sources = call.context.related(d.id, "materialized_from")
     return Answer(text=d.data.text.strip(), sources=[s.data.locator for s in sources])
 
 
-search_agent = create_agent("search", consumes=[Consume(Question)], produces=[search])
-resolve_agent = create_agent("resolve", consumes=[Consume(SourceRef)], produces=[resolve])
-answer_agent = create_agent("answer", consumes=[Consume(Doc)], produces=[answer])
+search_agent = create_agent("search", steps=[search])
+resolve_agent = create_agent("resolve", steps=[resolve])
+answer_agent = create_agent("answer", steps=[answer])
 
 
 async def main():
@@ -245,7 +238,7 @@ from pydantic import BaseModel
 from reactifact import Consume, RuntimeResources, SessionStore, create_agent
 from reactifact.checkpoints import FileKVBackend
 from reactifact.chat import ChatAssistant
-from reactifact.produce import produce
+from reactifact import step
 
 
 class UserMsg(BaseModel):
@@ -258,15 +251,13 @@ class Reply(BaseModel):
     text: str
 
 
-@produce(Reply)
+@step(produces=Reply, consumes=UserMsg)
 async def echo(call):
     msg = call.trigger
-    if msg is None:
-        return None
     return Reply(query_id=msg.id, text=f"you said: {msg.data.text}")
 
 
-echo_agent = create_agent("echo", consumes=[Consume(UserMsg)], produces=[echo])
+echo_agent = create_agent("echo", steps=[echo])
 
 
 def reply(ctx, msg_id):

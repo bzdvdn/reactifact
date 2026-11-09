@@ -1,3 +1,7 @@
+> **Historical design note.** It records the 0.1.x Patch/Produce
+> exploration; the current API uses `Step` + injected `effects` (see
+> [effects](../effects.md)).
+
 # Design note — how we build patches in the examples
 
 **Status:** discussion draft · **Scope:** the "patch logic feels heavy" feedback

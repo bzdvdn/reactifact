@@ -50,7 +50,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 
 Тонкий сахар над примитивами ниже для четырёх частых первых задач — у каждого
 объекта есть настоящий `.agent`/`.agents` и `.context` запуска, поэтому он
-выпускается в `Consume`/`Produce`/`Effects` без переписывания. См.
+выпускается в `Consume`/`Step`/`Effects` без переписывания. См.
 [Быстрый старт §0](quickstart.md).
 
 | Символ | Роль |
@@ -70,16 +70,16 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `RuntimeResources` | провайдеры + источники + ресурсы приложения; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` для типизированных коллабораторов (`ResourceKey[T]`, когда их два одного типа); строковые `get`/`set` остаются escape hatch'ом (`additional`); `redactor=` вычищает текст трейсов; `trace_truncate=` ограничивает JSON артефактов/ответов в трейсе (`None` — без обрезки) — deprecated fallback (даёт `DeprecationWarning`), лучше `TraceLimits(max_data_chars=…)`; `await resources.aclose()` закрывает HTTP-клиенты llm/embedder (duck-typed) — вызывайте сами при завершении; `record_tool_args=True` пишет аргументы тулов в `ToolRun` (вычищаются `redactor=`) |
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
-| `current_request()` | request-маппинг активного хода (то же, что `ProduceCall.request`) |
+| `current_request()` | request-маппинг активного хода (то же, что `StepCall.request`) |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
 
 ## Артефакты и изменения
 
 | Символ | Роль |
 | --- | --- |
-| `Artifact` | пара `(id, data)`; `data` — модель pydantic |
+| `Artifact` | неизменяемый handle `(id, version, data, content_hash)`; история — в `Context` (`artifact_version`/`version_history`/`find_versions`) |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | стабильная персистентная идентичность типа: переименование/перенос модели больше не ломает загрузку старых сессий/коммитов/событий. `type_id_of`/`resolve`/`migrate_payload`; дефолтный id — qualified name |
-| `Patch` | скомпилированный набор изменений рантайма (транспорт); produces пишут эффекты (`effects`/`call.effects`), `Patch` собирает рантайм |
+| `Patch` | скомпилированный набор изменений рантайма (транспорт); шаги пишут эффекты (`effects`/`call.effects`), `Patch` собирает рантайм |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | скомпилированные операции, которые несёт патч (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | записи операций, из которых строятся патчи |
 
@@ -87,13 +87,13 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `Agent` | тонкий контейнер: `name`, `consumes`, `produces`, `concurrency_limit` |
+| `Agent` | тонкий контейнер: `name`, `steps`, `concurrency_limit`; триггеры выводятся из `consumes` шагов |
 | `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров |
 | `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Produce` / `produce` | производитель: пишет эффекты через инжектированный параметр `effects: Effects` (класс) или `call.effects` (функция) → `None`; возврат модели/Patch тоже компилируется. Два канонических стиля — подкласс и функция `@produce` (см. [effects](effects.md)); `reacts_to=(Type, …)` ограничивает produce конкретными триггерящими событиями, когда несколько produce одного агента реагируют не на одно и то же; produce с необязательным параметром `trigger` получает уже резолвленный триггерящий артефакт вместо сырого `event` — гарантированно не `None` для CREATED/UPDATED/STALE события, если также задан `reacts_to`; `.name` — читаемая метка для трейсов/логов (имя класса, имя функции `@produce` или `Produce[Model]` для пустого widening-produce) |
+| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в `also_creates` |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -113,7 +113,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `Runtime` | будит агентов по событиям; `run` / `arun` / `astream` (каждый принимает `request=Mapping`); бюджет и параллельность; `isolate_errors=True` + `on_agent_error(agent, event, exc)`, чтобы исключение одного агента не обрывало весь запуск (по умолчанию — пробрасывается, §69); `dispatcher=async (context, action)` дренирует outbox `PendingAction` после каждого коммита (один раз на стабильный id, удерживая ход живым, пока outbox не пуст); `on_dispatch_error(action, exc)` срабатывает, когда диспетчер падает (действие помечается `failed`, исключение пробрасывается); `flush_pending_actions()` дренирует без поколения (например, после `merge()`); `Budget.max_seconds` — **жёсткий** дедлайн хода (отменяет генерацию в полёте) |
 | `Runtime.request_stop()` / `await ashutdown(timeout=…)` / `in_flight` | graceful shutdown: остановка на границе генерации (`RunOutcome.STOPPED`; текущая генерация доигрывается); `ashutdown` ждёт ход, форс-отменяя по `timeout` |
 | `reactifact.runtime.active_runs()` / `cancel_run(run_id)` | read-only снимки активных ходов процесса (`RunInfo`) и точечная отмена — readiness/ops, только внутри процесса |
-| `ProduceCall.request` | request-маппинг хода внутри produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
+| `StepCall.request` | request-маппинг хода внутри шага (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); пустой, если не задан |
 | `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | лимиты запуска (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) и итог/статистика usage (`RunOutcome` включает `budget_time_exceeded` и `stopped`). Лимиты токенов/стоимости считают usage LLM без трейсера; для стоимости нужен инжектированный `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | проводной формат «что-то изменилось» — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | канал прогресса/announce, который потребляют web-UI |
@@ -245,7 +245,7 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `find(inputs, Model)` / `find_all(inputs, Model)` | типизированный поиск в `inputs` продьюса без `next(... isinstance ...)` |
+| `find(inputs, Model)` / `find_all(inputs, Model)` | типизированный поиск в `inputs` шага без `next(... isinstance ...)` |
 | `fan_out_sources(context, query, owner_id, …)` | идемпотентный поиск fan-out → рефы + патч |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | ленивый реф → документ с провенансом |
 | `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), `terminal`, `on_transition` |

@@ -1,38 +1,52 @@
-# The produce contract & mental model (§24)
+# The step contract & effects (§24)
 
 One paragraph to keep in your head while reading any example or writing a
-produce:
+step:
 
-> **A produce describes what should change by writing effects; the runtime
-> compiles those effects into one atomic patch and commits it. You almost never
-> build a `Patch` yourself — it is the runtime's transport.**
+> **A step describes what should change by writing effects, or returns its
+> output; the runtime compiles the change-set into one atomic patch and commits
+> it. You almost never build a `Patch` yourself — it is the runtime's
+> transport.**
 
 ```python
-from reactifact import Effects
+from reactifact import Artifact, Effects
 
-async def run(self, doc: Document, turn: Turn, effects: Effects) -> None:
-    if <guard>:                     # eligibility is a decision of the state
-        return None
-    # effects: the produce's "diff, expressed"
+async def run(
+    self,
+    doc: Artifact[Document],
+    turn: Artifact[Turn],
+    effects: Effects,
+) -> None:
     evidence = effects.create(Evidence(...), id="evidence:q1")
     answer = effects.create(Answer(...), id="answer:q1")
-    evidence.link("extracted_from", doc)     # doc: Artifact
-    answer.link("supported_by", evidence)    # evidence: an effect handle
+    evidence.link("extracted_from", doc)
+    answer.link("supported_by", evidence)
     effects.update(turn, status="answered")
     effects.ask("Approve the estimate?", kind="approval")   # HITL (§60)
-    return None
 ```
 
-A class-style step that writes effects declares an `effects: Effects` parameter
-in `run()` — the runtime injects the produce-scoped slot. A `@produce`/`@step`
-function receives the single `call: ProduceCall` argument and writes
-`call.effects`; both are the same effect set, just a different way to reach it
-(the function form has no `self`).
+A class step that writes effects declares an `effects: Effects` parameter in
+`run()` — the runtime injects the step-scoped slot. A `@step` function receives
+the single `call: StepCall` argument and writes `call.effects`; both reach the
+same effect set, just through a different surface (the function form has no
+`self`).
+
+## Return vs effects
+
+Returning a model (or a list of models) is create-sugar:
+
+```python
+async def run(self, question: Artifact[Question]) -> Answer:
+    return Answer(text=question.data.text)
+```
+
+Use `effects` when the step needs an explicit id, update/link/delete, HITL, or
+more than one create. Returning `None` means "no changes" (a guard or a branch
+that did not apply).
 
 ## Idempotency sugar: `create_once` and `upsert`
 
-A re-derived id (`f"answer:{qid}"`) needs a guard — every produce above the
-`effects.create(...)` line usually has one. `create_once` folds it into
+A re-derived id (`f"answer:{qid}"`) needs a guard — `create_once` folds it into
 the call itself:
 
 ```python
@@ -41,10 +55,8 @@ if handle is None:
     return None  # already answered — nothing to do
 ```
 
-`Create` on an existing id is already create-or-refresh (a new version of the
-same logical entity, §42/§43) — `upsert` is just the explicit name for that,
-for the call sites where "this may already exist" is the point, not a
-surprise:
+`Create` on an existing id is create-or-refresh (a new version of the same
+logical entity, §42/§43); `upsert` is the explicit name for that:
 
 ```python
 effects.upsert(Summary(...), id=f"summary:{doc_id}")
@@ -52,7 +64,7 @@ effects.upsert(Summary(...), id=f"summary:{doc_id}")
 
 ## Outbound side effects: `act` (the outbox)
 
-`create`/`update`/`link`/`ask` change *state*. An email, a webhook, a deploy
+`create`/`update`/`link`/`ask` change *state*. An email, a webhook or a deploy
 changes the *world* and must not be repeated by a replay or retry. Record the
 intent and let the runtime perform it after the commit:
 
@@ -62,44 +74,43 @@ effects.act(
 )
 ```
 
-`act` creates a `PendingAction` under the stable id `action:{key}` (so a retry
-or a branch that reaches the same action produces no second one). The produce
-must **not** do the I/O; pass `Runtime(dispatcher=...)` and the runtime calls it
-once per committed intent, recording `dispatched`/`failed`. See
-[patterns — Outbox](patterns.md#outbox-external-side-effects) for the full
-dispatcher, and [durability](durability.md) for the at-least-once contract.
+`act` creates a `PendingAction` under the stable id `action:{key}` (a retry or a
+branch that reaches the same action produces no second one). The step must
+**not** do the I/O; pass `Runtime(dispatcher=...)` and the runtime calls it once
+per committed intent, recording `dispatched`/`failed`. See
+[patterns — Outbox](patterns.md#outbox-external-side-effects) and
+[durability](durability.md).
 
 ## The three-layer picture
 
 | Layer | What it is | Who writes it |
 | --- | --- | --- |
-| **Produce** | the reaction: guard → LLM/calc → `effects.*` → `None` | the application (you) |
-| **Effects** | the stated change-set (creates/updates/links/questions), scoped to the turn | you, through the injected `effects` |
-| **Patch** | the *compiled* operations the runtime applies as one commit | the runtime (and legacy/advanced assemblies) |
+| **Step** | the reaction: guard → LLM/calc → `effects.*` or a return value | the application (you) |
+| **Effects** | the stated change-set (creates/updates/links/questions), scoped to the run | you, through the injected `effects` |
+| **Patch** | the *compiled* operations the runtime applies as one commit | the runtime |
 
-Nothing is applied until the produce returns — **atomicity is structural** (§41),
+Nothing is applied until the step returns — **atomicity is structural** (§41),
 no rollback machinery. Events, validation against `produces`, and trace
-reads/writes/relations are all derived from the same compiled ops.
+reads/writes/relations all derive from the same compiled ops.
 
 ## Why effects are injected
 
-The effects slot is produce-scoped: the runtime pushes a fresh one before
-each execution and pops it after (a contextvar) — safe under parallel produces.
-A class step names it as a parameter (`effects: Effects`); a function step
-reaches the same slot through `call.effects`. You never construct it or pass it
-explicitly. You can build handles across statements (`evidence` created above is
-linked below), which is why the call sites read "about artifacts", not "about
-ids".
+The effects slot is step-scoped: the runtime pushes a fresh one before each
+execution and pops it after (a contextvar) — safe under parallel steps. A class
+step names it as a parameter (`effects: Effects`); a function step reaches it
+through `call.effects`. You can build handles across statements (`evidence`
+created above is linked below), which is why call sites read "about artifacts",
+not "about ids".
 
 ## Where `Patch` still shows up
 
-- **`Agent.run`** — the escape hatch for custom (non-Produce) agents that
-  assemble a change-set by hand; the runtime merges it after the effects.
+- **`Agent.run`** — the escape hatch for custom agents that assemble a
+  change-set by hand.
 - **Recipes** (`fan_out_sources`, `materialize_doc`) and `StatusMachine` write
   into the slot; the tool loop (`ToolUse`/`ToolUseHITL`) and HITL
   (`effects.ask`) are effects too.
-- **Tests and advanced assembly** may still build a `Patch`; in ordinary
-  produces you should not need it.
+- **Tests and advanced assembly** may still build a `Patch`; ordinary steps
+  should not need it.
 
 ## The rule of thumb
 
@@ -107,42 +118,32 @@ ids".
 guard → decide → describe (effects) → return None
 ```
 
-If you find yourself writing `Patch()` inside a produce — stop and write
-effects; the runtime does the compiling.
+If you find yourself writing `Patch()` inside a step — stop and write effects;
+the runtime does the compiling.
 
-## The function form (`@produce` / `@step`) — same authoring surface
+## The function form (`@step`) — same authoring surface
 
-A decorator produce receives the same `call.effects` — one argument, `call`,
-exactly like the class form above:
+A decorated function receives `call` and uses `call.effects`:
 
 ```python
-from reactifact import produce
+from reactifact import StepCall, step
 
-@produce(Answer)
-async def answer_turn(call):
-    if not call.inputs:
-        return None
-    qid = call.inputs[0].id
-    ans = call.effects.create(Answer(text=...), id=f"answer:{qid}")
-    call.effects.link(ans, "derived_from", call.inputs[0])
-    call.effects.update(turn, status="answered")
-    return None
+@step(produces=Answer, consumes=Question)
+async def answer_turn(call: StepCall) -> None:
+    question = call.trigger
+    answer = call.effects.create(
+        Answer(text=...), id=f"answer:{question.id}"
+    )
+    answer.link("derived_from", question)
 ```
 
-The return-based contract still works: returning a model / list of models /
-`Patch` / `None` is compiled by the runtime, so short produces stay
-one-liners — `def f(call): return Answer(...)` reads `call.context`/
-`call.inputs`/`call.trigger` for whatever it needs and returns the result
-instead of writing `call.effects.create(...)` itself.
+Returning a model / list of models / `Patch` / `None` is compiled by the
+runtime, so short steps stay one-liners:
+`def f(call): return Answer(...)`.
 
 ## Which style to reach for
 
-The subclass and `@produce` function above are the two canonical styles —
-pick subclass when the produce has its own logic worth naming as a class,
-`@produce` for a short one-off. One other thing `Produce`/`Agent` accepts is
-*not* on that list on purpose:
-
-- Overriding `Agent.run(self, event, context) -> Patch` directly, bypassing
-  `effects`/`Produce` entirely to hand-assemble a `Patch`. A low-level,
-  internal escape hatch for cases effects genuinely can't express — no
-  example in this repo uses it, only this repo's own tests.
+The subclass and `@step` function are the two canonical styles — pick subclass
+when the step has logic worth naming as a class, `@step` for a short one-off.
+Overriding `Agent.run(self, event, context) -> Patch` remains a low-level
+escape hatch, not an everyday authoring style.

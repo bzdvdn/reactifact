@@ -1,6 +1,6 @@
 ---
 name: reactifact-agents
-description: Author reactifact agents deeply — Produce/Consume contracts, the Consume variants (by_status, by_field, Join, Absent, Correlated), Effects (create/update/link/upsert/delete/ask), ids and idempotency, provenance links, triggers, priority and concurrency. Use when writing or reviewing the produce/consume/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates.
+description: Author reactifact agents deeply — Step/Consume contracts, the Consume variants (by_status, by_field, Join, Absent, Correlated), Effects (create/update/link/upsert/delete/ask), ids and idempotency, provenance links, triggers, priority and concurrency. Use when writing or reviewing the produce/consume/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates.
 ---
 
 # Authoring agents in reactifact
@@ -11,11 +11,7 @@ case — you declare the contract and implement each produce's effects.
 
 ```python
 # not-run: illustrative — Answerer/Question/Evidence are defined below
-agent = create_agent(
-    "answerer",
-    consumes=[Consume(Evidence), Consume(Question, wakes=False)],
-    produces=[Answerer()],
-)
+agent = create_agent("answerer", steps=[Answerer()])
 ```
 
 `create_agent` is the constructor-style builder; subclassing `Agent` is only
@@ -23,7 +19,7 @@ needed for the imperative escape hatch (overriding `run()` with no `consumes`).
 
 ## A produce reads its inputs and writes effects
 
-A produce gets a `ProduceCall`: `call.trigger` (the waking artifact),
+A class step gets typed inputs + `effects: Effects`; a function step gets a `StepCall`: `call.trigger` (the waking artifact),
 `call.context` (the graph), `call.effects` (the change set), and the collected
 `call.inputs` (every artifact this agent's consumes matched). Prefer
 `call.context.latest(T)` when you know the type you want; use `call.inputs`
@@ -34,7 +30,7 @@ typed artifact out of `inputs`.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Consume, Context, Produce, Runtime, RuntimeResources, create_agent,
+    Agent, Artifact, Consume, Context, Effects, Runtime, RuntimeResources, Step,
 )
 
 
@@ -51,38 +47,35 @@ class Answer(BaseModel):
     text: str
 
 
-class Scout(Produce[Evidence]):
-    artifact_type = Evidence
+class Scout(Step):
+    consumes = (Question,)
+    produces = (Evidence,)
 
-    async def produce(self, call):
-        call.effects.create(
-            Evidence(text=f"about {call.trigger.data.text}", score=0.9)
-        )
-
-
-class Answerer(Produce[Answer]):
-    artifact_type = Answer
-
-    async def produce(self, call):
-        question = call.context.latest(Question)
-        evidence = call.trigger                 # the Artifact that woke us (Evidence)
-        answer = call.effects.create(Answer(text=question.data.text.upper()))
-        answer.link("supported_by", evidence)   # Handle -> Artifact, no id needed
+    async def run(self, question: Question, effects: Effects) -> None:
+        effects.create(Evidence(text=f"about {question.text}", score=0.9))
 
 
-agents = [
-    create_agent("scout", consumes=[Consume(Question)], produces=[Scout()]),
-    create_agent(
-        "answerer",
-        # wake on the evidence, read the question without re-waking on it
-        consumes=[Consume(Evidence), Consume(Question, wakes=False)],
-        produces=[Answerer()],
-    ),
-]
+class Answerer(Step):
+    consumes = (Evidence, Consume(Question, wakes=False))
+    produces = (Answer,)
+
+    async def run(
+        self,
+        question: Question,
+        evidence: Artifact[Evidence],
+        effects: Effects,
+    ) -> None:
+        answer = effects.create(Answer(text=question.text.upper()))
+        answer.link("supported_by", evidence)
+
+
+class Pipeline(Agent):
+    steps = [Scout(), Answerer()]
+
 
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, agents=agents).arun())
+asyncio.run(Runtime(ctx, agents=[Pipeline()]).arun())
 
 answer = ctx.latest(Answer)
 assert answer is not None

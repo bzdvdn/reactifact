@@ -68,7 +68,7 @@ class Evidence(BaseModel):
 
 Авторская поверхность — слот **effects** (см. [Контракт produce](effects.md),
 §24): produce пишет `create/update/link/ask` и возвращает `None`. Класс-шаг
-объявляет `effects: Effects` в `run()`; функция `@produce`/`@step` использует
+объявляет `effects: Effects` в `run()`; функция `@step` использует
 `call.effects`. Рантайм компилирует набор эффектов в один атомарный
 **`Patch`** — скомпилированный транспорт.
 
@@ -101,83 +101,67 @@ HITL — это `effects.ask(...)` → `PendingQuestion`, ответ через
 
 ## 4. Agent
 
-`Agent` — **тонкий контейнер**: он объявляет, на что реагирует и что может
-производить. Логика живёт в классах `Produce`.
+`Agent` — **тонкий контейнер**: он группирует `Step`-ы. Каждый шаг объявляет,
+что потребляет и производит; runtime выводит триггеры агента из этих
+контрактов.
 
 ```python
 class RepairFlow(Agent):
     name = "repair_flow"
-    consumes = [Consume(UserMsg), Consume(Project)]
-    produces = [
+    steps = [
         CollectStage(), PickStage(), PlanStage(),
         EstimateStage(), ApprovalStage(), AssistantStage(),
-        Produce(ChatReply), Produce(PendingQuestion),
     ]
 ```
 
-- `consumes` — типы артефактов, которые будят агента (и питают его входы —
-  `Consume(..., wakes=False)` читает тип как вход, не будя на нём агента;
-  `Consume(..., debounce=True)` схлопывает несколько событий одного
-  поколения в один запуск; `Consume.by_base(Base)` (или
-  `include_subclasses=True`) будит и на наследниках — для marker-баз вроде
-  `ChatMessage`). `reactifact.consume.JoinConsume`/`AbsentConsume`
-  коррелируют по общему ключу сразу два типа артефактов, а не только один —
-  см. [patterns](patterns.md).
-- `produces` — экземпляры `Produce`, которые могут выполниться, когда агент
-  проснулся. `Produce(reacts_to=(Type, …))` ограничивает produce только теми
-  триггерящими событиями, которые ему реально важны, когда несколько produce
-  одного агента хотят не одного и того же события; produce, объявивший ещё
-  и необязательный параметр `trigger`, получает резолвленный артефакт
-  напрямую вместо сырого `event` — гарантированно не `None` для
-  CREATED/UPDATED/STALE события — см. [patterns](patterns.md).
+- `steps` — экземпляры шагов. `consumes` шага питает его типизированные входы и
+  решает, какие события могут его запустить; `produces` — разрешённый набор
+  Create-типов. Дополнительные create-only типы идут в `also_creates`.
+- `Agent.consumes` остаётся для imperative escape hatch (агент переопределяет
+  `run(event, context)`), но декларативные агенты держат контракты на шагах.
+- `Consume(..., wakes=False)` читает вход, не будя на нём; `debounce=True`
+  схлопывает несколько событий одного поколения в один запуск;
+  `Consume.by_base(Base)` будит и на наследниках. `JoinConsume`/
+  `AbsentConsume` коррелируют типы — см. [patterns](patterns.md).
 - Runtime будит агентов по событиям, соблюдая бюджет и параллельность.
 
-У `Agent` есть и низкоуровневый `run(event, context) -> Patch | None`,
-который можно переопределить напрямую вместо декларирования `produces`. Это
-эскейп-хетч для ручной сборки `Patch` (см. [patterns.md](patterns.md), когда
-это действительно оправдано) — не третий повседневный стиль наравне с
-подклассами `Produce` и функциями `@produce`. Прибегайте к нему, только
-когда переросли оба.
+`Agent.run(event, context) -> Patch | None` остаётся низкоуровневым escape
+hatch для ручной сборки `Patch`; это не третий повседневный стиль.
 
-## 5. Produce
+## 5. Step
 
-`Produce[M]` — место, где происходит работа. Его **авторская поверхность —
-инжектированный слот effects** (§24): класс-шаг объявляет `effects: Effects` в
-`run()`, функциональный шаг использует `call.effects`; так или иначе produce
-пишет, что должно измениться (`effects.create/update/link/ask`), и возвращает
-`None`. Рантайм компилирует
-слот эффектов в один атомарный патч — коммит, события, трейс, валидация те же,
-но сам produce никогда не собирает `Patch` (этот тип теперь транспорт рантайма).
+`Step` — место, где происходит работа. Класс-шаг объявляет
+`consumes`/`produces` и получает типизированные входы плюс `effects: Effects` в
+`run()`:
 
 ```python
-from reactifact import Effects
+from reactifact import Artifact, Effects, Step
 
-class EstimateStage(Produce[Project]):
-    artifact_type = Project
+class EstimateStage(Step):
+    consumes = (Project,)
+    produces = (Project,)
 
-    async def run(self, project_art: Project, effects: Effects) -> None:
+    async def run(self, project_art: Artifact[Project], effects: Effects) -> None:
         ...
         effects.update(project_art, stage="estimate")
-        return None
 ```
 
-Класс-форма инжектит типизированные входы и `effects: Effects` в `run()`;
-функциональная форма `@produce`/`@step` по-прежнему принимает ровно один
-аргумент, `call` — `ProduceCall` с
-`.context`/`.inputs`/`.event`/`.trigger`/`.effects`. Про `.trigger`
-(резолвленный артефакт за `.event`, гарантированно не `None` вместе с
-`reacts_to`) — см. [patterns](patterns.md).
+Функциональная форма принимает один `call: StepCall` и пишет через
+`call.effects`:
 
-`fan_out_sources` / `materialize_doc` (рецепты) тоже пишут в текущий слот
-эффектов, а HITL — это `effects.ask(...)` (артефакт `PendingQuestion`, §60).
+```python
+@step(produces=Answer, consumes=Evidence)
+async def answer(call: StepCall) -> Answer:
+    return Answer(text=call.trigger.data.text)
+```
 
-Соглашение: **сначала детерминизм**. Право на запуск определяется гардом —
-`if project.stage != "estimate": return None`. Должна ли стадия измениться —
-чистая функция состояния. LLM применяется только к действительно генеративным
-задачам и всегда обёрнут структурной схемой и фолбэком.
+Возврат модели — create-сахар; `effects.*` — для update, link, HITL и
+дополнительных create. `produces` валидирует каждый Create-тип, включая
+созданные эффектами. См. [effects](effects.md) и [patterns](patterns.md).
 
-`Produce` может также объявлять зависимости (запускаться после других
-производителей) через механизм `depends_on`/`inject` — см. [справочник API](api.md).
+Соглашение: **сначала детерминизм** (§67). Право на запуск решают
+`consumes`/`When` шага, а не ручное ребро графа; LLM применяется только к
+генеративным задачам и оборачивается схемой + фолбэком.
 
 ## 6. Провенанс
 

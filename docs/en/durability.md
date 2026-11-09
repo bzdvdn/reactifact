@@ -72,7 +72,7 @@ Give produces a **stable id** so a re-run upserts instead of duplicating
 ([§42](../constitution.md)):
 
 ```python
-@produce(Summary)
+@step(produces=Summary, consumes=Msg)
 async def summarize(call):
     doc = call.trigger
     # A stable id makes the re-run idempotent: creating it twice returns the

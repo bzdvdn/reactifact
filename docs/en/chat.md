@@ -37,7 +37,7 @@ from reactifact.session import SessionStore
 
 assistant = ChatAssistant(
     store=SessionStore(SQLiteKVBackend("./sessions.db")),
-    agents=[create_agent("answer", consumes=[Consume(ConversationMessage)], produces=[ANSWER])],
+    agents=[create_agent("answer", steps=[ANSWER])],
     user_message=ConversationMessage,
     create_message=create_turn,          # record the user message as a ConversationMessage
     reply=my_reply,                      # (ctx, msg_id) -> {"reply": ...}

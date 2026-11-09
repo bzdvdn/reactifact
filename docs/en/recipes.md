@@ -118,7 +118,7 @@ Mechanics (all inherited from `Step`):
   progress announces.
 - The transition is an effect: `effects.update(target, **{status_field: new})`.
 
-Put your *verify* logic into another `produce` that react on status changes —
+Put your *verify* logic into another step that reacts on status changes —
 the machine and the verifier are separate, deterministic, and unit-testable.
 The knowledge demo's `EvaluateTurn` is the canonical instance of
 this recipe.
@@ -126,7 +126,7 @@ this recipe.
 ## `WindowSummarizer` / `WindowPruner` — bounded conversation memory (§27, §37)
 
 Long-running chat memory is just state: message artifacts accumulate, and two
-plain `Produce`s keep the window bounded — a summarizer condenses the recent
+plain steps keep the window bounded — a summarizer condenses the recent
 window every N messages, a pruner deletes what falls outside it. The recipe
 owns the window size, cadence, and idempotency; the domain owns *how* to
 summarize and *what* the summary artifact looks like:
@@ -147,7 +147,7 @@ def build_summary(round_no: int, text: str) -> Summary:
 class Flow(Agent):
     name = "chat"
     consumes = [Consume(Msg)]
-    produces = [
+    steps = [
         WindowSummarizer(
             Msg, Summary,
             summarize=llm_summarizer("Condense the recent conversation into a short memory note."),
@@ -200,7 +200,7 @@ def build_digest(text: str) -> Digest:
 class Flow(Agent):
     name = "chat"
     consumes = [Consume(Msg)]
-    produces = [
+    steps = [
         RollingDigestSummarizer(
             Msg, Digest,
             summarize=llm_digest_summarizer("Fold the new messages into the running memory note."),
@@ -384,7 +384,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
 
 class FlowAgent(Agent):
     consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-    produces = Flow().produces()
+    steps = Flow().produces()
 ```
 
 - `step_type`/`result_type` need `goal_field`/`index_field` (defaults:
@@ -442,12 +442,12 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
 class Flow(Agent):
     consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                 Consume(PendingQuestion)]
-    produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
-                Produce(PendingQuestion)]  # widens allowed Create types (§ verify.py)
+    steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
+             Step(PendingQuestion)]  # widens allowed Create types (§ verify.py)
 ```
 
 `Specialist` — actually doing the routed work — stays fully your own
-`Produce`; there's nothing generic about "what a route does".
+`Step`; there's nothing generic about "what a route does".
 
 See `tests/test_recipe_supervisor.py` for the runnable cases.
 
@@ -479,7 +479,7 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
 
 class Flow(Agent):
     consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-    produces = MyLoop().produces()
+    steps = MyLoop().produces()
 ```
 
 - `draft_type` needs `topic_field`/`round_field`/`status_field` (defaults:

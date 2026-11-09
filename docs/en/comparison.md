@@ -95,7 +95,7 @@ this is not a prompting problem, it's what generative token-by-token math
 does. Both LangGraph and CrewAI leave this entirely up to you (write a tool,
 remember to call it, remember to trust its output over the model's).
 
-reactifact's design bias — not a hard rule — is that a `Produce` doing arithmetic
+reactifact's design bias — not a hard rule — is that a `Step` doing arithmetic
 over structured data (a CSV, a query result) should compute it in plain Python
 and hand the LLM the *result* to explain, not the raw numbers to guess from.
 The [`knowledge` example](examples.md) does exactly this: the LLM writes the
@@ -128,7 +128,7 @@ a *third* thing to wire in after the fact:
 
 1. Pick a question that genuinely needs two independent things combined (a
    CSV number and a doc lookup, say — not a fixed A→B pipeline).
-2. Write it as two `Produce`s that each declare only what they `consume`/
+2. Write it as two `Step`s that each declare only what they `consume`/
    `produce` — the [front-page example](index.md)'s two-agent snippet
    (`find_evidence`/answer) is the shape. Neither should import or reference
    the other by name.

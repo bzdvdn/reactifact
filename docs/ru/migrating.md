@@ -17,7 +17,7 @@
 
 | У вас (LangGraph / LangChain / CrewAI / LlamaIndex) | reactifact |
 | --- | --- |
-| node + `add_edge` / `add_conditional_edges` | `Produce` + `Consume(Type)` — ребро *и есть* «кто потребляет этот тип» |
+| node + `add_edge` / `add_conditional_edges` | `Step` + `Consume(Type)` — ребро *и есть* «кто потребляет этот тип» |
 | общий `TypedDict`/dict state, мутируемый узлами | типизированные версионируемые `Artifact`'ы в `Context` |
 | reducer (`Annotated[list, add]`) | `effects.create/update/link(...)`, компилируемые в один атомарный `Patch` |
 | checkpointer / thread state | `Context` (git-подобный), `Session`/`SessionStore`, `context.branch()`/`merge()` |
@@ -44,11 +44,11 @@ graph.add_edge(START, "classify")
 graph.add_edge("classify", "answer")
 ```
 
-В reactifact *рёбра исчезают* — они становятся `consume`/`produce`:
+В reactifact *рёбра исчезают* — они становятся `consumes`/`produces`:
 
 ```python
 from pydantic import BaseModel
-from reactifact import Consume, Produce, ProduceCall, produce
+from reactifact import StepCall, step
 
 
 class Question(BaseModel):
@@ -64,32 +64,25 @@ class Reply(BaseModel):
     text: str
 
 
-@produce(Route)
-async def classify(call: ProduceCall) -> None:
+@step(produces=Route, consumes=Question)
+async def classify(call: StepCall) -> None:
     question = call.trigger
-    if question is None or not isinstance(question.data, Question):
-        return None
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
     call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
-@produce(Reply)
-async def answer(call: ProduceCall) -> None:
-    route = call.trigger  # этот produce запускается, потому что создан Route
-    if route is None or not isinstance(route.data, Route):
-        return None
+@step(produces=Reply, consumes=Route)
+async def answer(call: StepCall) -> None:
+    route = call.trigger  # этот шаг запускается, потому что создан Route
     # ... вызов модели с входом, ограниченным ходом ...
     call.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
 ```
 
 ```python
-from reactifact import Consume, Context, Runtime, create_agent
+from reactifact import Context, Runtime, create_agent
 
-answerer = create_agent(
-    "answerer",
-    consumes=[Consume(Reply)],       # «ребро» от classify к answer
-    produces=[answer],
-)
+classifier = create_agent("classifier", steps=[classify])
+answerer = create_agent("answerer", steps=[answer])
 ```
 
 Две вещи, на которые стоит обратить внимание — это и есть реальная работа при
@@ -196,7 +189,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 ## 10. Чеклист переезда
 
 - [ ] Каждое промежуточное значение — **типизированный `Artifact`**, не dict/`TypedDict`.
-- [ ] Каждая единица — `Produce`, объявляющий `consumes`/`produces`; ни один узел
+- [ ] Каждая единица — `Step`, объявляющий `consumes`/`produces`; ни один узел
       не зовёт другой напрямую.
 - [ ] Право на запуск — guard (`return None`), а не порядок планирования.
 - [ ] Id **стабильны и перевыводимы** (`f"answer:{qid}"`,
@@ -217,7 +210,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
   на нижестоящем агенте.
 - **`effects`, а не `return patch`.** Пишите `effects.*` и возвращайте
   `None`; рантайм компилирует набор эффектов в один атомарный коммит (возврат
-  `Patch` из `Produce` — низкоуровневый escape hatch, не идиома).
+  `Patch` из `Step` — низкоуровневый escape hatch, не идиома).
 - **Артефакты — не сообщения.** Вход модели собирается из `context.view(...)` /
   потреблённых артефактов, а не из свободного списка строк.
 - **Детерминизм — это привычка.** Используйте стабильные id и держите

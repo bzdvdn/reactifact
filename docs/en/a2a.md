@@ -24,7 +24,7 @@ task = await client.send("Summarise the incident")
 print(task.status.state, task.artifacts[0].parts[0].text)
 
 researcher = A2AAgentTool(client, name="researcher")
-# agent = create_agent("lead", consumes=[Consume(Question)], produces=[...researcher...])
+# agent = create_agent("lead", steps=[...researcher...])
 ```
 
 `A2AClient` also exposes `stream(message)` (an async iterator of task/message
@@ -54,8 +54,8 @@ Runtime(ctx, agents=[translator, …]).arun()
 A remote task in `input-required` becomes a local `PendingQuestion`; a later
 `context.resume(...)` continues the *same* remote task and lands the final
 artifact. Pass `message_of=` (input → text) and `build_output=` (reply, input →
-artifact) when the types have no `text` field. The lower-level `A2ARemoteProduce`
-is the `Produce` behind it.
+artifact) when the types have no `text` field. The lower-level `A2ARemoteStep`
+is the `Step` behind it.
 
 ## Serve reactifact agents
 

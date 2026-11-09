@@ -12,10 +12,10 @@ Celery's mental model: define a **task**, declare what triggers it, let the
 runtime run it; results land in a result backend. reactifact applies exactly that
 to agents:
 
-- a **task** is a `@produce(Model)` — a unit of work that writes an artifact;
+- a **task** is a `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact;
 - the **trigger** isn't a message you push — creating the input artifact *is*
   the trigger, and `Consume(Type)` says which artifact type wakes the task;
-- a **chain / group / chord** is just several `consumes` / `produces`; the
+- a **chain / group / chord** is several step `Consume`s / `produces`; the
   runtime derives the order from state, not from wiring;
 - the **result backend** is the `Context` — typed, versioned artifacts, so you
   get provenance and reproducibility a task queue doesn't give you.
@@ -66,15 +66,15 @@ Why this shape?
 - **You work with artifacts, not ids.** `evidence` is created here and linked a
   line below — the same object, no "look it up by number" step. The code speaks
   about artifacts, not identifiers.
-- **One atomic commit.** Nothing applies until the produce returns (§41). No
+- **One atomic commit.** Nothing applies until the step returns (§41). No
   "half applied" states, no manual rollback ladder. Events, validation against
   `produces`, and the trace are all derived from the same compiled ops.
-- **Parallel-safe by construction.** Each produce gets its own slot; concurrent
-  producers never see each other's half-built state (§42).
+- **Parallel-safe by construction.** Each step gets its own slot; concurrent
+  steps never see each other's half-built state (§42).
 - **HITL falls out.** `effects.ask(...)` is just another effect (§60); the
   human is not a special case bolted on the side.
 
-If you find yourself writing `Patch()` inside a produce — stop. That is the
+If you find yourself writing `Patch()` inside a step — stop. That is the
 runtime's job.
 
 ## Why artifacts, not messages
@@ -106,9 +106,10 @@ stance (§67):
 
 - **Calculations are calculated.** `Spreadsheet → Calculation` over CSV is
   deterministic code, not a hallucinated number.
-- **Eligibility is a decision of the state.** A produce's guard decides
-  *whether* it reacts; only genuinely generative steps call the LLM.
-- **Honesty beats pretending.** On failure a produce returns `None` (or yields
+- **Eligibility is a decision of the state.** A step's `consumes`/`When`
+  selectors decide *whether* it reacts; only genuinely generative steps call
+  the LLM.
+- **Honesty beats pretending.** On failure a step returns `None` (or yields
   nothing) rather than a confident guess (§59). The model is a reasoning
   component, never the source of truth.
 
@@ -148,10 +149,9 @@ Two details make this useful rather than merely clever:
    creating/updating/deleting an artifact *is* the event, and the commit yields
    them mechanically (§41). The causal chain can never drift from the actual
    state, because it *is* the state's changelog.
-- **`event` reaches the produce.** A produce signature is
-   `produce(self, context, inputs, event=None)`: it can react *specifically to
-   what changed* (which artifact id/type) while `inputs` gives the full window
-   of the consumed type.
+- **The trigger reaches the step.** A class step can take a typed
+  `Artifact[T]` (or the compatibility `trigger` parameter) and react to *which*
+  artifact changed; `inputs`/`list[Artifact[T]]` gives the full consumed set.
 
 This is why "reactive" is not marketing: the *only* way control flows in
 reactifact is through changes to state, and events are precisely the change that
@@ -161,7 +161,7 @@ agents see. No `if x: call y` plumbing — the state decides, the loop follows.
 
 | Layer | What it is | Who writes it |
 | --- | --- | --- |
-| **Produce** | the reaction: guard → LLM/calc → `effects.*` → `None` | you |
+| **Step** | the reaction: guard → LLM/calc → `effects.*` or a return value | you |
 | **Effects** | the stated change-set, scoped to the turn | you, through the injected `effects` |
 | **Patch** | the *compiled* operations applied as one commit | the runtime |
 

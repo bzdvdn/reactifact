@@ -14,9 +14,9 @@ and the graph grows.
 
 | LangChain / LangGraph | reactifact |
 | --- | --- |
-| `StateGraph`, `add_node`, `add_edge` | `create_agent(name, consumes=[...], produces=[...])` — edges are implicit in consume/produce types |
+| `StateGraph`, `add_node`, `add_edge` | `Agent(steps=[...])` / `create_agent(name, steps=[...])` — edges are implicit in step `consumes`/`produces` |
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
-| `RunnableLambda` / a chain step | a `Produce[T]` (an agent's transformation) |
+| `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |
 | tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools) or `tool_use` recipes |
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
@@ -58,7 +58,7 @@ def node(state):
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Consume, Context, Produce, Runtime, RuntimeResources, create_agent,
+    Agent, Context, Effects, Runtime, RuntimeResources, Step, create_agent,
 )
 
 
@@ -70,15 +70,19 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Produce[Answer]):
-    artifact_type = Answer
+class Answerer(Step):
+    consumes = (Question,)
+    produces = (Answer,)
 
-    async def produce(self, call):
-        # instead of mutating state: declare the change
-        call.effects.create(Answer(text=call.trigger.data.text.upper()))
+    async def run(self, question: Question, effects: Effects) -> None:
+        effects.create(Answer(text=question.text.upper()))
 
 
-agent = create_agent("answerer", consumes=[Consume(Question)], produces=[Answerer()])
+class AnswerAgent(Agent):
+    steps = [Answerer()]
+
+
+agent = AnswerAgent()
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
 asyncio.run(Runtime(ctx, agents=[agent]).arun())

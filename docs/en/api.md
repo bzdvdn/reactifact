@@ -46,7 +46,7 @@ pins every `__all__` listed here, so a new export has to be added deliberately
 
 Thin sugar over the primitives below for the four common first tasks — every
 object exposes the real `.agent`/`.agents` and the run's `.context`, so it
-graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
+graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 [Quickstart §0](quickstart.md).
 
 | Symbol | Role |
@@ -66,40 +66,40 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `RuntimeResources` | providers + sources + app resources; `register(Type, instance)` / `get(Type)` / `require(Type)` / `has(Type)` for typed collaborators (`ResourceKey[T]` when two of one type); string `get`/`set` stay as the `additional` escape hatch; `redactor=` scrubs trace text; `trace_truncate=` caps artifact/response JSON kept in a trace (`None` = no clip) — deprecated fallback (emits `DeprecationWarning`), prefer `TraceLimits(max_data_chars=…)`; `await resources.aclose()` closes the llm/embedder HTTP clients (duck-typed) — call it yourself at real shutdown; `record_tool_args=True` puts tool args on `ToolRun` (scrubbed by `redactor=`) |
 | `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
-| `current_request()` | the active turn's request mapping (same as `ProduceCall.request`) |
+| `current_request()` | the active turn's request mapping (same as `StepCall.request`) |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
 
 ## Artifacts & changes
 
 | Symbol | Role |
 | --- | --- |
-| `Artifact` | the `(id, data)` pair; `data` is a pydantic model |
+| `Artifact` | immutable `(id, version, data, content_hash)` handle; history lives in `Context` (`artifact_version`/`version_history`/`find_versions`) |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | stable persisted type identity: a rename/move of a model no longer breaks loading old sessions/commits/events. `type_id_of`/`resolve`/`migrate_payload`; default id is the qualified name |
-| `Patch` | the runtime's compiled change-set (transport); produces write effects (`effects`/`call.effects`), `Patch` is assembled by the runtime |
+| `Patch` | the runtime's compiled change-set (transport); steps write effects (`effects`/`call.effects`), `Patch` is assembled by the runtime |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | op records from which patches are built |
 
-## Agents & produces
+## Agents & steps
 
 | Symbol | Role |
 | --- | --- |
-| `Agent` | thin container: `name`, `consumes`, `produces`, `concurrency_limit` |
+| `Agent` | thin container: `name`, `steps`, `concurrency_limit`; step `consumes` derive triggers |
 | `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
 | `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Produce` / `produce` | the work unit: writes effects through the injected `effects: Effects` parameter (class) or `call.effects` (function) → `None`; model/Patch return is compiled too. Two canonical styles — subclass and `@produce` function (see [effects](effects.md)); `reacts_to=(Type, …)` restricts which triggering event a produce runs on, when an agent's several produces don't all care about the same one; a produce declaring an optional `trigger` parameter gets the already-resolved triggering artifact instead of raw `event` — guaranteed non-`None` for a CREATED/UPDATED/STALE event when `reacts_to` is also set; `.name` is a readable trace/log label (class name, the `@produce` function's name, or `Produce[Model]` for a bare widening produce) |
-| `Trigger` | secondary (non-artifact) enter condition for a produce; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
+| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; extra creates go in `also_creates` |
+| `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
-| `ToolUse`, `ToolUseHITL` | the tool-loop produce; HITL variant waits for approval on execution |
+| `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval on execution |
 | `DeferredToolGroup` (`reactifact.tool_use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)` |
-| `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the produce; `None` if it already exists |
+| `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the step; `None` if it already exists |
 | `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 
 ## Runtime
@@ -109,7 +109,7 @@ graduates to `Consume`/`Produce`/`Effects` with nothing to rewrite. See
 | `Runtime` | wakes agents on events; `run` / `arun` / `astream` (each takes `request=Mapping`); budget & concurrency; `isolate_errors=True` + `on_agent_error(agent, event, exc)` to keep one agent's exception from aborting the whole run (default: propagates, §69); `dispatcher=async (context, action)` drains the `PendingAction` outbox after each commit (once per stable id, keeping the turn alive until it is empty); `on_dispatch_error(action, exc)` fires when the dispatcher raises (the action is marked `failed` and the exception propagates); `flush_pending_actions()` drains without a generation (e.g. after `merge()`); `Budget.max_seconds` is a **hard** turn deadline (cancels the generation in flight) |
 | `Runtime.request_stop()` / `await ashutdown(timeout=…)` / `in_flight` | graceful shutdown: stop at the next generation boundary (`RunOutcome.STOPPED`; the current generation still commits); `ashutdown` waits, force-cancelling after `timeout` |
 | `reactifact.runtime.active_runs()` / `cancel_run(run_id)` | read-only snapshots of the process's in-flight turns (`RunInfo`) and targeted cancel — readiness/ops, in-process only |
-| `ProduceCall.request` | the turn's request mapping inside a produce (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
+| `StepCall.request` | the turn's request mapping inside a step (`Runtime.arun(request=…)` / `ChatAssistant.stream(request=…)`); empty when none was set |
 | `Budget`, `RunOutcome`, `RunStats`, `BudgetTracker` | run limits (`max_runs`/`max_iterations`/`max_seconds`/`max_tool_calls`/`max_tokens`/`max_cost`) and the final outcome/usage stats (`RunOutcome` includes `budget_time_exceeded` and `stopped`). Token/cost limits count LLM usage without a tracer; cost needs an injected `Pricer` (`reactifact.pricing`) |
 | `Event`, `EventType` | the wire format of "something changed" — `ARTIFACT_CREATED`/`UPDATED`/`DELETED`/`STALE` |
 | `EventHub`, `ProgressEvent` | progress/announce channel consumed by web UIs |
@@ -241,7 +241,7 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `find(inputs, Model)` / `find_all(inputs, Model)` | typed lookup in a produce's `inputs` without `next(... isinstance ...)` |
+| `find(inputs, Model)` / `find_all(inputs, Model)` | typed lookup in a step's `inputs` without `next(... isinstance ...)` |
 | `fan_out_sources(context, query, owner_id, …)` | idempotent fan-out search → refs + patch |
 | `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | lazy ref → document with provenance |
 | `StatusMachine` / `StatusState` | deterministic artifact lifecycle: `next_status(state)` over key-scoped inputs (`all`/`any`/`latest`), `terminal`, `on_transition` |
@@ -271,7 +271,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `Session`, `SessionStore` | durable per-chat working memory across requests; `SessionStore(backend, compact_every=N)` bounds the append-only log (roughly every N saves it rewrites the snapshot) |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock`; SQLite/Postgres also implement `AppendBackend` (snapshot + append-only commit log, so a save writes only new commits) |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
-| `Tracer`, `CompositeTracer`, `AgentSpan`, `AgentContract`, `RunTrace`, `LLMCall`, `ProduceRun`, `ToolRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type`/`event_artifact_id` identify the triggering artifact, `AgentSpan.contract` carries the declared consumes/produces/tools/priority, `AgentSpan.produces` lists the `ProduceRun`s that ran, and `AgentSpan.tools` lists `ToolRun`s; `get(span_limit=…, span_offset=…)` pages a large run and reports `span_total`/`has_more_spans`/`trace_truncated`; both stores expose `delete_run`/`delete_session`) |
+| `Tracer`, `CompositeTracer`, `AgentSpan`, `AgentContract`, `RunTrace`, `LLMCall`, `ProduceRun`, `ToolRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type`/`event_artifact_id` identify the triggering artifact, `AgentSpan.contract` carries the declared consumes/produces/tools/priority, `AgentSpan.produces` lists the step runs that ran, and `AgentSpan.tools` lists `ToolRun`s; `get(span_limit=…, span_offset=…)` pages a large run and reports `span_total`/`has_more_spans`/`trace_truncated`; both stores expose `delete_run`/`delete_session`) |
 | `TraceLimits` | write-time trace caps for `Tracer(..., limits=TraceLimits(max_spans=5000, max_refs_per_span=50, max_llm_calls_per_span=20, max_data_chars=None))`; `max_data_chars=None` falls back to the legacy `RuntimeResources.trace_truncate`; dropped data marks the trace `trace_truncated` |
 | `TraceColumn` | a configurable, artifact-derived table column for `create_trace_router(store, columns=[…])`: `label`, `field` (dotted path, list→first), `agent`, `type` (class or name), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `Tag`, `TagAssignment`, `TraceAnnotator`, `TraceStoreProtocol` | reviewer annotations: a tag vocabulary (`Tag`) and per-run tags + notes (`TagAssignment`, `RunTrace.annotations`); stores expose `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag` |

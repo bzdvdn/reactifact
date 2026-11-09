@@ -68,7 +68,7 @@ Rules of thumb:
 The authoring surface is the **effects** slot (see
 [The produce contract](effects.md), §24): a produce writes
 `create/update/link/ask` and returns `None`. A class-style step declares
-`effects: Effects` in `run()`; a `@produce`/`@step` function uses
+`effects: Effects` in `run()`; a `@step` function uses
 `call.effects`. The runtime compiles the effect set into one atomic
 **`Patch`** — its compiled transport.
 
@@ -101,83 +101,66 @@ HITL is an `effects.ask(...)` → `PendingQuestion`, answered via
 
 ## 4. Agent
 
-An `Agent` is a **thin container**: it declares what it reacts to and what it
-can produce. The logic lives in `Produce` classes.
+An `Agent` is a **thin container**: it groups `Step`s. Each step declares what
+it consumes and produces; the runtime derives the agent's triggers from those
+contracts.
 
 ```python
 class RepairFlow(Agent):
     name = "repair_flow"
-    consumes = [Consume(UserMsg), Consume(Project)]
-    produces = [
+    steps = [
         CollectStage(), PickStage(), PlanStage(),
         EstimateStage(), ApprovalStage(), AssistantStage(),
-        Produce(ChatReply), Produce(PendingQuestion),
     ]
 ```
 
-- `consumes` — artifact types that wake this agent (and feed its inputs —
-  `Consume(..., wakes=False)` reads a type as input without waking on it;
-  `Consume(..., debounce=True)` collapses several same-generation events
-  into one run; `Consume.by_base(Base)` (or `include_subclasses=True`) also
-  wakes on subclasses, for marker bases like `ChatMessage`).
-  `reactifact.consume.JoinConsume`/`AbsentConsume` correlate across two
-  artifact types by a shared key instead of one type alone —
-  see [patterns](patterns.md).
-- `produces` — `Produce` instances that may run when the agent is awake.
-  `Produce(reacts_to=(Type, …))` restricts a produce to only the triggering
-  events it actually cares about, when an agent's several produces don't all
-  want the same one; a produce that also declares an optional `trigger`
-  parameter gets the resolved artifact directly instead of raw `event`,
-  guaranteed non-`None` for a CREATED/UPDATED/STALE event — see
-  [patterns](patterns.md).
+- `steps` — the unit-of-work instances. A step's `consumes` both feeds its
+  typed inputs and decides which events can run it; `produces` is the allowed
+  create set. Extra create-only types go in `also_creates`.
+- `Agent.consumes` still exists for the imperative escape hatch (an `Agent`
+  subclass overriding `run(event, context)` directly), but declarative agents
+  should put contracts on steps.
+- `Consume(..., wakes=False)` reads an input without waking on it;
+  `debounce=True` collapses several same-generation events into one run;
+  `Consume.by_base(Base)` also wakes on subclasses. `JoinConsume`/
+  `AbsentConsume` correlate across types — see [patterns](patterns.md).
 - The runtime wakes agents on events, respecting budget and concurrency.
 
-`Agent` also has a lower-level `run(event, context) -> Patch | None` you can
-override directly instead of declaring `produces`. It's an escape hatch for
-assembling a `Patch` by hand (see [patterns.md](patterns.md) for when that's
-actually warranted) — not a third everyday style alongside `Produce`
-subclasses and `@produce` functions. Reach for it only when you've outgrown
-both.
+`Agent.run(event, context) -> Patch | None` remains the low-level escape hatch
+for hand-assembling a `Patch`; it is not a third everyday style.
 
-## 5. Produce
+## 5. Step
 
-`Produce[M]` is where the work happens. Its **authoring surface is the
-injected effects slot** (§24): a class step declares `effects: Effects` in
-`run()`, a function step uses `call.effects`; either way it writes what should
-change (`effects.create/update/link/ask`) and returns `None`. The runtime compiles the
-effect slot into one atomic patch — commit, events, trace, validation stay the
-same, but the produce itself never builds a `Patch` (that type is now the
-runtime's transport).
+`Step` is where the work happens. A class step declares `consumes`/`produces`
+and receives typed inputs plus `effects: Effects` in `run()`:
 
 ```python
-from reactifact import Effects
+from reactifact import Artifact, Effects, Step
 
-class EstimateStage(Produce[Project]):
-    artifact_type = Project
+class EstimateStage(Step):
+    consumes = (Project,)
+    produces = (Project,)
 
-    async def run(self, project_art: Project, effects: Effects) -> None:
+    async def run(self, project_art: Artifact[Project], effects: Effects) -> None:
         ...
         effects.update(project_art, stage="estimate")
-        return None
 ```
 
-The class form injects typed inputs and `effects: Effects` into `run()`; the
-`@produce`/`@step` function form still takes exactly one argument, `call` — a
-`ProduceCall` with `.context`/`.inputs`/`.event`/`.trigger`/`.effects`. See
-[patterns](patterns.md) for `.trigger` (the resolved artifact behind
-`.event`, guaranteed non-`None` alongside `reacts_to`).
+The function form takes one `call: StepCall` and uses `call.effects`:
 
-`fan_out_sources` / `materialize_doc` (recipes) also write into the current
-effect slot, and HITL is an `effects.ask(...)` (a `PendingQuestion` artifact,
-§60).
+```python
+@step(produces=Answer, consumes=Evidence)
+async def answer(call: StepCall) -> Answer:
+    return Answer(text=call.trigger.data.text)
+```
 
-Convention: **determinism first** (§67). Whether a stage is eligible is decided
-by a guard — `if project.stage != "estimate": return None`. Whether it should
-change is a pure function of state. LLM use is reserved for genuinely
-generative tasks and is always wrapped with a structured schema and a fallback.
+Returning a model is create-sugar; `effects.*` is for updates, links, HITL and
+extra creates. `produces` validates every create type, including effect-created
+ones. See [effects](effects.md) and [patterns](patterns.md).
 
-A `Produce` can also take dependencies it needs to run before it via the
-`depends_on`/`inject` mechanism — see the [API reference](api.md).
+Convention: **determinism first** (§67). Eligibility is decided by the step's
+`consumes`/`When` selectors, not by a manual graph edge; LLM use is reserved for
+genuinely generative tasks and is wrapped with a schema + fallback.
 
 ## 6. Provenance
 
