@@ -26,7 +26,10 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   items, and a click on any chip filters the visible spans.
 - **LLM calls** (`LLMCall`) — prompts, responses (truncated), token usage,
   latency.
-- **Timing and ordering** — the whole causal chain of a run, in order.
+- **Timing and ordering** — the whole causal chain of a run, in order. Agent
+  spans, steps (`StepRun.started_at`), LLM calls (`LLMCall.started_at`) and tools
+  (`ToolRun.started_at`) carry wall-clock starts, so the timeline can place
+  parallel work and nested calls without guessing.
 
 A huge run is read in pages: `get(span_limit=…, span_offset=…)` (default 500)
 returns `span_total`/`has_more_spans`, the detail UI loads more on demand, and

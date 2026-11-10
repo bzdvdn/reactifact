@@ -226,7 +226,8 @@ class LangfuseTracer(Tracer):
         cursor = span.started_at or run_start
         out: list[dict[str, Any]] = []
         for k, produce in enumerate(span.produces):
-            end = cursor + timedelta(milliseconds=produce.latency_ms)
+            start = produce.started_at or cursor
+            end = start + timedelta(milliseconds=produce.latency_ms)
             out.append(
                 {
                     "traceId": trace_id,
@@ -236,7 +237,7 @@ class LangfuseTracer(Tracer):
                     "parentSpanId": parent_span_id,
                     "name": produce.name,
                     "kind": 1,
-                    "startTimeUnixNano": _unix_nanos(cursor),
+                    "startTimeUnixNano": _unix_nanos(start),
                     "endTimeUnixNano": _unix_nanos(end),
                     "attributes": [
                         *trace_attrs,
@@ -310,7 +311,8 @@ class LangfuseTracer(Tracer):
         agent: str,
         call: LLMCall,
     ) -> dict[str, Any]:
-        end = span_start + timedelta(milliseconds=call.latency_ms)
+        start = call.started_at or span_start
+        end = start + timedelta(milliseconds=call.latency_ms)
         attrs = [
             *trace_attrs,
             _attr("langfuse.observation.type", "generation"),
@@ -329,7 +331,7 @@ class LangfuseTracer(Tracer):
             "parentSpanId": parent_span_id,
             "name": f"llm:{call.model or call.provider}",
             "kind": 1,
-            "startTimeUnixNano": _unix_nanos(span_start),
+            "startTimeUnixNano": _unix_nanos(start),
             "endTimeUnixNano": _unix_nanos(end),
             "attributes": attrs,
         }

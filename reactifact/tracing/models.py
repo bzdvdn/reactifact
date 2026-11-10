@@ -47,6 +47,8 @@ class LLMCall(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_ms: float = 0.0
+    #: Wall-clock start, so exporters/UI can place concurrent calls on a timeline.
+    started_at: datetime | None = None
     error: str | None = None
 
 
@@ -116,6 +118,8 @@ class StepRun(BaseModel):
     name: str
     operations: int = 0
     latency_ms: float = 0.0
+    #: Wall-clock start, so the UI can place steps without assuming serial order.
+    started_at: datetime | None = None
 
 
 #: 0.1.x compatibility alias; use `StepRun` in new code.

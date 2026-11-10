@@ -324,9 +324,17 @@ function renderTimeline(spans){
     const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_artifact_type||s.event_type||'span')+(prods?' → '+escapeHtml(prods):'')+(toolCount?' · '+toolCount+' tools':'');const llm=(s.llm_calls||[]).length;
     let subs='';let pcursor=r.start;
     for(const p of (s.produces||[])){
+      let ps=pcursor;
+      if(p.started_at){const d=new Date(p.started_at).getTime()-origin;if(isFinite(d))ps=Math.max(0,d);}
       const w=Math.max(0.3,(Number(p.latency_ms)||0)/total*100);
-      subs+='<span class="tl-sub produce" style="left:'+(pcursor/total*100)+'%;width:'+w+'%" title="'+escapeHtml(p.name)+' — '+Number(p.latency_ms||0).toFixed(1)+' ms"></span>';
-      pcursor+=Number(p.latency_ms)||0;
+      subs+='<span class="tl-sub produce" style="left:'+(ps/total*100)+'%;width:'+w+'%" title="'+escapeHtml(p.name)+' — '+Number(p.latency_ms||0).toFixed(1)+' ms"></span>';
+      pcursor=ps+(Number(p.latency_ms)||0);
+    }
+    for(const call of (s.llm_calls||[])){
+      if(!call.started_at)continue;
+      let ls=new Date(call.started_at).getTime()-origin;if(!isFinite(ls))continue;ls=Math.max(0,ls);
+      const w=Math.max(0.3,(Number(call.latency_ms)||0)/total*100);
+      subs+='<span class="tl-sub llm" style="left:'+(ls/total*100)+'%;width:'+w+'%" title="'+escapeHtml(call.model||call.provider||'llm')+' — '+Number(call.latency_ms||0).toFixed(1)+' ms"></span>';
     }
     for(const tool of (s.tools||[])){
       let ts=r.start;

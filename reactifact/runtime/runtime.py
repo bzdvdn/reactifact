@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal, cast
 
 from ..agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
@@ -51,7 +52,7 @@ AgentResult = tuple[
     list[Read],
     float,
     BaseException | None,
-    list[tuple[str, int, float]],
+    list[tuple[str, int, float, datetime]],
     list[ToolRun],
 ]
 

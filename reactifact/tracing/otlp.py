@@ -214,7 +214,8 @@ class OTLPTracer(Tracer):
         agent: str,
         call: LLMCall,
     ) -> dict[str, Any]:
-        end = span_start + timedelta(milliseconds=call.latency_ms)
+        start = call.started_at or span_start
+        end = start + timedelta(milliseconds=call.latency_ms)
         attrs = [
             attr("gen_ai.operation.name", "chat"),
             attr("gen_ai.system", call.provider),
@@ -231,7 +232,7 @@ class OTLPTracer(Tracer):
             "parentSpanId": parent_span_id,
             "name": f"chat {call.model or call.provider}",
             "kind": 1,
-            "startTimeUnixNano": unix_nanos(span_start),
+            "startTimeUnixNano": unix_nanos(start),
             "endTimeUnixNano": unix_nanos(end),
             "attributes": attrs,
         }

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 from reactifact import (
@@ -22,6 +23,7 @@ from reactifact.tracing import (
     RecordingLLM,
     RelationRef,
     RunTrace,
+    StepRun,
     Tracer,
     TraceStore,
 )
@@ -131,6 +133,31 @@ def test_trace_store_roundtrip(tmp_path):
     assert run(store.query(outcome="failed"))["items"] == []
 
 
+def test_trace_store_roundtrips_nested_start_times(tmp_path):
+    started = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    store = TraceStore(str(tmp_path / "nested.db"))
+    trace = RunTrace(
+        id="nested",
+        spans=[
+            AgentSpan(
+                agent="a",
+                produces=[
+                    StepRun(
+                        name="Emit", operations=1, latency_ms=2.0, started_at=started
+                    )
+                ],
+                llm_calls=[LLMCall(agent="a", latency_ms=3.0, started_at=started)],
+            )
+        ],
+    )
+    run(store.export(trace))
+    loaded = run(store.get("nested"))
+    assert loaded is not None
+    span = loaded.spans[0]
+    assert span.produces[0].started_at == started
+    assert span.llm_calls[0].started_at == started
+
+
 def test_runtime_records_spans_and_trace(tmp_path):
     store = TraceStore(str(tmp_path / "traces.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
@@ -191,6 +218,7 @@ def test_runtime_records_which_produce_ran(tmp_path):
     assert span.event_artifact_type == "Question"
     assert [p.name for p in span.produces] == ["Emit"]
     assert span.produces[0].operations >= 1
+    assert span.produces[0].started_at is not None
     assert span.contract.produces == ["Emit", "NeverRuns"]
 
 
@@ -266,6 +294,7 @@ def test_runtime_records_llm_calls(tmp_path):
     assert call.prompt_tokens == 12
     assert call.completion_tokens == 7
     assert call.latency_ms >= 0
+    assert call.started_at is not None
     assert any("привет" in (m.get("content") or "") for m in call.messages)
     assert "привет" in call.response
 

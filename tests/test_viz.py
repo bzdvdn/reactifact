@@ -130,8 +130,10 @@ def test_trace_to_mermaid_sequence_with_llm():
     assert "participant RT as Runtime" in diagram
     assert '"searcher"' in diagram
     assert "SearchDone" in diagram
+    assert "RT->>A1: SearchDone" in diagram
     assert "LLM (recording)" in diagram
-    assert "12 in → 31 out" in diagram
+    assert "A2->>LL: deepseek-chat · 12 in → 31 out · 80 ms" in diagram
+    assert "A2-->>RT: 1 write · 1 read · 90 ms" in diagram
     assert "outcome=completed" in diagram
 
 

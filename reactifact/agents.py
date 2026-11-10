@@ -4,6 +4,7 @@ import time
 from abc import ABC
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
+from datetime import UTC, datetime
 from typing import Any
 
 from .artifacts import Artifact
@@ -27,10 +28,10 @@ from .tools import reset_current_produce, set_current_produce
 from .triggers import Trigger
 
 #: Per-task log of the produces that ran for the current agent execution:
-#: ``(produce_class_name, operations_authored, latency_ms)``. ``Runtime._execute``
+#: ``(produce_class_name, operations_authored, latency_ms, started_at)``. ``Runtime._execute``
 #: opens it (and later records the span), ``Agent.execute`` appends — a
 #: contextvar so concurrent executions sharing one ``Agent`` instance never race.
-_produce_runs: ContextVar[list[tuple[str, int, float]] | None] = ContextVar(
+_produce_runs: ContextVar[list[tuple[str, int, float, datetime]] | None] = ContextVar(
     "reactifact_produce_runs", default=None
 )
 
@@ -40,7 +41,7 @@ def begin_produce_runs() -> Token[Any]:
     return _produce_runs.set([])
 
 
-def produce_runs() -> list[tuple[str, int, float]]:
+def produce_runs() -> list[tuple[str, int, float, datetime]]:
     """The produce runs recorded for the current task (empty if none)."""
     return _produce_runs.get() or []
 
@@ -292,6 +293,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             ):
                 continue
             before = len(slot.operations) if slot is not None else 0
+            started_at = datetime.now(UTC)
             started = time.monotonic()
             call = StepCall(
                 context=context,
@@ -321,7 +323,12 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                         len(slot.operations) if slot is not None else 0
                     ) - before
                     log.append(
-                        (p.name, operations, (time.monotonic() - started) * 1000)
+                        (
+                            p.name,
+                            operations,
+                            (time.monotonic() - started) * 1000,
+                            started_at,
+                        )
                     )
         return None
 

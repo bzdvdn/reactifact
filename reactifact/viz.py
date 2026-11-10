@@ -153,7 +153,7 @@ def trace_to_mermaid(trace: RunTrace) -> str:
     has_llm = any(span.llm_calls for span in trace.spans)
     for span in trace.spans:
         if span.agent not in pid_of:
-            pid = f"A{len(pid_of) - 1}"
+            pid = f"A{len(pid_of)}"
             pid_of[span.agent] = pid
             lines.append(f'    participant {pid} as "{_esc(span.agent)}"')
     if has_llm:
@@ -161,13 +161,11 @@ def trace_to_mermaid(trace: RunTrace) -> str:
 
     for span in trace.spans:
         pid = pid_of[span.agent]
-        pieces = [_esc(span.event_type) if span.event_type else "react"]
-        pieces.append(_plural(len(span.writes), "write"))
-        pieces.append(_plural(len(span.reads), "read"))
-        msg = " · ".join(pieces) + f" · {span.latency_ms:.0f} ms"
-        if span.error:
-            msg += f" · ⚠ {_esc(span.error)}"
-        lines.append(f"    {pid}->>{pid}: {msg}")
+        event = _esc(span.event_type) if span.event_type else "react"
+        if span.event_artifact_type:
+            event += f" · {_esc(span.event_artifact_type)}"
+        lines.append(f"    RT->>{pid}: {event}")
+        lines.append(f"    activate {pid}")
         for call in span.llm_calls:
             model = call.model or call.provider or "llm"
             stat = (
@@ -175,7 +173,23 @@ def trace_to_mermaid(trace: RunTrace) -> str:
                 f"{call.latency_ms:.0f} ms"
             )
             span_msg = f"{_esc(model)} · {stat}"
+            if call.error:
+                span_msg += f" · ⚠ {_esc(call.error)}"
             lines.append(f"    {pid}->>LL: {span_msg}")
+        for tool in span.tools:
+            msg = f"{tool.tool} · {tool.latency_ms:.0f} ms"
+            if not tool.ok:
+                msg += f" · ⚠ {_esc(tool.error or 'failed')}"
+            lines.append(f"    {pid}->>{pid}: tool {_esc(msg)}")
+        result = [
+            _plural(len(span.writes), "write"),
+            _plural(len(span.reads), "read"),
+            f"{span.latency_ms:.0f} ms",
+        ]
+        if span.error:
+            result.append(f"⚠ {_esc(span.error)}")
+        lines.append(f"    {pid}-->>RT: {' · '.join(result)}")
+        lines.append(f"    deactivate {pid}")
 
     outcome = trace.outcome or "?"
     lines.append(

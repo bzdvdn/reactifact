@@ -173,15 +173,26 @@ class RecordingLLM(LLMProvider):
         self._truncate = truncate
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
+        started_at = datetime.now(UTC)
         started = time.monotonic()
         try:
             response = await self._inner.complete(request)
         except Exception as exc:  # noqa: BLE001 — record and re-raise
             self._safe_record(
-                request, None, (time.monotonic() - started) * 1000, str(exc)
+                request,
+                None,
+                (time.monotonic() - started) * 1000,
+                str(exc),
+                started_at,
             )
             raise
-        self._safe_record(request, response, (time.monotonic() - started) * 1000, None)
+        self._safe_record(
+            request,
+            response,
+            (time.monotonic() - started) * 1000,
+            None,
+            started_at,
+        )
         return response
 
     def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
@@ -193,6 +204,7 @@ class RecordingLLM(LLMProvider):
         response: LLMResponse | None,
         latency_ms: float,
         error: str | None,
+        started_at: datetime,
     ) -> None:
         """`_record`, isolated: losing one LLMCall must not fail the LLM call.
 
@@ -200,7 +212,7 @@ class RecordingLLM(LLMProvider):
         provider's own exception, it would mask that original error.
         """
         try:
-            self._record(request, response, latency_ms, error)
+            self._record(request, response, latency_ms, error, started_at)
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("RecordingLLM._record", exc)
 
@@ -210,6 +222,7 @@ class RecordingLLM(LLMProvider):
         response: LLMResponse | None,
         latency_ms: float,
         error: str | None,
+        started_at: datetime,
     ) -> None:
         usage = dict(response.usage if response is not None else {})
         call = LLMCall(
@@ -228,6 +241,7 @@ class RecordingLLM(LLMProvider):
                 usage.get("completion_tokens") or usage.get("completion") or 0
             ),
             latency_ms=round(latency_ms, 1),
+            started_at=started_at,
             error=_redact(error, self._redactor) if error else error,
         )
         self._on_call(call)
@@ -486,7 +500,7 @@ class RunTracer:
         latency_ms: float,
         *,
         error: BaseException | None = None,
-        produces: list[tuple[str, int, float]] | None = None,
+        produces: list[tuple[str, int, float, datetime]] | None = None,
         tools: list[ToolRun] | None = None,
     ) -> AgentSpan | None:
         """Builds, buffers and delivers one span — or a no-op if disabled.
@@ -494,7 +508,7 @@ class RunTracer:
         `error is not None` covers the isolated-error path; the success path
         (a span whose `writes`/`relations` are filled in once the patch is
         applied, see `Runtime._commit_patches_to_apply`) passes it as `None`.
-        `produces` is the ``(name, operations, latency_ms)`` list the agent's
+        `produces` is the ``(name, operations, latency_ms, started_at)`` list the agent's
         `execute()` recorded for this event.
         """
         if self.tracer is None:
@@ -542,8 +556,13 @@ class RunTracer:
                     priority=agent.priority,
                 ),
                 produces=[
-                    StepRun(name=name, operations=operations, latency_ms=latency)
-                    for name, operations, latency in (produces or [])
+                    StepRun(
+                        name=name,
+                        operations=operations,
+                        latency_ms=latency,
+                        started_at=started_at,
+                    )
+                    for name, operations, latency, started_at in (produces or [])
                 ],
                 tools=tools or [],
                 reads=self.read_refs(reads),
