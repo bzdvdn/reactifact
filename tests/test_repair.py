@@ -614,3 +614,54 @@ def test_model_missed_area_is_filled_from_text(tmp_path):
     assert info.area == 10.0
     assert info.budget == 300000.0
     assert info.room_type == "детская"
+
+
+def test_rejected_design_options_offer_a_fresh_set(tmp_path):
+    options_one = (
+        '{"options":['
+        '{"name":"Лесная сказка","palette":{"style":"лесной","wall_color":"зелёный",'
+        '"ceiling_color":"белый","floor_material":"паркет"},"description":"a"},'
+        '{"name":"Тенистый бор","palette":{"style":"лесной","wall_color":"тёмно-зелёный",'
+        '"ceiling_color":"бежевый","floor_material":"ламинат"},"description":"b"},'
+        '{"name":"Солнечная опушка","palette":{"style":"лесной","wall_color":"оливковый",'
+        '"ceiling_color":"жёлтый","floor_material":"ковролин"},"description":"c"}]}'
+    )
+    options_two = (
+        '{"options":['
+        '{"name":"Морской бриз","palette":{"style":"морской","wall_color":"голубой",'
+        '"ceiling_color":"белый","floor_material":"дуб"},"description":"d"},'
+        '{"name":"Тёплый песок","palette":{"style":"морской","wall_color":"бежевый",'
+        '"ceiling_color":"белый","floor_material":"ламинат"},"description":"e"},'
+        '{"name":"Глубина","palette":{"style":"морской","wall_color":"синий",'
+        '"ceiling_color":"белый","floor_material":"ковролин"},"description":"f"}]}'
+    )
+    llm = ScriptedLLM(
+        [
+            '{"room_type":"спальня","area":12,"budget":100000}',
+            options_one,
+            options_two,
+        ]
+    )
+    ctx, runtime = build(tmp_path, llm)
+
+    ctx.create(UserMsg(text="спальня 12 м² бюджет 100000", session_id="s"))
+    asyncio.run(runtime.arun())
+    assert ctx.list_artifacts(Project)[0].data.stage == "design_choice"
+
+    rejected = ctx.create(
+        UserMsg(text="мне не нравится ни один, сделай еще", session_id="s")
+    )
+    asyncio.run(runtime.arun())
+
+    project = ctx.list_artifacts(Project)[0].data
+    assert [option.name for option in project.design_options] == [
+        "Морской бриз",
+        "Тёплый песок",
+        "Глубина",
+    ]
+    reply = [
+        item
+        for item in ctx.list_artifacts(ChatReply)
+        if item.data.query_id == rejected.id
+    ][-1].data.text
+    assert reply.startswith("Вот другие варианты:")

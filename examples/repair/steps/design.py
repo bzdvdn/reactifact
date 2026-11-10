@@ -31,7 +31,10 @@ logger = logging.getLogger(__name__)
 
 
 async def _make_design_options(
-    context: Context, info: ProjectInfo
+    context: Context,
+    info: ProjectInfo,
+    *,
+    avoid: list[str] | None = None,
 ) -> list[DesignOption] | None:
     """Designs from the LLM. If a model is configured but returns no valid options —
     return None (an honest failure), not canned stubs. The deterministic
@@ -40,6 +43,13 @@ async def _make_design_options(
     context.announce("Подбираю варианты дизайна…", kind="status")
     prefs = _list_preferences(info)
     prefs_text = f"Пожелания пользователя: {prefs}. " if prefs else ""
+    avoid_text = (
+        "Пользователю не понравились предыдущие варианты: "
+        + ", ".join(avoid)
+        + ". Предложи другие названия и палитры, не повторяй их. "
+        if avoid
+        else ""
+    )
     result = await structured_llm(
         context,
         schema=DesignOptions,
@@ -50,7 +60,7 @@ async def _make_design_options(
             "(стиль можно варьировать, но заявленные пожелания соблюдай). "
             "Каждый вариант: name, palette (style, wall_color, ceiling_color, "
             "floor_material — словами на русском), description.\n"
-            f"{prefs_text}Геометрия: {geometry_text(info)}"
+            f"{avoid_text}{prefs_text}Геометрия: {geometry_text(info)}"
         ),
     )
     if result is not None and result.options:

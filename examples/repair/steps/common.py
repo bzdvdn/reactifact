@@ -27,6 +27,12 @@ from ..services.geometry import ensure_geometry, geometry_text
 logger = logging.getLogger(__name__)
 
 _PICK_NUMBER = re.compile(r"^\s*(\d+)\s*$")
+#: "none of these, show more" at the design_choice stage.
+_MORE_OPTIONS_RE = re.compile(
+    r"(не\s+нрав|не\s+подход|ни\s+один|ни\s+один|друг(ие|ой|ого)|"
+    r"ещ[её]|передел|нов(ые|ый)\s+вариант)",
+    re.IGNORECASE,
+)
 _APPROVE_RE = re.compile(r"^(да|подтвержд|согласен|ок|yes)\b", re.IGNORECASE)
 # A cost/budget complaint — rebuild cheaper from the "plan" stage, not the estimate.
 _BUDGET_COMPLAINT = re.compile(
@@ -112,6 +118,11 @@ def _palette_text(project: Project) -> str:
     if project.info.style:
         parts.append(f"стиль: {project.info.style}")
     return "; ".join(parts) if parts else "свободный выбор"
+
+
+def _wants_more_options(text: str) -> bool:
+    """True for «не нравится ни один / сделай ещё / другие варианты»."""
+    return _MORE_OPTIONS_RE.search(text) is not None
 
 
 def _parse_pick(text: str, options: list[DesignOption]) -> DesignOption | None:

@@ -36,6 +36,7 @@ from .common import (
     _latest_user_msg,
     _parse_pick,
     _project_artifact,
+    _wants_more_options,
 )
 from .design import _make_design_options
 from .plan import _make_plan
@@ -146,8 +147,13 @@ class PickStage(Step):
         if msg is None or msg.id == project.handled_msg:
             return None
         context.announce("Думаю…", kind="status")
-        pick = _parse_pick(msg.data.text.strip(), project.design_options)
+        text = msg.data.text.strip()
+        pick = _parse_pick(text, project.design_options)
         if pick is None:
+            if _wants_more_options(text):
+                return await _regenerate_options(
+                    call.effects, context, project_art, project, msg
+                )
             return await _handle_style_change(
                 call.effects, context, project_art, project, msg, project.info
             )
@@ -353,6 +359,58 @@ def _assistant_fallback(project: Project) -> str:
         "План и смета утверждены. Спросите про этапы работ, материалы или "
         "цены из сметы — отвечу по плану."
     )
+
+
+async def _regenerate_options(
+    effects: Effects,
+    context: Context,
+    project_art: Artifact[Project],
+    project: Project,
+    msg: Artifact[UserMsg],
+) -> None:
+    """The human rejected the current options — ask for a fresh set."""
+    if context.resources.llm is None:
+        effects.update(project_art, handled_msg=msg.id)
+        effects.create(
+            _reply(
+                context,
+                msg.id,
+                "Без модели не могу придумать новые варианты. Выберите один "
+                "из текущих или уточните стиль — тогда обновлю палитру.",
+            ),
+            id=f"reply:{msg.id}",
+        )
+        return None
+    context.announce("Подбираю другие варианты…", kind="status")
+    options = await _make_design_options(
+        context, project.info, avoid=[option.name for option in project.design_options]
+    )
+    if options is None:
+        effects.update(project_art, handled_msg=msg.id)
+        effects.create(
+            _reply(
+                context,
+                msg.id,
+                "Не удалось подобрать другие варианты. Попробуйте ещё раз.",
+            ),
+            id=f"reply:{msg.id}",
+        )
+        return None
+    previews = "\n".join(
+        f"{i + 1}. {option.name} — {option.description}"
+        for i, option in enumerate(options)
+    )
+    effects.update(project_art, design_options=options, handled_msg=msg.id)
+    effects.create(
+        _reply(
+            context,
+            msg.id,
+            f"Вот другие варианты:\n{previews}",
+            images=[option.preview for option in options if option.preview],
+        ),
+        id=f"reply:{msg.id}",
+    )
+    return None
 
 
 async def _handle_style_change(
