@@ -235,7 +235,10 @@ function addTo(kind, text) {
 async function loadHistory() {
   const r = await fetch("/api/runs/" + sid);
   const state = await r.json();
-  for (const m of state.messages || []) add(m.role === "user" ? "user" : "assistant", m.text);
+  for (const m of state.messages || []) {
+    if ((m.images || []).length) addImages(m.images);
+    add(m.role === "user" ? "user" : "assistant", m.text);
+  }
   if (state.estimate) { renderProposal(state); lastProposalTotal = state.estimate.total; }
 }
 

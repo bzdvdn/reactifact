@@ -152,3 +152,22 @@ def test_memory_recipes_bound_a_conversation():
 
     asyncio.run(build())
     assert len(ctx.list_artifacts(ConversationMessage)) <= 2
+
+
+def test_transcript_state_can_carry_message_metadata():
+    ctx = Context()
+    ctx.create(Q(text="refund?"))
+    ctx.create(A(text="14 days"))
+
+    view = Transcript(
+        [
+            MessageSpec(Q, "user"),
+            MessageSpec(
+                A,
+                "assistant",
+                meta=lambda reply: {"images": [f"{reply.text}.png"]},
+            ),
+        ]
+    )
+
+    assert view.state(ctx)["messages"][1]["images"] == ["14 days.png"]

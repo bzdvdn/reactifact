@@ -100,6 +100,8 @@ class MessageSpec:
     type: type[BaseModel]
     role: Role
     render: Callable[[Any], str] | None = None
+    #: Extra fields for `Transcript.state()` (e.g. generated image paths).
+    meta: Callable[[Any], dict[str, Any]] | None = None
 
     def text_of(self, data: Any) -> str:
         if self.render is not None:
@@ -165,16 +167,17 @@ class Transcript:
 
     def state(self, ctx: Context) -> dict[str, Any]:
         """`ChatAssistant(session_state=transcript.state)` history payload."""
-        return {
-            "messages": [
-                {
-                    "role": spec.role,
-                    "text": spec.text_of(a.data),
-                    "at": a.created_at.isoformat(),
-                }
-                for _, spec, a in self._entries(ctx)
-            ]
-        }
+        messages: list[dict[str, Any]] = []
+        for _, spec, artifact in self._entries(ctx):
+            message = {
+                "role": spec.role,
+                "text": spec.text_of(artifact.data),
+                "at": artifact.created_at.isoformat(),
+            }
+            if spec.meta is not None:
+                message.update(spec.meta(artifact.data))
+            messages.append(message)
+        return {"messages": messages}
 
 
 @dataclass

@@ -94,7 +94,11 @@ def terminal_reply(ctx: Context, msg_id: str) -> dict:
 _TRANSCRIPT = Transcript(
     [
         MessageSpec(UserMsg, "user"),
-        MessageSpec(ChatReply, "assistant"),
+        MessageSpec(
+            ChatReply,
+            "assistant",
+            meta=lambda reply: {"images": reply.images},
+        ),
     ]
 )
 
