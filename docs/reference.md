@@ -64,23 +64,23 @@ is in how it's used, not its bare signature.
 
 ### ToolUse
 
-::: reactifact.tool_use.ToolUse
+::: reactifact.tools.use.ToolUse
 
 ### ToolUseHITL
 
-::: reactifact.tool_use.ToolUseHITL
+::: reactifact.tools.use.ToolUseHITL
 
-### native_tool_use
+### tools.native
 
-::: reactifact.native_tool_use.tools_payload
+::: reactifact.tools.native.tools_payload
 
-::: reactifact.native_tool_use.native_complete
+::: reactifact.tools.native.native_complete
 
-::: reactifact.native_tool_use.parse_tool_calls
+::: reactifact.tools.native.parse_tool_calls
 
 ### AgentAsTool
 
-::: reactifact.agent_tool.AgentAsTool
+::: reactifact.tools.agent.AgentAsTool
 
 ### ContextBuilder
 

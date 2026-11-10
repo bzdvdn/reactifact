@@ -62,7 +62,7 @@ Extend by adding a module here (the package stays import-surface-flat).
 
 from __future__ import annotations
 
-from ..native_tool_use import (
+from ..tools.native import (
     looks_like_tool_markup,
     parse_textual_tool_calls,
     parse_tool_calls_with_textual,

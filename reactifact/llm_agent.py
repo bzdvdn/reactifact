@@ -25,8 +25,8 @@ from .events import Event
 from .interrupt import PendingQuestion
 from .step import Step
 from .structured import SYSTEM_STRUCTURED, structured_llm
-from .tool_use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
 from .tools import Tool
+from .tools.use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
 
 
 def _require_consumes(

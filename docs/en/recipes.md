@@ -238,7 +238,7 @@ class Flow(Agent):
 
 ## `run_tool_loop` — a bounded native tool-calling loop (§46, §47)
 
-`reactifact.native_tool_use` deliberately ships one-turn helpers, not a loop.
+`reactifact.tools.native` deliberately ships one-turn helpers, not a loop.
 When you *do* want the loop — bounded rounds, parallel calls, a forced final
 answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `Agent`:
 
@@ -411,7 +411,7 @@ Two independent pieces: a router and an approval gate. The pattern mirrors
   the unanswered ones, so a rejection doesn't spawn a duplicate question
   chain — the exact bookkeeping bug this recipe exists to not let you write
   again. Uses `kind="approve"` — the same vocabulary the destructive-tool
-  gate (`tool_use.py`) and `Verify` (`verify.py`) already use, so one
+  gate (`reactifact.tools.use`) and `Verify` (`verify.py`) already use, so one
   control-plane UI built for "approve" requests handles all three.
 
 ```python

@@ -36,7 +36,7 @@ for what's already shipped, release by release.
     they're config surface _on_ a core object, not a separable add-on.
   - **"In the box"** (stable, evolves faster than core): `Tool`/`ToolUse`/
     `ToolUseHITL` (including the destructive-tool approval gate),
-    `native_tool_use`, `agent_tool.AgentAsTool`, `verify.Verify`'s metric
+    `reactifact.tools.native`, `reactifact.tools.agent.AgentAsTool`, `verify.Verify`'s metric
     surface, MCP, tracing/observability, providers. Same semver discipline, a
     lower bar for additive capability.
   - **Recipes** (`reactifact.recipes`, [docs/en/recipes.md](en/recipes.md)) —

@@ -22,7 +22,7 @@ from typing import Any, overload
 
 from pydantic import BaseModel, Field, create_model
 
-from .redaction import Redactor
+from ..redaction import Redactor
 
 
 class ToolError(BaseModel):

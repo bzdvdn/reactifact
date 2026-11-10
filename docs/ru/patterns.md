@@ -156,7 +156,7 @@ class OpsAgent(HITLLMAgent):
 `HITLLMAgent` — пока нет (см. докстринг класса, почему):
 
 ```python
-from reactifact.tool_use import DeferredToolGroup, ToolUse
+from reactifact.tools.use import DeferredToolGroup, ToolUse
 from reactifact.mcp import mcp_stdio_tools
 
 async def load_github_tools():

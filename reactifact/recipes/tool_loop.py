@@ -34,14 +34,14 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ..context import Context
-from ..native_tool_use import (
+from ..providers import LLMResponse
+from ..tools import Tool, ToolError, execute_tool
+from ..tools.native import (
     ToolCall,
     looks_like_tool_markup,
     native_complete,
     parse_tool_calls,
 )
-from ..providers import LLMResponse
-from ..tools import Tool, ToolError, execute_tool
 
 
 @dataclass

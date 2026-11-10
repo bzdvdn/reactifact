@@ -154,7 +154,7 @@ compact catalog — until the LLM asks for it by calling the built-in
 `HITLLMAgent` don't yet (see the class docstring for why):
 
 ```python
-from reactifact.tool_use import DeferredToolGroup, ToolUse
+from reactifact.tools.use import DeferredToolGroup, ToolUse
 from reactifact.mcp import mcp_stdio_tools
 
 async def load_github_tools():

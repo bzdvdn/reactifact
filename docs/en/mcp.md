@@ -22,7 +22,7 @@ take, so a remote MCP tool and a local `@tool` function are interchangeable:
 ```python
 from reactifact import Consume, create_agent
 from reactifact.mcp import mcp_stdio_tools
-from reactifact.tool_use import ToolUse
+from reactifact.tools.use import ToolUse
 
 async with mcp_stdio_tools(
     "npx", ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]

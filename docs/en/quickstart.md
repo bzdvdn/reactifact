@@ -118,7 +118,7 @@ async def main():
     ctx.create(Ticket(text="is checkout-api healthy?"))
     await runtime.arun()
 
-    from reactifact.tool_use import ToolAnswer
+    from reactifact.tools.use import ToolAnswer
     answer = ctx.latest(ToolAnswer)
     print("answer:", answer.data.text if answer else None)
 
