@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 from ..artifacts import Artifact
 from ..commit import Commit
+from ..context.index import recompute_stale, reindex_by_type
 from ..interrupt import PendingAction
 from ..patches import Create, Delete, Link, Operation, Update
 
@@ -63,8 +64,8 @@ def clone_context(source: Context) -> Context:
     new_ws._step_cursors = {
         key: dict(value) for key, value in source._step_cursors.items()
     }
-    new_ws._recompute_stale()
-    new_ws._reindex_by_type()
+    recompute_stale(new_ws)
+    reindex_by_type(new_ws)
     return new_ws
 
 
@@ -251,8 +252,8 @@ def merge_contexts(
         # bypassing the incremental hooks in `create()`/`update()`/
         # `delete()` — resync `_stale` from scratch rather than risk it
         # drifting from the post-merge state.
-        target._recompute_stale()
-        target._reindex_by_type()
+        recompute_stale(target)
+        reindex_by_type(target)
 
 
 __all__ = [

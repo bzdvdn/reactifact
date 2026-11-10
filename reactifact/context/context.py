@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any, TypeVar, cast, overload
 
 from pydantic import BaseModel
@@ -29,6 +28,7 @@ from ..patches import (
 from ..relations import RelationGraph
 from ..resources import RuntimeResources
 from ..streaming import EventHub, ProgressEvent, QueueEvent
+from .index import dependents_of, recompute_stale, reindex_by_type
 from .serialization import (
     CONTEXT_FORMAT_VERSION as CONTEXT_FORMAT_VERSION,
 )
@@ -237,7 +237,7 @@ class Context:
                 artifact_id=artifact_id,
             )
         )
-        for dependent in self._dependents_of(artifact_id):
+        for dependent in dependents_of(self, artifact_id):
             self._events.append(
                 Event(
                     type=EventType.ARTIFACT_STALE,
@@ -389,106 +389,54 @@ class Context:
     def interrupt(
         self,
         question: str,
-        *,
         kind: str = "general",
         notes: dict[str, Any] | None = None,
     ) -> Artifact[PendingQuestion]:
-        """Poses a question to a human: creates a PendingQuestion in the context."""
-        return self.create(
-            PendingQuestion(question=question, kind=kind, notes=notes or {})
-        )
+        from .pending import interrupt
+
+        return interrupt(self, question, kind=kind, notes=notes)
 
     def pending_questions(self) -> list[Artifact[PendingQuestion]]:
-        """Unanswered questions awaiting the human."""
-        return [a for a in self.list_artifacts(PendingQuestion) if not a.data.answered]
+        from .pending import pending_questions
+
+        return pending_questions(self)
 
     def has_pending_question(self) -> bool:
-        return bool(self.pending_questions())
+        from .pending import has_pending_question
+
+        return has_pending_question(self)
 
     def latest_pending_question(self) -> Artifact[PendingQuestion] | None:
-        questions = self.pending_questions()
-        if not questions:
-            return None
-        return max(questions, key=lambda a: a.created_at)
+        from .pending import latest_pending_question
+
+        return latest_pending_question(self)
 
     def resume(self, question_id: str, answer: str) -> Artifact[PendingQuestion] | None:
-        """A human's answer is a regular patch: marks the question as answered.
+        from .pending import resume
 
-        Generates ARTIFACT_UPDATED, which agents subscribed to
-        PendingQuestion(answered=True) react to.
-        """
-        artifact = self._artifacts.get(question_id)
-        if artifact is None or not isinstance(artifact.data, PendingQuestion):
-            return None
-        updated = artifact.data.model_copy(
-            update={
-                "answered": True,
-                "resolution": answer,
-                "resolved_at": datetime.now(UTC),
-            }
-        )
-        return self.update(question_id, updated)
-
-    # ---- Outbox: external side effects awaiting dispatch ----
+        return resume(self, question_id, answer)
 
     def pending_actions(self) -> list[Artifact[PendingAction]]:
-        """Committed outbound actions the dispatcher has not performed yet (§42)."""
-        return [
-            a for a in self.list_artifacts(PendingAction) if a.data.status == "pending"
-        ]
+        from .pending import pending_actions
+
+        return pending_actions(self)
 
     def mark_dispatched(self, action_id: str) -> Artifact[PendingAction] | None:
-        """Records that an outbound action was performed (a regular patch).
+        from .pending import mark_dispatched
 
-        Called by the runtime after the dispatcher returns; the `dispatched`
-        status is what stops a later generation or a replay from re-sending it.
-        """
-        artifact = self._artifacts.get(action_id)
-        if artifact is None or not isinstance(artifact.data, PendingAction):
-            return None
-        updated = artifact.data.model_copy(
-            update={
-                "status": "dispatched",
-                "dispatched_at": datetime.now(UTC),
-                "error": None,
-            }
-        )
-        return self.update(action_id, updated)
+        return mark_dispatched(self, action_id)
 
     def mark_failed(
         self, action_id: str, error: str | None = None
     ) -> Artifact[PendingAction] | None:
-        """Records a failed dispatch (terminal; `retry_action` re-arms it).
+        from .pending import mark_failed
 
-        A failing dispatcher propagates out of `arun()` (fail-loud, §69); this
-        keeps the failure visible as state (§59) rather than a bare exception,
-        and bumps `attempts` so a repeated failure is visible.
-        """
-        artifact = self._artifacts.get(action_id)
-        if artifact is None or not isinstance(artifact.data, PendingAction):
-            return None
-        updated = artifact.data.model_copy(
-            update={
-                "status": "failed",
-                "error": error,
-                "attempts": artifact.data.attempts + 1,
-            }
-        )
-        return self.update(action_id, updated)
+        return mark_failed(self, action_id, error)
 
     def retry_action(self, action_id: str) -> Artifact[PendingAction] | None:
-        """Re-arms a `failed` action as `pending` (resetting `attempts`).
+        from .pending import retry_action
 
-        The retry policy is the application's (or the dispatcher's) — this just
-        puts the action back in the outbox so the next drain tries it again.
-        """
-        artifact = self._artifacts.get(action_id)
-        if artifact is None or not isinstance(artifact.data, PendingAction):
-            return None
-        updated = artifact.data.model_copy(
-            update={"status": "pending", "error": None, "attempts": 0}
-        )
-        return self.update(action_id, updated)
+        return retry_action(self, action_id)
 
     def drain_events(self) -> list[Event]:
         """Drains and clears the event queue."""
@@ -595,10 +543,20 @@ class Context:
                 existing = self._artifacts.get(artifact_id)
                 if existing is not None:
                     self._by_type.get(type(existing.data), set()).discard(artifact_id)
-                    self._store.update(artifact_id, op.data, commit_id=commit.id)
+                    self._store.update(
+                        artifact_id,
+                        op.data,
+                        commit_id=commit.id,
+                        created_at=commit.timestamp,
+                    )
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
                 else:
-                    self._store.create(op.data, artifact_id, commit_id=commit.id)
+                    self._store.create(
+                        op.data,
+                        artifact_id,
+                        commit_id=commit.id,
+                        created_at=commit.timestamp,
+                    )
                     self._by_type.setdefault(type(op.data), set()).add(artifact_id)
                 applied = self._store.current_artifact(artifact_id)
                 assert applied is not None
@@ -608,7 +566,12 @@ class Context:
                 if artifact is None:
                     continue
                 old_type = type(artifact.data)
-                self._store.update(op.artifact_id, op.new_data, commit_id=commit.id)
+                self._store.update(
+                    op.artifact_id,
+                    op.new_data,
+                    commit_id=commit.id,
+                    created_at=commit.timestamp,
+                )
                 applied = self._store.current_artifact(op.artifact_id)
                 assert applied is not None
                 self._artifacts[op.artifact_id] = applied
@@ -639,8 +602,8 @@ class Context:
         Used after a bulk load (append-only replay) that bypasses the
         incremental `create`/`update`/`delete` paths.
         """
-        self._recompute_stale()
-        self._reindex_by_type()
+        recompute_stale(self)
+        reindex_by_type(self)
 
     def replace_events(self, events: Sequence[Event]) -> None:
         """Replaces the pending-event queue (used by the session load path)."""
@@ -687,7 +650,7 @@ class Context:
             for artifact_id in self._artifacts:
                 self._store.trim_history(artifact_id, keep_versions)
         if dropped:
-            self._recompute_stale()
+            recompute_stale(self)
         return dropped
 
     @property
@@ -732,80 +695,15 @@ class Context:
 
     # ---- Invalidation / staleness (§43–44) based on recorded reads ----
 
-    def _producing_commit(self, artifact_id: str) -> Commit | None:
-        """The last commit that wrote the artifact (create or update)."""
-        return self._log.producing_commit(artifact_id)
-
-    def _dependents_of(self, artifact_id: str) -> list[Artifact[Any]]:
-        """Artifacts whose producing commit read `artifact_id` at an older version.
-
-        Looks up only `artifact_id`'s actual dependents via the commit log's
-        reverse index (`CommitLog.dependents_of`), not every artifact in the
-        context — used right after that artifact's version bumps to emit
-        `ARTIFACT_STALE` reactively instead of waiting for a `stale_artifacts()`
-        poll.
-        """
-        current = self._artifacts.get(artifact_id)
-        if current is None:
-            return []
-        dependents: list[Artifact[Any]] = []
-        for aid in self._log.dependents_of(artifact_id):
-            artifact = self._artifacts.get(aid)
-            if artifact is None:
-                continue
-            commit = self._producing_commit(aid)
-            if commit is None:
-                continue
-            for read in commit.reads:
-                if read.artifact_id == artifact_id and read.version < current.version:
-                    dependents.append(artifact)
-                    break
-        return dependents
-
     def stale_artifacts(self) -> list[Artifact[Any]]:
-        """Artifacts whose parents (reads in the producing commit) are now newer versions.
+        from .index import stale_artifacts
 
-        Dependencies are built from the actual reads recorded by the runtime via
-        consumes — a link derived from execution, not an author-drawn graph.
-        Backed by the incrementally-maintained `_stale` set (kept current by
-        `update()`/`log_commit()`), not a rescan of every artifact.
-        """
-        return [self._artifacts[aid] for aid in self._stale if aid in self._artifacts]
+        return stale_artifacts(self)
 
     def has_stale(self) -> bool:
-        return bool(self._stale)
+        from .index import has_stale
 
-    def _recompute_stale(self) -> None:
-        """Full rebuild of `_stale` from current artifacts + the commit log.
-
-        Only needed after a bulk rewrite that bypasses the normal
-        `create`/`update`/`log_commit` path (`checkout`, `clone`, `from_dict`)
-        — those are inherently O(state) operations already, unlike the hot
-        `update()`/`stale_artifacts()` path this index exists to keep cheap.
-        """
-        stale: set[str] = set()
-        for artifact_id in self._artifacts:
-            commit = self._producing_commit(artifact_id)
-            if commit is None:
-                continue
-            for read in commit.reads:
-                current = self._artifacts.get(read.artifact_id)
-                if current is not None and current.version > read.version:
-                    stale.add(artifact_id)
-                    break
-        self._stale = stale
-
-    def _reindex_by_type(self) -> None:
-        """Full rebuild of `_by_type` from current artifacts.
-
-        Same reasoning as `_recompute_stale()`: only needed after a bulk
-        rewrite that bypasses `create`/`update`/`delete` — call it alongside
-        `_recompute_stale()` at every such site, never on its own.
-        """
-        by_type: dict[type, set[str]] = {}
-        for aid, artifact in self._artifacts.items():
-            by_type.setdefault(type(artifact.data), set()).add(aid)
-        self._by_type = by_type
+        return has_stale(self)
 
     def _replay_store(self, upto_version: int) -> ArtifactStore:
         """Replay commits into a fresh store, preserving absolute version numbers
@@ -946,8 +844,8 @@ class Context:
 
         self._events = []
         self._log.truncate(version)
-        self._recompute_stale()
-        self._reindex_by_type()
+        recompute_stale(self)
+        reindex_by_type(self)
 
     def to_dict(self) -> SerializedContext:
         from .serialization import serialize_context

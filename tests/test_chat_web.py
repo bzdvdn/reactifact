@@ -582,3 +582,42 @@ def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):
 
     assert events[-1].kind == "message"
     assert events[-1].payload["reply"] == "degraded"
+
+
+def test_typed_transcript_keeps_dialog_order_after_append_reload(tmp_path):
+    from reactifact.recipes.conversation import MessageSpec, Transcript
+
+    db = tmp_path / "typed-sessions.sqlite3"
+    transcript = Transcript([MessageSpec(Q, "user"), MessageSpec(A, "assistant")])
+
+    def build() -> ChatAssistant:
+        def reply(ctx, msg_id):
+            answer = ctx.latest(A)
+            return {
+                "reply": answer.data.text if answer else "fallback",
+                "waiting": False,
+            }
+
+        return ChatAssistant(
+            store=SessionStore(SQLiteKVBackend(str(db))),
+            agents=[ANSWER_AGENT],
+            user_message=Q,
+            reply=reply,
+            session_state=lambda ctx: transcript.state(ctx),
+            max_concurrency=1,
+        )
+
+    assistant = build()
+    for text in ("first", "second", "third"):
+        _drain(assistant.stream(text, session_id="s1"))
+
+    # A fresh assistant forces a reload from snapshot + append log.
+    history = asyncio.run(build().history("s1"))
+    assert [message["role"] for message in history["messages"]] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]

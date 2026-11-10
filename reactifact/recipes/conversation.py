@@ -118,18 +118,33 @@ class Transcript:
     artifacts untouched. It removes the merge/sort/window/map boilerplate apps
     otherwise repeat (a role per type, a renderer for a non-text assistant
     side), and its `state` is a `ChatAssistant(session_state=…)` payload.
+    Messages use the Context's insertion order by default (the order replay
+    restores); pass `order_key=` to sort by a field instead.
     """
 
     specs: list[MessageSpec]
     order_key: Callable[[Artifact[Any]], Any] | None = None
 
     def _entries(self, ctx: Context) -> list[tuple[Any, MessageSpec, Artifact[Any]]]:
-        key = self.order_key or (lambda a: a.created_at)
-        entries: list[tuple[Any, MessageSpec, Artifact[Any]]] = [
-            (key(a), spec, a)
-            for spec in self.specs
-            for a in ctx.list_artifacts(spec.type)
-        ]
+        if self.order_key is not None:
+            entries = [
+                (self.order_key(a), spec, a)
+                for spec in self.specs
+                for a in ctx.list_artifacts(spec.type)
+            ]
+        else:
+            # Context insertion order is the replayed conversation order: it is
+            # what `Context.from_dict`/append-log replay restore, even when a
+            # replay recreates an artifact's timestamp.
+            rank = {
+                artifact.id: index
+                for index, artifact in enumerate(ctx.list_artifacts())
+            }
+            entries = [
+                (rank[a.id], spec, a)
+                for spec in self.specs
+                for a in ctx.list_artifacts(spec.type)
+            ]
         entries.sort(key=lambda e: e[0])
         return entries
 

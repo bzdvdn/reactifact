@@ -9,16 +9,13 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from ..agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
-from ..artifacts import artifact_content_hash
-from ..budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
-from ..commit import Commit, Read, Write
+from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
+from ..commit import Commit, Read
 from ..context import Context
 from ..effects import Effects, current_effects, reset_effects, set_effects
 from ..events import Event
-from ..guardrails import GuardrailViolation
 from ..logging import get_logger, reset_context, set_context
-from ..patches import Create, Delete, Link, Patch, Unlink, Update
-from ..quota import QuotaLLM
+from ..patches import Patch
 from ..request import current_request, reset_request, set_request
 from ..resources import RuntimeResources
 from ..scheduler import Scheduler
@@ -27,6 +24,8 @@ from ..streaming import ProgressEvent
 from ..tools import ToolRun, begin_tool_runs, end_tool_runs, tool_runs
 from ..tracing.models import AgentSpan
 from ..tracing.tracer import CompositeTracer, RunTracer, Tracer
+from .budget import TurnBudget
+from .loop import run_generations
 from .outbox import (
     Dispatcher as Dispatcher,
 )
@@ -36,6 +35,7 @@ from .outbox import (
 from .outbox import (
     Outbox,
 )
+from .patch import PatchApplicator
 
 logger = get_logger("reactifact.runtime")
 
@@ -133,6 +133,7 @@ class Runtime:
         #: re-arm; retry policy/backoff is the application's.
         self.on_dispatch_error = on_dispatch_error
         self._outbox = Outbox(context, dispatcher, on_dispatch_error)
+        self._patches = PatchApplicator(context)
         # "per_commit" (default): persist at every generation boundary, after
         # that generation's trigger batch is consumed — so the session survives
         # a crash between generations and the saved queue and artifacts commit
@@ -163,13 +164,9 @@ class Runtime:
         self._trace = RunTracer(context, self.tracer)
         self.outcome: RunOutcome = RunOutcome.COMPLETED
         self.last_stats: RunStats | None = None
-        self._runs_used = 0
-        self._deadline: float | None = None
-        self._active_budget: Budget | None = None
+        self._turn_budget = TurnBudget()
         self._turn_started = False
-        self._turn_started_at = 0.0
         self._no_runs_warned = False
-        self._errors_used = 0
         # Not reentrant: `arun`/`arun_once`/`astream` all mutate shared,
         # instance-level turn state (`_runs_used`, `outcome`, `_deadline`,
         # and the per-turn copy of `context.resources`). Two concurrent calls
@@ -191,8 +188,6 @@ class Runtime:
         #: that copy, so a `RuntimeResources` shared across sessions/turns is
         #: never mutated by concurrent turns). Restored on turn end.
         self._original_resources: RuntimeResources | None = None
-        #: Set when the principal's cross-turn quota is already spent.
-        self._quota_exceeded = False
         #: Reset token for the turn's log correlation context (see `_begin_turn`).
         self._log_token: Any | None = None
         #: Generation counter within the current turn (log correlation).
@@ -268,68 +263,8 @@ class Runtime:
         if self._original_resources is None:
             self._original_resources = self.context.resources
             self.context.resources = copy.copy(self.context.resources)
-        self._runs_used = 0
-        self._errors_used = 0
         self.outcome = RunOutcome.COMPLETED
-        self._deadline = None
-        self._turn_started_at = time.monotonic()
-        self._active_budget = budget or self.budget
-        if (
-            self._active_budget is not None
-            and self._active_budget.max_seconds is not None
-        ):
-            self._deadline = self._turn_started_at + self._active_budget.max_seconds
-        # expose budget visibility to agents (LLM agent counts max_tool_calls;
-        # a multi-step blocking loop like ToolUse._loop checks `budget_deadline`
-        # between its own internal steps — the runtime only enforces max_seconds
-        # *between* agent runs, so a produce with its own internal loop would
-        # otherwise never see it until the whole produce() returns).
-        self.context.resources.budget = self._active_budget
-        self.context.resources.budget_deadline = self._deadline
-        # Token/cost budgets need LLM usage counted even when tracing is off
-        # (`RecordingLLM` is tracer-gated at `tracing/tracer.py`), so install
-        # our own accounting wrapper for the turn and restore the original at
-        # its end (`_end_turn_resources`).
-        self._tracker = None
-        self._original_llm = None
-        self._quota_exceeded = False
-        if (
-            self._active_budget is not None
-            and self._active_budget.max_cost is not None
-            and self.context.resources.pricer is None
-        ):
-            logger.warning(
-                "Budget.max_cost is set but RuntimeResources.pricer is None; "
-                "cost is not tracked and the limit is inert."
-            )
-        if (
-            self._active_budget is not None
-            and self._active_budget.tracks_llm_usage
-            and self.context.resources.llm is not None
-        ):
-            self._tracker = BudgetTracker()
-            self._original_llm = self.context.resources.llm
-            self.context.resources.llm = BudgetLLM(
-                self._original_llm,
-                self._tracker,
-                pricer=self.context.resources.pricer,
-            )
-        self.context.resources.budget_tracker = self._tracker
-        # Cross-turn quota: check the principal now (so an exhausted key stops
-        # before any work) and count this turn's LLM usage into the tracker.
-        quota = self.context.resources.quota
-        if quota is not None:
-            if quota.exceeded(self.context.resources.quota_key()) is not None:
-                self._quota_exceeded = True
-            if self.context.resources.llm is not None:
-                if self._original_llm is None:
-                    self._original_llm = self.context.resources.llm
-                self.context.resources.llm = QuotaLLM(
-                    self.context.resources.llm,
-                    quota,
-                    key=self.context.resources.quota_key(),
-                    pricer=self.context.resources.pricer,
-                )
+        self._turn_budget.begin(budget or self.budget, self.context.resources)
         self._turn_started = True
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else ""
@@ -362,9 +297,7 @@ class Runtime:
         Called from the public turn entry points (`arun`/`arun_once`); idempotent
         if no wrapper was installed.
         """
-        if self._original_llm is not None:
-            self.context.resources.llm = self._original_llm
-            self._original_llm = None
+        self._turn_budget.finish(self.context.resources)
         if self._original_resources is not None:
             # Drop the per-turn copy (and every wrapper installed on it) and
             # put the app's original instance back on the Context.
@@ -380,105 +313,11 @@ class Runtime:
         self._turn_started = False
 
     def _budget_exhausted(self) -> bool:
-        if self._deadline is not None and time.monotonic() >= self._deadline:
-            self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
-            return True
-        if self._quota_exceeded:
-            self.outcome = RunOutcome.QUOTA_EXCEEDED
-            return True
-        if (
-            self._active_budget is not None
-            and self._active_budget.max_runs is not None
-            and self._runs_used >= self._active_budget.max_runs
-        ):
-            self.outcome = RunOutcome.BUDGET_RUNS_EXCEEDED
-            return True
-        if self._tracker is not None:
-            exceeded = self._tracker.exhausted(self._active_budget)
-            if exceeded is not None:
-                self.outcome = exceeded
-                return True
-        return False
-
-    def _validate_patch_types(self, patch: Patch, agent: Agent) -> None:
-        """Checks that all Create operations match the agent's produces.
-
-        A produce's allowed types are its own `artifact_type` plus whatever
-        it declares via `also_creates` — a produce whose body legitimately
-        writes more than one artifact type names all of them there instead of
-        needing a second, inert `Produce(OtherType)` placeholder in this
-        agent's `produces` list just to widen this set.
-        """
-        if agent.steps is None:
-            return  # no restrictions
-        allowed_types: set[type] = set()
-        for p in agent.steps:
-            if p.produces:
-                allowed_types.update(p.produces)
-            else:
-                if p.artifact_type is not None:
-                    allowed_types.add(p.artifact_type)
-                allowed_types.update(p.also_creates)
-        if not allowed_types:
-            return
-        for op in patch.operations:
-            if isinstance(op, Create) and type(op.data) not in allowed_types:
-                raise ValueError(
-                    f"Agent '{agent.name}' created artifact of type {type(op.data).__name__}, "
-                    f"which is not declared in produces: {[t.__name__ for t in allowed_types]}. "
-                    "Declare it via the step's `produces=(...)` (or `also_creates`)."
-                )
-
-    def _enforce_authorization(self, patch: Patch) -> None:
-        """Gates each Create/Update/Delete against the principal's policy (§57)."""
-        resources = self.context.resources
-        if resources.authorizer is None:
-            return
-        for op in patch.operations:
-            if isinstance(op, Create):
-                resources.require_authorized("create", type(op.data).__name__)
-            elif isinstance(op, Update):
-                resources.require_authorized("update", type(op.new_data).__name__)
-            elif isinstance(op, Delete):
-                resources.require_authorized(
-                    "delete", getattr(op, "data_type", "") or "artifact"
-                )
-
-    def _apply_guardrails(self, patch: Patch) -> Patch:
-        """Checks/rewrites each Create/Update; blocks the turn on a violation (§57)."""
-        policy = self.context.resources.guardrails
-        if policy is None:
-            return patch
-        metrics = self.context.resources.metrics
-        for op in patch.operations:
-            if isinstance(op, Create):
-                data = op.data
-            elif isinstance(op, Update):
-                data = op.new_data
-            else:
-                continue
-            decision = policy.evaluate(data, self.context)
-            if decision.action == "allow":
-                continue
-            resource = type(data).__name__
-            metrics.increment(
-                "reactifact_guardrail_triggered_total",
-                guardrail=decision.guardrail or "guardrail",
-                action=decision.action,
-                type=resource,
-            )
-            if decision.action == "redact" and decision.data is not None:
-                if isinstance(op, Create):
-                    op.data = decision.data
-                else:
-                    op.new_data = decision.data
-                continue
-            if decision.action in ("redact", "flag"):
-                continue
-            raise GuardrailViolation(
-                decision.guardrail or "guardrail", decision.reason, resource
-            )
-        return patch
+        exceeded = self._turn_budget.exhausted()
+        if exceeded is None:
+            return False
+        self.outcome = exceeded
+        return True
 
     async def arun_once(
         self,
@@ -559,9 +398,9 @@ class Runtime:
         if self.scheduler is not None and work:
             work = await self.scheduler(self.context, work)
 
-        active = self._active_budget
+        active = self._turn_budget.active
         if active is not None and active.max_runs is not None:
-            remaining = active.max_runs - self._runs_used
+            remaining = active.max_runs - self._turn_budget.runs_used
             if remaining <= 0:
                 self.outcome = RunOutcome.BUDGET_RUNS_EXCEEDED
                 work = []
@@ -691,9 +530,9 @@ class Runtime:
             if self._budget_exhausted():
                 break
             runs += 1
-            self._runs_used += 1
+            self._turn_budget.count_run()
             if error is not None:
-                self._errors_used += 1
+                self._turn_budget.count_error()
                 self._trace.record_span(
                     agent,
                     event,
@@ -714,9 +553,9 @@ class Runtime:
                 produces=produce_run_list,
                 tools=tool_run_list,
             )
-            self._validate_patch_types(patch, agent)
-            self._enforce_authorization(patch)
-            patch = self._apply_guardrails(patch)
+            self._patches.validate_types(patch, agent)
+            self._patches.enforce_authorization(patch)
+            patch = self._patches.apply_guardrails(patch)
             patches_to_apply.append((patch, agent, reads, span))
         return patches_to_apply, runs
 
@@ -734,7 +573,7 @@ class Runtime:
                 operations=patch.operations,
                 reads=reads,
             )
-            commit.writes = self._apply_patch(patch, commit)
+            commit.writes = self._patches.apply(patch, commit)
             if span is not None:
                 span.writes = self._trace.write_refs(patch, commit.writes)
                 span.relations = self._trace.relation_refs(patch)
@@ -885,40 +724,9 @@ class Runtime:
             self._end_turn_resources()
             self._exit_turn()
 
-    async def _run_generations(self, limit: int) -> int:
-        """The fixpoint loop, from the first generation to quiescence.
-
-        Factored out of `_arun_impl` so the hard deadline can wrap it: a
-        `TimeoutError` cancels whichever generation is in flight, and the
-        loop — not yet consumed its trigger batch — is simply left to resume.
-        """
-        total_runs = 0
-        for _ in range(limit):
-            if self._stop_requested.is_set():
-                self.outcome = RunOutcome.STOPPED
-                break
-            if self._budget_exhausted():
-                break
-            runs = await self._arun_once_impl()
-            total_runs += runs
-            # Continue while the context is not quiescent: a generation that ran
-            # no agent can still have left outbox work (or events emitted by the
-            # drain) that the next generation must drain (§42).
-            if runs == 0 and not self._has_pending_work():
-                break
-        else:
-            if self.outcome == RunOutcome.COMPLETED:
-                self.outcome = RunOutcome.ITERATIONS_EXHAUSTED
-        return total_runs
-
-    def _remaining_seconds(self) -> float | None:
-        if self._deadline is None:
-            return None
-        return max(0.0, self._deadline - time.monotonic())
-
     async def _arun_impl(self, max_iterations: int, budget: Budget | None) -> int:
         self._begin_turn(budget)
-        active = self._active_budget
+        active = self._turn_budget.active
         limit = (
             active.max_iterations
             if active is not None and active.max_iterations is not None
@@ -926,17 +734,17 @@ class Runtime:
         )
         logger.info("run started", extra={"max_iterations": limit})
         total_runs = 0
-        remaining = self._remaining_seconds()
+        remaining = self._turn_budget.remaining_seconds()
         try:
             if remaining is None:
-                total_runs = await self._run_generations(limit)
+                total_runs = await run_generations(self, limit)
             else:
                 # Hard deadline: cancel the in-flight generation when wall-clock
                 # runs out (the soft `_budget_exhausted` check only fires between
                 # generations). The generation in flight is not committed and its
                 # trigger batch is not consumed, so a resume re-dispatches it.
                 async with asyncio.timeout(remaining):
-                    total_runs = await self._run_generations(limit)
+                    total_runs = await run_generations(self, limit)
         except TimeoutError:
             self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
             logger.warning(
@@ -945,13 +753,13 @@ class Runtime:
                     "max_seconds": active.max_seconds if active is not None else None
                 },
             )
-        tracker = self._tracker
+        tracker = self._turn_budget.tracker
         self.last_stats = RunStats(
             runs=total_runs,
             iterations=limit,
             outcome=self.outcome,
-            duration=time.monotonic() - self._turn_started_at,
-            errors=self._errors_used,
+            duration=time.monotonic() - self._turn_budget.started_at,
+            errors=self._turn_budget.errors_used,
             prompt_tokens=tracker.prompt_tokens if tracker is not None else 0,
             completion_tokens=tracker.completion_tokens if tracker is not None else 0,
             cost=tracker.cost if tracker is not None else 0.0,
@@ -962,7 +770,7 @@ class Runtime:
             session_id=self.session.session_id if self.session is not None else "",
             # `time.monotonic()` is seconds; the trace's `duration_ms` (and every
             # sink/UI reading it) is milliseconds — same unit as span latency.
-            duration_ms=(time.monotonic() - self._turn_started_at) * 1000,
+            duration_ms=(time.monotonic() - self._turn_budget.started_at) * 1000,
             outcome=self.outcome.value,
         )
         if self.session is not None and self.session_save_policy == "per_turn":
@@ -973,7 +781,7 @@ class Runtime:
             extra={
                 "outcome": self.outcome.value,
                 "runs": total_runs,
-                "errors": self._errors_used,
+                "errors": self._turn_budget.errors_used,
                 "duration_ms": round(stats.duration * 1000, 2) if stats else 0.0,
             },
         )
@@ -1089,56 +897,3 @@ class Runtime:
                     timeout=_CANCEL_GRACE_SECONDS,
                 )
             self.context.unsubscribe(queue)
-
-    def _apply_patch(self, patch: Patch, commit: Commit) -> list[Write]:
-        writes: list[Write] = []
-        for op in patch.operations:
-            if isinstance(op, Create):
-                if op.id is not None and self.context.get(op.id) is not None:
-                    # create-or-refresh: after re-derivation update the same logical
-                    # entity (new revision) rather than creating a duplicate (§42, §43)
-                    upserted = self.context.update(op.id, op.data)
-                    assert upserted is not None
-                    op.artifact_id = op.id
-                    writes.append(
-                        Write(
-                            op.id,
-                            upserted.version,
-                            "update",
-                            artifact_content_hash(op.data),
-                        )
-                    )
-                else:
-                    created = self.context.create(op.data, id=op.id)
-                    op.artifact_id = created.id
-                    writes.append(
-                        Write(
-                            op.artifact_id,
-                            created.version,
-                            "create",
-                            artifact_content_hash(op.data),
-                        )
-                    )
-            elif isinstance(op, Update):
-                updated = self.context.update(op.artifact_id, op.new_data)
-                if updated is not None:
-                    writes.append(
-                        Write(
-                            op.artifact_id,
-                            updated.version,
-                            "update",
-                            artifact_content_hash(op.new_data),
-                        )
-                    )
-            elif isinstance(op, Delete):
-                removed = self.context.get(op.artifact_id)
-                version = removed.version if removed is not None else 0
-                self.context.delete(op.artifact_id)
-                writes.append(Write(op.artifact_id, version, "delete"))
-            elif isinstance(op, Link):
-                self.context.link(op.artifact_id, op.relation, op.target_id)
-            elif isinstance(op, Unlink):
-                self.context.unlink(op.artifact_id, op.relation, op.target_id)
-            else:
-                raise ValueError(f"Unknown operation: {op}")
-        return writes

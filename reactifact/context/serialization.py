@@ -16,6 +16,7 @@ from ..commit_log import CommitLog
 from ..events import Event
 from ..relations import RelationGraph
 from ..types import migrate_payload, resolve, type_id_of
+from .index import recompute_stale, reindex_by_type
 
 #: Current persisted-envelope version. Bump when `to_dict`'s shape changes and
 #: register a migration in `_CONTEXT_MIGRATIONS` for the previous version.
@@ -287,8 +288,8 @@ def deserialize_context(cls: type[Any], d: dict[str, Any]) -> Any:
         deserialize_context(cls, data["base"]) if data.get("base") is not None else None
     )
     ws._step_cursors = _deserialize_step_cursors(data.get("step_cursors", {}))
-    ws._recompute_stale()
-    ws._reindex_by_type()
+    recompute_stale(ws)
+    reindex_by_type(ws)
     ws.mark_persisted(ws.version)
     return ws
 

@@ -172,7 +172,7 @@ class PostgresStore:
 
     async def export(self, trace: RunTrace) -> None:
 
-        import psycopg.types.json
+        import psycopg.types.json  # pyright: ignore[reportMissingImports]
 
         await self._ensure_schema()
         started = trace.started_at
