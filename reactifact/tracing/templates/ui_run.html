@@ -235,12 +235,21 @@ function render(t){
   document.getElementById('cid').textContent='#'+t.id;
   const cls=t.outcome==='completed'?'ok':(t.outcome==='failed'?'err':'amber');
   document.getElementById('head').innerHTML='<span class="badge '+cls+'"><span class="dot"></span>'+escapeHtml(t.outcome)+'</span>';
-  const tokens=(t.spans||[]).reduce((a,s)=>a+(s.llm_calls||[]).reduce((b,c)=>b+(c.prompt_tokens||0)+(c.completion_tokens||0),0),0);
-  const work=(t.spans||[]).reduce((a,s)=>a+(Number(s.latency_ms)||0),0);
+  const spans=t.spans||[];
+  const tokens=spans.reduce((a,s)=>a+(s.llm_calls||[]).reduce((b,c)=>b+(c.prompt_tokens||0)+(c.completion_tokens||0),0),0);
+  const work=spans.reduce((a,s)=>a+(Number(s.latency_ms)||0),0);
+  const llmCalls=spans.reduce((a,s)=>a+(s.llm_calls||[]).length,0);
+  const llmMs=spans.reduce((a,s)=>a+(s.llm_calls||[]).reduce((b,c)=>b+(Number(c.latency_ms)||0),0),0);
+  const toolCalls=spans.reduce((a,s)=>a+(s.tools||[]).length,0);
+  const toolMs=spans.reduce((a,s)=>a+(s.tools||[]).reduce((b,x)=>b+(Number(x.latency_ms)||0),0),0);
+  const errors=spans.filter(s=>s.error).length;
   document.getElementById('meta').innerHTML=
     tile('duration',Number(t.duration_ms).toFixed(1)+' <small>ms</small>')+
     tile('work',Number(work).toFixed(1)+' <small>ms</small>')+
-    tile('spans',String((t.spans||[]).length))+
+    tile('spans',String(spans.length))+
+    tile('llm',llmCalls+' · '+llmMs.toFixed(0)+' <small>ms</small>')+
+    tile('tools',toolCalls+' · '+toolMs.toFixed(0)+' <small>ms</small>')+
+    tile('errors',String(errors))+
     tile('tokens',String(tokens))+
     tile('session',escapeHtml(t.session_id||'—'))+
     tile('created',fmtTime(t.started_at));
@@ -316,7 +325,8 @@ function renderTimeline(spans){
   rows.sort((a,b)=>a.start-b.start);
   let total=Number(run.duration_ms)||0;for(const r of rows)total=Math.max(total,r.start+r.dur);total=Math.max(total,1);
   const ticks=[0,0.25,0.5,0.75,1].map(p=>'<span class="tl-tick" style="left:'+(p*100)+'%">'+Math.round(total*p)+' ms</span>').join('');
-  let html='<div class="timeline"><div class="tl-axis">'+ticks+'</div>';
+  const legend='<div class="tl-legend"><span><i class="sw-span"></i>span</span><span><i class="sw-step"></i>step</span><span><i class="sw-llm"></i>llm</span><span><i class="sw-tool"></i>tool</span></div>';
+  let html='<div class="timeline">'+legend+'<div class="tl-axis">'+ticks+'</div>';
   for(const r of rows){
     const s=r.s;const left=(r.start/total)*100;const width=Math.max(0.6,(r.dur/total)*100);
     const prods=(s.produces||[]).map(p=>p.name).join('+');

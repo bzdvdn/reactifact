@@ -295,6 +295,13 @@ details.agent>summary:hover{background:var(--hover);}
 .tl-sub.produce{background:var(--ok);}
 .tl-sub.tool{background:var(--tool);}
 .tl-sub.llm{background:var(--accent);}
+.tl-legend{display:flex;gap:14px;align-items:center;justify-content:flex-end;margin:0 0 2px;color:var(--faint);font-size:11px;}
+.tl-legend span{display:inline-flex;align-items:center;gap:5px;}
+.tl-legend i{width:14px;height:6px;border-radius:3px;display:inline-block;}
+.tl-legend .sw-span{background:var(--accent);}
+.tl-legend .sw-step{background:var(--ok);}
+.tl-legend .sw-llm{background:var(--accent);opacity:.65;}
+.tl-legend .sw-tool{background:var(--tool);}
 .spans{display:flex;flex-direction:column;gap:8px;}
 details.node{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-sm);background:var(--panel);overflow:hidden;}
 details.node summary{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:13px;}

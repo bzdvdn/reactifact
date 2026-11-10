@@ -85,6 +85,8 @@ This is a new core release; `0.20.0` follows the `0.17.x` line. See the
 
 - Trace sequence diagrams show `Runtime → agent` triggers, `agent → LLM/tool`
   calls and `agent → Runtime` commit summaries instead of only self-loops.
+- Trace overview adds LLM/tool/error rollups; the timeline has a legend and
+  places parallel work by real start time.
 - `Transcript` uses Context insertion order by default (the order replay
   restores); pass `order_key=` for explicit sorting.
 - `MessageSpec.meta` can add fields (such as generated image paths) to
@@ -108,6 +110,7 @@ This is a new core release; `0.20.0` follows the `0.17.x` line. See the
   honest message instead of silently repeating the same options.
 - Tracing SQLite/Postgres row mapping and serialization are shared through
   `tracing/_shared.py`.
+- Trace detail no longer issues the same load-more page request twice.
 - `pyright` is clean for the package/examples scope, and `import-linter`
   reports no broken contracts.
 
