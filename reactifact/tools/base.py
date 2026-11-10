@@ -95,6 +95,11 @@ def reset_current_produce(token: Token[str]) -> None:
     _current_produce.reset(token)
 
 
+def current_produce_name() -> str:
+    """The produce/step currently executing (empty outside a step run)."""
+    return _current_produce.get()
+
+
 def begin_tool_runs(
     *,
     record_args: bool = False,

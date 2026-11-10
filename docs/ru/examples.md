@@ -203,7 +203,7 @@ uv run python -m examples.tour.main --llm --scene model
 ## Тесты
 
 ```bash
-.venv/bin/python -m pytest      # 1105 тестов (6 пропущены без TEST_PG_DSN)
+.venv/bin/python -m pytest      # 1106 тестов (6 пропущены без TEST_PG_DSN)
 .venv/bin/mypy                  # строгая типизация по всему репозиторию
 .venv/bin/ruff check            # линтер
 ```

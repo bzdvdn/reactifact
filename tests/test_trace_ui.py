@@ -40,5 +40,14 @@ def test_work_ui_has_contract_flow_and_chip_filters():
     assert "data-filter-kind" in html
     assert "Consumes / inputs" in html
     assert "Outputs / writes" in html
-    assert "tl-sub produce" in html
-    assert "tl-sub tool" in html
+    assert "tl-row child" in html
+    assert "function tlRow" in html
+    assert "function tlStart" in html
+    assert "step · " in html
+    assert "llm · " in html
+    assert "Causal chain" in html
+    assert "renderCausal" in html
+    assert "Mermaid source (export)" in html
+    assert "data-cx-span" in html
+    assert "data-span" in html
+    assert "focusSpan" in html

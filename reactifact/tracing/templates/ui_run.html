@@ -61,17 +61,17 @@
           <span id="chip-filter" class="hint"></span>
           <div class="seg" id="view-seg">
             <button class="seg-btn active" data-view="tree">Tree</button>
-            <button class="seg-btn" data-view="timeline">Timeline</button>
+            <button class="seg-btn" data-view="timeline">Waterfall</button>
           </div>
         </div>
         <div class="card-body"><div class="hint" id="work-note"></div><div class="agents" id="agents"></div></div>
       </div>
       <div class="card" id="json-card" style="display:none"><div class="card-head"><h2>Raw JSON</h2></div><div class="card-body"><pre id="json-pre" class="json-pre"></pre></div></div>
       <div class="card">
-        <div class="card-head"><h2>Sequence</h2><button class="btn sm" id="copy-mermaid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>copy</span></button><span class="hint">mermaid — rendered live; paste the source into mermaid.live / GitHub</span></div>
+        <div class="card-head"><h2>Causal chain</h2><button class="btn sm" id="copy-mermaid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>copy mermaid</span></button><span class="hint">runtime → agent → step → LLM/tool → commit</span></div>
         <div class="card-body">
-          <div class="diagram" id="diagram-mermaid"><div class="diagram-toolbar"><button class="btn sm icon" data-act="zoom-out" title="zoom out">−</button><span class="zoom-label" data-zoom>100%</span><button class="btn sm icon" data-act="zoom-in" title="zoom in">+</button><button class="btn sm" data-act="reset">reset</button><div class="spacer"></div><button class="btn sm" data-act="fullscreen">fullscreen</button></div><div class="diagram-viewport"><div class="diagram-stage" id="mermaid"></div></div></div>
-          <details class="src-block" id="mermaid-src"><summary>show source</summary><pre id="mermaid-pre"></pre></details>
+          <div class="causal" id="causal"></div>
+          <details class="src-block" id="mermaid-src"><summary>Mermaid source (export)</summary><pre id="mermaid-pre"></pre></details>
         </div>
       </div>
       <div class="card">
@@ -151,12 +151,12 @@ async function loadDiagram(){
     if(!res.ok)throw new Error('HTTP '+res.status);
     const d=await res.json();
     MERMAID_SRC=d.mermaid||'';MERMAID_GRAPH_SRC=d.provenance||'';
-    mountDiagram(MERMAID_SRC,'diagram-mermaid','mermaid-pre');
+    const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=MERMAID_SRC;
     mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
     if(d.truncated)toast('Diagram truncated: '+d.span_limit+' of '+d.span_total+' spans');
   }catch(err){
     const msg='Could not load diagram — '+escapeHtml(err&&err.message?err.message:String(err));
-    const a=document.getElementById('diagram-mermaid');if(a)a.innerHTML='<div class="empty">'+msg+'</div>';
+    const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=msg;
     const b=document.getElementById('diagram-graph');if(b)b.innerHTML='<div class="empty">'+msg+'</div>';
   }
 }
@@ -236,6 +236,7 @@ function render(t){
   const cls=t.outcome==='completed'?'ok':(t.outcome==='failed'?'err':'amber');
   document.getElementById('head').innerHTML='<span class="badge '+cls+'"><span class="dot"></span>'+escapeHtml(t.outcome)+'</span>';
   const spans=t.spans||[];
+  spans.forEach((s,i)=>s._idx=i);
   const tokens=spans.reduce((a,s)=>a+(s.llm_calls||[]).reduce((b,c)=>b+(c.prompt_tokens||0)+(c.completion_tokens||0),0),0);
   const work=spans.reduce((a,s)=>a+(Number(s.latency_ms)||0),0);
   const llmCalls=spans.reduce((a,s)=>a+(s.llm_calls||[]).length,0);
@@ -258,6 +259,7 @@ function render(t){
   const jp=document.getElementById('json-pre');if(jp)jp.textContent=JSON.stringify(t,null,2);
   renderWork();
   updateWorkNote();
+  renderCausal(t.spans||[]);
 }
 function renderFields(fields){
   const card=document.getElementById('fields-card');
@@ -296,7 +298,7 @@ function spanMatches(s,f){
   const hay=[s.agent,s.event_type,s.event_artifact_type||'',s.event_artifact_id||'',s.error||''];
   for(const p of (s.produces||[]))hay.push(p.name||'');
   for(const a of (s.reads||[]).concat(s.writes||[]))hay.push(a.data_type||'',a.data||'');
-  for(const c of (s.llm_calls||[]))hay.push(c.provider||'',c.model||'',c.response||'',...(c.messages||[]).map(m=>m.content||''));
+  for(const c of (s.llm_calls||[]))hay.push(c.provider||'',c.model||'',c.step||'',c.response||'',...(c.messages||[]).map(m=>m.content||''));
   return hay.join(' ').toLowerCase().includes(f);
 }
 function renderWork(){
@@ -314,6 +316,76 @@ function renderTree(spans){
   const keys=Object.keys(byAgent);
   el.innerHTML=keys.length?keys.map(a=>agentHtml(a,byAgent[a])).join(''):'<div class="empty">no spans match</div>';
 }
+function focusSpan(idx){
+  const target=document.querySelector('[data-span="'+idx+'"]');
+  if(!target){toast('span is not in the current view');return;}
+  if(target.tagName==='DETAILS')target.open=true;
+  document.querySelectorAll('[data-span].focus').forEach(el=>el.classList.remove('focus'));
+  target.classList.add('focus');
+  target.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>target.classList.remove('focus'),2200);
+}
+function bindCausalClicks(){
+  document.querySelectorAll('[data-cx-span]').forEach(el=>{
+    el.addEventListener('click',()=>focusSpan(el.dataset.cxSpan));
+    el.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();focusSpan(el.dataset.cxSpan);}});
+  });
+}
+function fmtOffset(ms){return ms>=1000?(ms/1000).toFixed(2)+'s':Math.round(ms)+'ms';}
+function renderCausal(spans){
+  const el=document.getElementById('causal');if(!el)return;
+  if(!spans.length){el.innerHTML='<div class="empty">no spans to show</div>';return;}
+  const run=TRACE||{};const origin=new Date(run.started_at||Date.now()).getTime();
+  const hasStart=spans.some(s=>s.started_at);let cursor=0;
+  const rows=spans.map(s=>{const dur=Number(s.latency_ms)||0;let start;
+    if(hasStart&&s.started_at)start=Math.max(0,new Date(s.started_at).getTime()-origin);else{start=cursor;cursor+=dur;}
+    return {s:s,start:start,dur:dur};});
+  rows.sort((a,b)=>a.start-b.start);
+  function call(c){
+    const at=c.parent?'<span class="cx-at">step: '+escapeHtml(c.parent)+'</span>':'';
+    if(c.kind==='llm')return '<div class="cx-call"><span class="cx-kind llm">LLM</span><b>'+escapeHtml(c.name)+'</b>'+at+'<span class="cx-meta">'+Number(c.node.prompt_tokens||0)+'→'+Number(c.node.completion_tokens||0)+' tok · '+Number(c.node.latency_ms||0).toFixed(0)+' ms</span>'+(c.node.error?'<span class="cx-err">'+escapeHtml(c.node.error)+'</span>':'')+'</div>';
+    return '<div class="cx-call'+(c.node.ok===false?' bad':'')+'"><span class="cx-kind tool">TOOL</span><b>'+escapeHtml(c.name)+'</b>'+at+'<span class="cx-meta">'+Number(c.node.latency_ms||0).toFixed(0)+' ms'+(c.node.chars?' · '+Number(c.node.chars)+' chars':'')+'</span>'+(c.node.error?'<span class="cx-err">'+escapeHtml(c.node.error)+'</span>':'')+'</div>';
+  }
+  let html='<div class="cx-list">';
+  for(const r of rows){
+    const s=r.s;const event=s.event_artifact_type||s.event_type||'span';
+    const calls=[];
+    for(const c of (s.llm_calls||[]))calls.push({kind:'llm',name:c.model||c.provider||'llm',parent:c.step||'',node:c});
+    for(const t of (s.tools||[]))calls.push({kind:'tool',name:t.tool||'tool',parent:t.produce||'',node:t});
+    let body='';
+    for(const p of (s.produces||[])){
+      const kids=[];for(const c of calls){if(c.parent&&c.parent===p.name){kids.push(c);c._used=true;}}
+      body+='<div class="cx-step"><div class="cx-step-head"><span class="cx-kind step">STEP</span><b>'+escapeHtml(p.name)+'</b><span class="cx-meta">'+Number(p.operations||0)+' ops · '+Number(p.latency_ms||0).toFixed(0)+' ms</span></div>'+
+        (kids.length?'<div class="cx-calls">'+kids.map(call).join('')+'</div>':'')+'</div>';
+    }
+    const orphans=calls.filter(c=>!c._used);
+    if(orphans.length)body+='<div class="cx-calls">'+orphans.map(call).join('')+'</div>';
+    html+='<div class="cx-event'+(s.error?' err':'')+'" data-cx-span="'+s._idx+'" tabindex="0" title="show span">'+
+      '<div class="cx-rail"><span class="cx-time">+'+fmtOffset(r.start)+'</span><span class="cx-dot'+(s.error?' err':'')+'"></span></div>'+
+      '<div class="cx-card">'+
+        '<div class="cx-head"><span class="cx-badge">'+escapeHtml(s.event_type||'react')+'</span><span class="cx-arrow">→</span><b>'+escapeHtml(s.agent)+'</b><span class="cx-meta">'+Number(s.latency_ms||0).toFixed(0)+' ms</span></div>'+
+        '<div class="cx-sub">trigger <code>'+escapeHtml(event)+'</code>'+(s.event_artifact_id?' <code>'+escapeHtml(shortId(s.event_artifact_id))+'</code>':'')+'</div>'+
+        body+
+        '<div class="cx-commit"><span>commit</span>'+(s.writes||[]).length+' writes · '+(s.reads||[]).length+' reads</div>'+
+        (s.error?'<div class="err-box">'+escapeHtml(s.error)+'</div>':'')+
+      '</div></div>';
+  }
+  const outcome=run.outcome||'?';
+  html+='<div class="cx-end"><span>run</span>'+escapeHtml(outcome)+' · '+Number(run.duration_ms||0).toFixed(0)+' ms</div></div>';
+  el.innerHTML=html;
+  bindCausalClicks();
+}
+function tlStart(node,origin,fallback){
+  if(node&&node.started_at){const d=new Date(node.started_at).getTime()-origin;if(isFinite(d))return Math.max(0,d);}
+  return fallback;
+}
+function tlRow(e,total){
+  const left=(e.start/total)*100;const width=Math.max(0.6,(e.dur/total)*100);
+  const pad=e.level===2?' lvl2':(e.level===1?' lvl1':'');
+  const cls=(e.level?'tl-row child':'tl-row')+(pad?' '+pad:'');
+  return '<div class="'+cls+'" data-span="'+(e.idx??'')+'"><div class="tl-label" title="'+e.title+'">'+e.label+'</div>'+
+    '<div class="tl-track-wrap"><div class="tl-track"><div class="tl-bar '+e.cls+'" style="left:'+left+'%;width:'+width+'%" title="'+e.title+'"><span class="lbl">'+e.dur.toFixed(0)+' ms</span></div></div></div></div>';
+}
 function renderTimeline(spans){
   const el=document.getElementById('agents');
   if(!spans.length){el.innerHTML='<div class="empty">no spans match</div>';return;}
@@ -323,40 +395,49 @@ function renderTimeline(spans){
     if(hasStart&&s.started_at)start=Math.max(0,new Date(s.started_at).getTime()-origin);else{start=cursor;cursor+=dur;}
     return {s:s,start:start,dur:dur};});
   rows.sort((a,b)=>a.start-b.start);
-  let total=Number(run.duration_ms)||0;for(const r of rows)total=Math.max(total,r.start+r.dur);total=Math.max(total,1);
+  const items=[];
+  for(const r of rows){
+    const s=r.s;
+    const event=s.event_artifact_type||s.event_type||'span';
+    const prods=(s.produces||[]).map(p=>p.name).join('+');
+    const title=s.agent+' · '+event+(prods?' → '+prods:'');
+    items.push({level:0,start:r.start,dur:r.dur,idx:s._idx,cls:s.error?'err':'spanbar',
+      label:escapeHtml(s.agent)+' <span class="sub">'+escapeHtml(event)+'</span>',title:escapeHtml(title)});
+    const steps=(s.produces||[]).map(p=>({kind:'step',name:p.name,start:tlStart(p,origin,r.start),dur:Number(p.latency_ms)||0,node:p}));
+    const llms=(s.llm_calls||[]).map(c=>({kind:'llm',name:c.model||c.provider||'llm',start:tlStart(c,origin,r.start),dur:Number(c.latency_ms)||0,parent:c.step||'',node:c}));
+    const tools=(s.tools||[]).map(x=>({kind:'tool',name:x.tool,start:tlStart(x,origin,r.start),dur:Number(x.latency_ms)||0,parent:x.produce||'',node:x}));
+    const used=new Set();
+    for(const st of steps){
+      items.push({level:1,start:st.start,dur:st.dur,idx:s._idx,cls:'step',
+        label:escapeHtml(st.name)+' <span class="sub">step · '+Number(st.node.operations||0)+' ops</span>',
+        title:escapeHtml(st.name+' — step · '+Number(st.node.operations||0)+' ops · '+st.dur.toFixed(1)+' ms')});
+      for(const c of [...llms,...tools]){
+        if(c.parent&&c.parent===st.name){
+          used.add(c);
+          const sub=c.kind==='llm'
+            ? 'llm · '+Number(c.node.prompt_tokens||0)+'→'+Number(c.node.completion_tokens||0)+' tok'
+            : 'tool'+(c.node.chars?' · '+Number(c.node.chars)+' chars':'');
+          items.push({level:2,start:c.start,dur:c.dur,idx:s._idx,cls:c.kind+(c.node.ok===false?' err':''),
+            label:escapeHtml(c.name)+' <span class="sub">'+sub+'</span>',
+            title:escapeHtml(c.name+' — '+sub+' · '+c.dur.toFixed(1)+' ms')});
+        }
+      }
+    }
+    for(const c of [...llms,...tools]){
+      if(used.has(c))continue;
+      const sub=c.kind==='llm'
+        ? 'llm · '+Number(c.node.prompt_tokens||0)+'→'+Number(c.node.completion_tokens||0)+' tok'
+        : 'tool'+(c.node.chars?' · '+Number(c.node.chars)+' chars':'');
+      items.push({level:1,start:c.start,dur:c.dur,idx:s._idx,cls:c.kind+(c.node.ok===false?' err':''),
+        label:escapeHtml(c.name)+' <span class="sub">'+sub+'</span>',
+        title:escapeHtml(c.name+' — '+sub+' · '+c.dur.toFixed(1)+' ms')});
+    }
+  }
+  let total=Number(run.duration_ms)||0;
+  for(const it of items)total=Math.max(total,it.start+it.dur);total=Math.max(total,1);
   const ticks=[0,0.25,0.5,0.75,1].map(p=>'<span class="tl-tick" style="left:'+(p*100)+'%">'+Math.round(total*p)+' ms</span>').join('');
   const legend='<div class="tl-legend"><span><i class="sw-span"></i>span</span><span><i class="sw-step"></i>step</span><span><i class="sw-llm"></i>llm</span><span><i class="sw-tool"></i>tool</span></div>';
-  let html='<div class="timeline">'+legend+'<div class="tl-axis">'+ticks+'</div>';
-  for(const r of rows){
-    const s=r.s;const left=(r.start/total)*100;const width=Math.max(0.6,(r.dur/total)*100);
-    const prods=(s.produces||[]).map(p=>p.name).join('+');
-    const toolCount=(s.tools||[]).length;
-    const label=escapeHtml(s.agent)+' · '+escapeHtml(s.event_artifact_type||s.event_type||'span')+(prods?' → '+escapeHtml(prods):'')+(toolCount?' · '+toolCount+' tools':'');const llm=(s.llm_calls||[]).length;
-    let subs='';let pcursor=r.start;
-    for(const p of (s.produces||[])){
-      let ps=pcursor;
-      if(p.started_at){const d=new Date(p.started_at).getTime()-origin;if(isFinite(d))ps=Math.max(0,d);}
-      const w=Math.max(0.3,(Number(p.latency_ms)||0)/total*100);
-      subs+='<span class="tl-sub produce" style="left:'+(ps/total*100)+'%;width:'+w+'%" title="'+escapeHtml(p.name)+' — '+Number(p.latency_ms||0).toFixed(1)+' ms"></span>';
-      pcursor=ps+(Number(p.latency_ms)||0);
-    }
-    for(const call of (s.llm_calls||[])){
-      if(!call.started_at)continue;
-      let ls=new Date(call.started_at).getTime()-origin;if(!isFinite(ls))continue;ls=Math.max(0,ls);
-      const w=Math.max(0.3,(Number(call.latency_ms)||0)/total*100);
-      subs+='<span class="tl-sub llm" style="left:'+(ls/total*100)+'%;width:'+w+'%" title="'+escapeHtml(call.model||call.provider||'llm')+' — '+Number(call.latency_ms||0).toFixed(1)+' ms"></span>';
-    }
-    for(const tool of (s.tools||[])){
-      let ts=r.start;
-      if(tool.started_at){const d=new Date(tool.started_at).getTime()-origin;if(isFinite(d))ts=Math.max(0,d);}
-      const w=Math.max(0.3,(Number(tool.latency_ms)||0)/total*100);
-      subs+='<span class="tl-sub tool" style="left:'+(ts/total*100)+'%;width:'+w+'%" title="'+escapeHtml(tool.tool)+' — '+Number(tool.latency_ms||0).toFixed(1)+' ms"></span>';
-    }
-    html+='<div class="tl-row"><div class="tl-label" title="'+label+'">'+label+(llm?' <span class="sub">'+llm+' llm</span>':'')+'</div>'+
-      '<div class="tl-track-wrap"><div class="tl-track"><div class="tl-bar'+(s.error?' err':'')+'" style="left:'+left+'%;width:'+width+'%" title="'+label+' — '+r.dur.toFixed(1)+' ms"><span class="lbl">'+r.dur.toFixed(0)+' ms</span></div></div>'+
-      (subs?'<div class="tl-subs">'+subs+'</div>':'')+'</div></div>';
-  }
-  el.innerHTML=html+'</div>';
+  el.innerHTML='<div class="timeline">'+legend+'<div class="tl-axis">'+ticks+'</div>'+items.map(e=>tlRow(e,total)).join('')+'</div>';
 }
 function agentHtml(agent,list){
   const contract=contractOf(agent,list);AGENT_CONTRACTS[agent]=contract;
@@ -402,7 +483,7 @@ function spanHtml(s){
   const io=(reads||writes)?'<div class="io-grid">'+reads+writes+'</div>':'';
   const llm=(s.llm_calls||[]).map(llmHtml).join('');
   const toolCount=(s.tools||[]).length;
-  return '<details class="node"><summary>'+
+  return '<details class="node" data-span="'+(s._idx??'')+'"><summary>'+
     '<span class="caret">▸</span><span class="s-dot '+(ok?'ok':'err')+'"></span>'+
     '<span class="nid">'+escapeHtml(s.agent)+'</span>'+trigger+
     flow+

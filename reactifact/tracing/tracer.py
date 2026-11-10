@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..patches import Create, Link, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
+from ..tools import current_produce_name
 from .models import (
     AgentContract,
     AgentSpan,
@@ -227,6 +228,7 @@ class RecordingLLM(LLMProvider):
         usage = dict(response.usage if response is not None else {})
         call = LLMCall(
             agent=self._agent_of(),
+            step=current_produce_name(),
             provider=self._provider,
             model=str(getattr(self._inner, "model", "") or ""),
             messages=_clip_messages(request.messages, self._redactor),

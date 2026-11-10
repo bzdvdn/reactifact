@@ -37,6 +37,8 @@ class LLMCall(BaseModel):
     """One model call: request, response, tokens, latency (§54)."""
 
     agent: str = ""
+    #: The step (`Step.name`) that made the call, when it happened inside one.
+    step: str = ""
     provider: str = ""
     model: str = ""
     messages: list[dict[str, Any]] = Field(default_factory=list)

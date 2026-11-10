@@ -25,7 +25,8 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   renders explicit `consumes → produces` lists, mutes declared-but-not-run
   items, and a click on any chip filters the visible spans.
 - **LLM calls** (`LLMCall`) — prompts, responses (truncated), token usage,
-  latency.
+  latency, and the step that made the call (`LLMCall.step`), so the waterfall
+  nests it under that step.
 - **Timing and ordering** — the whole causal chain of a run, in order. Agent
   spans, steps (`StepRun.started_at`), LLM calls (`LLMCall.started_at`) and tools
   (`ToolRun.started_at`) carry wall-clock starts, so the timeline can place
@@ -65,21 +66,35 @@ app.include_router(create_trace_router(store), prefix="/traces")
 
 It serves a small app shell (shared `templates/app.css`): a collapsible sidebar
 (Traces / Sessions), `/traces` (list of runs, filterable), `/traces/{id}` (stat
-tiles, spans, reads, writes, LLM input/output, timing, plus two live Mermaid
-diagrams — the run's **sequence** and its **evidence graph**, i.e. written
-artifacts with `patch.link` provenance edges, §34), and `/sessions`. The
+tiles, spans, reads, writes, LLM input/output, timing, a native **causal
+chain** (runtime → agent → step → LLM/tool → commit) and a live Mermaid
+**evidence graph** — written artifacts with `patch.link` provenance edges,
+§34), and `/sessions`. The
 `devops` example mounts this router and is the reference UI.
 
 ![Traces list: filterable by outcome and session, each row showing duration and span count.](../img/tracer-list.png)
 
-Opening a run shows work grouped by agent (span count, artifact types touched,
-and a `Consume → Step` flow: the artifact type that triggered the agent, then
-which produce ran with its authored-operation count — no-op produces dimmed) and
-the full sequence diagram — here the `devops` example's HITL ask/resume flow:
-`k8s` calls the model across several `artifact_created` spans, then `render`
-builds the final reply:
+Opening a run starts with the overview — wall time, work, spans, LLM/tool time,
+errors and tokens:
 
-![Run detail: work grouped by agent, plus a live sequence diagram of every artifact write and LLM call.](../img/tracer-run-detail.png)
+![Run overview: duration, work, spans, LLM/tool time, errors and tokens.](../img/tracer-run-card.png)
+
+The **Work** card has two views. **Tree** groups spans by agent and shows the
+declared `Consume → Step` contract plus what actually ran; no-op steps are
+dimmed, and clicking a chip filters the visible spans:
+
+![Work tree: spans grouped by agent, with the Consume → Step contract.](../img/tracer-run-detail.png)
+
+**Waterfall** puts `span → step → LLM/tool` on one time axis, so parallel work
+and the latency bottleneck are visible at a glance:
+
+![Waterfall: span, step, LLM and tool bars on a shared time axis.](../img/tracer-timeline.png)
+
+**Causal chain** is the readable "why did this happen" view: `Runtime → agent`
+on the triggering artifact, then each step with its LLM/tool calls, then the
+commit. Click an event to focus and outline its span in Tree/Waterfall:
+
+![Causal chain: runtime → agent → step → LLM/tool → commit, with steps named.](../img/tracer-causal.png)
 
 ### Reviewing runs: tags and notes
 
@@ -97,9 +112,11 @@ fact, so the immutable trace the runtime produced is never rewritten.
 - A **sessions** page (`/sessions`) groups runs by `session_id` with run count,
   total duration, tokens and last-seen, and links into the filtered trace list.
 - The run page has a **Review** card: add/remove tags, each with a note.
-- **Tree ↔ Timeline**: the run's work is shown either grouped by agent, or as a
-  Gantt timeline of spans (start offset + width by latency) that makes
-  parallelism and the latency bottleneck obvious.
+- **Tree ↔ Waterfall**: the run's work is shown either grouped by agent, or as a
+  hierarchical Gantt waterfall (`span → step → LLM/tool`) with start offset and
+  width by latency, making parallelism and the latency bottleneck obvious.
+  Clicking a causal-chain event jumps to and outlines its span in the active
+  Tree/Waterfall view.
 - In-trace search filters spans/agents/LLM text; **copy link**, **copy JSON**
   and a raw **JSON** view are one click away.
 - Select several runs to tag or untag them in bulk.

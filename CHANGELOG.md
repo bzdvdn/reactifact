@@ -87,6 +87,11 @@ This is a new core release; `0.20.0` follows the `0.17.x` line. See the
   calls and `agent → Runtime` commit summaries instead of only self-loops.
 - Trace overview adds LLM/tool/error rollups; the timeline has a legend and
   places parallel work by real start time.
+- The trace waterfall is hierarchical (`span → step → LLM/tool`); `LLMCall`
+  records the owning step so nested calls land under the right row.
+- The sequence card is a native **causal chain** (runtime → agent → step →
+  LLM/tool → commit) with Mermaid kept as an export source; clicking an event
+  focuses and outlines its span in Tree/Waterfall.
 - `Transcript` uses Context insertion order by default (the order replay
   restores); pass `order_key=` for explicit sorting.
 - `MessageSpec.meta` can add fields (such as generated image paths) to

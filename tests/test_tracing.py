@@ -12,6 +12,7 @@ from reactifact import (
     Produce,
     Runtime,
     RuntimeResources,
+    Step,
     create_agent,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, Message
@@ -146,7 +147,9 @@ def test_trace_store_roundtrips_nested_start_times(tmp_path):
                         name="Emit", operations=1, latency_ms=2.0, started_at=started
                     )
                 ],
-                llm_calls=[LLMCall(agent="a", latency_ms=3.0, started_at=started)],
+                llm_calls=[
+                    LLMCall(agent="a", step="Emit", latency_ms=3.0, started_at=started)
+                ],
             )
         ],
     )
@@ -156,6 +159,7 @@ def test_trace_store_roundtrips_nested_start_times(tmp_path):
     span = loaded.spans[0]
     assert span.produces[0].started_at == started
     assert span.llm_calls[0].started_at == started
+    assert span.llm_calls[0].step == "Emit"
 
 
 def test_runtime_records_spans_and_trace(tmp_path):
@@ -297,6 +301,36 @@ def test_runtime_records_llm_calls(tmp_path):
     assert call.started_at is not None
     assert any("привет" in (m.get("content") or "") for m in call.messages)
     assert "привет" in call.response
+
+
+def test_runtime_attributes_llm_call_to_its_step(tmp_path):
+    from reactifact.structured import structured_llm
+
+    class AnswerBody(BaseModel):
+        text: str
+
+    class LlamStep(Step):
+        consumes = (Question,)
+        produces = (Answer,)
+
+        async def run(self, context: Context, question: Question) -> Answer:
+            body = await structured_llm(context, schema=AnswerBody, user=question.text)
+            return Answer(text=body.text if body else "")
+
+    store = TraceStore(str(tmp_path / "llm-step.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(
+        ctx,
+        agents=[create_agent("stepper", steps=[LlamStep()])],
+        tracer=Tracer(store=store),
+    )
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    span = next(s for s in trace.spans if s.agent == "stepper")
+    assert span.llm_calls[0].step == "LlamStep"
 
 
 def test_runtime_without_tracer_still_works():
