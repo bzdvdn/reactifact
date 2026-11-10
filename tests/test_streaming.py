@@ -141,7 +141,7 @@ def test_eventhub_bounds_a_stuck_subscriber_by_dropping_oldest():
 def test_astream_close_is_bounded_when_runner_ignores_cancel(monkeypatch):
     """A misbehaving agent that swallows `CancelledError` must not hang the
     caller's disconnect path: `astream` gives up after a bounded grace."""
-    monkeypatch.setattr("reactifact.runtime._CANCEL_GRACE_SECONDS", 0.05)
+    monkeypatch.setattr("reactifact.runtime.runtime._CANCEL_GRACE_SECONDS", 0.05)
 
     async def run():
         ctx = Context()

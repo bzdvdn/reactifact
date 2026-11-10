@@ -4,32 +4,40 @@ import copy
 import sys
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from .agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
-from .artifacts import Artifact, artifact_content_hash
-from .budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
-from .commit import Commit, Read, Write
-from .context import Context
-from .effects import Effects, current_effects, reset_effects, set_effects
-from .events import Event
-from .guardrails import GuardrailViolation
-from .interrupt import PendingAction
-from .logging import get_logger, reset_context, set_context
-from .patches import Create, Delete, Link, Patch, Unlink, Update
-from .quota import QuotaLLM
-from .request import current_request, reset_request, set_request
-from .resources import RuntimeResources
-from .scheduler import Scheduler
-from .session import Session
-from .streaming import ProgressEvent
-from .tools import ToolRun, begin_tool_runs, end_tool_runs, tool_runs
-from .tracing.models import AgentSpan
-from .tracing.tracer import CompositeTracer, RunTracer, Tracer
+from ..agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
+from ..artifacts import artifact_content_hash
+from ..budget import Budget, BudgetLLM, BudgetTracker, RunOutcome, RunStats
+from ..commit import Commit, Read, Write
+from ..context import Context
+from ..effects import Effects, current_effects, reset_effects, set_effects
+from ..events import Event
+from ..guardrails import GuardrailViolation
+from ..logging import get_logger, reset_context, set_context
+from ..patches import Create, Delete, Link, Patch, Unlink, Update
+from ..quota import QuotaLLM
+from ..request import current_request, reset_request, set_request
+from ..resources import RuntimeResources
+from ..scheduler import Scheduler
+from ..session import Session
+from ..streaming import ProgressEvent
+from ..tools import ToolRun, begin_tool_runs, end_tool_runs, tool_runs
+from ..tracing.models import AgentSpan
+from ..tracing.tracer import CompositeTracer, RunTracer, Tracer
+from .outbox import (
+    Dispatcher as Dispatcher,
+)
+from .outbox import (
+    DispatchErrorHandler as DispatchErrorHandler,
+)
+from .outbox import (
+    Outbox,
+)
 
-logger = get_logger(__name__)
+logger = get_logger("reactifact.runtime")
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
 PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
@@ -46,12 +54,6 @@ AgentResult = tuple[
     list[tuple[str, int, float]],
     list[ToolRun],
 ]
-#: Performs one committed `PendingAction` (outbox). Called by the runtime after
-#: the intent is committed; the app performs the real I/O and returns (or
-#: raises). Must be idempotent on `idempotency_key` (§42).
-Dispatcher = Callable[[Context, Artifact[PendingAction]], Awaitable[None]]
-#: Called when the dispatcher raises (the action is already marked `failed`).
-DispatchErrorHandler = Callable[[Artifact[PendingAction], BaseException], None]
 
 
 @dataclass
@@ -130,6 +132,7 @@ class Runtime:
         #: the exception still propagates — fail-loud, §69). A place to alert or
         #: re-arm; retry policy/backoff is the application's.
         self.on_dispatch_error = on_dispatch_error
+        self._outbox = Outbox(context, dispatcher, on_dispatch_error)
         # "per_commit" (default): persist at every generation boundary, after
         # that generation's trigger batch is consumed — so the session survives
         # a crash between generations and the saved queue and artifacts commit
@@ -190,9 +193,6 @@ class Runtime:
         self._original_resources: RuntimeResources | None = None
         #: Set when the principal's cross-turn quota is already spent.
         self._quota_exceeded = False
-        #: Set once after warning that committed `PendingAction`s have no
-        #: `dispatcher=` to perform them (§69: don't let the state go silent).
-        self._pending_actions_warned = False
         #: Reset token for the turn's log correlation context (see `_begin_turn`).
         self._log_token: Any | None = None
         #: Generation counter within the current turn (log correlation).
@@ -503,17 +503,12 @@ class Runtime:
         info = _ACTIVE_RUNS.get(self._run_id)
         if info is not None:
             info.generation = self._generation
-        if (
-            self.dispatcher is None
-            and not self._pending_actions_warned
-            and self.context.pending_actions()
-        ):
-            self._warn_pending_actions_without_dispatcher()
+        self._outbox.warn_if_unconfigured()
         events = self.context.pending_events()
         # A settled turn can still have outbox work: a `PendingAction` committed
         # by an earlier generation (or adopted via `merge()`) with no events left
         # to drain. Proceed when either is non-empty.
-        if not events and not self._has_pending_actions():
+        if not events and not self._outbox.has_pending_actions():
             return 0
         if self._budget_exhausted():
             return 0
@@ -587,7 +582,7 @@ class Runtime:
         # produce never does the I/O itself. Replay reconstructs state without
         # running the runtime, so it never re-dispatches; a retried produce
         # re-derives the same stable id and creates no second intent.
-        await self._drain_actions()
+        await self._outbox.drain_actions()
         # Persist at the generation boundary, *after* the consume, so the saved
         # queue is the at-rest one: this batch's triggers are gone and the next
         # generation's (emitted by this one's commits) remain. Saving before the
@@ -745,62 +740,23 @@ class Runtime:
                 span.relations = self._trace.relation_refs(patch)
             self.context.log_commit(commit)
 
-    def _has_pending_actions(self) -> bool:
-        return self.dispatcher is not None and bool(self.context.pending_actions())
-
     def _has_pending_work(self) -> bool:
-        """True while the turn has anything left to do: enabled triggers or
-        undispatched outbox actions (§42). Drives the `_arun_impl` loop, so a
-        merge-adopted action is drained even with no new events."""
-        return bool(self.context.pending_events()) or self._has_pending_actions()
-
-    async def _drain_actions(self) -> None:
-        """Performs every committed `PendingAction` once, in creation order.
-
-        The dispatcher does the real I/O; on success the runtime records
-        `dispatched`, on failure `failed` (then re-raises — fail-loud, §69).
-        Deduping by stable id here (not inside the produce) is what stops two
-        produces in one generation from double-sending.
-        """
-        if self.dispatcher is None:
-            return
-        for action in list(self.context.pending_actions()):
-            try:
-                await self.dispatcher(self.context, action)
-            except Exception as exc:
-                self.context.mark_failed(action.id, error=repr(exc))
-                logger.warning(
-                    "action dispatch failed",
-                    extra={
-                        "action_kind": action.data.kind,
-                        "action_key": action.data.idempotency_key,
-                        "error": repr(exc),
-                    },
-                )
-                if self.on_dispatch_error is not None:
-                    self.on_dispatch_error(action, exc)
-                raise
-            self.context.mark_dispatched(action.id)
-            logger.info(
-                "action dispatched",
-                extra={
-                    "action_kind": action.data.kind,
-                    "action_key": action.data.idempotency_key,
-                },
-            )
+        """True while triggers or undispatched outbox actions remain (§42)."""
+        return bool(self.context.pending_events()) or self._outbox.has_pending_actions()
 
     async def flush_pending_actions(self) -> int:
-        """Dispatches committed-but-undispatched actions without running a
-        generation — the explicit outbox flush after `context.merge()` (merge
-        is a pure state operation and never dispatches). Returns the count of
-        actions it attempted."""
+        """Dispatches committed-but-undispatched actions without a generation.
+
+        The explicit outbox flush after `context.merge()` (merge is a pure
+        state operation and never dispatches). Returns the number attempted.
+        """
         if self.dispatcher is None:
             return 0
         self._enter_turn()
         try:
-            pending = len(self.context.pending_actions())
+            pending = self._outbox.pending_count()
             if pending:
-                await self._drain_actions()
+                await self._outbox.drain_actions()
                 if self.session is not None:
                     await self.session.save()
             return pending
@@ -1057,17 +1013,6 @@ class Runtime:
             hint += f" Agents consume: {', '.join(consumed)}."
         hint += " Check your Consume(...) target types or the create()'d artifact type."
         print(hint, file=sys.stderr)
-
-    def _warn_pending_actions_without_dispatcher(self) -> None:
-        self._pending_actions_warned = True
-        pending = len(self.context.pending_actions())
-        print(
-            f"{pending} PendingAction(s) are committed but no dispatcher= is "
-            "configured on this Runtime, so the outbound side effects will not "
-            "run. Pass Runtime(dispatcher=...) (or call flush_pending_actions() "
-            "with one).",
-            file=sys.stderr,
-        )
 
     async def astream(
         self,
