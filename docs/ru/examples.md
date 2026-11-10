@@ -1,7 +1,8 @@
 # Примеры
 
-В `examples/` живут восемь работающих приложений (в репозитории, не в
-пайплайне сборки) — перечисленные ниже. Это эталонные реализации
+В `examples/` живут одиннадцать запускаемых примеров (в репозитории, не в
+пайплайне сборки): десять полноценных приложений и `tour`, который изолирует
+примитивы. Это эталонные реализации
 [рецептов](recipes.md), [паттернов](patterns.md) и
 [port-матрицы](port-matrix.md) — канонические примеры разбиты на пакет `steps/`
 (стадии) + тонкие `web.py`/`chat.py`/`main.py`.
@@ -150,10 +151,59 @@ uv run python -m examples.fintech_audit.main
 `context_hash`, `report_to_markdown`) и [Наблюдаемость](observability.md) —
 как отправить такой запуск в приёмник с `redactor=`.
 
+## `outbox` — внешние эффекты как закоммиченное состояние
+
+**Что показывает:** контракт outbox в семи детерминированных кейсах: шаг
+записывает `effects.act(...)` вместо I/O; `Runtime(dispatcher=...)` отправляет
+после коммита; повторная деривация, дубли в одном поколении, слитые ветки,
+replay, failure→retry и app-owned retry-wrapper сохраняют одну доставку.
+Без LLM и сети; фейковый dispatcher делает счётчик видимым.
+
+```bash
+uv run python -m examples.outbox.main
+```
+
+См. [Outbox в production](durability.md#outbox-in-production) —
+at-least-once-контракт и app-owned drain/retry-политика.
+
+## `repo_agent` — destructive-инструмент за одобрением
+
+**Что показывает:** `HITLLMAgent`-ассистент по крошечному репозиторию.
+`read_file` и `run_tests` выполняются сразу; `git_commit` объявлен
+`@tool(destructive=True)`, поэтому runtime превращает решение модели в
+`PendingQuestion(kind="approve")` и выполняет коммит только после
+`context.resume(...)`. Провайдер scripted, поэтому демо офлайн и
+детерминировано.
+
+```bash
+uv run python -m examples.repo_agent.main
+```
+
+## `tour` — примитивы фреймворка в четырёх маленьких сценах
+
+**Что показывает:** то, что легко пропустить в большом приложении:
+типизированные артефакты с `version_history` / `diff` / `compact`;
+типизированные входы с `Latest`, `Wakes(False)` и
+`Consume(..., debounce=True)`; SQLite-сессию, которая переживает перезапуск,
+возобновляет pending-событие и реплеит прошлый коммит; и опциональный
+LLM-шаг. Все сцены по умолчанию офлайн, а `model` идёт через провайдера только
+с `--llm`.
+
+```bash
+uv run python -m examples.tour.main                 # все четыре сцены, офлайн
+uv run python -m examples.tour.main --scene state   # версии + компакция
+uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
+uv run python -m examples.tour.main --llm --scene model
+```
+
+С `--llm` `from_env()` читает `examples/tour/.env` (скопируйте `.env.example`);
+без провайдера сцена `model` печатает честный детерминированный бриф. См.
+[`examples/tour`](../../examples/tour).
+
 ## Тесты
 
 ```bash
-.venv/bin/python -m pytest      # 543 тест (2 пропущены без TEST_PG_DSN)
+.venv/bin/python -m pytest      # 1105 тестов (6 пропущены без TEST_PG_DSN)
 .venv/bin/mypy                  # строгая типизация по всему репозиторию
 .venv/bin/ruff check            # линтер
 ```

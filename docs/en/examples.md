@@ -1,7 +1,8 @@
 # Examples
 
-Eight working applications ship in `examples/` (in-repo, not packaged). They are
-the reference implementations for the [recipes](recipes.md),
+Eleven runnable examples ship in `examples/` (in-repo, not packaged). Ten are
+full applications; `tour` isolates the primitives. They are the reference
+implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
 examples are split into a `steps/` package (stages) plus thin
 `web.py`/`chat.py`/`main.py` entries.
@@ -148,6 +149,53 @@ uv run python -m examples.fintech_audit.main
 See also [`reactifact/audit.py`](../reference.md) (`build_report`,
 `context_hash`, `report_to_markdown`) and [Observability](observability.md) for
 shipping such a run to a sink with `redactor=`.
+
+## `outbox` — external effects as committed state
+
+**What it shows:** the outbox contract in seven deterministic cases — a step
+records `effects.act(...)` instead of doing I/O; `Runtime(dispatcher=...)` sends
+after the commit; re-derivation, same-generation duplicates, merged branches,
+replay, failure→retry and an app-owned retry wrapper all keep one delivery.
+No LLM, no network; the fake dispatcher makes the count visible.
+
+```bash
+uv run python -m examples.outbox.main
+```
+
+See [Outbox in production](durability.md#outbox-in-production) for the
+at-least-once contract and the app-owned drain/retry policy.
+
+## `repo_agent` — a destructive tool behind approval
+
+**What it shows:** a `HITLLMAgent` coding assistant over a tiny repository.
+`read_file` and `run_tests` run immediately; `git_commit` is
+`@tool(destructive=True)`, so the runtime turns the model's decision into a
+`PendingQuestion(kind="approve")` and executes only after `context.resume(...)`.
+The provider is scripted, so the demo is offline and deterministic.
+
+```bash
+uv run python -m examples.repo_agent.main
+```
+
+## `tour` — the framework primitives in four small scenes
+
+**What it shows:** the parts that are easy to miss when reading a full app:
+typed artifacts with `version_history` / `diff` / `compact`; typed inputs with
+`Latest`, `Wakes(False)` and `Consume(..., debounce=True)`; a SQLite session
+that survives a restart, resumes a pending event and replays an earlier commit;
+and an optional LLM step. Every scene is offline by default, and the `model`
+scene runs with a provider only when `--llm` is passed.
+
+```bash
+uv run python -m examples.tour.main                 # all four scenes, offline
+uv run python -m examples.tour.main --scene state   # versions + compaction
+uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
+uv run python -m examples.tour.main --llm --scene model
+```
+
+With `--llm`, `from_env()` reads `examples/tour/.env` (copy `.env.example`);
+without a provider the model scene prints an honest deterministic brief. See
+[`examples/tour`](../../examples/tour).
 
 ## Running tests
 
