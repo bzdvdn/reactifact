@@ -41,6 +41,7 @@ dev = [
     "mypy>=1.11",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "import-linter>=2.0",
 ]
 web = [
     "fastapi>=0.115",
@@ -73,6 +74,7 @@ dev = [
     "mypy>=1.11",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "import-linter>=2.0",
 ]
 web = [
     "fastapi>=0.115",
@@ -168,3 +170,85 @@ include = ["reactifact", "examples"]
 venvPath = "."
 venv = ".venv"
 exclude = ["build", "dist", ".venv", ".scratch", "**/__pycache__"]
+
+
+[tool.importlinter]
+root_packages = ["reactifact"]
+
+[[tool.importlinter.contracts]]
+name = "Core primitives do not import the runtime or adapters"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "reactifact.artifacts",
+    "reactifact.step",
+    "reactifact.agents",
+    "reactifact.consume",
+    "reactifact.effects",
+    "reactifact.patches",
+    "reactifact.commit",
+    "reactifact.commit_log",
+    "reactifact.relations",
+    "reactifact.triggers",
+]
+forbidden_modules = [
+    "reactifact.runtime",
+    "reactifact.providers",
+    "reactifact.tracing",
+    "reactifact.chat",
+    "reactifact.web",
+    "reactifact.quick",
+    "reactifact.recipes",
+    "reactifact.mcp",
+    "reactifact.a2a",
+    "reactifact.testing",
+]
+
+[[tool.importlinter.contracts]]
+name = "Context does not import the runtime or higher-level adapters"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["reactifact.context"]
+forbidden_modules = [
+    "reactifact.runtime",
+    "reactifact.chat",
+    "reactifact.web",
+    "reactifact.quick",
+    "reactifact.recipes",
+    "reactifact.mcp",
+    "reactifact.a2a",
+    "reactifact.testing",
+    "reactifact.tracing",
+]
+
+[[tool.importlinter.contracts]]
+name = "Providers stay independent of agent/runtime layers"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["reactifact.providers"]
+forbidden_modules = [
+    "reactifact.runtime",
+    "reactifact.chat",
+    "reactifact.web",
+    "reactifact.quick",
+    "reactifact.recipes",
+    "reactifact.testing",
+    "reactifact.tracing",
+    "reactifact.mcp",
+    "reactifact.a2a",
+]
+
+[[tool.importlinter.contracts]]
+name = "Recipes stay independent of app/transport layers"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["reactifact.recipes"]
+forbidden_modules = [
+    "reactifact.chat",
+    "reactifact.web",
+    "reactifact.quick",
+    "reactifact.tracing",
+    "reactifact.mcp",
+    "reactifact.a2a",
+    "reactifact.testing",
+]

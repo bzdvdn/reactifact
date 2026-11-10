@@ -35,6 +35,8 @@ jobs:
         run: uv run python -m ruff check
       - name: Format (ruff)
         run: uv run python -m ruff format --check
+      - name: Architecture (import-linter)
+        run: uv run lint-imports
 
   docs:
     name: docs (mkdocs --strict)
