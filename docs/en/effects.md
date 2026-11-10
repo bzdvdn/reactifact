@@ -31,6 +31,23 @@ the single `call: StepCall` argument and writes `call.effects`; both reach the
 same effect set, just through a different surface (the function form has no
 `self`).
 
+Inputs can be selected inline: `Annotated[T, When(...)]` conditions a type, and
+`Annotated[T, Wakes(False)]` reads it as input without waking the step:
+`history: Annotated[ConversationHistory, Wakes(False)]`. For `debounce`,
+custom event types, or subclass matching, use `Consume(...)` explicitly.
+
+`scope` correlates typed inputs. `scope = "query_id"` is the shorthand; when a
+correlated artifact is identified by its *id* rather than a data field, name the
+owner:
+
+```python
+scope = Scope("question_id", owner=Question)
+```
+
+Now `Question` matches by `artifact.id`, while `Hypothesis`/`Evidence`/`Claim`
+match by `data.question_id`. `Scope(..., key=fn)` supplies a custom extractor
+when the key lives in `notes` (e.g. a `PendingQuestion`).
+
 ## Return vs effects
 
 Returning a model (or a list of models) is create-sugar:

@@ -85,7 +85,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Agent` | thin container: `name`, `steps`, `concurrency_limit`; step `consumes` derive triggers |
 | `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
-| `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
+| `Wakes(False)` / `Scope` / `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |

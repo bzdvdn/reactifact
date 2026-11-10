@@ -15,6 +15,8 @@ from .patches import Patch
 from .step import (
     Step,
     StepCall,
+    _scope_matches,
+    _scope_value,
     invoke_step,
     reset_step_call,
     reset_step_context,
@@ -248,11 +250,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         """The step's input view: {type: {artifact id: version}}."""
         cursor: dict[type, dict[str, int]] = {}
         for artifact in artifacts:
-            if (
-                step.scope is not None
-                and scope_value is not None
-                and getattr(artifact.data, step.scope, None) != scope_value
-            ):
+            if not _scope_matches(step.scope, scope_value, artifact):
                 continue
             cursor.setdefault(type(artifact.data), {})[artifact.id] = artifact.version
         return cursor
@@ -277,11 +275,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             if not runs:
                 continue
             step_inputs = p.collect_inputs(context) if p.consumes else inputs
-            scope_value = (
-                getattr(trigger.data, p.scope, None)
-                if p.scope is not None and trigger is not None
-                else None
-            )
+            scope_value = _scope_value(p.scope, trigger)
             cursor_artifacts = (
                 [*step_inputs, trigger] if trigger is not None else step_inputs
             )

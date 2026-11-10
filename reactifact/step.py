@@ -1,26 +1,23 @@
-"""reactifact.step — how a produce writes an artifact (§24).
+"""reactifact.step — how a step writes an artifact (§24).
 
 Two styles cover almost everything and are the two canonical ones — reach
 for one of these first:
 
-- **Subclass + effects** — `class X(Step[Model]): async def produce(self,
-  call: StepCall) -> None: call.effects.create(...); return None`. Use
-  this whenever the produce has its own state-free logic worth naming as a
-  class (the common case in every example under `examples/`).
-- **`@step(Model)` function** — `@step(Model)\\ndef f(call): call.effects
-  .create(...)`, or the plain return-style `def f(call): return Model(...)`.
-  One decorator, one argument shape either way — pick this for a short,
-  one-off produce with no class ceremony.
+- **Subclass** — `class X(Step): consumes = (...); produces = (...); async def
+  run(self, input: T, effects: Effects) -> None/S: ...`. Use this whenever the
+  work has logic worth naming as a class (the common case in every example).
+- **`@step` function** — the same contract with less ceremony:
+  `@step(produces=Model, consumes=Input)\ndef f(input: Input) -> Model: ...`,
+  or a legacy `def f(call: StepCall)` that uses `call.context`/`call.effects`.
+  Typed parameters are resolved from the run's inputs exactly like a class
+  `run()`: `T`, `list[T]`, `Optional[T]`, `Artifact[T]`, `Latest[T]`,
+  `Context`, `Effects`, `Event`, `inputs`, `trigger`.
 
-Both styles take exactly one argument: a `StepCall`. Earlier versions
-recognized a growing list of individually-named optional parameters
-(`context`, `inputs`, `event`, `trigger`, `effects`) by inspecting the
-function's signature — `StepCall` replaces that: one object, its fields
-are what a produce can ever read (`.context`/`.inputs`/`.event`/`.trigger`)
-plus the write-side `.effects`, all discoverable from an editor's
-autocomplete on `call.` without chasing which combination of parameter names
-does what. See `StepCall`'s own docstring for what each field is and when
-it's populated.
+Typed signatures derive `consumes` when the step does not declare it
+explicitly. `Annotated[T, When(...)]` conditions an input;
+`Annotated[T, Wakes(False)]` reads it without waking the step. Explicit
+`Consume(...)` covers the advanced options (`debounce`, `event_types`,
+`include_subclasses`).
 
 One other thing `Step`/`Agent` accepts is *not* on that list on purpose:
 
@@ -74,6 +71,28 @@ class Latest(Generic[TOut]):
     triggers the step. It is the declarative replacement for
     `context.get(stage_id(...))` / `context.latest(T)` inside a step.
     """
+
+
+@dataclass(frozen=True, slots=True)
+class Wakes:
+    """`Annotated[T, Wakes(False)]` — read T as input without waking the step."""
+
+    value: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class Scope:
+    """Correlation scope for typed inputs.
+
+    `Scope("query_id")` is the string shorthand. `Scope("question_id",
+    owner=Question)` also matches `Question` by artifact id: the trigger's
+    `question_id` IS the Question artifact id, so the owner itself has no
+    duplicated field.
+    """
+
+    field: str
+    owner: type[BaseModel] | None = None
+    key: Callable[[BaseModel], Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -274,10 +293,10 @@ class Step(Generic[TOut]):
     #: Input contract: the artifact types this step reads and reacts to. The
     #: runtime gates the step on these and collects them into `StepCall.inputs`.
     consumes: tuple[Any, ...] | None = None
-    #: Correlation field for same-run lookups, e.g. `scope = "query_id"`.
-    #: When set, typed inputs and `related()` are restricted to artifacts whose
-    #: field equals the trigger's — one turn/session, not the whole context.
-    scope: str | None = None
+    #: Correlation scope for same-run lookups, e.g. `scope = "query_id"` or
+    #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
+    #: and `related()` are restricted to artifacts in the trigger's scope.
+    scope: Scope | str | None = None
     #: Deprecated aliases, kept for 0.1.x code.
     artifact_type: ArtifactType | None = None
     also_creates: tuple[ArtifactType, ...] = ()
@@ -329,18 +348,24 @@ class Step(Generic[TOut]):
                 continue
             annotation = hints.get(name, param.annotation)
             when = None
+            wakes = None
             if get_origin(annotation) is Annotated:
                 args = get_args(annotation)
                 annotation = args[0]
                 when = next((meta for meta in args[1:] if isinstance(meta, When)), None)
+                wakes = next(
+                    (meta for meta in args[1:] if isinstance(meta, Wakes)), None
+                )
             if get_origin(annotation) is Latest:
                 continue
             types_, _, _ = _annotation_types(annotation)
             for artifact_type in types_:
                 specs.append(
-                    Consume(artifact_type)
-                    if when is None
-                    else Consume(artifact_type, condition=when)
+                    Consume(
+                        artifact_type,
+                        condition=when,
+                        wakes=wakes.value if wakes is not None else None,
+                    )
                 )
         return tuple(specs) or None
 
@@ -452,14 +477,14 @@ class Step(Generic[TOut]):
             return None
         if call.scope is not None:
             return call.scope
-        if call.trigger is None or not self.scope:
+        if self.scope is None:
             return None
-        return getattr(call.trigger.data, self.scope, None)
+        return _scope_value(self.scope, call.trigger)
 
     def related_all(self, artifact_type: ArtifactType) -> list[Artifact[Any]]:
         """Artifacts of a type from the current run's scope."""
         artifacts = self.context.list_artifacts(artifact_type)
-        if not self.scope:
+        if self.scope is None:
             return artifacts
         value = self.scope_value
         if value is None:
@@ -467,7 +492,7 @@ class Step(Generic[TOut]):
         return [
             artifact
             for artifact in artifacts
-            if getattr(artifact.data, self.scope, None) == value
+            if _scope_matches(self.scope, value, artifact)
         ]
 
     def related(self, artifact_type: ArtifactType) -> Artifact[Any] | None:
@@ -549,13 +574,18 @@ class Step(Generic[TOut]):
 
 
 def _as_consume(item: Any) -> Consume:
-    """Normalize a type/Consume/Annotated[T, When(...)] into a Consume."""
+    """Normalize type/Consume/Annotated[T, When(...), Wakes(...)] into Consume."""
     origin = get_origin(item)
     if origin is Annotated:
         args = get_args(item)
         base = args[0]
         when = next((meta for meta in args[1:] if isinstance(meta, When)), None)
-        return _as_consume(base) if when is None else Consume(base, condition=when)
+        wakes = next((meta for meta in args[1:] if isinstance(meta, Wakes)), None)
+        return Consume(
+            base,
+            condition=when,
+            wakes=wakes.value if wakes is not None else None,
+        )
     if isinstance(item, Consume):
         return item
     return Consume(item)
@@ -594,11 +624,38 @@ def _resolved_hints(target: Callable[..., Any]) -> dict[str, Any]:
         return {}
 
 
+def _scope_value(scope: Scope | str | None, trigger: Artifact[Any] | None) -> Any:
+    """The correlation key carried by `trigger` (owner-typed artifacts use id)."""
+    if scope is None or trigger is None:
+        return None
+    if isinstance(scope, str):
+        return getattr(trigger.data, scope, None)
+    if scope.owner is not None and isinstance(trigger.data, scope.owner):
+        return trigger.id
+    if scope.key is not None:
+        return scope.key(trigger.data)
+    return getattr(trigger.data, scope.field, None)
+
+
+def _scope_matches(
+    scope: Scope | str | None, value: Any, artifact: Artifact[Any]
+) -> bool:
+    """Whether `artifact` belongs to the scope `value`."""
+    if scope is None or value is None:
+        return True
+    if isinstance(scope, Scope) and scope.owner is not None:
+        if isinstance(artifact.data, scope.owner):
+            return bool(artifact.id == value)
+        return bool(getattr(artifact.data, scope.field, None) == value)
+    field = scope if isinstance(scope, str) else scope.field
+    return bool(getattr(artifact.data, field, None) == value)
+
+
 def _resolve_arg(
     name: str,
     annotation: Any,
     call: StepCall,
-    scope: str | None = None,
+    scope: Scope | str | None = None,
     scope_value: Any = None,
 ) -> Any:
     if name in {"call", "step_call"} or annotation is StepCall:
@@ -622,11 +679,7 @@ def _resolve_arg(
         for artifact in call.inputs:
             if type(artifact.data) not in expected or artifact.id in seen:
                 continue
-            if (
-                scope is not None
-                and scope_value is not None
-                and getattr(artifact.data, scope, None) != scope_value
-            ):
+            if not _scope_matches(scope, scope_value, artifact):
                 continue
             found.append(artifact)
             seen.add(artifact.id)
@@ -634,11 +687,7 @@ def _resolve_arg(
             call.trigger is not None
             and type(call.trigger.data) in expected
             and call.trigger.id not in seen
-            and (
-                scope is None
-                or scope_value is None
-                or getattr(call.trigger.data, scope, None) == scope_value
-            )
+            and _scope_matches(scope, scope_value, call.trigger)
         ):
             found.append(call.trigger)
         return found
@@ -647,11 +696,7 @@ def _resolve_arg(
         return (
             call.trigger is not None
             and type(call.trigger.data) in expected
-            and (
-                scope is None
-                or scope_value is None
-                or getattr(call.trigger.data, scope, None) == scope_value
-            )
+            and _scope_matches(scope, scope_value, call.trigger)
         )
 
     origin = get_origin(annotation)
@@ -672,7 +717,7 @@ def _resolve_arg(
             artifacts = [
                 artifact
                 for artifact in artifacts
-                if getattr(artifact.data, scope, None) == scope_value
+                if _scope_matches(scope, scope_value, artifact)
             ]
         if is_list:
             return [artifact.data for artifact in artifacts]
@@ -752,8 +797,8 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
     hints = _resolved_hints(target)
     scope = getattr(step, "scope", None)
     scope_value = call.scope
-    if scope_value is None and scope is not None and call.trigger is not None:
-        scope_value = getattr(call.trigger.data, scope, None)
+    if scope_value is None:
+        scope_value = _scope_value(scope, call.trigger)
     kwargs = {
         param.name: _resolve_arg(
             param.name,
@@ -774,7 +819,7 @@ def step(
     consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
     also_creates: Sequence[ArtifactType] | None = None,
     reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
-) -> Callable[[Callable[[StepCall], Any]], Step[Any]]:
+) -> Callable[[Callable[..., Any]], Step[Any]]:
     """Decorator to create a Step from a function.
 
     The canonical spellings:
@@ -789,8 +834,11 @@ def step(
     for compatibility (`artifact_type` is the same as a one-element
     `produces`).
 
-    The function must accept exactly one argument, a `StepCall` — see its
-    own docstring for `.context`/`.inputs`/`.event`/`.trigger`/`.effects`:
+    The function may take one `call: StepCall` (the 0.1.x shape) or a typed
+    signature — parameter annotations are artifact types (`T`, `list[T]`,
+    `Optional[T]`, `Artifact[T]`, `Latest[T]`), plus `Context`, `Effects`,
+    `Event`, `inputs`, `trigger`. A single `call` keeps
+    `.context`/`.inputs`/`.event`/`.trigger`/`.effects`:
 
     - ``def f(call): return Model(...)`` — return style: return a model / a
       list of models / a ``Patch`` / ``None``; the runtime writes them into
@@ -802,15 +850,9 @@ def step(
 
     resolved_produces = produces if produces is not None else artifact_type
 
-    def decorator(func: Callable[[StepCall], Any]) -> Step[Any]:
-        params = list(inspect.signature(func).parameters.values())
-        if len(params) != 1:
-            raise TypeError(
-                f"Function {func.__name__} must accept exactly one argument: a StepCall"
-            )
-
+    def decorator(func: Callable[..., Any]) -> Step[Any]:
         class _FunctionStep(Step[Any]):
-            _func: Callable[[StepCall], Any]
+            _func: Callable[..., Any]
 
             async def run(self, call: StepCall) -> Any:
                 return await invoke_step(self, call)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Effects, Step, StepCall, When
+from reactifact import Artifact, Consume, Context, Effects, Scope, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -23,7 +23,7 @@ from .common import (
     SCOUT_LIMIT,
     hypotheses_of,
     negatory,
-    question_id_of,
+    scope_key,
     split_sentences,
     token_support,
 )
@@ -64,15 +64,16 @@ class Generator(Step):
     )
     MAX_HYPOTHESES = 4
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        question_id = question_id_of(context, call.event)
-        if question_id is None:
-            return None
+    async def run(
+        self,
+        context: Context,
+        question: Artifact[Question],
+        effects: Effects,
+    ) -> None:
+        question_id = question.id
         if context.list_artifacts(Hypothesis):
             return None  # already generated
-        question = context.get(question_id)
-        question_text = question.data.text if question is not None else ""
+        question_text = question.data.text
         context.announce("Generating hypotheses...", kind="status")
 
         statements: list[str] = list(self.STATEMENTS)
@@ -107,7 +108,7 @@ class Generator(Step):
 
         for i, statement in enumerate(statements):
             hyp_id = f"hyp:{question_id}:{i}"
-            hypothesis = call.effects.create(
+            hypothesis = effects.create(
                 Hypothesis(question_id=question_id, statement=statement, status="open"),
                 id=hyp_id,
             )
@@ -118,16 +119,21 @@ class Generator(Step):
 class Investigator(Step):
     """Per-hypothesis channel: search sources tagged with the hypothesis."""
 
-    consumes = (Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],)
+    consumes = (
+        Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],
+        Consume(Question, wakes=False),
+    )
     produces = (SourceRef, SearchDone)
+    scope = Scope("question_id", owner=Question, key=scope_key)
 
     async def run(
-        self, context: Context, hyp_art: Artifact[Hypothesis], effects: Effects
+        self,
+        context: Context,
+        hyp_art: Artifact[Hypothesis],
+        question: Artifact[Question],
+        effects: Effects,
     ) -> None:
         hyp = hyp_art.data
-        question = context.get(hyp.question_id)
-        if question is None or not isinstance(question.data, Question):
-            return None
         depth = question.data.depth
         marker = f"searched:{hyp_art.id}:{depth}"
         if any(a.id == marker for a in context.list_artifacts(SearchDone)):

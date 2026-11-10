@@ -8,17 +8,11 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Context, Event
-from reactifact.interrupt import PendingQuestion
+from pydantic import BaseModel
+from reactifact import Artifact, Context
 
 from ..models import (
-    Claim,
-    Evidence,
     Hypothesis,
-    Question,
-    ResearchReport,
-    SearchDone,
-    TypedDoc,
 )
 
 #: Maximum steering rounds (initial + deepens) before an automatic report.
@@ -93,26 +87,16 @@ _STOPWORDS = frozenset(
 _SENT_SPLIT_RE = re.compile(r"[.!?]+\s+|\n+")
 
 
-def question_id_of(context: Context, event: Event | None) -> str | None:
-    """The owning question of an artifact (or the one a PendingQuestion asks about)."""
-    artifact = context.get(event.artifact_id) if event is not None else None
-    if artifact is None:
-        return None
-    if isinstance(artifact.data, PendingQuestion):
-        return (artifact.data.notes or {}).get("question_id")
-    for model in (
-        Question,
-        Hypothesis,
-        Evidence,
-        Claim,
-        TypedDoc,
-        SearchDone,
-        ResearchReport,
-    ):
-        if isinstance(artifact.data, model):
-            if isinstance(artifact.data, Question):
-                return artifact.id
-            return artifact.data.question_id
+def scope_key(data: BaseModel) -> str | None:
+    """The owning question id: a field, or a PendingQuestion's `notes` entry."""
+    value = getattr(data, "question_id", None)
+    if isinstance(value, str):
+        return value
+    notes = getattr(data, "notes", None)
+    if isinstance(notes, dict):
+        note_value = notes.get("question_id")
+        if isinstance(note_value, str):
+            return note_value
     return None
 
 

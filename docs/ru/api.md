@@ -89,7 +89,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | --- | --- |
 | `Agent` | тонкий контейнер: `name`, `steps`, `concurrency_limit`; триггеры выводятся из `consumes` шагов |
 | `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров |
-| `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
+| `Wakes(False)` / `Scope` / `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |

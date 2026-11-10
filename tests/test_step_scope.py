@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Artifact, Context, Effects, Runtime
+from reactifact import Agent, Artifact, Consume, Context, Effects, Runtime, Scope
 from reactifact.step import Latest, Step
 
 
@@ -187,3 +187,45 @@ def test_typed_artifact_lists_are_scoped_to_the_trigger():
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
     assert answers["q1"] == "a+c"
     assert answers["q2"] == "b"
+
+
+class Hypothesis(BaseModel):
+    question_id: str
+    text: str
+
+
+class OwnerScoped(Step):
+    consumes = (Hypothesis, Consume(Question, wakes=False))
+    produces = (Answer,)
+    scope = Scope("question_id", owner=Question)
+
+    async def run(
+        self,
+        question: Artifact[Question],
+        hypothesis: Hypothesis,
+        effects: Effects,
+    ) -> None:
+        effects.upsert(
+            Answer(
+                query_id=question.id, text=f"{question.data.text}:{hypothesis.text}"
+            ),
+            id=f"owner:{question.id}",
+        )
+
+
+class OwnerScopedAgent(Agent):
+    steps = [OwnerScoped()]
+
+
+def test_scope_owner_matches_owner_artifact_by_id():
+    context = Context()
+    q1 = context.create(Question(query_id="q1", text="one"))
+    q2 = context.create(Question(query_id="q2", text="two"))
+    context.create(Hypothesis(question_id=q1.id, text="h1"))
+    context.create(Hypothesis(question_id=q2.id, text="h2"))
+
+    asyncio.run(Runtime(context, agents=[OwnerScopedAgent()]).arun())
+
+    answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
+    assert answers[q1.id] == "one:h1"
+    assert answers[q2.id] == "two:h2"

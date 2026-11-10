@@ -5,7 +5,7 @@ The lexicons decide the numbers, the model never does (§67, §68).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Step, StepCall
+from reactifact import Artifact, Consume, Context, Effects, Scope, Step
 from reactifact.sources import SourceRef
 
 from ..models import (
@@ -16,7 +16,7 @@ from ..models import (
     SearchDone,
     TypedDoc,
 )
-from .common import hypotheses_of, question_id_of
+from .common import hypotheses_of, scope_key
 
 _SUPPORT_W = 1.0
 _CONTRA_W = 1.2
@@ -116,21 +116,28 @@ def evaluate_hypothesis(
 class Evaluator(Step):
     """Deterministic scorer; re-runs as each channel round materializes."""
 
-    consumes = (Hypothesis, Evidence, Claim, TypedDoc, SearchDone)
+    consumes = (
+        Hypothesis,
+        Evidence,
+        Claim,
+        TypedDoc,
+        SearchDone,
+        Consume(Question, wakes=False),
+    )
     produces = (Hypothesis,)
+    scope = Scope("question_id", owner=Question, key=scope_key)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        question_id = question_id_of(context, call.event)
-        if question_id is None:
-            return None
-        question = context.get(question_id)
-        if question is None or not isinstance(question.data, Question):
-            return None
+    async def run(
+        self,
+        context: Context,
+        question: Artifact[Question],
+        effects: Effects,
+    ) -> None:
+        question_id = question.id
         depth = question.data.depth
         for hyp_art in hypotheses_of(context, question_id):
             if channel_done(context, hyp_art, depth):
                 fields = evaluate_hypothesis(context, hyp_art)
                 if fields is not None:
-                    call.effects.update(hyp_art, **fields)
+                    effects.update(hyp_art, **fields)
         return None

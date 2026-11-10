@@ -48,12 +48,13 @@ from examples.starter_app.models import (
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import (
-    Consume,
+    Artifact,
+    Context,
+    Effects,
     LLMProvider,
-    ProduceCall,
     configure_logging,
     create_agent,
-    produce,
+    step,
 )
 from reactifact.quick import Doc, Question, agent, chat_agent, rag, tools_agent
 from reactifact.runtime import active_runs
@@ -80,18 +81,16 @@ async def add(a: float, b: float) -> str:
     return str(a + b)
 
 
-@produce(ChatReply)
-async def _chat_reply(call: ProduceCall) -> None:
-    question = call.trigger
-    if question is None or not isinstance(question.data, Question):
-        return None
+@step(produces=ChatReply, consumes=Question)
+async def _chat_reply(
+    context: Context, question: Artifact[Question], effects: Effects
+) -> None:
     text = await llm_reply(
-        call.context,
+        context,
         system="You are a concise, friendly assistant.",
         user=question.data.text,
     )
-    call.effects.create(ChatReply(text=text or OFFLINE_REPLY))
-    return None
+    effects.create(ChatReply(text=text or OFFLINE_REPLY))
 
 
 def _from_env() -> LLMProvider | None:
@@ -126,7 +125,7 @@ def create_app(
         tracer=tracer,
     )
     chat_agent_instance = chat_agent(
-        [create_agent("chat", consumes=[Consume(Question)], produces=[_chat_reply])],
+        [create_agent("chat", steps=[_chat_reply])],
         store=str(directory / "sessions"),
         llm=provider,
         tracer=tracer,

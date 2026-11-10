@@ -19,12 +19,12 @@ needed for the imperative escape hatch (overriding `run()` with no `consumes`).
 
 ## A produce reads its inputs and writes effects
 
-A class step gets typed inputs + `effects: Effects`; a function step gets a `StepCall`: `call.trigger` (the waking artifact),
-`call.context` (the graph), `call.effects` (the change set), and the collected
-`call.inputs` (every artifact this agent's consumes matched). Prefer
-`call.context.latest(T)` when you know the type you want; use `call.inputs`
-when several artifacts feed one produce. `recipes.find` / `find_all` pick a
-typed artifact out of `inputs`.
+A class step gets typed inputs + `effects: Effects`. A `@step` function can use
+the same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`,
+`Context`, `Effects`, `Event`), or the legacy single `call: StepCall` with
+`call.trigger`/`call.context`/`call.effects`/`call.inputs`. Typed parameters
+derive the step's `consumes`; `Annotated[T, When(...)]` conditions a type and
+`Annotated[T, Wakes(False)]` reads it without waking.
 
 ```python
 import asyncio
@@ -93,6 +93,9 @@ ungrounded answer.
 | --- | --- |
 | `Consume(T)` | a `T` is created or updated |
 | `Consume(T, condition=lambda a: ...)` | a matching `T` appears (condition on the `Artifact`) |
+| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes on it |
+| `Annotated[T, When(fn)]` | wakes when `fn(data)` is true |
+| `Scope(field, owner=Type, key=fn)` | correlate typed inputs; owner matches by artifact id, `key` overrides extraction |
 | `Consume.by_status(T, "ready")` | `T.status == "ready"` (has `status` field) |
 | `Consume.by_field(T, "kind", "x")` | `T.kind == "x"` |
 | `JoinConsume(A, B, key=lambda d: d.thread_id)` | artifacts of **all** of A and B exist sharing a key |

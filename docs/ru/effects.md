@@ -29,6 +29,23 @@ async def run(
 аргумент `call: StepCall` и пишет через `call.effects`; это один и тот же
 набор эффектов, просто разные поверхности (у функции нет `self`).
 
+Входы можно выбирать аннотациями: `Annotated[T, When(...)]` задаёт условие,
+`Annotated[T, Wakes(False)]` читает тип как вход, не будя шаг:
+`history: Annotated[ConversationHistory, Wakes(False)]`. Для `debounce`,
+кастомных `event_types` и `include_subclasses` используйте явный `Consume(...)`.
+
+`scope` коррелирует типизированные входы. `scope = "query_id"` — shorthand;
+если коррелируемый артефакт опознаётся по *id*, а не по полю данных, укажите
+владельца:
+
+```python
+scope = Scope("question_id", owner=Question)
+```
+
+Теперь `Question` матчится по `artifact.id`, а `Hypothesis`/`Evidence`/`Claim` —
+по `data.question_id`. `Scope(..., key=fn)` задаёт кастомный extractor, когда
+ключ лежит в `notes` (например, у `PendingQuestion`).
+
 ## Возврат или effects
 
 Возврат модели (или списка моделей) — это create-сахар:

@@ -6,7 +6,7 @@ import re
 from typing import Annotated, Any
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Effects, Step, StepCall, When
+from reactifact import Artifact, Consume, Context, Effects, Scope, Step, When
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -23,7 +23,7 @@ from .common import (
     MAX_DEPTH,
     all_terminal,
     hypotheses_of,
-    question_id_of,
+    scope_key,
 )
 
 
@@ -72,17 +72,17 @@ class Steer(Step):
     no new events.
     """
 
-    consumes = (Hypothesis, Claim, Evidence)
+    consumes = (Hypothesis, Claim, Evidence, Consume(Question, wakes=False))
     produces = (PendingQuestion,)
+    scope = Scope("question_id", owner=Question, key=scope_key)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        question_id = question_id_of(context, call.event)
-        if question_id is None:
-            return None
-        question = context.get(question_id)
-        if question is None or not isinstance(question.data, Question):
-            return None
+    async def run(
+        self,
+        context: Context,
+        question: Artifact[Question],
+        effects: Effects,
+    ) -> None:
+        question_id = question.id
         if context.list_artifacts(ResearchReport):
             return None
         if question.data.depth >= MAX_DEPTH:
@@ -93,7 +93,7 @@ class Steer(Step):
         steer_id = f"steer:{question_id}:{question.data.depth}"
         if context.get(steer_id) is not None:
             return None  # same round already steering (idempotent, §42)
-        call.effects.ask(
+        effects.ask(
             "All hypotheses have been evaluated. Deepen one, "
             "or stop for the final report?\n\n"
             f"{_ranking_block(context, question_id)}\n\n"
@@ -181,14 +181,21 @@ class Deepen(Step):
 class Reporter(Step):
     """Builds the report when the human stops or the depth budget is exhausted."""
 
-    consumes = (Hypothesis, PendingQuestion, Question)
+    consumes = (
+        Hypothesis,
+        PendingQuestion,
+        Consume(Question, wakes=False),
+    )
     produces = (ResearchReport,)
+    scope = Scope("question_id", owner=Question, key=scope_key)
 
-    async def run(self, call: StepCall) -> None:
-        context = call.context
-        question_id = question_id_of(context, call.event)
-        if question_id is None:
-            return None
+    async def run(
+        self,
+        context: Context,
+        question: Artifact[Question],
+        effects: Effects,
+    ) -> None:
+        question_id = question.id
         if context.list_artifacts(ResearchReport):
             return None
         remain_steer = [
@@ -196,9 +203,6 @@ class Reporter(Step):
             for q in context.pending_questions()
             if q.data.notes.get("question_id") == question_id
         ]
-        question = context.get(question_id)
-        if question is None or not isinstance(question.data, Question):
-            return None
         depth = question.data.depth
         # build only when: a steer was answered with «stop», or depth budget ran out
         answered_stop = any(
@@ -256,7 +260,7 @@ class Reporter(Step):
                 uncertainty_ = "insufficient evidence."
         else:
             uncertainty_ = "see the ranked hypotheses below."
-        call.effects.create(
+        effects.create(
             ResearchReport(
                 question_id=question_id,
                 answer=synthesized,

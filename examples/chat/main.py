@@ -14,9 +14,9 @@ Run:  .venv/bin/python -m examples.chat.main
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Annotated, Any
 
-from reactifact import Agent, Consume, Produce, ProduceCall, create_agent
+from reactifact import Agent, Effects, Step, When, create_agent
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.context import Context
@@ -27,28 +27,26 @@ KEEP = 4  # ChatMemory keeps the last N messages
 SESSION_ID = "demo"
 
 
-class Echo(Produce[ConversationMessage]):
+class Echo(Step):
     """A deterministic stand-in for a real assistant (no LLM)."""
 
-    artifact_type = ConversationMessage
+    consumes = (
+        Annotated[ConversationMessage, When(lambda message: message.role == "user")],
+    )
+    produces = (ConversationMessage,)
 
-    async def produce(self, call: ProduceCall) -> None:
-        trigger = call.trigger
-        if trigger is None or trigger.data.role != "user":
-            return None
-        call.effects.create(
+    async def run(self, message: ConversationMessage, effects: Effects) -> None:
+        effects.create(
             ConversationMessage(
                 role="assistant",
-                text=f"[echo] {trigger.data.text}",
-                turn=trigger.data.turn,
+                text=f"[echo] {message.text}",
+                turn=message.turn,
             )
         )
 
 
 def _agent() -> Agent:
-    return create_agent(
-        "echo", consumes=[Consume(ConversationMessage)], produces=[Echo()]
-    )
+    return create_agent("echo", steps=[Echo()])
 
 
 def _reply(ctx: Context, msg_id: str) -> dict[str, Any]:
