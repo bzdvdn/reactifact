@@ -22,19 +22,20 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from ..tools import ToolRun
+from ._shared import (
+    SORT_COLUMNS,
+    as_datetime,
+    like,
+    run_insert_values,
+    span_from_row,
+    span_insert_values,
+    tag_assignment_from_row,
+)
 from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
-    AgentContract,
-    AgentSpan,
     ArtifactRef,
-    LLMCall,
-    RelationRef,
     RunTrace,
-    StepRun,
-    TagAssignment,
 )
-from .store import _SORT_COLUMNS, _like
 
 
 class PostgresStore:
@@ -175,11 +176,6 @@ class PostgresStore:
         import psycopg.types.json  # pyright: ignore[reportMissingImports]
 
         await self._ensure_schema()
-        started = trace.started_at
-        if started is not None and started.tzinfo is None:
-            started = started.replace(tzinfo=UTC)
-        prompt_tokens = sum(c.prompt_tokens for c in trace.llm_calls)
-        completion_tokens = sum(c.completion_tokens for c in trace.llm_calls)
         conn = await self._psycopg.AsyncConnection.connect(self.dsn)
         try:
             async with conn.cursor() as cur:
@@ -187,56 +183,21 @@ class PostgresStore:
                     "INSERT INTO runs (id, session_id, started_at, duration_ms, "
                     "outcome, prompt_tokens, completion_tokens, truncated) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        trace.id,
-                        trace.session_id,
-                        started,
-                        trace.duration_ms,
-                        trace.outcome,
-                        prompt_tokens,
-                        completion_tokens,
-                        1 if trace.trace_truncated else 0,
-                    ),
+                    run_insert_values(trace, timestamp=lambda moment: moment),
                 )
                 for span in trace.spans:
-                    span_started = span.started_at
-                    if span_started is not None and span_started.tzinfo is None:
-                        span_started = span_started.replace(tzinfo=UTC)
                     await cur.execute(
-                        "INSERT INTO spans (run_id, agent, event_type, event_artifact_type, "
-                        "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
-                        "produces, tools, event_artifact_id, contract) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (
+                        "INSERT INTO spans (run_id, agent, event_type, "
+                        "event_artifact_type, latency_ms, error, started_at, reads, "
+                        "writes, relations, llm_calls, produces, tools, "
+                        "event_artifact_id, contract) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+                        "%s, %s, %s)",
+                        span_insert_values(
                             trace.id,
-                            span.agent,
-                            span.event_type,
-                            span.event_artifact_type,
-                            span.latency_ms,
-                            span.error,
-                            span_started,
-                            psycopg.types.json.Jsonb(
-                                [r.model_dump(mode="json") for r in span.reads]
-                            ),
-                            psycopg.types.json.Jsonb(
-                                [w.model_dump(mode="json") for w in span.writes]
-                            ),
-                            psycopg.types.json.Jsonb(
-                                [r.model_dump(mode="json") for r in span.relations]
-                            ),
-                            psycopg.types.json.Jsonb(
-                                [c.model_dump(mode="json") for c in span.llm_calls]
-                            ),
-                            psycopg.types.json.Jsonb(
-                                [p.model_dump(mode="json") for p in span.produces]
-                            ),
-                            psycopg.types.json.Jsonb(
-                                [tr.model_dump(mode="json") for tr in span.tools]
-                            ),
-                            span.event_artifact_id,
-                            psycopg.types.json.Jsonb(
-                                span.contract.model_dump(mode="json")
-                            ),
+                            span,
+                            timestamp=lambda moment: moment,
+                            jsonify=lambda value: psycopg.types.json.Jsonb(value),
                         ),
                     )
                 if self.max_runs is not None:
@@ -351,7 +312,7 @@ class PostgresStore:
                 )
                 args.extend(tags)
         if q:
-            pattern = _like(q)
+            pattern = like(q)
             where.append(
                 "(runs.id LIKE %s ESCAPE '!' OR runs.session_id LIKE %s ESCAPE '!' "
                 "OR runs.outcome LIKE %s ESCAPE '!' "
@@ -378,7 +339,7 @@ class PostgresStore:
     ) -> dict[str, Any]:
         await self._ensure_schema()
         where_sql, args = self._where(session_id, outcome, tags, tag_mode, q)
-        sort_col = _SORT_COLUMNS.get(sort, "started_at")
+        sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
         conn = await self._psycopg.AsyncConnection.connect(self.dsn)
@@ -556,42 +517,12 @@ class PostgresStore:
         finally:
             await conn.close()
 
-        spans = [
-            AgentSpan(
-                agent=r[0],
-                event_type=r[1],
-                event_artifact_type=r[2],
-                latency_ms=r[3],
-                error=r[4],
-                started_at=r[5],
-                reads=[ArtifactRef(**d) for d in r[6]],
-                writes=[ArtifactRef(**d) for d in r[7]],
-                relations=[RelationRef(**d) for d in r[8]],
-                llm_calls=[LLMCall(**d) for d in r[9]],
-                produces=[StepRun(**d) for d in r[10]],
-                tools=[ToolRun(**d) for d in r[11]],
-                event_artifact_id=r[12],
-                contract=AgentContract(**r[13]),
-            )
-            for r in span_rows
-        ]
-        annotations = [
-            TagAssignment(
-                tag=a[0],
-                note=a[1],
-                color=a[2],
-                created_at=a[3],
-                updated_at=a[4],
-            )
-            for a in annotation_rows
-        ]
-        started = row[2]
-        if started.tzinfo is None:
-            started = started.replace(tzinfo=UTC)
+        spans = [span_from_row(row) for row in span_rows]
+        annotations = [tag_assignment_from_row(row) for row in annotation_rows]
         return RunTrace(
             id=row[0],
             session_id=row[1],
-            started_at=started,
+            started_at=as_datetime(row[2]) or datetime.now(UTC),
             duration_ms=row[3],
             outcome=row[4],
             spans=spans,
@@ -678,7 +609,7 @@ class PostgresStore:
         args: list[Any] = []
         if q:
             where += " AND session_id LIKE %s ESCAPE '!'"
-            args.append(_like(q))
+            args.append(like(q))
         conn = await self._psycopg.AsyncConnection.connect(self.dsn)
         try:
             async with conn.cursor() as cur:

@@ -25,48 +25,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from ..tools import ToolRun
+from ._shared import (
+    SORT_COLUMNS,
+    iso,
+    like,
+    run_insert_values,
+    span_from_row,
+    span_insert_values,
+    tag_assignment_from_row,
+)
 from .columns import SpanArtifacts, TraceColumn, extract_columns
 from .models import (
-    AgentContract,
-    AgentSpan,
     ArtifactRef,
-    LLMCall,
-    RelationRef,
     RunTrace,
-    StepRun,
-    TagAssignment,
 )
-
-#: Sort keys the dashboard may request; anything else falls back to the default.
-_SORT_COLUMNS = {
-    "started_at": "started_at",
-    "duration_ms": "duration_ms",
-    "outcome": "outcome",
-    "session_id": "session_id",
-    "spans": "spans_count",
-}
-
-
-def _like(query: str) -> str:
-    """Escapes a user search into a `LIKE` pattern (paired with `ESCAPE '!'`).
-
-    `!` rather than the usual backslash keeps the pattern valid on Postgres too,
-    where a lone trailing backslash inside a string literal is awkward.
-    """
-    escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
-    return f"%{escaped}%"
-
-
-def _iso(value: float | datetime | None) -> str:
-    """Normalizes a stored timestamp to ISO-8601 for the dashboard JSON."""
-    if value is None:
-        return ""
-    if isinstance(value, datetime):
-        moment = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-    else:
-        moment = datetime.fromtimestamp(value, tz=UTC)
-    return moment.isoformat()
 
 
 class TraceSink(Protocol):
@@ -369,24 +341,12 @@ class TraceStore:
     # ---- sync core --------------------------------------------------------- #
 
     def _export_sync(self, trace: RunTrace) -> None:
-        started = trace.started_at.timestamp() if trace.started_at else time.time()
-        prompt_tokens = sum(c.prompt_tokens for c in trace.llm_calls)
-        completion_tokens = sum(c.completion_tokens for c in trace.llm_calls)
         try:
             self._conn.execute(
                 "INSERT INTO runs (id, session_id, started_at, duration_ms, outcome, "
                 "prompt_tokens, completion_tokens, truncated) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    trace.id,
-                    trace.session_id,
-                    started,
-                    trace.duration_ms,
-                    trace.outcome,
-                    prompt_tokens,
-                    completion_tokens,
-                    1 if trace.trace_truncated else 0,
-                ),
+                run_insert_values(trace, timestamp=lambda moment: moment.timestamp()),
             )
             for span in trace.spans:
                 self._conn.execute(
@@ -394,22 +354,11 @@ class TraceStore:
                     "latency_ms, error, started_at, reads, writes, relations, llm_calls, "
                     "produces, tools, event_artifact_id, contract) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
+                    span_insert_values(
                         trace.id,
-                        span.agent,
-                        span.event_type,
-                        span.event_artifact_type,
-                        span.latency_ms,
-                        span.error,
-                        span.started_at.timestamp() if span.started_at else None,
-                        json.dumps([r.model_dump(mode="json") for r in span.reads]),
-                        json.dumps([w.model_dump(mode="json") for w in span.writes]),
-                        json.dumps([r.model_dump(mode="json") for r in span.relations]),
-                        json.dumps([c.model_dump(mode="json") for c in span.llm_calls]),
-                        json.dumps([p.model_dump(mode="json") for p in span.produces]),
-                        json.dumps([t.model_dump(mode="json") for t in span.tools]),
-                        span.event_artifact_id,
-                        json.dumps(span.contract.model_dump(mode="json")),
+                        span,
+                        timestamp=lambda moment: moment.timestamp(),
+                        jsonify=json.dumps,
                     ),
                 )
             # Insert and retention commit together: a prune failure rolls the
@@ -500,7 +449,7 @@ class TraceStore:
                 )
                 args.extend(tags)
         if q:
-            pattern = _like(q)
+            pattern = like(q)
             where.append(
                 "(runs.id LIKE ? ESCAPE '!' OR runs.session_id LIKE ? ESCAPE '!' "
                 "OR runs.outcome LIKE ? ESCAPE '!' "
@@ -546,7 +495,7 @@ class TraceStore:
         Returns ``{"items": [...], "total": n}``, where total is before pagination.
         """
         where_sql, args = self._where(session_id, outcome, tags, tag_mode, q)
-        sort_col = _SORT_COLUMNS.get(sort, "started_at")
+        sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
         totals = self._conn.execute(
@@ -728,43 +677,14 @@ class TraceStore:
             span_sql += " LIMIT ? OFFSET ?"
             span_args = (trace_id, span_limit, span_offset)
         span_rows = self._conn.execute(span_sql, span_args).fetchall()
-        spans = [
-            AgentSpan(
-                agent=r[0],
-                event_type=r[1],
-                event_artifact_type=r[2],
-                latency_ms=r[3],
-                error=r[4],
-                started_at=(
-                    datetime.fromtimestamp(r[5], tz=UTC) if r[5] is not None else None
-                ),
-                reads=[ArtifactRef(**d) for d in json.loads(r[6])],
-                writes=[ArtifactRef(**d) for d in json.loads(r[7])],
-                relations=[RelationRef(**d) for d in json.loads(r[8])],
-                llm_calls=[LLMCall(**d) for d in json.loads(r[9])],
-                produces=[StepRun(**d) for d in json.loads(r[10])],
-                tools=[ToolRun(**d) for d in json.loads(r[11])],
-                event_artifact_id=r[12],
-                contract=AgentContract(**json.loads(r[13])),
-            )
-            for r in span_rows
-        ]
+        spans = [span_from_row(row) for row in span_rows]
         annotation_rows = self._conn.execute(
             "SELECT rt.tag, rt.note, COALESCE(t.color, ''), rt.created_at, rt.updated_at "
             "FROM run_tags rt LEFT JOIN tags t ON t.name = rt.tag "
             "WHERE rt.run_id = ? ORDER BY rt.created_at",
             (trace_id,),
         ).fetchall()
-        annotations = [
-            TagAssignment(
-                tag=a[0],
-                note=a[1],
-                color=a[2],
-                created_at=datetime.fromtimestamp(a[3], tz=UTC),
-                updated_at=datetime.fromtimestamp(a[4], tz=UTC),
-            )
-            for a in annotation_rows
-        ]
+        annotations = [tag_assignment_from_row(row) for row in annotation_rows]
         return RunTrace(
             id=row[0],
             session_id=row[1],
@@ -785,7 +705,7 @@ class TraceStore:
         args: list[Any] = []
         if q:
             where += " AND session_id LIKE ? ESCAPE '!'"
-            args.append(_like(q))
+            args.append(like(q))
         total = self._conn.execute(
             f"SELECT COUNT(DISTINCT session_id) FROM runs{where}", tuple(args)
         ).fetchone()[0]
@@ -821,7 +741,7 @@ class TraceStore:
             "ORDER BY c DESC, t.name ASC"
         ).fetchall()
         return [
-            {"name": r[0], "color": r[1], "count": r[2], "created_at": _iso(r[3])}
+            {"name": r[0], "color": r[1], "count": r[2], "created_at": iso(r[3])}
             for r in rows
         ]
 
