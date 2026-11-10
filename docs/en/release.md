@@ -5,10 +5,10 @@ How a `reactifact` version is cut, built, verified, and published.
 ## Versioning
 
 - [SemVer](https://semver.org/); pre-releases carry an `rc` mark (e.g.
-  `0.5.0rc1`), dropped for the stable cut (`0.5.0`).
-- The version lives in **two places** and must stay in sync:
-  - `pyproject.toml` → `[project] version`;
-  - `reactifact/__init__.py` → `__version__`.
+  `0.20.0rc1`), dropped for the stable cut (`0.20.0`).
+- The version lives in **one place**: `pyproject.toml` → `[project] version`.
+  `reactifact.__version__` reads the installed distribution metadata;
+  `tests/test_version.py` guards the match.
 
 ## Changelog rule
 
@@ -21,11 +21,19 @@ entry when the version is bumped:
 
 ## Upgrading
 
-There's no separate migration doc — `CHANGELOG.md` is the source of truth for
-what changed between versions, and breaking entries are marked per the rule
-above. A few changes worth knowing if you're crossing them (see also
-[migrating.md](migrating.md) for porting from other frameworks):
+0.20.0 has a dedicated [migration guide](migration-0.20.md). `CHANGELOG.md`
+remains the source of truth for what changed between versions, and breaking
+entries are marked per the rule above. A few changes worth knowing if you're
+crossing them (see also [migrating.md](migrating.md) for porting from other
+frameworks):
 
+- **0.20.0** — the new core line. `Step`/`@step` replace the `Produce` authoring
+  surface; class steps take `effects: Effects` (`self.effects` is gone);
+  `Artifact` is a frozen handle over a content-addressed version store; sessions
+  use the v2 `blobs`/`data_ref` format; and the legacy example set was removed.
+  `Produce`, `ProduceCall`, `@produce`, `Agent.produces`, `Artifact.at/history/
+  diff` and the top-level tool-module shims remain for the 0.20 compatibility
+  window.
 - **0.14.0** — behavior-visible (non-breaking) changes to know about:
   - `Budget.max_seconds` is now a **hard** turn deadline: the runtime cancels
     the generation in flight when it passes (a hung LLM call is actually
@@ -68,7 +76,7 @@ above. A few changes worth knowing if you're crossing them (see also
   it silently detached the merged artifact from any relation pointing at
   its original id — pass the artifact through `create(data, id=new_id())`
   yourself before merging to keep the old effect.
-- **0.5.0** — `reactifact/__init__.py` re-exports only the core surface
+- **0.2.0** — `reactifact/__init__.py` re-exports only the core surface
   (~40 names, down from ~150); eval, tracing, checkpoint/branch backends,
   the chat/web layer, the adaptive scheduler, replay, structured-LLM
   helpers, viz, and prompt templates moved to their own submodule imports.
@@ -100,7 +108,8 @@ leaving pre-1.0 and shipping **1.0.0**:
       window behind it.
 - [ ] The wheel smoke job passes in a clean venv (`uv build`, import, CLI).
 - [ ] `CHANGELOG.md` moves `[Unreleased]` under `## [X.Y.Z] — <date>`.
-- [ ] `pyproject.toml` and `reactifact/__init__.py` versions match.
+- [ ] `tests/test_version.py` passes (distribution metadata matches
+      `reactifact.__version__`).
 
 **1.0 criteria** (all of the above, plus):
 
@@ -123,20 +132,20 @@ leaving pre-1.0 and shipping **1.0.0**:
 # 2) version + changelog (see above)
 
 # 3) build artifacts
-uv build                     # dist/reactifact-0.5.0-py3-none-any.whl + sdist
+uv build                     # dist/reactifact-0.20.0-py3-none-any.whl + sdist
 
 # 4) verify the wheel in a scratch venv (not the workspace, so no PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.5.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.20.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.agents 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
 # confirm the wheel contains reactifact + tracing templates and NOT examples/tests:
-unzip -l dist/reactifact-0.5.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates" 
+unzip -l dist/reactifact-0.20.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates" 
 
 # 5) tag
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.20.0
+git push origin v0.20.0
 
 # 6) publish (PyPI token in env)
 uv publish --publish-url https://upload.pypi.org/legacy/

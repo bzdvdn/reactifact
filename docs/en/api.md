@@ -8,7 +8,7 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-reactifact is pre-1.0 (`0.15.x`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.20.0`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins every `__all__` listed here, so a new export has to be added deliberately
 (and documented on this page), never by accident.
@@ -23,7 +23,7 @@ pins every `__all__` listed here, so a new export has to be added deliberately
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.14.0` → `0.15.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.20.0` → `0.21.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
   patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
@@ -89,13 +89,13 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; extra creates go in `also_creates` |
+| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`) — `also_creates=`/`reacts_to=` are deprecated aliases |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
 | `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval on execution |
-| `DeferredToolGroup` (`reactifact.tool_use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
+| `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)` |
@@ -250,7 +250,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | multi-turn conversation generic over a message model (yours, or the default `ConversationMessage`): append turns, render the thread to provider `Message`s (`turn_count` / `conversation_state` helpers) |
 | `Transcript` / `MessageSpec` | read-only view for apps with *separate* types per side (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): merges typed turns by role into one `Message` list (`messages` / `state`) |
 | `llm_summarizer(system=…)` | builds a `WindowSummarizer(summarize=…)` callback from a system prompt via `llm_reply` |
-| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in native tool-calling loop over `native_tool_use`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; honours the turn's `Budget` (`max_tool_calls`, `max_seconds`, token/cost) between rounds; caps tool observations (`max_observation_chars`), optionally redacts them via `resources.redactor`, retries `ToolError(retryable=True)` when `retry_tool_errors=True`, accepts a `parse_calls` codec (e.g. textual DSML), a `fallback` for markup answers, and an `on_event` streaming hook; returns `ToolLoopResult` (text, transcript, `ToolObservation`s, `stop_reason`/`error`) |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in native tool-calling loop over `reactifact.tools.native`: bounded rounds, parallel tool execution, mandatory-tool nudging, forced final answer; honours the turn's `Budget` (`max_tool_calls`, `max_seconds`, token/cost) between rounds; caps tool observations (`max_observation_chars`), optionally redacts them via `resources.redactor`, retries `ToolError(retryable=True)` when `retry_tool_errors=True`, accepts a `parse_calls` codec (e.g. textual DSML), a `fallback` for markup answers, and an `on_event` streaming hook; returns `ToolLoopResult` (text, transcript, `ToolObservation`s, `stop_reason`/`error`) |
 | `looks_like_tool_markup(text)` / `parse_textual_tool_calls(text)` / `parse_tool_calls_with_textual(response)` | opt-in helpers for providers that emit DSML/Hermes/XML tool-call markup instead of native `tool_calls`; pass the last one as `run_tool_loop(parse_calls=…)` |
 
 ## Text & rollback helpers (reactifact.recipes)

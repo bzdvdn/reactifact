@@ -5,10 +5,10 @@
 ## Версионирование
 
 - [SemVer](https://semver.org/); пре-релизы помечаются `rc` (например,
-  `0.5.0rc1`), для стабильного релиза `rc` убирается (`0.5.0`).
-- Версия живёт в **двух местах** и должна совпадать:
-  - `pyproject.toml` → `[project] version`;
-  - `reactifact/__init__.py` → `__version__`.
+  `0.20.0rc1`), для стабильного релиза `rc` убирается (`0.20.0`).
+- Версия живёт в **одном месте**: `pyproject.toml` → `[project] version`.
+  `reactifact.__version__` читает метаданные установленного дистрибутива;
+  совпадение проверяет `tests/test_version.py`.
 
 ## Правило чейджлога
 
@@ -21,10 +21,18 @@ Changelog). При бампе версии:
 
 ## Обновление между версиями
 
-Отдельного migration-гайда нет — источник истины о том, что изменилось,
-`CHANGELOG.md`, ломающие изменения помечены по правилу выше. Два изменения,
-о которых стоит знать при переходе через них:
+Для 0.20.0 есть отдельный [migration-гайд](migration-0.20.md). Источник истины
+о том, что изменилось, — `CHANGELOG.md`; ломающие изменения помечены по правилу
+выше. Несколько изменений, о которых стоит знать при переходе (см. также
+[migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.20.0** — новая core-линия. `Step`/`@step` заменяют авторский слой
+  `Produce`; класс-шаги получают `effects: Effects` (`self.effects` удалён);
+  `Artifact` — frozen handle поверх content-addressed version store; сессии
+  используют v2-формат `blobs`/`data_ref`; старый набор примеров удалён.
+  `Produce`, `ProduceCall`, `@produce`, `Agent.produces`,
+  `Artifact.at/history/diff` и top-level shims инструментов остаются на окно
+  совместимости 0.2.
 - **0.14.0** — поведенчески заметные (не ломающие) изменения:
   - `Budget.max_seconds` теперь **жёсткий** дедлайн хода: runtime отменяет
     генерацию в полёте, когда он истекает (зависший LLM-вызов действительно
@@ -41,7 +49,7 @@ Changelog). При бампе версии:
   т.к. оно молча отвязывало слитый артефакт от любой relation, указывающей
   на его исходный id — передайте артефакт через `create(data, id=new_id())`
   сами перед merge, чтобы сохранить старый эффект.
-- **0.5.0** — `reactifact/__init__.py` реэкспортирует только core-поверхность
+- **0.2.0** — `reactifact/__init__.py` реэкспортирует только core-поверхность
   (~40 имён вместо ~150); eval, tracing, checkpoint/branch-бэкенды, chat/web
   слой, адаптивный scheduler, replay, structured-LLM хелперы, viz и
   prompt-шаблоны переехали в импорты из своих сабмодулей. Ничего не
@@ -72,7 +80,8 @@ Changelog). При бампе версии:
       переименование/удаление имеет запись `### Breaking` и окно депрекейшена.
 - [ ] Wheel-smoke проходит в чистой venv (`uv build`, импорт, CLI).
 - [ ] `CHANGELOG.md` переносит `[Unreleased]` под `## [X.Y.Z] — <дата>`.
-- [ ] Версии в `pyproject.toml` и `reactifact/__init__.py` совпадают.
+- [ ] `tests/test_version.py` проходит (метаданные дистрибутива
+      совпадают с `reactifact.__version__`).
 
 **Критерии 1.0** (всё выше, плюс):
 
@@ -93,17 +102,17 @@ Changelog). При бампе версии:
 # 2) версия и чейджлог
 
 # 3) сборка
-uv build                         # dist/reactifact-0.5.0-py3-none-any.whl + sdist
+uv build                         # dist/reactifact-0.20.0-py3-none-any.whl + sdist
 
 # 4) проверка wheel в чистом venv (не workspace — чтобы не цеплял PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.5.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.20.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/reactifact --help          # console-скрипт на месте
-unzip -l dist/reactifact-0.5.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-0.20.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) тег
-git tag v0.5.0 && git push origin v0.5.0
+git tag v0.20.0 && git push origin v0.20.0
 
 # 6) публикация (токен PyPI в env)
 uv publish --publish-url https://upload.pypi.org/legacy/

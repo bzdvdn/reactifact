@@ -12,6 +12,14 @@ If you only take one idea away:
 > you declare what artifacts exist and what each agent consumes/produces; the
 > runtime decides what runs from the state changes.
 
+## 0. Already on reactifact?
+
+This page is for porting *other* frameworks. If you are upgrading reactifact
+itself from 0.1.x, use the dedicated
+[0.1.x → 0.20.0 migration guide](migration-0.20.md).
+
+---
+
 ## 1. Concept map
 
 | You have (LangGraph / LangChain / CrewAI / LlamaIndex) | reactifact |
@@ -24,7 +32,7 @@ If you only take one idea away:
 | subgraph / nested agent | `AgentAsTool` (isolated nested runtime) or `context.branch()` |
 | conditional router / supervisor | `Consume.condition` / `Consume.by_field`, or `recipes.Router` |
 | RAG chain (retriever → prompt → LLM) | `Source` + `fan_out_sources` + `materialize_doc` + produces (`quick.rag` for the simple case) |
-| tool loop (`create_react_agent`) | `LLMAgent`/`ToolUse` (or `ToolUseHITL` for approvals), or `native_tool_use` / `recipes.run_tool_loop` |
+| tool loop (`create_react_agent`) | `LLMAgent`/`ToolUse` (or `ToolUseHITL` for approvals), or `reactifact.tools.native` / `recipes.run_tool_loop` |
 | `MemorySaver` + summary node | `Msg` artifacts + `context.view` + `recipes.WindowSummarizer`/`RollingDigestSummarizer` |
 | callbacks / LangSmith / Langfuse | native traces (`reactifact.tracing`) + `redactor=`, export to Langfuse/OTLP/Postgres |
 
@@ -153,7 +161,7 @@ the agents.
 
 - Model decides which tool, one step at a time: `LLMAgent` / `HITLLMAgent`
   (`examples/devops`).
-- OpenAI-native `tools`/`tool_calls`: `reactifact.native_tool_use`
+- OpenAI-native `tools`/`tool_calls`: `reactifact.tools.native`
   (composable functions), or `recipes.run_tool_loop` for a bounded, parallel,
   mandatory-tool-aware loop.
 - Budgets and honest failure come for free: `Budget(max_runs=…, max_tool_calls=…)`,

@@ -116,7 +116,9 @@ class RepairFlow(Agent):
 
 - `steps` — the unit-of-work instances. A step's `consumes` both feeds its
   typed inputs and decides which events can run it; `produces` is the allowed
-  create set. Extra create-only types go in `also_creates`.
+  create set. Put the primary output first and extra create-only types in the
+  same tuple: `produces = (Primary, Extra)`; `also_creates` is a deprecated
+  alias.
 - `Agent.consumes` still exists for the imperative escape hatch (an `Agent`
   subclass overriding `run(event, context)` directly), but declarative agents
   should put contracts on steps.

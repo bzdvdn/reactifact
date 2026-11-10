@@ -4,6 +4,124 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.20.0] — 2026-11-10
+
+### Why 0.20.0
+
+0.1.x accumulated duplicate declarations and hidden framework machinery: a
+produce both declared `Agent.consumes` and `Produce.reacts_to`, trigger guards
+repeated the type contract inside `produce()`, correlation was hand-rolled as
+stable-id lookups, and application state mutated through `self.effects` while
+`Artifact` kept a second history list. A production port showed the cost in app
+code, not framework code.
+
+0.20.0 makes the reaction contract explicit and typed: a `Step` owns its
+`consumes`/`produces`, inputs arrive as typed parameters, effects are injected,
+and artifact versions are content-addressed state rather than a mutable side
+list. The commit DAG remains the provenance layer.
+
+This is a new core release; `0.20.0` follows the `0.17.x` line. See the
+[0.1.x → 0.20.0 migration guide](docs/en/migration-0.20.md).
+
+### Breaking
+
+- **`Step` is the canonical unit.** `Produce`/`ProduceCall`/`@produce` remain
+  compatibility aliases; new code uses `Step`/`StepCall`/`@step`.
+- **`Agent.steps` is canonical.** `Agent.produces` remains a compatibility
+  property; declarative agents declare contracts on steps, not on the container.
+- **`self.effects` is removed.** Class steps receive `effects: Effects` in
+  `run()`; `@step` functions use `call.effects` (and may take typed inputs).
+- **`Artifact` is a frozen handle.** `Artifact.update()`, `_history` and
+  in-place mutation are gone; updates go through `Context`/effects. Historical
+  reads move to `Context.artifact_version` / `version_history` /
+  `find_versions`; `Artifact.at/history/diff` remain deprecated bridges.
+- **Session payloads are v2.** Artifacts serialize as a version index plus
+  `blobs` keyed by `(data_type, content_hash)`, and commit `Create`/`Update`
+  operations use `data_ref`. v1 payloads still load through the registered
+  migration.
+- **`compact(keep_versions=…)` is authoritative.** Trimmed versions are not
+  resurrected from the retained commit log.
+- **`ProduceRun` is now `StepRun`.** `ProduceRun` remains an alias.
+- **Removed the legacy example set** (`a2a`, `adaptive`,
+  `incident_commander`, `ledger`, `llm_ladder`, `map_reduce`, `plan_execute`,
+  `reflection`, `research`, `summarize`, `supervisor`, `support_copilot`,
+  `time_travel`) together with their tests.
+  The remaining reference applications are `devops`, `knowledge`, `forklab`,
+  `repair`, `medic_lab`, `fintech_audit`, `starter_app`, `chat`, `outbox`,
+  `repo_agent`; `tour` isolates the primitives.
+
+### Added
+
+- **Typed step inputs and annotations:** `Annotated[T, When(...)]`,
+  `Annotated[T, Wakes(False)]`, `Latest[T]`, `list[T]`, `list[Artifact[T]]`,
+  `Artifact[T]`, and typed `@step` function signatures.
+- **`Scope(field, owner=Type, key=fn)`** for correlated typed inputs; owner
+  artifacts match by id, other inputs by the scope field, and `key` handles
+  keys stored in `notes`.
+- **`StatusState`** for `StatusMachine.next_status(state)` over key-scoped
+  inputs (`all`/`any`/`latest`).
+- **Content-addressed `ArtifactStore`:** immutable `ArtifactVersion` records,
+  `content_hash`, version/content indices, and `Context.find_versions`.
+- **Architecture split:** `context/`, `runtime/`, `branching/`, `step/`,
+  `tools/` packages, plus `runtime/outbox`, `runtime/patch`,
+  `runtime/budget`, `runtime/loop`, `context/index`, `context/pending` and
+  `context/serialization`.
+- **Lazy providers:** only contracts and fakes load with `reactifact`;
+  concrete vendors resolve on first access.
+- **`import-linter` contracts in CI** for core/context/provider/recipe
+  dependency direction.
+- **`@step` functions** can now use the same typed parameter surface as class
+  `run()`.
+- **Trace timing:** `LLMCall.started_at` and `StepRun.started_at` are recorded
+  alongside latency, so the dashboard timeline and OTLP/Langfuse waterfalls
+  place parallel steps/calls accurately instead of guessing.
+- **`examples/tour`**: four small offline scenes for versions/compaction,
+  typed selectors, SQLite resume/replay and an optional `--llm` model step.
+- **Restored `examples/outbox` and `examples/repo_agent`** on the 0.20 `Step`
+  API: outbox covers one-delivery dispatch/replay/merge/retry; repo_agent gates
+  a destructive `git_commit` behind `PendingQuestion` approval.
+
+### Changed
+
+- Trace sequence diagrams show `Runtime → agent` triggers, `agent → LLM/tool`
+  calls and `agent → Runtime` commit summaries instead of only self-loops.
+- `Transcript` uses Context insertion order by default (the order replay
+  restores); pass `order_key=` for explicit sorting.
+- `MessageSpec.meta` can add fields (such as generated image paths) to
+  `Transcript.state()` history payloads.
+- Replayed commits stamp artifacts with the commit timestamp, so append-log
+  reloads preserve dialog order.
+- Provider and tool modules are imported lazily where possible; `reactifact`
+  import is materially lighter.
+- `runtime/` and `context/` public import paths are unchanged; internals are
+  split into services.
+
+### Fixed
+
+- Append-only session reload no longer groups all user messages before all
+  assistant replies in typed transcripts.
+- Repair chat history restores generated design previews (and their lightbox)
+  after a page reload.
+- Repair design-choice now regenerates options for “не нравится ни один /
+  сделай ещё” instead of repeating “Выберите номер варианта”.
+- Rejected option prompts exclude previous names; offline mode returns an
+  honest message instead of silently repeating the same options.
+- Tracing SQLite/Postgres row mapping and serialization are shared through
+  `tracing/_shared.py`.
+- `pyright` is clean for the package/examples scope, and `import-linter`
+  reports no broken contracts.
+
+### Deprecated
+
+- `Produce`, `ProduceCall`, `@produce`, `Agent.produces`.
+- `Step.reacts_to`/`@step(reacts_to=...)` — use `consumes`.
+- `Step.also_creates`/`@step(also_creates=...)` — use the `produces` tuple.
+- `Artifact.at/history/diff`.
+- Top-level `reactifact.tool_use`, `reactifact.native_tool_use`,
+  `reactifact.agent_tool` shims; canonical imports are
+  `reactifact.tools.{use,native,agent}`.
+
+
 ## [0.17.2] — 2026-11-07
 
 ### Fixed

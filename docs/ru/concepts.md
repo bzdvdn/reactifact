@@ -116,7 +116,9 @@ class RepairFlow(Agent):
 
 - `steps` — экземпляры шагов. `consumes` шага питает его типизированные входы и
   решает, какие события могут его запустить; `produces` — разрешённый набор
-  Create-типов. Дополнительные create-only типы идут в `also_creates`.
+  Create-типов. Основной output идёт первым, дополнительные create-only типы —
+  в том же tuple: `produces = (Primary, Extra)`; `also_creates` — deprecated
+  алиас.
 - `Agent.consumes` остаётся для imperative escape hatch (агент переопределяет
   `run(event, context)`), но декларативные агенты держат контракты на шагах.
 - `Consume(..., wakes=False)` читает вход, не будя на нём; `debounce=True`

@@ -13,6 +13,14 @@
 > агент потребляет/производит; рантайм решает, что запускать, по изменениям
 > состояния.
 
+## 0. Уже используете reactifact?
+
+Эта страница — про перенос *других* фреймворков. Если вы обновляете сам
+reactifact с 0.1.x, используйте отдельный
+[гайд по миграции 0.1.x → 0.20.0](migration-0.20.md).
+
+---
+
 ## 1. Карта понятий
 
 | У вас (LangGraph / LangChain / CrewAI / LlamaIndex) | reactifact |
@@ -25,7 +33,7 @@
 | subgraph / вложенный агент | `AgentAsTool` (изолированный вложенный рантайм) или `context.branch()` |
 | conditional router / supervisor | `Consume.condition` / `Consume.by_field`, или `recipes.Router` |
 | RAG-цепочка (retriever → prompt → LLM) | `Source` + `fan_out_sources` + `materialize_doc` + produces (`quick.rag` для простого случая) |
-| tool loop (`create_react_agent`) | `LLMAgent`/`ToolUse` (или `ToolUseHITL` для approval'ов), либо `native_tool_use` / `recipes.run_tool_loop` |
+| tool loop (`create_react_agent`) | `LLMAgent`/`ToolUse` (или `ToolUseHITL` для approval'ов), либо `reactifact.tools.native` / `recipes.run_tool_loop` |
 | `MemorySaver` + summary-узел | артефакты `Msg` + `context.view` + `recipes.WindowSummarizer`/`RollingDigestSummarizer` |
 | callbacks / LangSmith / Langfuse | нативные трейсы (`reactifact.tracing`) + `redactor=`, экспорт в Langfuse/OTLP/Postgres |
 
@@ -156,7 +164,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 
 - Модель сама решает, какой тул вызвать, шаг за шагом: `LLMAgent` / `HITLLMAgent`
   (`examples/devops`).
-- OpenAI-нативные `tools`/`tool_calls`: `reactifact.native_tool_use`
+- OpenAI-нативные `tools`/`tool_calls`: `reactifact.tools.native`
   (композируемые функции) или `recipes.run_tool_loop` для ограниченного,
   параллельного, mandatory-tool-aware цикла.
 - Бюджеты и честные сбои идут бесплатно: `Budget(max_runs=…, max_tool_calls=…)`,

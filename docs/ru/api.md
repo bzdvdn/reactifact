@@ -9,7 +9,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.20.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
 поэтому новый экспорт добавляется осознанно (и документируется на этой
@@ -26,7 +26,7 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
   существуют потому, что `Context` разбили на модули поменьше ради
   читаемости, но ни один из них не экспортируется: поддерживаемая
   поверхность — это `Context`, а не они.
-- **SemVer в pre-1.0-стиле**: минорный бамп (`0.14.0` → `0.15.0`) может добавить
+- **SemVer в pre-1.0-стиле**: минорный бамп (`0.20.0` → `0.21.0`) может добавить
   символы или, в редких случаях, изменить поведение так, что `CHANGELOG.md`
   явно пометит это `Breaking` — минорные релизы до 1.0 всё ещё позволяют
   reactifact исправить архитектурную ошибку. Патч (`0.14.0` → `0.14.1`) никогда
@@ -93,13 +93,13 @@ reactifact всё ещё pre-1.0 (`0.15.x`), но не `rc` — поверхно
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в `also_creates` |
+| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`); `also_creates=`/`reacts_to=` — deprecated алиасы |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
 | `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения перед исполнением |
-| `DeferredToolGroup` (`reactifact.tool_use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
+| `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)` |
@@ -254,7 +254,7 @@ OTLP/Langfuse-приёмников.
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | многоходовой разговор, обобщённый над моделью сообщения (вашей или дефолтной `ConversationMessage`): добавлять ходы, рендерить поток в провайдерские `Message` (хелперы `turn_count` / `conversation_state`) |
 | `Transcript` / `MessageSpec` | read-only view для приложений с *разными* типами на стороны (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): сливает типизированные ходы по ролям в один `Message`-список (`messages` / `state`) |
 | `llm_summarizer(system=…)` | строит колбэк `WindowSummarizer(summarize=…)` из системного промпта через `llm_reply` |
-| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in цикл native tool-calling поверх `native_tool_use`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; соблюдает `Budget` хода (`max_tool_calls`, `max_seconds`, токены/стоимость); ограничивает наблюдения (`max_observation_chars`), опционально редактирует их через `resources.redactor`, повторяет `ToolError(retryable=True)` при `retry_tool_errors=True`, принимает `parse_calls`-кодек (например, текстовый DSML), `fallback` для markup-ответов и `on_event`-хук для стриминга; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`, `stop_reason`/`error`) |
+| `run_tool_loop(context, *, system, user, tools, max_rounds=…, parallel=True, mandatory=…, max_observation_chars=…, redact_tool_outputs=False, retry_tool_errors=False, tool_retry_attempts=2, tool_retry_delay=0.5, parse_calls=…, fallback=…, on_event=…)` | opt-in цикл native tool-calling поверх `reactifact.tools.native`: ограниченные раунды, параллельное выполнение тулов, дожим обязательного тула, форсированный финальный ответ; соблюдает `Budget` хода (`max_tool_calls`, `max_seconds`, токены/стоимость); ограничивает наблюдения (`max_observation_chars`), опционально редактирует их через `resources.redactor`, повторяет `ToolError(retryable=True)` при `retry_tool_errors=True`, принимает `parse_calls`-кодек (например, текстовый DSML), `fallback` для markup-ответов и `on_event`-хук для стриминга; возвращает `ToolLoopResult` (текст, транскрипт, `ToolObservation`, `stop_reason`/`error`) |
 | `looks_like_tool_markup(text)` / `parse_textual_tool_calls(text)` / `parse_tool_calls_with_textual(response)` | opt-in хелперы для провайдеров, отдающих DSML/Hermes/XML-разметку вместо native `tool_calls`; последний передаётся как `run_tool_loop(parse_calls=…)` |
 
 ## Хелперы текста и отката (reactifact.recipes)

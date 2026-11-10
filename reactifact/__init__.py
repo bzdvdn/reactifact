@@ -21,6 +21,9 @@ of the names you see by default even though they were always cheap to import
 `reactifact._extras`).
 """
 
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+from importlib.metadata import version as _distribution_version
+
 from .agents import Agent, create_agent
 from .artifacts import Artifact
 from .branching import MergeConflict
@@ -52,7 +55,10 @@ from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
 
-__version__ = "0.17.1"
+try:
+    __version__ = _distribution_version("reactifact")
+except _PackageNotFoundError:  # source checkout without an installed distribution
+    __version__ = "0.0.0"
 
 __all__ = [
     "Agent",

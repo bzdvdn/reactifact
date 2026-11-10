@@ -79,7 +79,7 @@ Implemented by `Runtime._arun_once_impl` (`reactifact/runtime.py`).
    in which tasks actually finished (`asyncio.gather` preserves input order).
 
 9. **Validate.** Every `Create` in a result's patch is checked against that
-   agent's `produces` types and the `also_creates` they declare. An undeclared
+   agent's `produces` tuple (primary output plus extra creates). An undeclared
    type raises before anything is applied.
 
 10. **Commit.** For each agent, its `Patch` is applied as one unit, operations in
