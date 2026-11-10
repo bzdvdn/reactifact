@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/reactifact-hero.png" alt="reactifact — Agents that react to typed artifacts; the graph is derived, not drawn" width="800">
+  <img src="docs/img/reactifact-hero.png" alt="reactifact — typed artifacts, reactive steps, auditable state" width="800">
 </p>
 
 **Auditable agents for Python.** Build **knowledge assistants** over docs, spreadsheets and the web — where the path per question isn't a graph you can draw. Every answer is computed, versioned and reproducible — not a string you have to trust.

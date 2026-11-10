@@ -1,98 +1,192 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img"
-     aria-label="reactifact — Stop drawing the graph. React to versioned, provable artifacts.">
+     aria-label="reactifact — typed artifacts, reactive steps, auditable state">
   <defs>
     <linearGradient id="blob" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#e4572e" stop-opacity="0.09"/>
+      <stop offset="0%" stop-color="#e4572e" stop-opacity="0.10"/>
       <stop offset="55%" stop-color="#e4572e" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#1e8e6b" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#1e8e6b" stop-opacity="0.08"/>
     </linearGradient>
     <linearGradient id="blob2" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%" stop-color="#1e8e6b" stop-opacity="0.05"/>
+      <stop offset="0%" stop-color="#1e8e6b" stop-opacity="0.055"/>
       <stop offset="100%" stop-color="#e4572e" stop-opacity="0.04"/>
     </linearGradient>
     <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
-      <circle cx="2" cy="2" r="1.4" fill="#14171c" opacity="0.07"/>
+      <circle cx="2" cy="2" r="1.3" fill="#14171c" opacity="0.065"/>
     </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#14171c" opacity="0.55"/>
+    </marker>
     <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4">
       <circle cx="5" cy="5" r="4" fill="#e4572e"/>
     </marker>
+    <style>
+      .mono { font-family: ui-monospace, 'IBM Plex Mono', 'DejaVu Sans Mono', monospace; }
+      .sans { font-family: Arial, 'Helvetica Neue', 'DejaVu Sans', sans-serif; }
+      .label { font-size: 11px; letter-spacing: 1.4px; fill: #5b6472; }
+      .hash { font-size: 9.5px; letter-spacing: 0.2px; fill: #7a8494; }
+      .type { font-size: 17px; font-weight: 700; fill: #14171c; }
+      .step { font-size: 9px; font-weight: 700; letter-spacing: 0.7px; fill: #e4572e; }
+    </style>
   </defs>
 
-  <rect x="0" y="0" width="1280" height="640" fill="#fbfbfa"/>
-  <rect x="0" y="0" width="1280" height="640" fill="url(#dots)"/>
+  <rect width="1280" height="640" fill="#fbfbfa"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
 
-  <!-- decorative blobs, right side, bleeding off edge like reference -->
-  <path d="M 980 -60 C 1180 -20 1340 140 1320 340 C 1300 540 1120 700 900 660 C 760 630 720 470 800 340 C 880 210 820 20 980 -60 Z"
-        fill="url(#blob)"/>
-  <path d="M 1120 120 C 1300 180 1360 400 1260 540 C 1180 650 1000 620 960 500 C 930 400 1040 60 1120 120 Z"
-        fill="url(#blob2)"/>
+  <!-- soft brand blobs on the right -->
+  <path d="M 980 -80 C 1220 -20 1380 180 1340 400 C 1300 600 1080 720 880 660 C 730 615 700 440 790 310 C 880 180 820 20 980 -80 Z" fill="url(#blob)"/>
+  <path d="M 1130 90 C 1330 160 1390 410 1270 560 C 1180 675 980 625 950 490 C 920 370 1050 30 1130 90 Z" fill="url(#blob2)"/>
 
-  <!-- scattered squares like cubeloop reference -->
-  <rect x="70" y="72" width="14" height="14" rx="3" fill="#e4572e" opacity="0.35" transform="rotate(18 77 79)"/>
-  <circle cx="498" cy="80" r="5" fill="#1e8e6b" opacity="0.45"/>
-  <rect x="978" y="52" width="12" height="12" rx="3" fill="#14171c" opacity="0.18" transform="rotate(-10 984 58)"/>
-  <circle cx="180" cy="540" r="5" fill="#e4572e" opacity="0.4"/>
-  <rect x="46" y="560" width="16" height="16" rx="4" fill="#1e8e6b" opacity="0.3" transform="rotate(12 54 568)"/>
+  <!-- decorative confetti -->
+  <rect x="58" y="52" width="14" height="14" rx="3" fill="#e4572e" opacity="0.35" transform="rotate(18 65 59)"/>
+  <circle cx="486" cy="64" r="5" fill="#1e8e6b" opacity="0.45"/>
+  <rect x="1018" y="610" width="14" height="14" rx="3" fill="#1e8e6b" opacity="0.25" transform="rotate(-12 1025 617)"/>
+  <circle cx="660" cy="600" r="5" fill="#e4572e" opacity="0.35"/>
+  <rect x="1212" y="56" width="12" height="12" rx="3" fill="#14171c" opacity="0.16" transform="rotate(-10 1218 62)"/>
 
-  <!-- ============ ICON: a versioned, provable artifact ============ -->
-  <g transform="translate(120,140)">
-    <!-- v0: oldest version, furthest back, faint -->
-    <g transform="translate(0,26) rotate(-11 145 155)" opacity="0.28">
-      <rect x="26" y="20" width="218" height="294" rx="14" fill="#14171c"/>
-    </g>
-    <!-- v1: previous version, ghosted -->
-    <g transform="translate(14,13) rotate(-9 145 155)" opacity="0.5">
-      <rect x="26" y="20" width="218" height="294" rx="14" fill="#14171c"/>
-    </g>
-    <!-- v2: current version, solid on top -->
-    <g transform="rotate(-7 155 165)">
-      <path d="M40 20 H230 A14 14 0 0 1 244 34 V300 A14 14 0 0 1 230 314 H40 A14 14 0 0 1 26 300 V34 A14 14 0 0 1 40 20 Z"
-            fill="#14171c"/>
-      <!-- folded corner -->
-      <path d="M230 20 H244 V34 Z" fill="#fbfbfa"/>
-      <path d="M230 20 L244 34 H230 Z" fill="#3a3f47"/>
-      <!-- typed-artifact label chip -->
-      <rect x="56" y="52" width="94" height="30" rx="15" fill="none" stroke="#fbfbfa" stroke-width="2" opacity="0.9"/>
-      <text x="103" y="72" text-anchor="middle" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="15" font-weight="700" fill="#fbfbfa">Claim</text>
-      <!-- version tag, top right of the card face -->
-      <rect x="160" y="52" width="66" height="30" rx="15" fill="#e4572e"/>
-      <text x="193" y="72" text-anchor="middle" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="15" font-weight="700" fill="#fbfbfa">v2</text>
-      <!-- content lines on card -->
-      <rect x="56" y="110" width="150" height="10" rx="5" fill="#fbfbfa" opacity="0.55"/>
-      <rect x="56" y="132" width="110" height="10" rx="5" fill="#fbfbfa" opacity="0.35"/>
-    </g>
+  <!-- ================= LEFT: Context panel ================= -->
+  <rect x="52" y="92" width="646" height="456" rx="28" fill="#ffffff" opacity="0.62" stroke="#e2e6ec" stroke-width="1.4"/>
+  <rect x="52" y="92" width="646" height="456" rx="28" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="5" opacity="0.5"/>
 
-    <!-- provable seal (ring + check) overlapping bottom-right of card -->
-    <circle cx="235" cy="300" r="58" fill="#fbfbfa"/>
-    <circle cx="235" cy="300" r="50" fill="#e4572e"/>
-    <path d="M210 300 L228 318 L262 280" fill="none" stroke="#fbfbfa" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- panel header -->
+  <text x="82" y="135" class="mono label" font-weight="700">CONTEXT</text>
+  <rect x="160" y="116" width="38" height="23" rx="11.5" fill="#1e8e6b" opacity="0.12"/>
+  <text x="179" y="132" text-anchor="middle" class="mono" font-size="11" font-weight="700" fill="#1e8e6b">v7</text>
+  <text x="82" y="158" class="sans" font-size="12" fill="#8a93a1">typed artifacts · commit history · provenance</text>
+  <line x1="82" y1="176" x2="668" y2="176" stroke="#e3e7ed" stroke-width="1.2"/>
 
-    <!-- reacting artifact capsules, orbiting with spark links -->
-    <path d="M300 70 Q 340 40 372 66" fill="none" stroke="#1e8e6b" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"/>
-    <rect x="366" y="46" width="26" height="46" rx="13" fill="#1e8e6b"/>
-    <path d="M330 200 Q 372 190 388 220" fill="none" stroke="#e4572e" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"/>
-    <rect x="382" y="216" width="26" height="46" rx="13" fill="#e4572e"/>
+  <!-- artifact cards -->
+  <g>
+    <!-- Question -->
+    <rect x="82" y="198" width="112" height="84" rx="13" fill="#fbfbfa" stroke="#dfe4ea" stroke-width="1.2"/>
+    <rect x="82" y="198" width="112" height="4.5" rx="2.2" fill="#1e8e6b"/>
+    <text x="96" y="220" class="mono label" font-size="9" font-weight="700">TYPE</text>
+    <text x="96" y="244" class="sans type">Question</text>
+    <text x="96" y="265" class="mono hash">q:q2</text>
+    <rect x="152" y="208" width="29" height="17" rx="8.5" fill="#1e8e6b" opacity="0.12"/>
+    <text x="166.5" y="220" text-anchor="middle" class="mono" font-size="9" font-weight="700" fill="#1e8e6b">v0</text>
+
+    <!-- Evidence -->
+    <rect x="238" y="198" width="112" height="84" rx="13" fill="#fbfbfa" stroke="#dfe4ea" stroke-width="1.2"/>
+    <rect x="238" y="198" width="112" height="4.5" rx="2.2" fill="#e4572e"/>
+    <text x="252" y="220" class="mono label" font-size="9" font-weight="700">TYPE</text>
+    <text x="252" y="244" class="sans type">Evidence</text>
+    <text x="252" y="265" class="mono hash">e8c1…</text>
+    <rect x="308" y="208" width="29" height="17" rx="8.5" fill="#e4572e" opacity="0.12"/>
+    <text x="322.5" y="220" text-anchor="middle" class="mono" font-size="9" font-weight="700" fill="#e4572e">v1</text>
+
+    <!-- Claim -->
+    <rect x="394" y="198" width="112" height="84" rx="13" fill="#fbfbfa" stroke="#dfe4ea" stroke-width="1.2"/>
+    <rect x="394" y="198" width="112" height="4.5" rx="2.2" fill="#1e8e6b"/>
+    <text x="408" y="220" class="mono label" font-size="9" font-weight="700">TYPE</text>
+    <text x="408" y="244" class="sans type">Claim</text>
+    <text x="408" y="265" class="mono hash">c4d7…</text>
+    <rect x="464" y="208" width="29" height="17" rx="8.5" fill="#1e8e6b" opacity="0.12"/>
+    <text x="478.5" y="220" text-anchor="middle" class="mono" font-size="9" font-weight="700" fill="#1e8e6b">v2</text>
+
+    <!-- Answer -->
+    <rect x="550" y="198" width="112" height="84" rx="13" fill="#14171c"/>
+    <rect x="550" y="198" width="112" height="4.5" rx="2.2" fill="#e4572e"/>
+    <text x="564" y="220" class="mono label" font-size="9" font-weight="700" fill="#9aa3b1">TYPE</text>
+    <text x="564" y="244" class="sans type" fill="#fbfbfa">Answer</text>
+    <text x="564" y="265" class="mono hash" fill="#9aa3b1">4b9e…</text>
+    <rect x="620" y="208" width="29" height="17" rx="8.5" fill="#e4572e" opacity="0.9"/>
+    <text x="634.5" y="220" text-anchor="middle" class="mono" font-size="9" font-weight="700" fill="#fbfbfa">v0</text>
   </g>
 
-  <!-- ============ WORDMARK ============ -->
-  <g font-family="Arial, 'Helvetica Neue', sans-serif">
-    <text x="556" y="290" font-size="118" font-weight="800" fill="#14171c" letter-spacing="-2">reactifact</text>
-    <text x="558" y="342" font-size="27" font-weight="500" fill="#5b6472">Agents that react to artifacts, not graphs</text>
+  <!-- step arrows between cards -->
+  <g>
+    <line x1="194" y1="240" x2="238" y2="240" stroke="#14171c" stroke-width="2" opacity="0.55" marker-end="url(#arrow)"/>
+    <circle cx="216" cy="240" r="3.2" fill="#e4572e"/>
+    <text x="216" y="226" text-anchor="middle" class="mono step">STEP</text>
+
+    <line x1="350" y1="240" x2="394" y2="240" stroke="#14171c" stroke-width="2" opacity="0.55" marker-end="url(#arrow)"/>
+    <circle cx="372" cy="240" r="3.2" fill="#1e8e6b"/>
+    <text x="372" y="226" text-anchor="middle" class="mono step" fill="#1e8e6b">STEP</text>
+
+    <line x1="506" y1="240" x2="550" y2="240" stroke="#14171c" stroke-width="2" opacity="0.55" marker-end="url(#arrow)"/>
+    <circle cx="528" cy="240" r="3.2" fill="#e4572e"/>
+    <text x="528" y="226" text-anchor="middle" class="mono step">STEP</text>
   </g>
 
-  <line x1="556" y1="372" x2="1152" y2="372" stroke="#dde1e7" stroke-width="1.5"/>
+  <!-- provenance captions under the chain -->
+  <g class="mono" font-size="9" fill="#8a93a1">
+    <text x="195" y="296">about</text>
+    <text x="351" y="296">derived_from</text>
+    <text x="507" y="296">supported_by</text>
+  </g>
 
-  <!-- reactive chain: produce -> consume -> produce, mirroring cubeloop's bottom bar -->
-  <g font-family="'IBM Plex Mono', ui-monospace, monospace">
-    <line x1="556" y1="420" x2="716" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="740" cy="420" r="11" fill="#e4572e"/>
-    <line x1="764" y1="420" x2="924" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="948" cy="420" r="11" fill="#1e8e6b"/>
-    <line x1="972" y1="420" x2="1132" y2="420" stroke="#14171c" stroke-width="3" stroke-linecap="round"/>
+  <!-- commit DAG -->
+  <text x="82" y="336" class="mono label" font-size="9" font-weight="700">COMMIT DAG</text>
+  <g stroke="#c8ced8" stroke-width="2" fill="none">
+    <path d="M 100 372 H 590"/>
+    <path d="M 260 372 C 300 372 300 350 335 350 C 370 350 370 372 410 372"/>
+  </g>
+  <g>
+    <circle cx="100" cy="372" r="6" fill="#14171c"/>
+    <circle cx="180" cy="372" r="6" fill="#14171c"/>
+    <circle cx="260" cy="372" r="6" fill="#e4572e"/>
+    <circle cx="335" cy="350" r="6" fill="#1e8e6b"/>
+    <circle cx="410" cy="372" r="6" fill="#14171c"/>
+    <circle cx="500" cy="372" r="6" fill="#14171c"/>
+    <circle cx="590" cy="372" r="7" fill="#14171c"/>
+    <circle cx="590" cy="372" r="11" fill="none" stroke="#e4572e" stroke-width="2"/>
+  </g>
+  <g class="mono" font-size="8.5" fill="#8a93a1">
+    <text x="94" y="394">c1</text>
+    <text x="174" y="394">c2</text>
+    <text x="254" y="394">c3</text>
+    <text x="329" y="338">merge</text>
+    <text x="404" y="394">c4</text>
+    <text x="494" y="394">c5</text>
+    <text x="580" y="394">HEAD</text>
+  </g>
 
-    <text x="556" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">produce</text>
-    <text x="716" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">consume</text>
-    <text x="924" y="454" font-size="14" fill="#5b6472" letter-spacing="0.5">produce</text>
+  <!-- hash + replay proof -->
+  <line x1="82" y1="420" x2="668" y2="420" stroke="#e3e7ed" stroke-width="1.2"/>
+  <text x="82" y="447" class="mono label" font-size="9" font-weight="700">CONTEXT HASH</text>
+  <text x="200" y="447" class="mono" font-size="11.5" fill="#14171c">sha256 24449f6fc4f9…</text>
+  <g>
+    <circle cx="493" cy="443" r="8" fill="#1e8e6b" opacity="0.12"/>
+    <path d="M489 443 l3 3 l6 -7" fill="none" stroke="#1e8e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="507" y="447" class="mono" font-size="10" fill="#1e8e6b">replay → same hash</text>
+  </g>
+
+  <!-- small legend: effects compile to one commit -->
+  <text x="82" y="486" class="mono" font-size="10" fill="#8a93a1">Step = consumes → produces</text>
+  <text x="82" y="504" class="mono" font-size="10" fill="#8a93a1">effects → one atomic Patch → one commit</text>
+
+  <!-- ================= RIGHT: wordmark ================= -->
+  <g class="sans">
+    <text x="742" y="270" font-size="94" font-weight="800" fill="#14171c" letter-spacing="-3">reactifact</text>
+    <text x="746" y="320" font-size="24" font-weight="500" fill="#5b6472">Typed artifacts. Reactive steps.</text>
+    <text x="746" y="351" font-size="24" font-weight="500" fill="#5b6472">Auditable state.</text>
+  </g>
+
+  <line x1="746" y1="386" x2="1198" y2="386" stroke="#dde1e7" stroke-width="1.4"/>
+
+  <!-- proof chips -->
+  <g class="mono" font-size="10.5">
+    <rect x="746" y="409" width="154" height="28" rx="14" fill="#ffffff" stroke="#e1e5ec" stroke-width="1.1"/>
+    <circle cx="762" cy="423" r="4" fill="#e4572e"/>
+    <text x="774" y="427" fill="#5b6472">content-addressed</text>
+
+    <rect x="912" y="409" width="112" height="28" rx="14" fill="#ffffff" stroke="#e1e5ec" stroke-width="1.1"/>
+    <circle cx="928" cy="423" r="4" fill="#1e8e6b"/>
+    <text x="940" y="427" fill="#5b6472">provenance</text>
+
+    <rect x="1036" y="409" width="102" height="28" rx="14" fill="#ffffff" stroke="#e1e5ec" stroke-width="1.1"/>
+    <circle cx="1052" cy="423" r="4" fill="#14171c"/>
+    <text x="1064" y="427" fill="#5b6472">replayable</text>
+  </g>
+
+  <g class="mono" font-size="10.5" fill="#8a93a1">
+    <text x="746" y="468">from question to answer, every step is a commit.</text>
+  </g>
+
+  <!-- CTA-ish line, static -->
+  <g class="mono">
+    <text x="746" y="506" font-size="10" fill="#8a93a1">pip install reactifact</text>
+    <line x1="746" y1="516" x2="914" y2="516" stroke="#e4572e" stroke-width="2" opacity="0.65"/>
   </g>
 </svg>

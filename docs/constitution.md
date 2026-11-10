@@ -194,7 +194,7 @@ class Researcher(Step):
         # nothing applied until the runtime compiles the effects
 ```
 
-The produce describes what should change (effects); the runtime compiles the
+The step describes what should change (effects); the runtime compiles the
 effect set into one atomic `Patch`:
 
 ```text
@@ -309,7 +309,8 @@ Report
 Answer
 ```
 
-Artifacts are first-class objects.
+Artifacts are first-class objects. A handle is an immutable typed snapshot;
+every revision lives in the Context's content-addressed `ArtifactStore`.
 
 ---
 
@@ -574,9 +575,9 @@ This is one of the project's deliberate departures from embedding-first RAG.
 
 # 10. Agent
 
-An Agent is a component capable of interpreting Context and describing a
-change-set: produces write `effects` (§24); the runtime compiles them into
-a `Patch`.
+An Agent is a thin container of `Step`s. Each step interprets Context and
+describes a change-set by writing `effects` (§24); the runtime compiles them
+into a `Patch`.
 
 Minimal conceptual interface:
 
@@ -609,25 +610,32 @@ Agents should declare what they understand.
 Example:
 
 ```python
-class Verifier(Agent):
-    consumes = [Claim, Evidence]
-    produces = [VerifiedClaim, MissingEvidence]
+class Verifier(Step):
+    consumes = (Claim, Evidence)
+    produces = (VerifiedClaim, MissingEvidence)
 ```
 
 Another:
 
 ```python
-class DataAnalyst(Agent):
-    consumes = [Spreadsheet, Hypothesis]
-    produces = [Calculation, Finding]
+class DataAnalyst(Step):
+    consumes = (Spreadsheet, Hypothesis)
+    produces = (Calculation, Finding)
 ```
 
 Another:
 
 ```python
-class Researcher(Agent):
-    consumes = [Question, Reference]
-    produces = [Evidence, Claim]
+class Researcher(Step):
+    consumes = (Question, Reference)
+    produces = (Evidence, Claim)
+```
+
+An `Agent` groups these steps:
+
+```python
+class ResearchFlow(Agent):
+    steps = [Researcher(), Verifier(), Analyst()]
 ```
 
 These declarations are hints and contracts.
@@ -639,7 +647,7 @@ They are not necessarily a rigid execution graph.
 # 12. Patch
 
 A Patch is the *compiled* change-set the runtime applies. The authoring
-surface is `effects` (§24): a produce writes `create/update/link/ask` and
+surface is `effects` (§24): a step writes `create/update/link/ask` and
 returns `None`; the runtime compiles the effect set into one atomic `Patch`
 (commit, events, validation, trace). `Patch` is transport — applications rarely
 build one directly (exceptions: the `Agent.run` escape hatch and advanced
@@ -726,13 +734,13 @@ Context v11
 
 # 14. Immutable Revisions
 
-The public programming model may feel mutable:
+Artifact handles are immutable snapshots; mutation goes through the Context:
 
 ```python
-claim.confidence = 0.91
+ctx.update(claim.id, claim.data.model_copy(update={"confidence": 0.91}))
 ```
 
-Internally, state should be revisioned:
+Internally, every revision is content-addressed and immutable:
 
 ```text
 Claim v1
@@ -756,9 +764,15 @@ This enables:
 ```python
 context.history()
 context.diff(v4, v9)
-context.rollback(v7)
+context.checkout(v7)   # move head back; use .at(v) for a detached snapshot
 context.snapshot()
 ```
+
+The materialized state is an append-only `ArtifactStore`: `ArtifactVersion`
+records carry a canonical payload hash, `Context.artifact_version` /
+`version_history` / `find_versions` are the canonical historical reads, and
+persistence v2 writes payloads once in `blobs` (artifact version index +
+commit `data_ref`). `Artifact.at/history` remain compatibility bridges.
 
 History is bounded, not hoarded forever: a long-lived session collapses old
 commits into a baseline snapshot (`Context.compact(keep_commits=…,
@@ -766,7 +780,8 @@ keep_versions=…)`), preserving the absolute version/head — so `context_hash`
 unchanged — while dropping the operations behind them and trimming each
 artifact's retained version history. Like squashing git history it is
 irreversible: `checkout`/`diff` below the baseline are refused
-(`Context.compacted_at` reports it).
+(`Context.compacted_at` reports it), and `keep_versions` is authoritative for
+the version store.
 
 The initial implementation may use SQLite or another simple persistence layer.
 
@@ -1074,8 +1089,10 @@ An Event describes a meaningful change.
 Examples:
 
 ```text
-ArtifactAdded
+ArtifactCreated
 ArtifactUpdated
+ArtifactDeleted
+ArtifactStale
 ClaimCreated
 EvidenceAdded
 EvidenceMissing
@@ -1744,13 +1761,13 @@ for the same source.
 
 Artifacts should have stable identities. In core, this is unconditional: `SourceRef.stable_id()` derives an id from `sha1(source_id:locator)`, so re-running a Source against the same locator resolves to the same Artifact rather than creating a duplicate.
 
-Idempotency covers the *state*, not the environment: a repeated produce
-would still re-send an email. The shipped split is an **outbox**. A produce
+Idempotency covers the *state*, not the environment: a repeated step
+would still re-send an email. The shipped split is an **outbox**. A step
 records an intent artifact — `effects.act(kind=..., key=..., payload=...)`
 creates a `PendingAction` under the stable id `action:{key}` — and the runtime
 performs it *after the commit*, once per id, through `Runtime(dispatcher=...)`.
-The produce never does the I/O itself. Replay reconstructs the record without
-running the runtime (so it never re-sends); a retried produce re-derives the
+The step never does the I/O itself. Replay reconstructs the record without
+running the runtime (so it never re-sends); a retried step re-derives the
 same id and `effects.act` returns `None`; two branches that independently reach
 the same action share the id and merge to one intent (§40) — the `dispatched`
 side wins, so a merge never re-sends an already-sent action — while divergent
@@ -1950,17 +1967,9 @@ Each agent declares interest in the Artifact type/state.
 Example:
 
 ```python
-DataAnalyst(
-    consumes=[
-        Spreadsheet,
-        CSV,
-        Hypothesis,
-    ],
-    produces=[
-        Calculation,
-        Finding,
-    ],
-)
+class DataAnalyst(Step):
+    consumes = (Spreadsheet, CSV, Hypothesis)
+    produces = (Calculation, Finding)
 ```
 
 The runtime creates the relevant Context view.
@@ -2330,7 +2339,8 @@ graph.add_edge(
 prefer:
 
 ```python
-Verifier(consumes=[Consume(UnverifiedClaim)])
+class Verifier(Step):
+    consumes = (UnverifiedClaim,)
 ```
 
 The runtime derives execution.
@@ -2727,14 +2737,15 @@ Implement:
 ```python
 Step.run(...) -> Model | None             # writes effects.*; runtime compiles
 # Effects(create/update/link/ask) -▶ Patch: the atomic, validated change
-# plus the thin Agent container: consumes / produces declarations
+# plus the thin Agent container: a list of Steps
 ```
 
 Add:
 
 ```text
-consumes
-produces
+Agent.steps
+Step.consumes
+Step.produces
 ```
 
 ---
@@ -3116,17 +3127,17 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 
 # Appendix — Implementation Status
 
-State of the public `reactifact` codebase, aligned with this constitution (ver 0.3).
-Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff clean.
+State of the public `reactifact` codebase, aligned with this constitution (current pre-1.0 tree).
+Verification: 1084 tests (+6 skipped, env-dependent); mypy (strict) and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
-| Context / Artifact / Patch / Revision (git-like) | §4, §12, §14 | implemented (create/update/delete/link, history, diff, checkout, snapshot); `Context` composes a `RelationGraph` and a `CommitLog` internally (extracted for testability, no API change) |
+| Context / Artifact / Patch / Revision (git-like) | §4, §12, §14 | implemented — `Artifact` is a frozen handle over an append-only `ArtifactStore`; `artifact_version`/`version_history`/`find_versions` are canonical; `create/update/delete/link`, diff, checkout/snapshot; v2 persistence (`blobs` + version index + commit `data_ref`); `Context` composes `RelationGraph`, `ArtifactStore` and `CommitLog` |
 | Relations & provenance edges | §15, §33-§34, §36 | implemented (`Link`, `derived_from`, `supported_by`, `contradicted_by`) |
 | Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
 | Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
 | GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
-| Agent contract (Step / Consume containers) | §10-§13, §63 | implemented; `Consume(wakes=False)` reads a type as input without waking on it (the declarative alternative to a hand-synced `Agent.triggers=` override); `Consume(debounce=True)` collapses several same-generation events into one run, costing one against `Budget(max_runs=...)`; `reactifact.consume.CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across two artifact types by a shared key (join / absence-gate) instead of one type's own matching instances alone |
+| Agent contract (Step / Consume containers) | §10-§13, §63 | implemented — `Agent.steps`; each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, `Annotated[T, Wakes(False)]` reads without waking, `Scope(field, owner=Type, key=fn)` correlates by field/id/custom key; `Consume(..., debounce=True)` collapses same-generation events; `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across types |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
@@ -3136,17 +3147,17 @@ Verification: 1052 tests (+4 skipped, env-dependent); mypy (strict) and ruff cle
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
 | Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
 | Outbound side effects (outbox) | §42, §55, §60 | implemented — `effects.act(kind=..., key=..., payload=...)` records a `PendingAction` intent under a stable id; `Runtime(dispatcher=...)` performs it after the commit, once per id, and records `dispatched`/`failed` as state; `runtime.flush_pending_actions()` drains after a `merge()`; replay reconstructs the record without re-sending; `replay` CLI reports dispatched/pending/failed |
-| Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent produces); a failed generation keeps its triggers for a retry |
+| Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent steps); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
-| Staleness / invalidation from recorded reads | §43-§44 | implemented (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`, not just polling) |
-| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask`, the runtime compiles the slot into one atomic `Patch` (transport); class steps take typed inputs + `effects: Effects`, `@step` functions take one `call: StepCall` (`.context`/`.inputs`/`.event`/`.trigger`/`.effects`); `.trigger` is a live artifact for `consumes`-matched CREATED/UPDATED/STALE events; `Annotated[T, When(...)]`/`Consume.by_*` select conditions; `Agent.run()` override is a low-level escape hatch, not a third style |
+| Staleness / invalidation from recorded reads | §43-§44 | implemented for updates (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`). `delete()` currently emits `ARTIFACT_DELETED` only; dependents are not auto-staled — use an explicit deletion-reactive step until delete→stale lands |
+| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask` compile into one atomic `Patch`; class `run()` and `@step` functions both accept typed inputs + `effects: Effects` (or a legacy `call: StepCall`). `Wakes`/`When`/`Scope` annotations and `Consume.by_*` select inputs; `.trigger` is live for `consumes`-matched CREATED/UPDATED/STALE events; `Agent.run()` is a low-level escape hatch |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |
-| Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which step(s) ran (`AgentSpan.produces`: name/operations/latency, including a step that raised), shown as a `Consume → Step` flow in the dashboard and as child observations in Langfuse |
+| Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which step(s) ran (`AgentSpan.produces`: `StepRun` entries with name/operations/latency, including a step that raised), shown as a `Consume → Step` flow in the dashboard and as child observations in Langfuse |
 | Replay (§55) | §55 | implemented — `ReplayLLM` record/replay, state replay + `python -m reactifact replay` |
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
-| Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which produce/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
+| Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which step/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
 | Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
 | Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault **and stub** injection, record/replay, `reactifact scenario` CLI); provenance assertions (`ArtifactAssertions.linked`, `result.relations`), sync `run_sync`/`turn_sync`, golden snapshots (`assert_golden_file`), `result.explain()`, and an opt-in pytest plugin (`reactifact.testing.pytest_plugin`) |
 | MCP integration | — (post-constitution addition) | implemented — `reactifact.mcp`: `mcp_stdio_tools`/`mcp_http_tools` (HTTP with optional auth `headers=`) consume an external server's tools as ordinary `Tool`s; `create_mcp_server` exposes reactifact `Tool`s and, with `context=`, read-only `Context` resources, as an MCP server. Verified over the real protocol (in-memory transport) |
