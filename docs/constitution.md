@@ -3128,7 +3128,7 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 # Appendix — Implementation Status
 
 State of the public `reactifact` codebase, aligned with this constitution (current pre-1.0 tree).
-Verification: 1106 tests (+6 skipped, env-dependent); mypy (strict) and ruff clean.
+Verification: 1107 tests (+6 skipped, env-dependent); mypy (strict) and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|

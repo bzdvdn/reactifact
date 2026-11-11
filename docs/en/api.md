@@ -8,7 +8,7 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-reactifact is pre-1.0 (`0.20.0`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.20.1`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins every `__all__` listed here, so a new export has to be added deliberately
 (and documented on this page), never by accident.
@@ -23,7 +23,7 @@ pins every `__all__` listed here, so a new export has to be added deliberately
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.20.0` → `0.21.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.20.1` → `0.21.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
   patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
@@ -176,7 +176,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `core_metrics` | the four non-generative metrics (answer/provenance/evidence/claim) |
 | `answer_coverage()` · `calculation_correctness(values=…)` · `source_coverage()` · `confidence_calibration()` | ground-truth factories (skip when `expected` is missing) |
 | `Dataset` / `Example` | versioned examples (`from_file`/`from_list`, `.json`/`.jsonl`, content-hash `version`) |
-| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…)` / `aevaluate` | run a target over every example and score it; `target` returns a `Context`, `ScenarioResult`, outputs mapping or `RunResult` |
+| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…, on_result=…)` / `aevaluate` | run a target over every example and score it; `target` returns a `Context`, `ScenarioResult`, outputs mapping or `RunResult`; `on_result(result)` streams each scored `EvalResult` (completion order when concurrent) |
+| `ResultCallback` | `Callable[[EvalResult], None]` type alias for the `on_result` progress hook |
 | `from_metric(name, metric_fn)` | wrap a scoring metric into an `Evaluator` |
 | `trajectory_match(mode, *, steps=…, reference_key=…)` | match a run's path (`strict`/`unordered`/`subset`/`superset`) over `agents`/`events`/`reads`/`writes` |
 | `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | LLM-as-judge evaluators (`continuous`/`choices`/`include_reference`) |

@@ -31,6 +31,8 @@ from .scoring import EvalReport, EvalResult, Metric
 #: Anything a target may return (a Context, a mapping, a run object, a tuple).
 Target: TypeAlias = Callable[[Mapping[str, Any]], Any]
 Extractor: TypeAlias = Callable[[Context], Mapping[str, Any]]
+#: Progress hook: called once per scored example, in completion order.
+ResultCallback: TypeAlias = Callable[["EvalResult"], None]
 
 
 @dataclass
@@ -206,20 +208,29 @@ async def aevaluate(
     extract: Extractor = default_outputs,
     summary: Sequence[SummaryEvaluator] = (),
     max_concurrency: int = 0,
+    on_result: ResultCallback | None = None,
 ) -> EvalReport:
     """Runs `target` over every example and scores it (async).
 
     `max_concurrency=0` (default) runs examples sequentially in dataset order,
     keeping the report deterministic; a positive value runs at most that many
     examples at once (`asyncio`), for large suites where the target is I/O-bound.
+
+    `on_result`, when given, is called once per example immediately after that
+    example is scored — a progress hook for long suites (`print` a line per
+    case, stream to a dashboard). It does not change the report. With
+    `max_concurrency > 0` callbacks fire in completion order, not dataset order.
     """
     ds = _as_dataset(dataset)
     evaluators_list = _evaluator_list(evaluators)
 
     async def one(example: Example) -> tuple[EvalResult, EvalInput]:
-        return await _evaluate_one(
+        result, eval_input = await _evaluate_one(
             example, target=target, evaluators=evaluators_list, extract=extract
         )
+        if on_result is not None:
+            on_result(result)
+        return result, eval_input
 
     if max_concurrency and max_concurrency > 0:
         semaphore = asyncio.Semaphore(max_concurrency)
@@ -257,6 +268,7 @@ def evaluate(
     extract: Extractor = default_outputs,
     summary: Sequence[SummaryEvaluator] = (),
     max_concurrency: int = 0,
+    on_result: ResultCallback | None = None,
 ) -> EvalReport:
     """Synchronous `aevaluate` — mirrors `Runtime.run`/`ScenarioLab.run_sync`."""
     return asyncio.run(
@@ -267,6 +279,7 @@ def evaluate(
             extract=extract,
             summary=summary,
             max_concurrency=max_concurrency,
+            on_result=on_result,
         )
     )
 

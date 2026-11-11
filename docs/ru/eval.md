@@ -97,7 +97,18 @@ report.assert_passed({"correctness": 0.7})          # CI-гейт (бросае�
 вернуть `Context`, `ScenarioResult` из `reactifact.testing` (читается через
 `.context`/`.trace`), обычный mapping выходов или `RunResult`. `evaluate` идёт
 по примерам последовательно в порядке датасета (`max_concurrency=N` —
-параллелит I/O-bound target'ы).
+параллелит I/O-bound target'ы). `on_result=callback` вызывается после скоринга
+каждого примера — прогресс-хук для длинных прогонов; при `max_concurrency > 0`
+колбэки идут в порядке завершения. Итоговый `EvalReport` не меняется.
+
+```python
+report = evaluate(
+    dataset,
+    target=my_pipeline,
+    evaluators=evaluators,
+    on_result=lambda result: print(f"{result.case}: {result.overall():.2f}"),
+)
+```
 
 ## Эвалуаторы
 

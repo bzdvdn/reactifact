@@ -97,7 +97,18 @@ report.assert_passed({"correctness": 0.7})          # CI gate (raises EvalFailur
 `Context`, a `ScenarioResult` from `reactifact.testing` (read via `.context`/
 `.trace`), a plain outputs mapping, or a `RunResult`. `evaluate` runs examples
 sequentially in dataset order (`max_concurrency=N` parallelizes I/O-bound
-targets).
+targets). Pass `on_result=callback` to receive each `EvalResult` as soon as it
+is scored — a progress hook for long suites; with `max_concurrency > 0` the
+callbacks fire in completion order. The returned `EvalReport` is unchanged.
+
+```python
+report = evaluate(
+    dataset,
+    target=my_pipeline,
+    evaluators=evaluators,
+    on_result=lambda result: print(f"{result.case}: {result.overall():.2f}"),
+)
+```
 
 ## Evaluators
 

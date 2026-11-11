@@ -4,6 +4,15 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.20.1] — 2026-11-11
+
+### Added
+
+- **`on_result` progress hook for eval runs.** `aevaluate()`/`evaluate()` accept
+  `on_result: Callable[[EvalResult], None]`, called once per example
+  immediately after it is scored. Batch reports are unchanged; long suites can
+  stream per-case progress instead of waiting for the final `EvalReport`.
+
 ## [0.20.0] — 2026-11-10
 
 ### Why 0.20.0

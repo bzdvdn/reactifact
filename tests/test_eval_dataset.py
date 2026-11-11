@@ -124,6 +124,17 @@ def test_evaluate_scores_every_example():
     assert report.aggregate() == {"answer_present": 1.0, "coverage": 1.0}
 
 
+def test_evaluate_calls_on_result_once_per_example_in_order():
+    seen: list[str] = []
+    report = evaluate(
+        _dataset(),
+        _target,
+        {"present": from_metric("answer_present", answer_present)},
+        on_result=lambda result: seen.append(result.case),
+    )
+    assert seen == [result.case for result in report.results]
+
+
 def test_evaluate_skips_metric_without_ground_truth():
     ds = Dataset.from_list([{"inputs": {"q": "a"}}])
     report = evaluate(

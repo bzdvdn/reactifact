@@ -102,6 +102,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "OnlineEvaluator",
             "OnlineReport",
             "RELEVANCE_INSTRUCTIONS",
+            "ResultCallback",
             "RunFn",
             "RunResult",
             "StepExtractor",

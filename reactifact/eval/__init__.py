@@ -72,6 +72,7 @@ from .online import (
 )
 from .runner import (
     Extractor,
+    ResultCallback,
     RunResult,
     SummaryEvaluator,
     Target,
@@ -114,6 +115,7 @@ __all__ = [
     "EvaluatorResult",
     "Example",
     "Extractor",
+    "ResultCallback",
     "FAITHFULNESS_INSTRUCTIONS",
     "Feedback",
     "FeedbackLike",

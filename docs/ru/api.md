@@ -9,7 +9,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.20.0`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.20.1`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
 поэтому новый экспорт добавляется осознанно (и документируется на этой
@@ -26,7 +26,7 @@ reactifact всё ещё pre-1.0 (`0.20.0`), но не `rc` — поверхно
   существуют потому, что `Context` разбили на модули поменьше ради
   читаемости, но ни один из них не экспортируется: поддерживаемая
   поверхность — это `Context`, а не они.
-- **SemVer в pre-1.0-стиле**: минорный бамп (`0.20.0` → `0.21.0`) может добавить
+- **SemVer в pre-1.0-стиле**: минорный бамп (`0.20.1` → `0.21.0`) может добавить
   символы или, в редких случаях, изменить поведение так, что `CHANGELOG.md`
   явно пометит это `Breaking` — минорные релизы до 1.0 всё ещё позволяют
   reactifact исправить архитектурную ошибку. Патч (`0.14.0` → `0.14.1`) никогда
@@ -180,7 +180,8 @@ reactifact всё ещё pre-1.0 (`0.20.0`), но не `rc` — поверхно
 | `core_metrics` | четыре не генеративные метрики (answer/provenance/evidence/claim) |
 | `answer_coverage()` · `calculation_correctness(values=…)` · `source_coverage()` · `confidence_calibration()` | фабрики с грёд-трусом (skip при отсутствии `expected`) |
 | `Dataset` / `Example` | версионируемые примеры (`from_file`/`from_list`, `.json`/`.jsonl`, content-hash `version`) |
-| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…)` / `aevaluate` | прогон target по каждому примеру со скорингом; `target` возвращает `Context`, `ScenarioResult`, mapping выходов или `RunResult` |
+| `evaluate(dataset, target, evaluators, *, extract=…, summary=…, max_concurrency=…, on_result=…)` / `aevaluate` | прогон target по каждому примеру со скорингом; `target` возвращает `Context`, `ScenarioResult`, mapping выходов или `RunResult`; `on_result(result)` отдаёт каждый посчитанный `EvalResult` (при конкурентности — в порядке завершения) |
+| `ResultCallback` | type alias `Callable[[EvalResult], None]` для прогресс-хука `on_result` |
 | `from_metric(name, metric_fn)` | обернуть метрику скоринга в `Evaluator` |
 | `trajectory_match(mode, *, steps=…, reference_key=…)` | сопоставить путь прогона (`strict`/`unordered`/`subset`/`superset`) по `agents`/`events`/`reads`/`writes` |
 | `llm_judge(llm, *, instructions, …)` · `judge_correctness` · `judge_relevance` · `judge_faithfulness` | эвалуаторы LLM-as-judge (`continuous`/`choices`/`include_reference`) |
