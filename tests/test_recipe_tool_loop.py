@@ -344,6 +344,59 @@ def test_parse_textual_tool_calls_reads_dsml():
     assert calls[0].args == {"q": "x"}
 
 
+def test_parse_textual_tool_calls_reads_real_deepseek_dsml():
+    from reactifact.native_tool_use import parse_textual_tool_calls
+
+    text = (
+        '<｜｜DSML｜｜calls><｜｜DSML｜｜invoke name="read_source">'
+        '<｜｜DSML｜｜ parameter name="id">support://doc</｜｜DSML｜｜ parameter>'
+        '<｜｜DSML｜｜ parameter name="limit" string="true">5'
+        "</｜｜DSML｜｜ parameter>"
+        "</｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>"
+    )
+    calls = parse_textual_tool_calls(text)
+    assert [(call.name, call.args) for call in calls] == [
+        ("read_source", {"id": "support://doc", "limit": 5})
+    ]
+
+
+def test_parse_textual_tool_calls_accepts_ascii_pipes_and_single_quotes():
+    from reactifact.native_tool_use import parse_textual_tool_calls
+
+    text = (
+        "<||DSML||invoke name='search'>"
+        "<||DSML|| parameter name='q'>x</||DSML|| parameter>"
+        "</||DSML|| invoke>"
+    )
+    calls = parse_textual_tool_calls(text)
+    assert [(call.name, call.args) for call in calls] == [("search", {"q": "x"})]
+
+
+def test_looks_like_tool_markup_detects_truncated_dsml_remnant():
+    from reactifact.native_tool_use import (
+        looks_like_tool_markup,
+        parse_textual_tool_calls,
+    )
+
+    text = (
+        '["support://doc"]</｜｜DSML｜｜ parameter>'
+        "\n</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>"
+    )
+    assert looks_like_tool_markup(text) is True
+    # No opening `invoke`/name survives, so there is nothing to recover.
+    assert parse_textual_tool_calls(text) == []
+
+    assert looks_like_tool_markup("</invoke>") is True
+    assert looks_like_tool_markup("</｜｜ parameter>") is True
+
+
+def test_looks_like_tool_markup_ignores_plain_answer():
+    from reactifact.native_tool_use import looks_like_tool_markup
+
+    assert looks_like_tool_markup("Обычный ответ про <tool> и invoke.") is False
+    assert looks_like_tool_markup("") is False
+
+
 def test_stop_reason_completed():
     llm = ScriptedNativeLLM([_tool_call("1", "search", '{"q": "x"}'), _answer("done")])
     result = asyncio.run(

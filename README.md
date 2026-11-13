@@ -323,7 +323,7 @@ uv sync --extra dev --extra web
 
 ## Status & contributing
 
-Active, `0.20.1`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
+Active, `0.20.2`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
 (see the [roadmap](docs/roadmap.md)); releases follow
 [Keep a Changelog](CHANGELOG.md). Questions and design discussion live in
 [GitHub Discussions](https://github.com/bzdvdn/reactifact/discussions); a star,

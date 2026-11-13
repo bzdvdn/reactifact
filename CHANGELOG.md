@@ -4,6 +4,17 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.20.2] — 2026-11-13
+
+### Fixed
+
+- **Textual tool-call parsing handles real DeepSeek DSML.** `parse_textual_tool_calls`
+  now recognizes `<｜｜DSML｜｜invoke>` / `<｜｜DSML｜｜ parameter>` tags with ASCII
+  or fullwidth pipes, an optional `DSML` token, surrounding whitespace, and
+  single or double quotes. `looks_like_tool_markup` also flags truncated DSML
+  remnants (closing tags with no opening `invoke`), so `run_tool_loop` falls back
+  instead of surfacing raw markup as the answer.
+
 ## [0.20.1] — 2026-11-11
 
 ### Added

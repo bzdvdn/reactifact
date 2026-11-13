@@ -118,10 +118,34 @@ _TEXTUAL_MARKERS = (
     "｜tool_calls",
 )
 
+#: Opening/closing of a textual tool-call tag: optional pipes, an optional
+#: ``DSML`` token and any whitespace around them. Covers the simplified
+#: ``<invoke>``/``<｜invoke>`` shape and the real DeepSeek DSML one —
+#: ``<｜｜DSML｜｜invoke>``, ``<｜｜DSML｜｜ parameter>`` — in both ASCII ``|`` and
+#: fullwidth ``｜`` pipes.
+_TAG_OPEN = r"<[|｜\s]*(?:DSML[|｜\s]*)?"
+_TAG_CLOSE = r"</[|｜\s]*(?:DSML[|｜\s]*)?"
+#: An opening *or* closing tag, used only to detect markup (not to parse it).
+_TAG_ANY = r"</?[|｜\s]*(?:DSML[|｜\s]*)?"
+#: A quoted attribute value (``name="…"`` / ``name='…'``), captured as ``name``.
+_ATTR_NAME = r"""(?P<quote>["'])(?P<name>.+?)(?P=quote)"""
+
+#: Tag-shaped fallback for markup that is truncated or lacks the literal
+#: ``DSML`` word (e.g. a lone ``</｜｜ parameter>``). A regex, not a substring,
+#: so normal prose mentioning ``<tool>`` is not caught by accident.
+_TEXTUAL_TAG_RE = re.compile(
+    rf"{_TAG_ANY}(?:invoke|parameter|calls|tool_calls?|function_calls?)\b",
+    re.IGNORECASE,
+)
+
 
 def looks_like_tool_markup(text: str) -> bool:
     """Whether `text` looks like tool-call markup rather than a real answer."""
-    return bool(text) and any(marker in text for marker in _TEXTUAL_MARKERS)
+    if not text:
+        return False
+    return any(marker in text for marker in _TEXTUAL_MARKERS) or bool(
+        _TEXTUAL_TAG_RE.search(text)
+    )
 
 
 def _parse_argument(value: str) -> Any:
@@ -138,7 +162,13 @@ def parse_textual_tool_calls(text: str) -> list[ToolCall]:
 
     - Hermes / JSON-in-tag: `<tool_call>{"name": …, "arguments": {…}}</tool_call>`
     - DSML / XML-ish: `<｜invoke name="x"><｜parameter name="y">z</…></…>`
-      (both ASCII `|` and fullwidth `｜` delimiters).
+      and the real DeepSeek shape `<｜｜DSML｜｜invoke name="x">…</｜｜DSML｜｜
+      invoke>` (ASCII `|` or fullwidth `｜` pipes, optional ``DSML`` token and
+      whitespace, single or double quotes).
+
+    Truncated markup (closing tags with no opening ``invoke``) yields `[]` —
+    there is no name/arguments to recover — but `looks_like_tool_markup`
+    still returns `True` so a caller can fall back instead of showing it.
 
     Opt-in: pass it as `parse_calls=` to `run_tool_loop` (or compose it with
     `parse_tool_calls` via `parse_tool_calls_with_textual`). Malformed markup
@@ -166,18 +196,22 @@ def parse_textual_tool_calls(text: str) -> list[ToolCall]:
     if calls:
         return calls
     for invoke in re.finditer(
-        r"<[|｜]?invoke\s+name=\"([^\"]+)\"[^>]*>(.*?)</[|｜]?invoke>",
+        rf"{_TAG_OPEN}invoke\s+name={_ATTR_NAME}[^>]*>(?P<body>.*?)"
+        rf"{_TAG_CLOSE}invoke\s*>",
         text,
-        re.DOTALL,
+        re.DOTALL | re.IGNORECASE,
     ):
-        name, body = invoke.group(1), invoke.group(2)
+        name, body = invoke.group("name"), invoke.group("body")
         call_args: dict[str, Any] = {}
         for param in re.finditer(
-            r"<[|｜]?parameter\s+name=\"([^\"]+)\"[^>]*>(.*?)</[|｜]?parameter>",
+            rf"{_TAG_OPEN}parameter\s+name={_ATTR_NAME}[^>]*>(?P<value>.*?)"
+            rf"{_TAG_CLOSE}parameter\s*>",
             body,
-            re.DOTALL,
+            re.DOTALL | re.IGNORECASE,
         ):
-            call_args[param.group(1)] = _parse_argument(param.group(2).strip())
+            call_args[param.group("name")] = _parse_argument(
+                param.group("value").strip()
+            )
         calls.append(ToolCall(id=f"textual:{len(calls)}", name=name, args=call_args))
     return calls
 

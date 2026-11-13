@@ -8,7 +8,7 @@ the docs site, rather than copied here by hand.
 
 ## Stability
 
-reactifact is pre-1.0 (`0.20.1`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.20.2`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins every `__all__` listed here, so a new export has to be added deliberately
 (and documented on this page), never by accident.
@@ -23,7 +23,7 @@ pins every `__all__` listed here, so a new export has to be added deliberately
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.20.1` → `0.21.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.20.2` → `0.21.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
   patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
