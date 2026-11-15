@@ -46,6 +46,22 @@ uv run python ./examples/knowledge/chat.py   # интерактивный CLI
 Ключевые файлы: `steps/` (common, router, search, evidence, calc, lifecycle),
 `agents.py`, `web.py`.
 
+## `knowledge_base` — code-first индексация и поиск
+
+**Что показывает:** опциональный слой `reactifact.knowledge` на реальном
+корпусе: `Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider ->
+Index`, инкрементальное состояние `DocStore` и hybrid-поиск (BM25 + RRF). По
+умолчанию — SQLite и детерминированный эмбеддер, поэтому всё работает офлайн;
+`--qdrant-url` меняет индекс, не меняя пайплайн.
+
+```bash
+uv run python examples/knowledge_base/build.py --docs docs/en --query "sources"
+uv run python examples/knowledge_base/build.py --docs docs/en --qdrant-url http://localhost:6333
+```
+
+Ключевые файлы: `build.py` (коннектор, сборка пайплайна, запрос). См.
+[База знаний](knowledge.md).
+
 ## `medic_lab` — лаборатория гипотез
 
 **Что показывает:** один вопрос рождает конкурирующие гипотезы; каждая исследуется

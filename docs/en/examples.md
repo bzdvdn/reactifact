@@ -46,6 +46,22 @@ uv run python ./examples/knowledge/chat.py   # interactive CLI
 Key files: `steps/` (common, router, search, evidence, calc, lifecycle),
 `agents.py`, `web.py`.
 
+## `knowledge_base` — code-first ingestion and retrieval
+
+**What it shows:** the optional `reactifact.knowledge` layer over a real corpus:
+`Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider -> Index`,
+incremental `DocStore` state, and hybrid (BM25 + RRF) retrieval. Defaults to
+SQLite and a deterministic embedder, so it runs offline; `--qdrant-url` switches
+the index without changing the pipeline.
+
+```bash
+uv run python examples/knowledge_base/build.py --docs docs/en --query "sources"
+uv run python examples/knowledge_base/build.py --docs docs/en --qdrant-url http://localhost:6333
+```
+
+Key files: `build.py` (connector, pipeline wiring, query). See
+[Knowledge base](knowledge.md).
+
 ## `medic_lab` — hypothesis laboratory
 
 **What it shows:** one question spawns competing hypotheses; each is
