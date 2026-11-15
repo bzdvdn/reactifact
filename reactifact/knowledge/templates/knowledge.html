@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>reactifact knowledge</title>
+<style>
+:root{color-scheme:light dark;--bg:#f6f7fb;--card:#fff;--text:#15171c;--muted:#6b7280;--line:#e5e7eb;--ok:#0a7d43;--bad:#b42318;--accent:#4f46e5}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1117;--card:#171a22;--text:#e8eaf0;--muted:#9aa3b2;--line:#262b36;--ok:#3ddc84;--bad:#ff6b6b;--accent:#8b8cff}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:1100px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:22px;margin:0}
+.sub{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:20px;margin-top:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 4px}
+.kv{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);margin:8px 0}
+.kv b{color:var(--text);font-weight:600}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.err{margin-top:10px;padding:10px;border-radius:8px;background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);white-space:pre-wrap}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}
+.empty{color:var(--muted);padding:24px;text-align:center}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Knowledge</h1>
+    <span class="sub" id="updated">loading…</span>
+    <span class="sub" id="index"></span>
+  </header>
+  <div class="grid">
+    <div class="stat">sources<b id="n-sources">–</b></div>
+    <div class="stat">last documents<b id="n-docs">–</b></div>
+    <div class="stat">last chunks<b id="n-chunks">–</b></div>
+    <div class="stat">last deleted<b id="n-deleted">–</b></div>
+  </div>
+  <div id="sources"><div class="empty">Loading knowledge status…</div></div>
+</main>
+<script>
+const BASE = '__BASE__';
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+));
+const num = (v) => new Intl.NumberFormat().format(Number(v || 0));
+
+function render(state) {
+  const sources = state.sources || [];
+  const last = sources.map((s) => s.last_run).filter(Boolean);
+  document.getElementById('updated').textContent = 'updated ' + state.generated_at;
+  const idx = state.index || {};
+  document.getElementById('index').textContent = idx.type
+    ? idx.type + (idx.count == null ? '' : ' · ' + num(idx.count) + ' points')
+    : 'no index attached';
+  document.getElementById('n-sources').textContent = num(sources.length);
+  document.getElementById('n-docs').textContent = num(last.reduce((a, r) => a + (r.documents || 0), 0));
+  document.getElementById('n-chunks').textContent = num(last.reduce((a, r) => a + (r.chunks || 0), 0));
+  document.getElementById('n-deleted').textContent = num(last.reduce((a, r) => a + (r.deleted || 0), 0));
+
+  const host = document.getElementById('sources');
+  if (!sources.length) {
+    host.innerHTML = '<div class="card"><div class="empty">No ingestion runs recorded yet.</div></div>';
+    return;
+  }
+  host.innerHTML = sources.map((source) => {
+    const run = source.last_run;
+    const status = !run ? '<span class="sub">never run</span>'
+      : run.ok ? '<span class="ok">ok</span>' : '<span class="bad">failed</span>';
+    const meta = run ? `
+      <div class="kv">
+        <span>run <b>${esc(run.at)}</b></span>
+        <span>duration <b>${Number(run.duration_seconds || 0).toFixed(2)}s</b></span>
+        <span>documents <b>${num(run.documents)}</b></span>
+        <span>chunks <b>${num(run.chunks)}</b></span>
+        <span>changed <b>${num(run.changed)}</b></span>
+        <span>skipped <b>${num(run.skipped)}</b></span>
+        <span>deleted <b>${num(run.deleted)}</b></span>
+        <span>cache <b>${num(run.embed_cache_hits)} hit / ${num(run.embed_cache_misses)} miss</b></span>
+      </div>` : '';
+    const error = run && !run.ok && run.error
+      ? `<div class="err">${esc(run.error)}</div>` : '';
+    const rows = (source.runs || []).map((r) => `
+      <tr>
+        <td>${esc(r.at)}</td>
+        <td>${r.ok ? '<span class="ok">ok</span>' : '<span class="bad">failed</span>'}</td>
+        <td>${Number(r.duration_seconds || 0).toFixed(2)}s</td>
+        <td>${num(r.documents)}</td>
+        <td>${num(r.chunks)}</td>
+        <td>${num(r.changed)}</td>
+        <td>${num(r.skipped)}</td>
+        <td>${num(r.deleted)}</td>
+      </tr>`).join('');
+    return `<section class="card">
+      <h2>${esc(source.source_id)} ${status}</h2>
+      ${meta}${error}
+      ${rows ? `<table>
+        <thead><tr><th>time</th><th>status</th><th>duration</th><th>docs</th><th>chunks</th><th>changed</th><th>skipped</th><th>deleted</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : ''}
+    </section>`;
+  }).join('');
+}
+
+async function load() {
+  try {
+    const res = await fetch(BASE + '/api/knowledge/status', {cache: 'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    render(await res.json());
+  } catch (err) {
+    document.getElementById('sources').innerHTML =
+      '<div class="card"><div class="err">' + esc(err.message) + '</div></div>';
+  }
+}
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

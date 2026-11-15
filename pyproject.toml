@@ -43,6 +43,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "import-linter>=2.0",
 ]
+knowledge = []  # code-first knowledge layer; no extra runtime deps
 web = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -109,6 +110,7 @@ packages = { find = { where = ["."], include = ["reactifact*"], exclude = ["exam
 [tool.setuptools.package-data]
 reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
+"reactifact.knowledge" = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -237,6 +239,35 @@ forbidden_modules = [
     "reactifact.mcp",
     "reactifact.a2a",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Core stays independent of the optional knowledge layer"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "reactifact.artifacts",
+    "reactifact.step",
+    "reactifact.agents",
+    "reactifact.consume",
+    "reactifact.effects",
+    "reactifact.patches",
+    "reactifact.context",
+    "reactifact.runtime",
+    "reactifact.providers",
+    "reactifact.quick",
+    "reactifact.recipes",
+    "reactifact.chat",
+    "reactifact.web",
+    "reactifact.cli",
+    "reactifact.sources",
+    "reactifact.mcp",
+    "reactifact.a2a",
+    "reactifact.tracing",
+    "reactifact.eval",
+    "reactifact.testing",
+    "reactifact.tools",
+]
+forbidden_modules = ["reactifact.knowledge"]
 
 [[tool.importlinter.contracts]]
 name = "Recipes stay independent of app/transport layers"

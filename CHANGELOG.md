@@ -4,6 +4,41 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [Unreleased]
+
+### Added
+
+- **`reactifact.knowledge` — optional, code-first knowledge ingestion.** A
+  linear `Connector -> RawDocument -> Document -> Chunk -> Index` pipeline with
+  incremental `DocStore` state, metadata/ACL-aware reconciliation, hybrid
+  retrieval (BM25 + Reciprocal Rank Fusion), and `MemoryIndex` / `SqliteIndex` /
+  `QdrantIndex` backends. It reuses core `EmbeddingProvider`s instead of
+  shipping a second settings/provider layer, and has no YAML/CLI/plugin
+  registry. `IndexSource` and `IngestStep` are the explicit bridges into
+  `reactifact.Source` / `reactifact.Step`. Ported from alvis; see
+  [docs/en/knowledge.md](docs/en/knowledge.md) and
+  `examples/knowledge_base/build.py`.
+- **Domain rerank hook for knowledge queries.** `query(..., rerank=...)` (and
+  `IndexSource(rerank=...)`) accepts a sync or async
+  `(query, candidates, top_k) -> hits` callable. It runs after dense/hybrid
+  retrieval and `min_score`, receives over-fetched candidates, and may reorder
+  or filter them. Exceptions propagate so relevance bugs are not silently
+  masked.
+- **Built-in LLM reranker helper.** `llm_reranker(llm, ...)` returns a
+  `RerankFn` built on the core chat `LLMProvider` (independent of the
+  `EmbeddingProvider` used for the index). It supports `system_prompt`,
+  append-only `instructions`, a custom `user_prompt`, excerpt truncation and an
+  `on_error` callback; validates that the model returned a permutation and
+  fails soft to the original order. The raw `rerank=` hook stays fail-loud.
+  `RERANK_OUTPUT_CONTRACT`, `DEFAULT_RERANK_SYSTEM` and
+  `render_rerank_prompt` are public.
+- **Optional knowledge status router.** `reactifact.knowledge.web.
+  create_knowledge_router(docstore, index=...)` serves a read-only
+  `/knowledge` page and `GET /api/knowledge/status` with per-source last-run
+  counts, errors, embed-cache hits and recent run history. `DocStore.snapshot()`
+  exposes the same ledger to application code. It is mounted separately from
+  `reactifact.tracing.web` and requires the `web` extra.
+
 ## [0.20.2] — 2026-11-13
 
 ### Fixed

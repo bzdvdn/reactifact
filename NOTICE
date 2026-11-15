@@ -1,0 +1,11 @@
+reactifact
+Copyright (c) reactifact contributors
+
+Portions of the optional knowledge layer (`reactifact/knowledge`) are derived
+from the alvis project (https://github.com/bzdvdn/alvis), Copyright (c)
+Alvis contributors, licensed under the Apache License, Version 2.0.
+
+The derived code has been adapted to reactifact's code-first API: YAML/CLI
+configuration and the plugin registry were removed, core `EmbeddingProvider`s
+are reused, and the runtime models were renamed to avoid collisions with
+reactifact's artifact vocabulary.
