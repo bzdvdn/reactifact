@@ -98,6 +98,7 @@ nav:
   - Core:
       - Effects: en/effects.md
       - Sources: en/sources.md
+      - Knowledge base: en/knowledge.md
       - Providers: en/providers.md
       - Recipes: en/recipes.md
       - Patterns: en/patterns.md

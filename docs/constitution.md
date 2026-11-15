@@ -571,6 +571,39 @@ A system can therefore combine:
 
 This is one of the project's deliberate departures from embedding-first RAG.
 
+## 9.1 Knowledge ingestion is a capability layer, not a second runtime
+
+Turning a corpus into an index is deterministic, linear work:
+
+```text
+Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider -> Index
+```
+
+It is not agent orchestration, and it must not grow a second execution model
+(graph edges, a YAML workflow DSL, a plugin/type-string registry) inside the
+framework. The optional `reactifact.knowledge` layer is therefore:
+
+- **code-first** — a connector is an object, configuration is Python;
+- **one-way** — it may import core protocols and reuse the embedder on
+  `RuntimeResources`; core never imports it;
+- **linear** — `KnowledgePipeline` executes a fixed stage order with
+  incremental `DocStore` state, not reactive scheduling;
+- **bridged explicitly** — `IndexSource` exposes retrieval as a `Source`, and
+  `IngestStep` runs ingestion as a `Step` when an application wants that;
+- **observable separately** — an optional `reactifact.knowledge.web` router
+  reads the `DocStore` run ledger; it is not mixed into `RunTrace`, which
+  continues to describe agent turns;
+- **non-duplicating** — answer synthesis, evaluation and tracing stay in
+  `quick`/`recipes`/`eval`/`tracing`, not in the knowledge layer; the layer
+  exposes a query-time `rerank=` hook and an optional `llm_reranker` factory
+  built on the core `LLMProvider`, while the reranker policy and prompt remain
+  caller-supplied.
+
+Enterprise connectors (GitLab, Confluence, S3, SharePoint, ...) remain
+application/domain code (§7). The knowledge layer supplies the pipeline,
+indexes, chunking, incremental state and retrieval mechanics they plug into —
+not a catalog of integrations (§61).
+
 ---
 
 # 10. Agent
@@ -3128,7 +3161,7 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 # Appendix — Implementation Status
 
 State of the public `reactifact` codebase, aligned with this constitution (current pre-1.0 tree).
-Verification: 1111 tests (+6 skipped, env-dependent); mypy (strict) and ruff clean.
+Verification: 1120 tests (+6 skipped, env-dependent); mypy (strict), pyright and ruff clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
@@ -3136,6 +3169,7 @@ Verification: 1111 tests (+6 skipped, env-dependent); mypy (strict) and ruff cle
 | Relations & provenance edges | §15, §33-§34, §36 | implemented (`Link`, `derived_from`, `supported_by`, `contradicted_by`) |
 | Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
 | Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
+| Knowledge ingestion / retrieval layer | §7-§9, §9.1 | implemented — optional `reactifact.knowledge`: code-first `Connector -> RawDocument -> Document -> Chunk -> Index`, incremental `DocStore`, BM25/RRF hybrid retrieval, `MemoryIndex`/`SqliteIndex`/`QdrantIndex`, `IndexSource`/`IngestStep` bridges; reuses core `EmbeddingProvider`s, no YAML/CLI/plugin registry |
 | GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
 | Agent contract (Step / Consume containers) | §10-§13, §63 | implemented — `Agent.steps`; each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, `Annotated[T, Wakes(False)]` reads without waking, `Scope(field, owner=Type, key=fn)` correlates by field/id/custom key; `Consume(..., debounce=True)` collapses same-generation events; `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across types |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |

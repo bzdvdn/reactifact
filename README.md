@@ -12,7 +12,7 @@
 [![Ask DeepWiki](docs/img/deepwiki.svg)](https://deepwiki.com/bzdvdn/reactifact)
 [![Docs](https://img.shields.io/badge/docs-bzdvdn.github.io%2Freactifact-blue)](https://bzdvdn.github.io/reactifact/)
 
-> **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · runs offline, no API key
+> **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · optional code-first knowledge base (SQLite/Qdrant) · runs offline, no API key
 > **Isn't:** a managed platform · a distributed task queue · a pre-built agent/tool marketplace
 
 A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy doc and a page off the web — and the *next* question needs a different subset. That is not one graph you can draw up front. You declare what artifacts exist and what agents can do with them; the runtime derives the order — and the dependency graph — from state. You don't draw the graph.
@@ -86,6 +86,67 @@ Two agents explore independently on their own forks and merge back automatically
 — and when they disagree, reactifact refuses to merge silently:
 
 ![forklab demo: two strategies (depth/breadth) investigate on separate forks and merge cleanly; a second run edits the same artifact on both forks and reactifact raises MergeConflict instead of guessing, then re-merges under an explicit policy.](docs/img/forklab-demo.gif)
+
+## Knowledge base: code-first ingestion
+
+Agents need a corpus before they can reason over one. The optional
+**`reactifact.knowledge`** layer turns documents into an index — as ordinary
+Python objects, not YAML pipelines, a CLI or a plugin registry:
+
+```python
+from reactifact import RuntimeResources
+from reactifact.knowledge import (
+    KnowledgePipeline, ProviderEmbedder, SectionsChunker, SqliteIndex,
+    llm_reranker,
+)
+from reactifact.providers import embedder_from_env, llm_from_env
+
+resources = RuntimeResources(
+    llm=llm_from_env(),          # chat: rerank (and answers)
+    embedder=embedder_from_env(), # embeddings: index and query
+)
+
+pipeline = KnowledgePipeline(
+    connector,                                     # source_id + async fetch()
+    chunker=SectionsChunker(max_tokens=400, overlap=60),
+    embedder=ProviderEmbedder(resources.embedder), # reuse the core provider
+    index=SqliteIndex(".reactifact/knowledge.db"), # or QdrantIndex(...)
+)
+
+await pipeline.run(incremental=True)               # skips unchanged documents
+hits = await pipeline.query(
+    "how do I install it?",
+    top_k=5,
+    hybrid=True,
+    rerank=llm_reranker(                           # optional: reorder/filter
+        resources.llm,
+        instructions="Prefer runbooks; ignore deprecated docs.",
+    ),
+)
+```
+
+It keeps the same boundaries as the rest of reactifact: `reactifact` never
+imports it, it reuses the `EmbeddingProvider` on `RuntimeResources`, and
+`IndexSource` / `IngestStep` are the only explicit bridges into `Source` /
+`Step`. The layer ships `MemoryIndex`, `SqliteIndex` and `QdrantIndex`,
+incremental `DocStore` state, ACL-aware reconciliation, and BM25 + RRF hybrid
+retrieval. No extra runtime dependencies. `rerank=` is a query-time hook for
+domain relevance policy (sync or async); `llm_reranker(resources.llm)` is an
+optional helper that runs on the core chat provider and accepts custom
+`system_prompt` / `instructions` / `user_prompt`.
+
+```bash
+# fully offline: SQLite index + deterministic embedder
+uv run python examples/knowledge_base/build.py --docs docs/en --query "sources"
+# switch to Qdrant with the same pipeline
+uv run python examples/knowledge_base/build.py --docs docs/en --qdrant-url http://localhost:6333
+```
+
+See [Knowledge base](docs/en/knowledge.md) (or [по-русски](docs/ru/knowledge.md))
+for connectors, indexes, incremental state and the bridge APIs. For ops, an
+optional `reactifact.knowledge.web.create_knowledge_router` serves a read-only
+`/knowledge` status page from the `DocStore` ledger — mounted separately from
+the traces dashboard.
 
 <details>
 <summary><strong>If you know Celery…</strong> — the programming model, not its distributed runtime</summary>
@@ -220,7 +281,7 @@ Full breakdown, including where reactifact is *not* the right choice:
 - **Patch** — the compiled, validated change-set applied as one atomic commit.
 - **Step** — the unit of work: declares `consumes`/`produces`, returns its output or writes effects.
 - **Agent** — a thin container of `steps`; the runtime derives triggers from their `consume` contracts.
-- **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped).
+- **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped). For corpus ingestion, the optional `knowledge` layer adds connectors, chunking, embeddings and SQLite/Qdrant indexes.
 - **Provenance** — every derived artifact links to what produced it
   (`Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→ Doc`).
 - **HITL** — humans as `effects.ask(...)` → `PendingQuestion`, answered via `effects.resume(...)` like any agent.
@@ -255,6 +316,12 @@ Full breakdown, including where reactifact is *not* the right choice:
   — pure and LLM-free, except the summarizer, which takes your callback.
 - **Viz & CLI** — Mermaid `blueprint`/`context_to_mermaid`/`trace_to_mermaid`;
   `reactifact` with `graph`/`context`/`trace`/`replay`/`branch`.
+- **Knowledge base (optional)** — code-first
+  `Connector -> RawDocument -> Document -> Chunk -> Index`: incremental
+  `DocStore`, ACL-aware reconcile, BM25 + RRF hybrid retrieval,
+  `MemoryIndex`/`SqliteIndex`/`QdrantIndex`; reuses core `EmbeddingProvider`s
+  and exposes `IndexSource`/`IngestStep` bridges. No YAML, CLI or plugin
+  registry (`pip install "reactifact[knowledge]"`).
 
 ## Agent Skills
 
@@ -291,6 +358,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
 
 - `starter_app` — copy-pasteable FastAPI app: structured call, RAG, tools, session chat.
 - `knowledge` — multi-source chat: search → evidence → claim verification → answer, with CSV calculation.
+- `knowledge_base` — real ingestion: connector → chunks → SQLite/Qdrant, incremental state, hybrid query.
 - `medic_lab` — hypothesis laboratory: competing hypotheses scored, HITL steering, honest report.
 - `devops` — HITL tool agents + LLM tool router + trace dashboard.
 - `repair` — budget-aware replanning (chat/data in Russian by design).
@@ -308,6 +376,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
 - [Migrating](docs/en/migrating.md) — from LangGraph / CrewAI / LlamaIndex /
   plain Python: concept map, port-one-node, interop, checklist.
 - [Why reactifact](docs/en/why-reactifact.md) — the *design argument*: why effects, why the graph is derived rather than drawn, why determinism.
+- [Knowledge base](docs/en/knowledge.md) — code-first ingestion/retrieval: connectors, incremental state, SQLite/Qdrant, hybrid search ([RU](docs/ru/knowledge.md)).
 - [Comparison](docs/en/comparison.md) — reactifact vs LangGraph/CrewAI, feature by feature, and when *not* to use reactifact.
 - [docs/constitution.md](docs/constitution.md) — the full design rationale and invariants.
 - [Roadmap](docs/roadmap.md) — what's next, and what's deliberately out of scope.
@@ -319,6 +388,7 @@ uv sync --extra dev --extra web
 .venv/bin/python -m pytest
 .venv/bin/mypy
 .venv/bin/ruff check
+npx --yes pyright        # static check with the repo's pyproject config
 ```
 
 ## Status & contributing

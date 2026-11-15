@@ -213,6 +213,8 @@ print("supported_by:", evidence.data.text)  # провенанс, который
 - [Quickstart](quickstart.md) — три рабочих сниппета: tool-calling агент,
   поиск по своим документам, чат-бот с сохраняемыми сессиями.
 - [Sources](sources.md) — откуда агенты берут информацию.
+- [База знаний](knowledge.md) — code-first ingestion/retrieval: коннекторы,
+  инкрементальная индексация, SQLite/Qdrant, hybrid-поиск.
 - [Providers](providers.md) — как подключить LLM/эмбеддер/провайдер
   изображений/речи в `RuntimeResources`.
 - [Recipes](recipes.md) — готовые search fan-out, материализация референсов,
