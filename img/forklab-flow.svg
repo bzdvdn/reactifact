@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520" role="img" aria-label="Diagram: a base context holding Question and Budget forks into a depth strategy agent and a breadth strategy agent, each consuming the base and producing its own Evidence. The two forks merge back with a three-way merge; an evaluator agent consumes the merged Evidence and produces a Review; a final agent consumes the Review and produces the Answer, which stays linked supported_by to evidence from both branches.">
+  <rect x="0" y="0" width="1000" height="520" fill="#ffffff"/>
+  <defs>
+    <marker id="f-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#14171c"/></marker>
+    <marker id="f-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e4572e"/></marker>
+    <marker id="f-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1e8e6b"/></marker>
+  </defs>
+
+  <rect x="370" y="14" width="260" height="56" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="500" y="38" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="#14171c">base context</text>
+  <text x="500" y="56" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#5b6472">Question + shared Budget</text>
+
+  <path d="M420,70 L240,104" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#f-ink)"/>
+  <path d="M580,70 L760,104" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#f-ink)"/>
+  <text x="255" y="94" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">.branch()</text>
+  <text x="700" y="94" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#5b6472">.branch()</text>
+
+  <!-- depth fork agent -->
+  <rect x="80" y="108" width="320" height="90" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="100" y="132" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">depth fork — StrategyAgent</text>
+  <text x="100" y="152" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes: Question, Budget</text>
+  <text x="100" y="167" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces: Evidence (1 strong doc,</text>
+  <text x="100" y="181" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">1 LLM wording call)</text>
+
+  <!-- breadth fork agent -->
+  <rect x="600" y="108" width="320" height="90" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="620" y="132" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">breadth fork — StrategyAgent</text>
+  <text x="620" y="152" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes: Question, Budget</text>
+  <text x="620" y="167" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces: Evidence ×3 (3 weaker docs,</text>
+  <text x="620" y="181" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">3 LLM wording calls)</text>
+
+  <path d="M240,198 L240,240" stroke="#e4572e" stroke-width="2" marker-end="url(#f-accent)"/>
+  <path d="M760,198 L760,240" stroke="#e4572e" stroke-width="2" marker-end="url(#f-accent)"/>
+
+  <rect x="130" y="244" width="220" height="46" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="240" y="272" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">Evidence</text>
+
+  <rect x="650" y="244" width="220" height="46" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="760" y="272" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">Evidence ×3</text>
+
+  <path d="M280,290 L440,332" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#f-ink)"/>
+  <path d="M720,290 L560,332" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#f-ink)"/>
+
+  <rect x="360" y="336" width="280" height="56" rx="28" fill="#ffffff" stroke="#14171c" stroke-width="1.8"/>
+  <text x="500" y="358" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">depth.merge(breadth)</text>
+  <text x="500" y="376" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="9.5" fill="#5b6472">three-way — shared Budget write ⇒ MergeConflict</text>
+
+  <path d="M500,392 L500,414" stroke="#e4572e" stroke-width="2.2" marker-end="url(#f-accent)"/>
+
+  <!-- evaluator agent -->
+  <rect x="330" y="418" width="340" height="72" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="500" y="440" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">evaluator — Evaluate</text>
+  <text x="500" y="458" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes: merged Evidence (both forks)</text>
+  <text x="500" y="474" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces: Review, Answer (supported_by ×N)</text>
+
+  <path d="M180,290 C120,340 130,420 220,455" fill="none" stroke="#1e8e6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#f-teal)"/>
+  <path d="M820,290 C880,340 870,420 780,455" fill="none" stroke="#1e8e6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#f-teal)"/>
+  <text x="105" y="380" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#1e8e6b">supported_by</text>
+  <text x="895" y="380" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#1e8e6b">supported_by</text>
+
+  <text x="30" y="512" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="#5b6472">Changes on one fork never leak into the other; a shared write to <code style="font-family:'IBM Plex Mono',monospace">Budget</code> from both sides raises <code style="font-family:'IBM Plex Mono',monospace">MergeConflict</code> before anything applies (<code>--conflict</code>).</text>
+</svg>
