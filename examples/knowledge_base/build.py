@@ -13,66 +13,21 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 from pathlib import Path
 
 from reactifact.knowledge import (
     CachingEmbedder,
-    DocumentMeta,
     FileEmbeddingCache,
+    FilesystemConnector,
     HashEmbedder,
     KnowledgePipeline,
     ProviderEmbedder,
     QdrantIndex,
-    RawDocument,
     SectionsChunker,
     SqliteIndex,
 )
 from reactifact.knowledge.embed import Embedder
 from reactifact.providers import embedder_from_env
-
-
-class DocsConnector:
-    """A tiny local connector with cheap listing + incremental fetch."""
-
-    source_id = "docs"
-
-    def __init__(self, root: Path) -> None:
-        self.root = root
-
-    def _paths(self) -> list[Path]:
-        return sorted(self.root.rglob("*.md"))
-
-    def _relative(self, path: Path) -> str:
-        return str(path.relative_to(self.root))
-
-    async def list_documents(self) -> list[DocumentMeta]:
-        return [
-            DocumentMeta(
-                uri=self._relative(path),
-                step_id=self._relative(path),
-                fingerprint=hashlib.sha256(path.read_bytes()).hexdigest(),
-                content_type="text/markdown",
-            )
-            for path in self._paths()
-        ]
-
-    async def fetch(self, *, uris: set[str] | None = None) -> list[RawDocument]:
-        documents: list[RawDocument] = []
-        for path in self._paths():
-            uri = self._relative(path)
-            if uris is not None and uri not in uris:
-                continue
-            documents.append(
-                RawDocument.from_text(
-                    step_id=uri,
-                    uri=uri,
-                    text=path.read_text(encoding="utf-8"),
-                    title=path.stem,
-                    metadata={"sourceUrl": str(path)},
-                )
-            )
-        return documents
 
 
 def build_embedder(cache_path: Path) -> Embedder:
@@ -93,7 +48,7 @@ def build_pipeline(args: argparse.Namespace) -> KnowledgePipeline:
         else SqliteIndex(args.db)
     )
     return KnowledgePipeline(
-        DocsConnector(docs),
+        FilesystemConnector(docs, source_id="docs"),
         chunker=SectionsChunker(max_tokens=args.max_tokens, overlap=60),
         embedder=build_embedder(Path(args.cache)),
         index=index,

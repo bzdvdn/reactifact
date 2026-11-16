@@ -128,9 +128,11 @@ hits = await pipeline.query(
 It keeps the same boundaries as the rest of reactifact: `reactifact` never
 imports it, it reuses the `EmbeddingProvider` on `RuntimeResources`, and
 `IndexSource` / `IngestStep` are the only explicit bridges into `Source` /
-`Step`. The layer ships `MemoryIndex`, `SqliteIndex` and `QdrantIndex`,
-incremental `DocStore` state, ACL-aware reconciliation, and BM25 + RRF hybrid
-retrieval. No extra runtime dependencies. `rerank=` is a query-time hook for
+`Step`. The layer ships `MemoryIndex`, `SqliteIndex`, `QdrantIndex` and an
+optional `ChromaIndex` (`reactifact[knowledge-chroma]`), incremental `DocStore`
+state, ACL-aware reconciliation, and BM25 + RRF hybrid
+retrieval. No extra runtime dependencies; `FilesystemConnector` is the built-in
+local-docs connector. `rerank=` is a query-time hook for
 domain relevance policy (sync or async); `llm_reranker(resources.llm)` is an
 optional helper that runs on the core chat provider and accepts custom
 `system_prompt` / `instructions` / `user_prompt`.
@@ -319,7 +321,8 @@ Full breakdown, including where reactifact is *not* the right choice:
 - **Knowledge base (optional)** — code-first
   `Connector -> RawDocument -> Document -> Chunk -> Index`: incremental
   `DocStore`, ACL-aware reconcile, BM25 + RRF hybrid retrieval,
-  `MemoryIndex`/`SqliteIndex`/`QdrantIndex`; reuses core `EmbeddingProvider`s
+  `MemoryIndex`/`SqliteIndex`/`QdrantIndex`, optional `ChromaIndex`; reuses core
+  `EmbeddingProvider`s
   and exposes `IndexSource`/`IngestStep` bridges. No YAML, CLI or plugin
   registry (`pip install "reactifact[knowledge]"`).
 

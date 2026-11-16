@@ -32,12 +32,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   fails soft to the original order. The raw `rerank=` hook stays fail-loud.
   `RERANK_OUTPUT_CONTRACT`, `DEFAULT_RERANK_SYSTEM` and
   `render_rerank_prompt` are public.
+- **Built-in `FilesystemConnector`.** The knowledge layer now ships a dependency-
+  free local-docs connector with content fingerprints, `fetch(uris=...)` for
+  incremental runs and a fail-fast missing-root check. `Source` remains the
+  retrieval-time protocol; `Connector` is ingestion-time, and `IndexSource`
+  bridges the two.
 - **Optional knowledge status router.** `reactifact.knowledge.web.
   create_knowledge_router(docstore, index=...)` serves a read-only
   `/knowledge` page and `GET /api/knowledge/status` with per-source last-run
   counts, errors, embed-cache hits and recent run history. `DocStore.snapshot()`
   exposes the same ledger to application code. It is mounted separately from
   `reactifact.tracing.web` and requires the `web` extra.
+- **Optional ChromaDB index.** `ChromaIndex` adds a `chromadb`-backed dense
+  store (`reactifact[knowledge-chroma]`) with deterministic IDs, per-source
+  reconcile, metadata filters and ACL visibility. It is imported lazily, accepts
+  an injected `client=`, and degrades hybrid queries to dense-only because the
+  adapter does not implement keyword search.
 
 ## [0.20.2] — 2026-11-13
 

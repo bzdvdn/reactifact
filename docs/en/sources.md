@@ -9,6 +9,11 @@ SQL sources are on the roadmap, not yet shipped (see
 [roadmap](../roadmap.md#next)); don't reach for them until they land. Sources
 live in `Context.resources.sources`.
 
+A `Source` answers *how to retrieve at query time*. To build and incrementally
+update an index from documents, use [`reactifact.knowledge`](knowledge.md) and
+its ingestion-time `Connector`; `IndexSource` bridges a knowledge index back
+into a regular `Source`.
+
 ```python
 from reactifact import Context, RuntimeResources
 from reactifact.sources import CSVSource, EmbeddingSource, FileSystemSource, WebSource

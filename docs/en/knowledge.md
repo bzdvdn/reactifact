@@ -17,6 +17,19 @@ Install-time it is just the core package (`pip install "reactifact[knowledge]"`)
 the extra adds no runtime dependencies. The bundled `examples/knowledge` demo
 uses this layer for its text corpus.
 
+## Source vs Connector
+
+Two capabilities, two lifecycles:
+
+| | `Source` (`reactifact.sources`) | `Connector` (`reactifact.knowledge`) |
+| --- | --- | --- |
+| When | query time, inside an agent | ingestion time, before queries |
+| Does | `search(query)` + `resolve(ref)` | `fetch()` / `list_documents()` |
+| Returns | `SourceRef` | `RawDocument` |
+| Example | `CSVSource`, `WebSource` | `FilesystemConnector`, your API connector |
+
+`IndexSource` is the bridge: it turns an already-built knowledge index into a
+regular `Source` for `RuntimeResources.sources`.
 ## Build a pipeline
 
 ```python
@@ -185,10 +198,15 @@ rerank = llm_reranker(
 | `MemoryIndex` | process | tests, small prototypes; supports keyword search |
 | `SqliteIndex` | one file | zero infrastructure, brute-force cosine; supports keyword search |
 | `QdrantIndex` | remote | raw REST client (no SDK); collection created on demand; hybrid narrows server-side then BM25-ranks locally |
+| `ChromaIndex` | local dir / remote client | optional `chromadb` extra; cosine distance; dense only (hybrid degrades to dense); pass `client=` to reuse an existing Chroma client |
 
-All three implement deterministic point IDs, per-source `reconcile`, metadata
-filters and optional ACL visibility. Switching backends does not change the
-pipeline.
+All backends implement deterministic point IDs, per-source `reconcile`,
+metadata filters and optional ACL visibility. Switching backends does not change
+the pipeline.
+
+`ChromaIndex` is optional: `pip install "reactifact[knowledge-chroma]"`. Metadata
+values are stringified for Chroma's scalar-only metadata; the full original
+metadata is preserved under `__metadata` and returned in `SearchHit.metadata`.
 
 ## Incremental ingestion
 
@@ -218,6 +236,37 @@ step = IngestStep(pipeline)
 For most services ingestion is a background job, not an agent step: call
 `pipeline.run(...)` directly from the scheduler/worker and only expose
 `IndexSource` to agents.
+
+## Custom connectors and indexes
+
+The built-in `FilesystemConnector` covers the common local-docs case:
+
+```python
+from reactifact.knowledge import FilesystemConnector, KnowledgePipeline
+
+pipeline = KnowledgePipeline(
+    FilesystemConnector("docs", source_id="docs"),
+    embedder=embedder,
+    index=index,
+)
+```
+
+It provides content fingerprints and `fetch(uris=...)`, so incremental runs
+skip unchanged files. A missing root raises `SourceError` instead of treating
+the corpus as empty and reconciling it away.
+
+There is no registry to extend — implement the protocol and pass an instance:
+
+- **Source connectors** satisfy `Connector` (`source_id` + `fetch()`), or
+  `ListingConnector` (adds `list_documents()` and `fetch(uris=...)` for cheap
+  incremental skips).
+- **Vector stores** satisfy `Indexer` (`upsert`, `reconcile`, `search`); add
+  `KeywordIndexer.keyword_search` for hybrid retrieval and
+  `BatchIndexer.upsert_batch` for bulk writes.
+
+`MemoryIndex`, `SqliteIndex`, `QdrantIndex` and `ChromaIndex` are reference
+implementations of the same contract; a Postgres/pgvector or Milvus adapter is
+just another class passed as `index=`.
 
 ## Status page (optional FastAPI router)
 

@@ -17,6 +17,19 @@ Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider -> Index
 корпуса. На уровне установки это просто core-пакет
 (`pip install "reactifact[knowledge]"`); extra не добавляет runtime-зависимостей.
 
+## Source и Connector
+
+Две возможности с разным жизненным циклом:
+
+| | `Source` (`reactifact.sources`) | `Connector` (`reactifact.knowledge`) |
+| --- | --- | --- |
+| Когда | во время запроса, внутри агента | во время индексации, до запросов |
+| Что делает | `search(query)` + `resolve(ref)` | `fetch()` / `list_documents()` |
+| Возвращает | `SourceRef` | `RawDocument` |
+| Пример | `CSVSource`, `WebSource` | `FilesystemConnector`, ваш API-коннектор |
+
+`IndexSource` — мост: он превращает готовый knowledge-индекс в обычный
+`Source` для `RuntimeResources.sources`.
 ## Собрать пайплайн
 
 ```python
@@ -185,9 +198,15 @@ rerank = llm_reranker(
 | `MemoryIndex` | процесс | тесты, небольшие прототипы; поддерживает keyword-поиск |
 | `SqliteIndex` | один файл | zero infrastructure, brute-force косинус; поддерживает keyword-поиск |
 | `QdrantIndex` | удалённо | минимальный REST-клиент (без SDK); коллекция создаётся по требованию; hybrid сужает выдачу на сервере, затем BM25 ранжирует локально |
+| `ChromaIndex` | локальная папка / удалённый клиент | опциональный extra `chromadb`; косинусное расстояние; только dense (hybrid деградирует до dense); `client=` переиспользует существующий Chroma-клиент |
 
-Все три реализуют детерминированные point id, per-source `reconcile`, фильтры
-по metadata и опциональную видимость по ACL. Смена бэкенда не меняет пайплайн.
+Все бэкенды реализуют детерминированные point id, per-source `reconcile`,
+фильтры по metadata и опциональную видимость по ACL. Смена бэкенда не меняет
+пайплайн.
+
+`ChromaIndex` опционален: `pip install "reactifact[knowledge-chroma]"`. Значения
+metadata строкифицируются под scalar-only ограничение Chroma; полные исходные
+metadata сохраняются в `__metadata` и возвращаются в `SearchHit.metadata`.
 
 ## Инкрементальная индексация
 
@@ -217,6 +236,37 @@ step = IngestStep(pipeline)
 
 В большинстве сервисов индексация — фоновая задача, а не шаг агента: вызывайте
 `pipeline.run(...)` из scheduler/worker и отдавайте агентам только `IndexSource`.
+
+## Свои коннекторы и индексы
+
+Встроенный `FilesystemConnector` закрывает обычный случай локальных документов:
+
+```python
+from reactifact.knowledge import FilesystemConnector, KnowledgePipeline
+
+pipeline = KnowledgePipeline(
+    FilesystemConnector("docs", source_id="docs"),
+    embedder=embedder,
+    index=index,
+)
+```
+
+Он даёт content-отпечатки и `fetch(uris=...)`, поэтому инкрементальные запуски
+пропускают неизменившиеся файлы. Отсутствующий root поднимает `SourceError`,
+а не трактует корпус как пустой и не удаляет его при reconcile.
+
+Реестра расширений нет — реализуйте протокол и передайте экземпляр:
+
+- **Коннекторы источников** реализуют `Connector` (`source_id` + `fetch()`) или
+  `ListingConnector` (плюс `list_documents()` и `fetch(uris=...)` для дешёвых
+  инкрементальных пропусков).
+- **Векторные хранилища** реализуют `Indexer` (`upsert`, `reconcile`,
+  `search`); добавьте `KeywordIndexer.keyword_search` для hybrid-поиска и
+  `BatchIndexer.upsert_batch` для пакетной записи.
+
+`MemoryIndex`, `SqliteIndex`, `QdrantIndex` и `ChromaIndex` — референсные
+реализации одного контракта; адаптер под Postgres/pgvector или Milvus — это
+просто ещё один класс, переданный как `index=`.
 
 ## Страница статуса (опциональный FastAPI router)
 

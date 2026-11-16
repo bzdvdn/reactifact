@@ -9,6 +9,11 @@
 [roadmap](../roadmap.md#next)); не рассчитывайте на них, пока не появятся.
 Источники живут в `Context.resources.sources`.
 
+`Source` отвечает на вопрос *как искать во время запроса*. Чтобы построить и
+инкрементально обновлять индекс по документам, используйте
+[`reactifact.knowledge`](knowledge.md) и его ingestion-`Connector`;
+`IndexSource` превращает knowledge-индекс обратно в обычный `Source`.
+
 ```python
 from reactifact import Context, RuntimeResources
 from reactifact.sources import CSVSource, EmbeddingSource, FileSystemSource, WebSource

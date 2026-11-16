@@ -32,7 +32,7 @@ from .bridge import (
     IngestStep,
 )
 from .chunk import AutoChunker, Chunker, SectionsChunker, SizeChunker
-from .connectors import Connector, ListingConnector
+from .connectors import Connector, FilesystemConnector, ListingConnector
 from .docstore import DocEntry, DocStore, RunRecord
 from .embed import (
     CachingEmbedder,
@@ -48,6 +48,7 @@ from .errors import ConfigError, KnowledgeError, PipelineError, SourceError
 from .extract import AutoExtractor, Extractor, HtmlExtractor, MarkdownExtractor
 from .indexes import (
     BatchIndexer,
+    ChromaIndex,
     Indexer,
     KeywordIndexer,
     MemoryIndex,
@@ -83,6 +84,7 @@ __all__ = [
     "BatchIndexer",
     "CCT_SCHEMA_VERSION",
     "CachingEmbedder",
+    "ChromaIndex",
     "Chunk",
     "Chunker",
     "ConfigError",
@@ -95,6 +97,7 @@ __all__ = [
     "Embedder",
     "EmbeddingCache",
     "Extractor",
+    "FilesystemConnector",
     "FileEmbeddingCache",
     "HashEmbedder",
     "HtmlExtractor",

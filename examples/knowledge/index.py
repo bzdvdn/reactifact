@@ -11,19 +11,17 @@ synchronous and the CLI, web app and scenario lab share one code path.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from reactifact.knowledge import (
     DocStore,
-    DocumentMeta,
     Embedder,
+    FilesystemConnector,
     HashEmbedder,
     IndexSource,
     KnowledgePipeline,
-    RawDocument,
     SectionsChunker,
     SqliteIndex,
 )
@@ -37,49 +35,6 @@ KNOWLEDGE_DATA = ROOT / ".knowledge"
 
 CHUNK_MAX_TOKENS = 400
 CHUNK_OVERLAP = 60
-
-
-class DocsConnector:
-    """Markdown files under the demo's ``docs/`` tree, incrementally fetched."""
-
-    source_id = "knowledge"
-
-    def __init__(self, root: Path) -> None:
-        self.root = root
-
-    def _paths(self) -> list[Path]:
-        return sorted(self.root.rglob("*.md"))
-
-    def _relative(self, path: Path) -> str:
-        return str(path.relative_to(self.root))
-
-    async def list_documents(self) -> list[DocumentMeta]:
-        return [
-            DocumentMeta(
-                uri=self._relative(path),
-                step_id=self._relative(path),
-                fingerprint=hashlib.sha256(path.read_bytes()).hexdigest(),
-                content_type="text/markdown",
-            )
-            for path in self._paths()
-        ]
-
-    async def fetch(self, *, uris: set[str] | None = None) -> list[RawDocument]:
-        documents: list[RawDocument] = []
-        for path in self._paths():
-            uri = self._relative(path)
-            if uris is not None and uri not in uris:
-                continue
-            documents.append(
-                RawDocument.from_text(
-                    step_id=uri,
-                    uri=uri,
-                    text=path.read_text(encoding="utf-8"),
-                    title=path.stem,
-                    metadata={"sourceUrl": str(path)},
-                )
-            )
-        return documents
 
 
 class LazyKnowledgeSource(IndexSource):
@@ -145,7 +100,10 @@ def build_backend(
     data = Path(data_dir) if data_dir else KNOWLEDGE_DATA
     data.mkdir(parents=True, exist_ok=True)
     pipeline = KnowledgePipeline(
-        DocsConnector(Path(docs) if docs else KNOWLEDGE_DOCS),
+        FilesystemConnector(
+            Path(docs) if docs else KNOWLEDGE_DOCS,
+            source_id="knowledge",
+        ),
         chunker=SectionsChunker(
             max_tokens=CHUNK_MAX_TOKENS,
             overlap=CHUNK_OVERLAP,
@@ -159,7 +117,6 @@ def build_backend(
 
 
 __all__ = [
-    "DocsConnector",
     "KNOWLEDGE_DATA",
     "KNOWLEDGE_DOCS",
     "KnowledgeBackend",
