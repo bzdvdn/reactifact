@@ -6,15 +6,22 @@ provenance (§17, §34-§36), plus deterministic calculation over structured dat
 (§29, §67) and a keyword-triggered skill for reporting that calculation
 (§67, `reactifact.recipes.skills`).
 
+The text corpus is built and queried through **`reactifact.knowledge`**
+(`knowledge/index.py`): a `KnowledgePipeline` over `docs/guide` + `docs/pricing`
+with an incremental SQLite index and a deterministic embedder by default. The
+CSV cost table stays a structured `CSVSource`, because arithmetic must remain
+deterministic — not text.
+
 ## Structure
 
 ```
 knowledge/
-├── chat.py           # CLI + build_resources (docs + CSV + skills + env LLM)
-├── web.py            # thin FastAPI/SSE app (uses chat.build_resources)
+├── chat.py           # CLI + build_resources (knowledge + CSV + skills + env LLM)
+├── index.py          # reactifact.knowledge backend (pipeline, DocStore, IndexSource)
+├── web.py            # FastAPI/SSE app + traces + /knowledge status
 ├── models.py         # artifact types (Question, Evidence, Claim, Answer, …)
 ├── agents.py         # thin containers + the shared AGENTS list
-├── produce/          # staged pipeline (each Produce is its concern):
+├── steps/            # staged pipeline (each Step is its concern):
 │   ├── common.py     #   routing regexes, chat memory, claim/verdict helpers
 │   ├── router.py     #   greeting / direct reply vs research
 │   ├── search.py     #   fan-out over sources + text/table materialization
@@ -50,6 +57,9 @@ asked, all without a model:
 ```bash
 .venv/bin/python examples/knowledge/chat.py
 .venv/bin/python examples/knowledge/web.py     # SSE UI on :8000
+# http://127.0.0.1:8000/           — chat UI
+# http://127.0.0.1:8000/traces     — agent traces (question/answer columns)
+# http://127.0.0.1:8000/knowledge/ — ingestion status (sources, counts, errors)
 ```
 
 Without an LLM key the demo runs on deterministic fallbacks (§68); with a key

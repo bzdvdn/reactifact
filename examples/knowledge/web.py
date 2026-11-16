@@ -1,5 +1,9 @@
 """FastAPI + SSE for a knowledge chat (multi-source assistant, CTXSPACE).
 
+The text corpus is indexed through `reactifact.knowledge` (see `index.py`); the
+web app also mounts the trace dashboard (`/traces`) and the knowledge ingestion
+status page (`/knowledge/`).
+
 The transport is the canonical reactifact chat contract (owned by `reactifact.chat`
 + the router in `reactifact.web`):
 
@@ -15,7 +19,10 @@ Run:  .venv/bin/python examples/knowledge/web.py
 
 from __future__ import annotations
 
+import logging
 import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +32,7 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
 from dotenv import load_dotenv
 from examples.knowledge.agents import AGENTS
 from examples.knowledge.chat import _UNSET, build_resources
+from examples.knowledge.index import KnowledgeBackend, build_backend
 from examples.knowledge.models import (
     Answer,
     Calculation,
@@ -37,7 +45,10 @@ from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
+from reactifact.knowledge.web import create_knowledge_router
 from reactifact.recipes.conversation import MessageSpec, Transcript
+from reactifact.tracing import TraceColumn, Tracer, TraceStore
+from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
 
 ROOT = Path(__file__).resolve().parent
@@ -45,8 +56,10 @@ load_dotenv(ROOT / ".env")
 
 FALLBACK_REPLY = "Failed to assemble an answer. Try rephrasing the question."
 
+logger = logging.getLogger(__name__)
 
-def terminal_reply(ctx: Any, msg_id: str) -> dict:
+
+def terminal_reply(ctx: Any, msg_id: str) -> dict[str, Any]:
     """Terminal reply for a message: Answer → ChatReply → insufficient."""
     answers = [a for a in ctx.list_artifacts(Answer) if a.data.query_id == msg_id]
     if answers:
@@ -85,7 +98,7 @@ def terminal_reply(ctx: Any, msg_id: str) -> dict:
 
 def _answer_text(answer: Any) -> str:
     """Assistant render: the answer prose plus a trailing Sources block."""
-    text = answer.text
+    text: str = answer.text
     if answer.sources:
         text += "\n\nSources:\n" + "\n".join(f"• {s}" for s in answer.sources)
     return text
@@ -102,11 +115,17 @@ _TRANSCRIPT = Transcript(
 )
 
 
-def session_state(ctx: Any) -> dict:
+def session_state(ctx: Any) -> dict[str, Any]:
     return _TRANSCRIPT.state(ctx)
 
 
-def _build_assistant(llm: Any = _UNSET, store_dir: str | None = None) -> ChatAssistant:
+def _build_assistant(
+    llm: Any = _UNSET,
+    store_dir: str | None = None,
+    *,
+    backend: KnowledgeBackend,
+    trace_store: TraceStore,
+) -> ChatAssistant:
     store = SessionStore(
         FileKVBackend(str(Path(store_dir) if store_dir else ROOT / "sessions"))
     )
@@ -116,30 +135,80 @@ def _build_assistant(llm: Any = _UNSET, store_dir: str | None = None) -> ChatAss
         user_message=UserQuery,
         reply=terminal_reply,
         session_state=session_state,
-        resources=lambda: build_resources(llm=llm),
+        resources=lambda: build_resources(llm=llm, backend=backend),
         budget=Budget(max_runs=200),
         max_concurrency=4,
+        tracer=lambda: Tracer(store=trace_store),
         # Bound a long-lived session's commit history (artifacts untouched).
         memory=ChatMemory(compact_commits=500),
     )
 
 
-def create_app(db=None, llm: Any = _UNSET, store_dir: str | None = None) -> FastAPI:
+def create_app(
+    db: Any = None, llm: Any = _UNSET, store_dir: str | None = None
+) -> FastAPI:
     """App factory. `llm` and `store_dir` are for tests; the default resolves
     providers from .env (OpenRouter·DeepSeek for chat). `db` is kept for CLI
     compatibility."""
-    app = FastAPI(title="knowledge-ai (reactifact)")
-    app.include_router(
-        create_chat_router(_build_assistant(llm=llm, store_dir=store_dir))
+    base = Path(store_dir) if store_dir else ROOT
+    backend = build_backend(data_dir=base / ".knowledge")
+    trace_store = TraceStore(str(base / "traces.db"))
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+        try:
+            await backend.ensure_ready()
+        except Exception:  # noqa: BLE001 — keep the demo UI available
+            logger.exception("knowledge ingestion failed")
+        yield
+        await backend.aclose()
+
+    app = FastAPI(title="knowledge-ai (reactifact)", lifespan=lifespan)
+    assistant = _build_assistant(
+        llm=llm,
+        store_dir=store_dir,
+        backend=backend,
+        trace_store=trace_store,
     )
+    app.include_router(
+        create_trace_router(
+            trace_store,
+            columns=[
+                TraceColumn(
+                    label="Question",
+                    type=UserQuery,
+                    field="text",
+                    direction="read",
+                    scope="session",
+                ),
+                TraceColumn(
+                    label="Answer",
+                    type=Answer,
+                    field="text",
+                    scope="session",
+                ),
+                TraceColumn(
+                    label="Sources",
+                    type=Answer,
+                    field="sources",
+                    scope="session",
+                ),
+            ],
+        )
+    )
+    app.include_router(
+        create_knowledge_router(
+            backend.docstore,
+            index=backend.pipeline.index,
+        ),
+        prefix="/knowledge",
+    )
+    app.include_router(create_chat_router(assistant))
 
     web_dir = ROOT / "web"
     if web_dir.exists():
         app.mount("/", StaticFiles(directory=str(web_dir), html=True), name="web")
     return app
-
-
-app = create_app()
 
 
 if __name__ == "__main__":

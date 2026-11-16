@@ -54,7 +54,7 @@ def test_sse_research_answer_with_sources(tmp_path):
 
     assert "event: status" in body  # live progress "Searching…", "Found…"
     assert "Searching for information" in body
-    assert "pricing:tiers.md" in body  # answer sources
+    assert "knowledge:pricing/tiers.md" in body  # answer sources
     assert "event: message" in body
 
 
@@ -121,3 +121,27 @@ def test_sse_calculation_and_claims_payload(tmp_path):
     assert payload["claims"], "верификатор должен построить утверждения"
     assert all(0 <= c["confidence"] <= 1 for c in payload["claims"])
     assert any("costs:gpu_usage.csv" in s for s in payload["sources"])
+
+
+def test_trace_dashboard_and_knowledge_status(tmp_path):
+    """The migrated demo records agent traces and exposes ingestion status."""
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "how to set up authentication?", "session_id": "s6"},
+    ) as response:
+        body = "".join(response.iter_text())
+    assert "knowledge:guide/auth.md" in body
+
+    assert client.get("/traces").status_code == 200
+    traces = client.get("/api/traces").json()
+    assert traces["total"] >= 1
+
+    assert client.get("/knowledge/").status_code == 200
+    status = client.get("/knowledge/api/knowledge/status").json()
+    assert status["sources"][0]["source_id"] == "knowledge"
+    assert status["index"]["type"] == "SqliteIndex"
+    assert status["index"]["count"] > 0

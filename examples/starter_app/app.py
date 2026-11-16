@@ -132,7 +132,7 @@ def create_app(
     )
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
         # `LOG_LEVEL=INFO .venv/bin/python -m examples.starter_app.app` prints
         # correlated logs (run_id/session_id/agent) under `reactifact.*`.
         # `LOG_JSON=1` switches to one JSON object per line.

@@ -15,12 +15,13 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
 
 from dotenv import load_dotenv
 from examples.knowledge.agents import AGENTS
+from examples.knowledge.index import KnowledgeBackend, build_backend
 from examples.knowledge.models import Answer, ChatReply, ResearchTurn, UserQuery
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import openai_llm, openrouter_llm
-from reactifact.recipes import keyword_score, load_skills
-from reactifact.sources import CSVSource, FileSystemSource
+from reactifact.recipes import load_skills
+from reactifact.sources import CSVSource
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
@@ -50,27 +51,29 @@ def build_llm() -> Any:
     return None
 
 
-def build_resources(llm: Any = _UNSET) -> RuntimeResources:
+def build_resources(
+    llm: Any = _UNSET,
+    *,
+    backend: KnowledgeBackend | None = None,
+) -> RuntimeResources:
     """The demo's sources (+ optional LLM). `llm`: from env by default;
-    pass an explicit provider or `None` for hermetic tests/fallbacks."""
+    pass an explicit provider or `None` for hermetic tests/fallbacks.
+
+    Text docs are indexed and queried through `reactifact.knowledge`; the CSV
+    cost table stays a structured `CSVSource` so arithmetic remains
+    deterministic (§29, §67).
+    """
     if llm is _UNSET:
         llm = build_llm()
+    backend = backend or build_backend()
     resources = RuntimeResources(
         llm=llm,
         sources={
-            "guide": FileSystemSource(
-                str(KNOWLEDGE_DOCS / "guide"),
-                source_id="guide",
-                scorer=keyword_score,
-            ),
-            "pricing": FileSystemSource(
-                str(KNOWLEDGE_DOCS / "pricing"),
-                source_id="pricing",
-                scorer=keyword_score,
-            ),
+            "knowledge": backend.source,
             "costs": CSVSource(str(KNOWLEDGE_DOCS / "costs"), source_id="costs"),
         },
     )
+    resources.set("knowledge_backend", backend)
     # Skills (§67, reactifact.recipes.skills): loaded once, matched per-turn in
     # BuildAnswer against the situation, not the raw question.
     resources.set("skills", load_skills(KNOWLEDGE_SKILLS))
@@ -78,11 +81,13 @@ def build_resources(llm: Any = _UNSET) -> RuntimeResources:
 
 
 async def main() -> None:
-    resources = build_resources()
+    backend = build_backend()
+    resources = build_resources(backend=backend)
     if resources.llm is None:
         print("LLM not configured — demo runs on deterministic fallbacks.")
         print("For generation set OPENAI_BASE_URL / OPENAI_MODEL / OPENAI_API_KEY.\n")
 
+    await backend.ensure_ready()
     store = SessionStore(FileKVBackend(str(ROOT / "sessions")))
     session = await store.open("knowledge", resources=resources)
     message = "Session restored" if session.loaded else "New session"
@@ -150,6 +155,7 @@ async def main() -> None:
 
         session.context.compact(keep_commits=500)  # bound a long session's history
         await session.save()
+    await backend.aclose()
 
 
 if __name__ == "__main__":

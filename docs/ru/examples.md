@@ -34,9 +34,12 @@ uv run python -m examples.starter_app.app      # http://127.0.0.1:8000
 
 ## `knowledge` — мультиисточниковый чат с доказательствами
 
-**Что показывает:** поиск `fan_out_sources` по файловым и CSV-источникам →
-ленивую `materialize_doc` → извлечение доказательств → проверку утверждений →
-ответ с провенансом; детерминированный CSV-расчёт (`Spreadsheet` → `Calculation`).
+**Что показывает:** поиск `fan_out_sources` по индексу `reactifact.knowledge`
+и структурированному CSV-источнику → ленивую `materialize_doc` → извлечение
+доказательств → проверку утверждений → ответ с провенансом; детерминированный
+CSV-расчёт (`Spreadsheet` → `Calculation`). Веб-приложение также монтирует
+`/traces` (агентские запуски с колонками Question/Answer) и `/knowledge/`
+(статус индексации).
 
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + трейс-дашборд

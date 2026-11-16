@@ -2027,7 +2027,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.30" },
 ]
-provides-extras = ["dev", "web", "pg", "mcp", "a2a", "docs"]
+provides-extras = ["dev", "knowledge", "web", "pg", "mcp", "a2a", "docs"]
 
 [package.metadata.requires-dev]
 a2a = [{ name = "a2a-sdk", specifier = ">=1.0" }]

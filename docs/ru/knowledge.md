@@ -13,7 +13,8 @@
 Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider -> Index
 ```
 
-На уровне установки это просто core-пакет
+Встроенный пример `examples/knowledge` использует этот слой для текстового
+корпуса. На уровне установки это просто core-пакет
 (`pip install "reactifact[knowledge]"`); extra не добавляет runtime-зависимостей.
 
 ## Собрать пайплайн

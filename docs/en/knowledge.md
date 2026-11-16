@@ -14,7 +14,8 @@ Connector -> RawDocument -> Document -> Chunk -> EmbeddingProvider -> Index
 ```
 
 Install-time it is just the core package (`pip install "reactifact[knowledge]"`);
-the extra adds no runtime dependencies.
+the extra adds no runtime dependencies. The bundled `examples/knowledge` demo
+uses this layer for its text corpus.
 
 ## Build a pipeline
 

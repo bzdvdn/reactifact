@@ -34,9 +34,11 @@ uv run python -m examples.starter_app.app      # http://127.0.0.1:8000
 
 ## `knowledge` — multi-source chat with evidence
 
-**What it shows:** `fan_out_sources` search over file + CSV sources → lazy
-`materialize_doc` → evidence extraction → claim verification → answer with
-provenance; deterministic CSV calculation (`Spreadsheet` → `Calculation`).
+**What it shows:** `fan_out_sources` over a `reactifact.knowledge` index + a
+structured CSV source → lazy `materialize_doc` → evidence extraction → claim
+verification → answer with provenance; deterministic CSV calculation
+(`Spreadsheet` → `Calculation`). The web app also mounts `/traces` (agent runs
+with Question/Answer columns) and `/knowledge/` (ingestion status).
 
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + trace dashboard

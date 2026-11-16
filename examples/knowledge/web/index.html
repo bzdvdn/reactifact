@@ -10,6 +10,9 @@
   body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui, sans-serif; }
   header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
   header b { color:var(--acc); }
+  header .links { margin-left:auto; display:flex; gap:14px; }
+  header .links a { color:var(--muted); text-decoration:none; font-size:13px; }
+  header .links a:hover { color:var(--acc); }
   main { max-width:780px; margin:0 auto; padding:16px; }
   #messages { display:flex; flex-direction:column; gap:10px; min-height:50vh; }
   .msg { max-width:82%; padding:10px 14px; border-radius:12px; white-space:pre-wrap; }
@@ -27,7 +30,7 @@
 </style>
 </head>
 <body>
-<header><b>Knowledge AI</b><span class="muted" id="sid"></span><button id="new-session" style="margin-left:auto">New session</button></header>
+<header><b>Knowledge AI</b><span class="muted" id="sid"></span><nav class="links"><a href="/knowledge/">Knowledge</a><a href="/traces">Traces</a></nav><button id="new-session">New session</button></header>
 <main>
   <div id="messages"></div>
   <div class="chips" id="chips">
