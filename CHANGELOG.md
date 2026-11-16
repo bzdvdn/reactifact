@@ -48,6 +48,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   reconcile, metadata filters and ACL visibility. It is imported lazily, accepts
   an injected `client=`, and degrades hybrid queries to dense-only because the
   adapter does not implement keyword search.
+- **Optional pgvector index.** `PgVectorIndex` stores vectors in a Postgres
+  `vector` column (`reactifact[pg]`), with deterministic IDs, per-source
+  reconcile, server-side metadata/ACL filters and `tsvector` keyword search for
+  hybrid retrieval. `dsn=`/`dsn_env=` and `text_search_config` are configurable.
 
 ## [0.20.2] — 2026-11-13
 

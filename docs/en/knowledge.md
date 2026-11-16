@@ -198,15 +198,19 @@ rerank = llm_reranker(
 | `MemoryIndex` | process | tests, small prototypes; supports keyword search |
 | `SqliteIndex` | one file | zero infrastructure, brute-force cosine; supports keyword search |
 | `QdrantIndex` | remote | raw REST client (no SDK); collection created on demand; hybrid narrows server-side then BM25-ranks locally |
+| `PgVectorIndex` | Postgres | `pg` extra; requires `CREATE EXTENSION vector`; cosine; server-side metadata/ACL filters and `tsvector` keyword search |
 | `ChromaIndex` | local dir / remote client | optional `chromadb` extra; cosine distance; dense only (hybrid degrades to dense); pass `client=` to reuse an existing Chroma client |
 
 All backends implement deterministic point IDs, per-source `reconcile`,
 metadata filters and optional ACL visibility. Switching backends does not change
 the pipeline.
 
-`ChromaIndex` is optional: `pip install "reactifact[knowledge-chroma]"`. Metadata
-values are stringified for Chroma's scalar-only metadata; the full original
-metadata is preserved under `__metadata` and returned in `SearchHit.metadata`.
+`PgVectorIndex` requires `pip install "reactifact[pg]"` and a database with the
+pgvector extension. Pass `dsn=` or `dsn_env=`; `text_search_config` defaults to
+`simple` (language-neutral) and can be `english` for stemming. `ChromaIndex` is
+optional: `pip install "reactifact[knowledge-chroma]"`. Metadata values are
+stringified for Chroma's scalar-only metadata; the full original metadata is
+preserved under `__metadata` and returned in `SearchHit.metadata`.
 
 ## Incremental ingestion
 
@@ -264,9 +268,9 @@ There is no registry to extend — implement the protocol and pass an instance:
   `KeywordIndexer.keyword_search` for hybrid retrieval and
   `BatchIndexer.upsert_batch` for bulk writes.
 
-`MemoryIndex`, `SqliteIndex`, `QdrantIndex` and `ChromaIndex` are reference
-implementations of the same contract; a Postgres/pgvector or Milvus adapter is
-just another class passed as `index=`.
+`MemoryIndex`, `SqliteIndex`, `QdrantIndex`, `PgVectorIndex` and `ChromaIndex`
+are reference implementations of the same contract; a Milvus adapter is just
+another class passed as `index=`.
 
 ## Status page (optional FastAPI router)
 

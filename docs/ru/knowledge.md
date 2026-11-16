@@ -198,15 +198,19 @@ rerank = llm_reranker(
 | `MemoryIndex` | процесс | тесты, небольшие прототипы; поддерживает keyword-поиск |
 | `SqliteIndex` | один файл | zero infrastructure, brute-force косинус; поддерживает keyword-поиск |
 | `QdrantIndex` | удалённо | минимальный REST-клиент (без SDK); коллекция создаётся по требованию; hybrid сужает выдачу на сервере, затем BM25 ранжирует локально |
+| `PgVectorIndex` | Postgres | extra `pg`; нужен `CREATE EXTENSION vector`; косинус; серверные metadata/ACL-фильтры и keyword-поиск через `tsvector` |
 | `ChromaIndex` | локальная папка / удалённый клиент | опциональный extra `chromadb`; косинусное расстояние; только dense (hybrid деградирует до dense); `client=` переиспользует существующий Chroma-клиент |
 
 Все бэкенды реализуют детерминированные point id, per-source `reconcile`,
 фильтры по metadata и опциональную видимость по ACL. Смена бэкенда не меняет
 пайплайн.
 
-`ChromaIndex` опционален: `pip install "reactifact[knowledge-chroma]"`. Значения
-metadata строкифицируются под scalar-only ограничение Chroma; полные исходные
-metadata сохраняются в `__metadata` и возвращаются в `SearchHit.metadata`.
+`PgVectorIndex` требует `pip install "reactifact[pg]"` и базу с расширением
+pgvector. Передайте `dsn=` или `dsn_env=`; `text_search_config` по умолчанию
+`simple` (языконейтрально), можно `english` для стемминга. `ChromaIndex`
+опционален: `pip install "reactifact[knowledge-chroma]"`. Значения metadata
+строкифицируются под scalar-only ограничение Chroma; полные исходные metadata
+сохраняются в `__metadata` и возвращаются в `SearchHit.metadata`.
 
 ## Инкрементальная индексация
 
@@ -264,9 +268,9 @@ pipeline = KnowledgePipeline(
   `search`); добавьте `KeywordIndexer.keyword_search` для hybrid-поиска и
   `BatchIndexer.upsert_batch` для пакетной записи.
 
-`MemoryIndex`, `SqliteIndex`, `QdrantIndex` и `ChromaIndex` — референсные
-реализации одного контракта; адаптер под Postgres/pgvector или Milvus — это
-просто ещё один класс, переданный как `index=`.
+`MemoryIndex`, `SqliteIndex`, `QdrantIndex`, `PgVectorIndex` и `ChromaIndex` —
+референсные реализации одного контракта; адаптер под Milvus — это просто ещё
+один класс, переданный как `index=`.
 
 ## Страница статуса (опциональный FastAPI router)
 

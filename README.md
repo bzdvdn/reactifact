@@ -128,8 +128,9 @@ hits = await pipeline.query(
 It keeps the same boundaries as the rest of reactifact: `reactifact` never
 imports it, it reuses the `EmbeddingProvider` on `RuntimeResources`, and
 `IndexSource` / `IngestStep` are the only explicit bridges into `Source` /
-`Step`. The layer ships `MemoryIndex`, `SqliteIndex`, `QdrantIndex` and an
-optional `ChromaIndex` (`reactifact[knowledge-chroma]`), incremental `DocStore`
+`Step`. The layer ships `MemoryIndex`, `SqliteIndex`, `QdrantIndex`,
+`PgVectorIndex` (`reactifact[pg]`) and an optional `ChromaIndex`
+(`reactifact[knowledge-chroma]`), incremental `DocStore`
 state, ACL-aware reconciliation, and BM25 + RRF hybrid
 retrieval. No extra runtime dependencies; `FilesystemConnector` is the built-in
 local-docs connector. `rerank=` is a query-time hook for
@@ -321,8 +322,8 @@ Full breakdown, including where reactifact is *not* the right choice:
 - **Knowledge base (optional)** — code-first
   `Connector -> RawDocument -> Document -> Chunk -> Index`: incremental
   `DocStore`, ACL-aware reconcile, BM25 + RRF hybrid retrieval,
-  `MemoryIndex`/`SqliteIndex`/`QdrantIndex`, optional `ChromaIndex`; reuses core
-  `EmbeddingProvider`s
+  `MemoryIndex`/`SqliteIndex`/`QdrantIndex`/`PgVectorIndex`, optional
+  `ChromaIndex`; reuses core `EmbeddingProvider`s
   and exposes `IndexSource`/`IngestStep` bridges. No YAML, CLI or plugin
   registry (`pip install "reactifact[knowledge]"`).
 
