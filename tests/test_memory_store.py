@@ -6,6 +6,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from reactifact import Context, Create, Effects, PendingAction, RuntimeResources
 from reactifact.checkpoints import FileKVBackend, InMemoryKVBackend
 from reactifact.recipes.memory_store import MemoryStore
 
@@ -164,6 +165,79 @@ def test_forget_source_rejects_an_empty_session():
         asyncio.run(memory.forget_source(""))
     with pytest.raises(ValueError, match="non-empty source_session"):
         asyncio.run(memory.forget_source("   "))
+
+
+def test_remember_after_commit_records_an_outbox_intent():
+    """The step-side helper only plans a PendingAction; no record is written."""
+    from pydantic import BaseModel
+
+    class Report(BaseModel):
+        text: str
+
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+    ctx = Context(resources=RuntimeResources())
+    report = ctx.create(Report(text="worker-2f1 OOMKilled"))
+    effects = Effects(ctx)
+
+    handle = memory.remember_after_commit(
+        effects,
+        report,
+        key=f"report:{report.id}",
+        source_session="admin1:s1",
+        text="worker-2f1 OOMKilled",
+    )
+
+    assert handle is not None
+    assert asyncio.run(memory.list()) == []
+    operation = effects.operations[0]
+    assert isinstance(operation, Create)
+    action = operation.data
+    assert isinstance(action, PendingAction)
+    assert action.kind == "memory.remember"
+    assert action.idempotency_key == f"memory:report:{report.id}"
+    assert action.payload["source_artifact"] == report.id
+    assert action.payload["source_session"] == "admin1:s1"
+
+
+def test_memory_dispatch_indexes_a_committed_action():
+    backend = InMemoryKVBackend()
+    memory = MemoryStore(backend, namespace="user:1")
+    resources = RuntimeResources()
+    resources.register(MemoryStore, memory)
+    ctx = Context(resources=resources)
+    action = PendingAction(
+        kind="memory.remember",
+        idempotency_key="memory:report:1",
+        payload={
+            "key": "report:1",
+            "text": "worker-2f1 OOMKilled",
+            "kind": "summary",
+            "tags": {"kind": "report"},
+            "source_session": "admin1:s1",
+            "source_artifact": "report:1",
+            "source_version": 2,
+            "data_type": "K8sReport",
+        },
+    )
+    committed = ctx.create(action, id="action:memory:report:1")
+
+    asyncio.run(MemoryStore.dispatch(ctx, committed))
+
+    record = asyncio.run(memory.get("report:1"))
+    assert record is not None
+    assert record.text == "worker-2f1 OOMKilled"
+    assert record.source_session == "admin1:s1"
+    assert record.source_artifact == "report:1"
+    assert record.source_version == 2
+    assert record.tags == {"kind": "report"}
+
+
+def test_memory_dispatch_ignores_other_action_kinds():
+    ctx = Context(resources=RuntimeResources())
+    action = PendingAction(kind="notify", idempotency_key="notify:1")
+    committed = ctx.create(action, id="action:notify:1")
+
+    asyncio.run(MemoryStore.dispatch(ctx, committed))  # no store needed
 
 
 def test_records_written_before_provenance_still_load():

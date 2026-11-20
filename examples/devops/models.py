@@ -12,12 +12,6 @@ class ChatReply(BaseModel):
     kind: str = "text"
 
 
-class MemoryNote(BaseModel):
-    """A report summary indexed into the per-user MemoryStore."""
-
-    text: str
-
-
 # Problems the base chat router creates from a message
 class K8sProblem(BaseModel):
     text: str

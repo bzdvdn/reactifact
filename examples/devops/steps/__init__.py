@@ -2,9 +2,9 @@
 
 Mirrors the pipeline: `router` (question → LLM agent's problem artifact) →
 `reports` (ToolAnswer of each agent → domain report) → `reply` (report →
-chat reply); `memory` indexes report summaries for cross-session recall.
-`common` holds the routing helpers/fallback lexicons. Flat re-exports keep
-the agent containers' imports stable.
+chat reply); `memory` records a post-commit memory intent for cross-session
+recall. `common` holds the routing helpers/fallback lexicons. Flat re-exports
+keep the agent containers' imports stable.
 """
 
 from .memory import RememberReport

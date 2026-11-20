@@ -96,9 +96,10 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 `Principal` + `PermissionPolicy` (`auth.py`), поэтому `admin2` может общаться,
 пользоваться k8s и GitLab, но получает отказ до старта Ansible-агента.
 Долговременная память — per-user (`MemoryStore(namespace="user:<name>")`):
-summary отчёта индексируется через `remember_from(source_session=…)` (id берётся
-из сообщения пользователя, а не из ambient-состояния) и подмешивается в routing
-в следующих сессиях, не копируя историю чата и не попадая в namespace другого
+summary отчёта записывается как outbox-`PendingAction` (`remember_after_commit`)
+и индексируется уже после коммита отчёта (`MemoryStore.dispatch`), поэтому
+упавший ход не оставит висячую запись; recall подмешивается в routing в
+следующих сессиях, не копируя историю чата и не попадая в namespace другого
 пользователя. Отдельные демо (без LLM и сети):
 
 ```bash

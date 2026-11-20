@@ -97,6 +97,21 @@ ambient-состояние рантайма. Передайте сессию и�
 или `""`, если запись не привязана к сессии; `forget_source("")` отклоняется,
 чтобы пустой ключ не удалил разом все записи без сессии.
 
+Если запись должна происходить **после** коммита артефакта, используйте
+outbox-форму из шага; рецепт сам формирует payload и dispatcher:
+
+```python
+memory.remember_after_commit(
+    effects, report, key=f"incident:{report.id}", source_session=session_id
+)
+# app: Runtime(..., dispatcher=MemoryStore.dispatch)
+```
+
+`remember_after_commit` записывает `PendingAction`; `MemoryStore.dispatch`
+находит зарегистрированный store в `context.resources` и вызывает `put` после
+коммита. Неизвестные kinds игнорируются, поэтому его можно комбинировать с
+другими dispatcher'ами.
+
 ## `map_reduce` — fan-out типизированных задач и reduce (§24)
 
 ```python

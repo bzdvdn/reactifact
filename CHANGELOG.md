@@ -138,10 +138,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Fixed
 
-- **`ChatAssistant.history()` no longer leaks per-turn resources.** With a
-  callable `resources=` factory, `history()` built a fresh `RuntimeResources`
-  (and typically an LLM/HTTP client) and never closed it; it now closes the
-  instance in `finally`, for an existing and a missing session alike.
+- **Devops memory is indexed after the report commits.** `RememberReport` no
+  longer writes `MemoryStore` inside a step; the recipe now provides
+  `memory.remember_after_commit(...)` (a `PendingAction`) and
+  `MemoryStore.dispatch` (the outbox handler), and the app wires
+  `dispatcher=MemoryStore.dispatch`. A failed generation can no longer leave a
+  memory entry pointing at a report version that was never committed.
+- **`ChatAssistant.history()` no longer builds per-turn resources.** A
+  callable `resources=` factory was invoked (and an LLM/HTTP client created)
+  just to read a session; the read-only path now opens with the shared instance
+  (or plain resources), so there is nothing to leak and no wrong user scope.
+- **`reactifact graph` renders step-style agents completely.** `blueprint`
+  used only `step.artifact_type` (the first produced type) and only an explicit
+  `agent.consumes`, so agents whose steps declare multiple produces/consumes
+  (e.g. the devops router) lost edges. It now unions every step's `produces`
+  and `consume_specs()`; the devops README map is regenerated.
 - **Agent/tool timeouts are no longer reported as `budget_time_exceeded`.**
   Only the turn's own `Budget.max_seconds` deadline sets
   `RunOutcome.BUDGET_TIME_EXCEEDED`; a `TimeoutError` raised by an agent's

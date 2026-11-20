@@ -86,6 +86,8 @@ resources=lambda session_id, request: build_resources(request.get("user"))
 `request=` передаётся без изменений (лишние ключи не добавляются). Если ходу
 нужен id сессии, прочитайте его из request, собранного `request_factory`, или
 из артефакта пользователя, который создаёт чат-слой (в нём есть `session_id`).
+`history()` — read-only и не вызывает фабрику; общий экземпляр
+`RuntimeResources` по-прежнему прикрепляется для кастомного `session_state`.
 
 **Внешние side effects.** Если агент в чате записывает намерение через
 `effects.act(...)`, передайте `dispatcher=` (и, при желании,

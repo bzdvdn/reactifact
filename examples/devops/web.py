@@ -43,6 +43,7 @@ from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.eval import create_online_eval_router
 from reactifact.providers import openai_llm, openrouter_llm
+from reactifact.recipes import MemoryStore
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import TraceColumn, Tracer, TraceStore
 from reactifact.tracing.web import create_trace_router
@@ -100,9 +101,9 @@ def _request_user(request: Request) -> dict[str, str]:
 def create_message(ctx: Any, text: str, session_id: str) -> str:
     """HITL enter hook: a pending clarify question → resume, else a new message.
 
-    Takes the 3-arg shape so the session id is stamped on the `UserMsg`; memory
-    provenance (`RememberReport` → `MemoryStore.remember_from`) reads it from
-    there instead of guessing from runtime state.
+    Takes the 3-arg shape so the session id is stamped on the `UserMsg`; the
+    memory intent (`RememberReport` → `PendingAction`) reads it from there
+    instead of guessing from runtime state.
     """
     pending = [q for q in ctx.pending_questions() if q.data.kind == "clarify"]
     if pending:
@@ -185,6 +186,9 @@ def create_app(
         budget=Budget(max_runs=200, max_tool_calls=12),
         tracer=lambda: Tracer(store=trace_store),
         status_kinds=("status", "agent"),
+        # Memory indexing is an outbound side effect: the step commits an
+        # intent, and the recipe's dispatcher writes it after the report commits.
+        dispatcher=MemoryStore.dispatch,
         # Bound a long-lived session's commit history (artifacts untouched).
         memory=ChatMemory(compact_commits=500),
     )

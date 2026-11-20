@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from .agents import Agent
+from .consume import Consume
 from .context import Context
 
 if TYPE_CHECKING:
@@ -59,20 +60,21 @@ def blueprint(
     seen: set[tuple[str, str, str]] = set()
     for i, agent in enumerate(agents):
         aid = f"A{i}"
-        produces = [
-            p
-            for p in agent.steps or ()
-            if getattr(p, "artifact_type", None) is not None
-        ]
+        steps = list(agent.steps or ())
         agent_label = agent.name or f"agent{i}"
-        if with_stages and produces:
-            agent_label += "<br/>" + " · ".join(type(p).__name__ for p in produces)
+        if with_stages and steps:
+            agent_label += "<br/>" + " · ".join(type(p).__name__ for p in steps)
         lines.append(f'        {aid}["{_esc(agent_label)}"]')
 
-        for consume in agent.consumes or ():
+        consumes: list[Consume] = list(agent.consumes or ())
+        for step in steps:
+            consumes.extend(step.consume_specs() or ())
+        seen_types: set[str] = set()
+        for consume in consumes:
             tname = getattr(consume, "artifact_type", None)
-            if tname is None:
+            if tname is None or tname.__name__ in seen_types:
                 continue
+            seen_types.add(tname.__name__)
             node = _artifact_node(lines, node_ids, tname.__name__)
             key = ("consume", node, aid)
             if key in seen:
@@ -80,22 +82,24 @@ def blueprint(
             seen.add(key)
             lines.append(f"        {node} -.->|Consume| {aid}")
 
-        for produce in produces:
-            ptype = produce.artifact_type
-            if ptype is None:
-                continue
-            node = _artifact_node(
-                lines, node_ids, getattr(ptype, "__name__", type(ptype).__name__)
-            )
-            machine = hasattr(produce, "next_status") and hasattr(
-                produce, "status_field"
-            )
-            action = "lifecycle" if machine else "creates"
-            key = ("produce", aid, node)
-            if key in seen:
-                continue
-            seen.add(key)
-            lines.append(f"        {aid} ==>|{action}| {node}")
+        for step in steps:
+            ptypes = getattr(step, "produces", None) or ()
+            if not ptypes:
+                single = getattr(step, "artifact_type", None)
+                ptypes = (single,) if single is not None else ()
+            machine = hasattr(step, "next_status") and hasattr(step, "status_field")
+            for ptype in ptypes:
+                if ptype is None:
+                    continue
+                node = _artifact_node(
+                    lines, node_ids, getattr(ptype, "__name__", type(ptype).__name__)
+                )
+                action = "lifecycle" if machine else "creates"
+                key = ("produce", aid, node)
+                if key in seen:
+                    continue
+                seen.add(key)
+                lines.append(f"        {aid} ==>|{action}| {node}")
 
     lines.append("    end")
     return "\n".join(lines)

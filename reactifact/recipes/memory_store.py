@@ -9,6 +9,11 @@ workspace's memory.
     memory = MemoryStore(backend, namespace=f"user:{user_id}")
     await memory.put("preference", {"tone": "concise"}, text="prefers concise answers")
     hits = await memory.search("how does the user like answers?", k=3)
+
+For a write that must happen only after the artifact commits, a step calls
+`memory.remember_after_commit(effects, artifact, ...)` and the app passes
+`dispatcher=MemoryStore.dispatch` to the runtime (the recipe owns the action
+payload and the handler).
 """
 
 from __future__ import annotations
@@ -29,8 +34,32 @@ from .text import keyword_score
 
 if TYPE_CHECKING:
     from ..artifacts import Artifact
+    from ..context import Context
+    from ..effects import Effects, Handle
+    from ..interrupt import PendingAction
+
+#: Outbox action kind for `remember_after_commit` / `MemoryStore.dispatch`.
+MEMORY_ACTION = "memory.remember"
 
 Searcher = Callable[["MemoryRecord", str], float]
+
+
+def _artifact_text(artifact: Artifact[Any]) -> str:
+    """The searchable default text of an artifact (its `text`, else JSON)."""
+    data = artifact.data
+    text = getattr(data, "text", None)
+    if isinstance(text, str):
+        return text
+    return json.dumps(
+        (
+            data.model_dump(mode="json")
+            if isinstance(data, BaseModel)
+            else {"value": str(data)}
+        ),
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
 
 
 class MemoryRecord(BaseModel):
@@ -275,20 +304,8 @@ class MemoryStore:
         memory is not tied to one) so `forget_source()` can erase everything
         derived from that session later.
         """
-        data = artifact.data
         if text is None:
-            text = getattr(data, "text", None)
-            if not isinstance(text, str):
-                text = json.dumps(
-                    (
-                        data.model_dump(mode="json")
-                        if isinstance(data, BaseModel)
-                        else {"value": str(data)}
-                    ),
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    default=str,
-                )
+            text = _artifact_text(artifact)
         if value is None:
             value = {"artifact": artifact.id, "data_type": artifact.data_type}
         return await self.put(
@@ -302,6 +319,86 @@ class MemoryStore:
             source_session=source_session,
             source_artifact=artifact.id,
             source_version=artifact.version,
+        )
+
+    def remember_after_commit(
+        self,
+        effects: Effects,
+        artifact: Artifact[Any],
+        *,
+        key: str,
+        source_session: str,
+        text: str | None = None,
+        tags: Mapping[str, str] | None = None,
+        ttl_seconds: float | None = None,
+        kind: str = "summary",
+    ) -> Handle | None:
+        """Records an outbox intent; `MemoryStore.dispatch` writes after commit.
+
+        Use this from a step instead of `remember_from` when the memory write
+        must not happen before the artifact's generation commits. The payload
+        carries the summary and provenance, so the dispatcher does not depend on
+        the artifact still being in the live context.
+
+        Wire `Runtime(..., dispatcher=MemoryStore.dispatch)` (or pass
+        `dispatcher=MemoryStore.dispatch` to `ChatAssistant`); a dispatcher
+        composed for several action kinds can call it alongside its own handler.
+        """
+        if not key.strip():
+            raise ValueError("memory key must be non-empty")
+        payload: dict[str, Any] = {
+            "key": key,
+            "text": text if text is not None else _artifact_text(artifact),
+            "kind": kind,
+            "tags": dict(tags or {}),
+            "ttl_seconds": ttl_seconds,
+            "source_session": source_session,
+            "source_artifact": artifact.id,
+            "source_version": artifact.version,
+            "data_type": artifact.data_type,
+        }
+        return effects.act(MEMORY_ACTION, key=f"memory:{key}", payload=payload)
+
+    @classmethod
+    async def dispatch(cls, context: Context, action: Artifact[PendingAction]) -> None:
+        """Outbox dispatcher for `MEMORY_ACTION`; ignores other action kinds.
+
+        The store is resolved from `context.resources`, so a per-turn
+        `MemoryStore` (the usual per-user namespace) is the one written to.
+        """
+        if action.data.kind != MEMORY_ACTION:
+            return
+        store = context.resources.get(cls)
+        if store is None:
+            raise LookupError(
+                "MemoryStore.dispatch: register the store on RuntimeResources"
+            )
+        payload: dict[str, Any] = action.data.payload
+        key = payload.get("key")
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("memory action is missing its key")
+        source_artifact = str(payload.get("source_artifact", ""))
+        source_version = payload.get("source_version")
+        ttl = payload.get("ttl_seconds")
+        tags = payload.get("tags")
+        text = payload.get("text")
+        await store.put(
+            key,
+            {
+                "artifact": source_artifact,
+                "data_type": str(payload.get("data_type", "")),
+            },
+            text=text if isinstance(text, str) else "",
+            tags=(
+                {str(name): str(value) for name, value in tags.items()}
+                if isinstance(tags, dict)
+                else None
+            ),
+            ttl_seconds=float(ttl) if isinstance(ttl, (int, float)) else None,
+            kind=str(payload.get("kind", "summary")),
+            source_session=str(payload.get("source_session", "")),
+            source_artifact=source_artifact,
+            source_version=source_version if isinstance(source_version, int) else None,
         )
 
     async def forget_source(
@@ -342,4 +439,10 @@ def _unquote_key(storage_key: str, prefix: str) -> str:
     return unquote(storage_key[len(prefix) :])
 
 
-__all__ = ["MemoryHit", "MemoryRecord", "MemoryStore", "Searcher"]
+__all__ = [
+    "MEMORY_ACTION",
+    "MemoryHit",
+    "MemoryRecord",
+    "MemoryStore",
+    "Searcher",
+]

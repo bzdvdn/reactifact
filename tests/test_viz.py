@@ -11,6 +11,7 @@ from reactifact import (
     Produce,
     ProduceCall,
     RuntimeResources,
+    Step,
 )
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
@@ -61,6 +62,19 @@ class DiagramAgent(Agent):
     produces = [Echo(), AdvanceTurn()]
 
 
+class FanOutStep(Step):
+    consumes = (Question,)
+    produces = (Answer, Turn)
+
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text)
+
+
+class StepDiagramAgent(Agent):
+    name = "stepy"
+    steps = [FanOutStep()]
+
+
 def test_blueprint_renders_agents_consumes_and_produces():
     diagram = blueprint([DiagramAgent()])
     assert diagram.startswith("flowchart LR")
@@ -70,6 +84,18 @@ def test_blueprint_renders_agents_consumes_and_produces():
     assert diagram.count("Answer") >= 1
     assert diagram.count("Turn") >= 1
     assert "lifecycle" in diagram  # StatusMachine-style edge, not "creates"
+
+
+def test_blueprint_renders_all_types_of_a_step_style_agent():
+    """Declarative steps: every produced type and every step consume is drawn."""
+    diagram = blueprint([StepDiagramAgent()])
+    assert "stepy" in diagram
+    assert "FanOutStep" in diagram
+    assert "Question" in diagram  # consumed by the step, not by agent.consumes
+    assert "Answer" in diagram
+    assert "Turn" in diagram
+    assert diagram.count("Consume") == 1
+    assert diagram.count("creates") == 2
 
 
 def test_context_to_mermaid_groups_artifacts_and_relations():

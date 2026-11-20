@@ -29,7 +29,7 @@ devops/
 ├── steps/
 │   ├── router.py      #   UserMsg → the right *Problem (structured routing)
 │   ├── reports.py      #   K8s/Gitlab/AnsibleReportBuilder — tool loop → *Report
-│   ├── memory.py       #   *Report → MemoryNote (remember_from summary)
+│   ├── memory.py       #   *Report → PendingAction (memory index intent)
 │   └── reply.py        #   *Report → ChatReply (render step)
 └── web/index.html     # UI
 ```
@@ -61,14 +61,14 @@ execution from state changes.
 ![The k8s agent's run pauses on PendingQuestion and resumes across two chat turns, rather than starting a new run.](../../docs/img/devops-flow.svg)
 
 The picture above walks the HITL ask/resume path through the `k8s` agent.
-This is the actual static map of all 5 agents in this demo
+This is the actual static map of all 6 agents in this demo
 (`python -m reactifact graph examples.devops.agents`):
 
 ```mermaid
 flowchart LR
     subgraph SG["reactifact blueprint"]
         direction LR
-        A0["ansible<br/>ToolUseHITL · Produce · Produce · Produce · AnsibleReportBuilder"]
+        A0["ansible<br/>ToolUseHITL · Step · Step · Step · AnsibleReportBuilder"]
     ART0["AnsibleProblem"]
         ART0 -.->|Consume| A0
     ART1["ToolAnswer"]
@@ -82,7 +82,7 @@ flowchart LR
         A0 ==>|creates| ART3
     ART4["AnsibleReport"]
         A0 ==>|creates| ART4
-        A1["gitlab<br/>ToolUseHITL · Produce · Produce · Produce · GitlabReportBuilder"]
+        A1["gitlab<br/>ToolUseHITL · Step · Step · Step · GitlabReportBuilder"]
     ART5["GitlabProblem"]
         ART5 -.->|Consume| A1
         ART1 -.->|Consume| A1
@@ -93,7 +93,7 @@ flowchart LR
         A1 ==>|creates| ART3
     ART6["GitlabReport"]
         A1 ==>|creates| ART6
-        A2["k8s<br/>ToolUseHITL · Produce · Produce · Produce · K8sReportBuilder"]
+        A2["k8s<br/>ToolUseHITL · Step · Step · Step · K8sReportBuilder"]
     ART7["K8sProblem"]
         ART7 -.->|Consume| A2
         ART1 -.->|Consume| A2
@@ -104,19 +104,25 @@ flowchart LR
         A2 ==>|creates| ART3
     ART8["K8sReport"]
         A2 ==>|creates| ART8
-        A3["render<br/>RenderReply · Produce"]
+        A3["memory<br/>RememberReport"]
         ART8 -.->|Consume| A3
         ART6 -.->|Consume| A3
         ART4 -.->|Consume| A3
-    ART9["ChatReply"]
+    ART9["PendingAction"]
         A3 ==>|creates| ART9
-        A4["route<br/>RouteProblem · Produce · Produce · Produce · Produce"]
-    ART10["UserMsg"]
-        ART10 -.->|Consume| A4
-        A4 ==>|creates| ART7
-        A4 ==>|creates| ART5
-        A4 ==>|creates| ART0
-        A4 ==>|creates| ART9
+        A4["render<br/>RenderReply"]
+        ART8 -.->|Consume| A4
+        ART6 -.->|Consume| A4
+        ART4 -.->|Consume| A4
+    ART10["ChatReply"]
+        A4 ==>|creates| ART10
+        A5["route<br/>RouteProblem"]
+    ART11["UserMsg"]
+        ART11 -.->|Consume| A5
+        A5 ==>|creates| ART7
+        A5 ==>|creates| ART5
+        A5 ==>|creates| ART0
+        A5 ==>|creates| ART10
     end
 ```
 
@@ -151,21 +157,24 @@ Sessions are per-user by convention (`admin1:<uuid>`, stored under that key in
 resources = build_resources(llm, "admin1")   # MemoryStore(namespace="user:admin1")
 ctx = Context(resources=resources)
 ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
-await Runtime(ctx, agents=AGENTS).arun()
+await Runtime(ctx, agents=AGENTS, dispatcher=MemoryStore.dispatch).arun()
 ```
 
-`MemoryStore` is **not** a copy of the chat. `RememberReport` indexes a short
-summary of each `K8sReport`/`GitlabReport`/`AnsibleReport` with
-`memory.remember_from(...)`. The session id is not ambient: the chat layer
-stamps it on `UserMsg` (`create_message(ctx, text, session_id)`), the report
-keeps that message id in `query_id`, and `RememberReport` passes
-`source_session=msg.data.session_id` explicitly. The report (and the
-session/checkpoint) stay the source of truth. On a later question the router
-searches report summaries and passes the hits to the routing prompt as "Known
-context" — so a new session can recall "worker-2f1 OOMKilled in production"
-without replaying the transcript. Because the namespace is `user:<name>`,
-`admin2` never sees `admin1`'s memory, and `forget_source(session_id)` can
-erase one session's derived entries (GDPR-style).
+`MemoryStore` is **not** a copy of the chat. `RememberReport` calls
+`memory.remember_after_commit(effects, report, …)`: the step commits a
+`PendingAction` with a short summary and its provenance, the runtime dispatches
+it **after** the report commits, and `MemoryStore.dispatch` writes the index
+entry. The session id is not ambient: the chat layer stamps it on `UserMsg`
+(`create_message(ctx, text, session_id)`), the report keeps that message id in
+`query_id`, and `RememberReport` carries `source_session=msg.data.session_id`.
+A failed turn therefore cannot leave a dangling memory entry. The report (and
+the session/checkpoint) stay the source of truth. On a later question the
+router searches report summaries and passes the hits to the routing prompt as
+"Known context" — so a new session can recall "worker-2f1 OOMKilled in
+production" without replaying the transcript. Because the namespace is
+`user:<name>`, `admin2` never sees `admin1`'s memory, and
+`forget_source(session_id)` can erase one session's derived entries
+(GDPR-style).
 
 The `/api/runs/{id}` read/delete endpoints are unauthenticated in this demo;
 session ids are client-chosen. Treat them as a UI convenience, not an ACL.

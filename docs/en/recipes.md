@@ -94,6 +94,21 @@ ambient runtime state. Pass the session from the request/user artifact, or `""`
 when the memory is not tied to one; `forget_source("")` is rejected so an empty
 key can never mass-delete sessionless records.
 
+When the write must happen **after** the artifact commits, use the outbox form
+from a step; the recipe owns the action payload and the dispatcher:
+
+```python
+memory.remember_after_commit(
+    effects, report, key=f"incident:{report.id}", source_session=session_id
+)
+# app: Runtime(..., dispatcher=MemoryStore.dispatch)
+```
+
+`remember_after_commit` records a `PendingAction`; `MemoryStore.dispatch`
+resolves the registered store from `context.resources` and calls `put` after the
+commit. Unknown action kinds are ignored, so it can be composed with other
+dispatchers.
+
 ## `map_reduce` — fan out typed tasks, then reduce (§24)
 
 ```python

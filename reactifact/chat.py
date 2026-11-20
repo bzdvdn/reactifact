@@ -466,15 +466,25 @@ class ChatAssistant:
                         self._session_locks.pop(session_id, None)
 
     async def _open(
-        self, session_id: str, request: Mapping[str, Any] | None = None
+        self,
+        session_id: str,
+        request: Mapping[str, Any] | None = None,
+        *,
+        build_resources: bool = True,
     ) -> Session:
-        resources = _resolve_with_session(self._resources, session_id, request)
+        resources: RuntimeResources | None = None
+        if build_resources:
+            resources = _resolve_with_session(self._resources, session_id, request)
+        elif not callable(self._resources):
+            # A shared instance is harmless to attach; a per-turn factory is
+            # deliberately not invoked for a read-only open (history()).
+            resources = self._resources
         try:
             return await self.store.open(session_id, resources=resources)
         except Exception:
             # A callable `resources=` built a fresh per-turn instance; if the
             # store fails to open the session nothing else will close it.
-            if callable(self._resources):
+            if build_resources and callable(self._resources) and resources is not None:
                 with suppress(Exception):
                     await resources.aclose()
             raise
@@ -639,27 +649,21 @@ class ChatAssistant:
     async def history(self, session_id: str = "") -> dict[str, Any]:
         """Reconstruct the chat thread of a persisted session.
 
-        `resources=` may be a per-turn factory; `_open` builds a fresh instance
-        even for this read-only path, so close it here — same contract as
-        `stream()` for a callable factory. A shared instance is left alone.
+        Read-only: a per-turn `resources=` factory is not invoked (no provider
+        or user scope is built just to read artifacts). A shared
+        `RuntimeResources` instance is attached as usual, so a custom
+        `session_state` can still read it.
         """
         try:
-            session = await self._open(session_id)
+            session = await self._open(session_id, build_resources=False)
         except Exception:
             logger.exception("chat.ChatAssistant: history open failed %r", session_id)
             return {"messages": []}
-        try:
-            if not session.loaded:
-                return {"messages": []}
-            if self._session_state is not None:
-                return self._session_state(session.context)
-            return default_session_state(
-                session.context, user_message=self._user_message
-            )
-        finally:
-            if callable(self._resources):
-                with suppress(Exception):
-                    await session.context.resources.aclose()
+        if not session.loaded:
+            return {"messages": []}
+        if self._session_state is not None:
+            return self._session_state(session.context)
+        return default_session_state(session.context, user_message=self._user_message)
 
     def reply_fallback(self) -> dict[str, Any]:
         """The honest terminal payload when nothing was assembled (§59)."""

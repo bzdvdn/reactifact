@@ -559,8 +559,8 @@ def test_shared_resources_instance_not_closed(tmp_path):
     assert llm.closed is False
 
 
-def test_callable_resources_closed_after_history(tmp_path):
-    """`history()` builds per-turn resources too: close them, existing or not."""
+def test_history_does_not_build_per_turn_resources(tmp_path):
+    """A read-only `history()` must not construct a provider/user scope."""
     from reactifact import RuntimeResources
 
     built: list[_SpyLLM] = []
@@ -585,11 +585,10 @@ def test_callable_resources_closed_after_history(tmp_path):
 
     history = asyncio.run(assistant.history("s7"))
     assert [m["role"] for m in history["messages"]] == ["user", "assistant"]
-    assert len(built) == 2 and built[1].closed is True
+    assert len(built) == 1  # no second factory call for the read-only path
 
-    # a missing session still opened (and built resources) — no leak either
     assert asyncio.run(assistant.history("missing"))["messages"] == []
-    assert len(built) == 3 and built[2].closed is True
+    assert len(built) == 1
 
 
 def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):

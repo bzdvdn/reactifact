@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from reactifact import Artifact, Step
 from reactifact.recipes import MemoryStore
 
@@ -13,6 +15,8 @@ from ..models import (
     UserMsg,
 )
 from .common import HELP_TEXT, route_target
+
+logger = logging.getLogger(__name__)
 
 
 class RouteProblem(Step):
@@ -34,8 +38,16 @@ class RouteProblem(Step):
         memory_text = ""
         memory = context.resources.get(MemoryStore)
         if memory is not None:
-            hits = await memory.search(msg.data.text, k=3, tags={"kind": "report"})
-            memory_text = "\n".join(hit.record.text for hit in hits if hit.score > 0)
+            try:
+                hits = await memory.search(msg.data.text, k=3, tags={"kind": "report"})
+            except Exception:
+                # Recall is an enhancement: a broken/unavailable memory backend
+                # must not take the whole routing turn down with it.
+                logger.warning("devops memory recall failed; routing without it")
+            else:
+                memory_text = "\n".join(
+                    hit.record.text for hit in hits if hit.score > 0
+                )
 
         target = await route_target(context, msg.data.text, memory=memory_text)
         if target != "none" and not context.resources.authorize("run", target):

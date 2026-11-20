@@ -28,6 +28,7 @@ from reactifact import Budget, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.guardrails import GuardrailViolation
 from reactifact.providers import openai_llm, openrouter_llm
+from reactifact.recipes import MemoryStore
 
 
 def build_llm() -> Any | None:
@@ -80,6 +81,7 @@ async def main() -> None:
             MemoryAgent(),
         ],
         session=session,
+        dispatcher=MemoryStore.dispatch,
         budget=Budget(max_runs=200, max_tool_calls=12),
     )
 

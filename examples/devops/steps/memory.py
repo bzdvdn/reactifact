@@ -1,49 +1,54 @@
-"""Curated devops memory: index report summaries, not every chat message."""
+"""Curated devops memory: record an index intent, never write memory here.
+
+The step is pure: `MemoryStore.remember_after_commit` turns a committed report
+into a `PendingAction` with the summary and its provenance. The runtime
+dispatches it **after** the generation commits
+(`dispatcher=MemoryStore.dispatch`), so a failed turn cannot leave a memory
+entry pointing at a report version that never existed.
+"""
 
 from __future__ import annotations
 
-from reactifact import Artifact, Step
+from reactifact import Artifact, Effects, PendingAction, Step
 from reactifact.recipes import MemoryStore
 
-from ..models import AnsibleReport, GitlabReport, K8sReport, MemoryNote, UserMsg
+from ..models import AnsibleReport, GitlabReport, K8sReport, UserMsg
 
 
 class RememberReport(Step):
-    """Stores a short report summary with source session/artifact/version.
-
-    The report artifact remains the source of truth; MemoryStore holds only the
-    pointer + summary used for cross-session recall. The source session comes
-    from the `UserMsg` the report answers (it is stamped by the chat layer), so
-    provenance is explicit data, not ambient runtime state.
-    """
+    """Report → committed `PendingAction` with summary + source session."""
 
     consumes = (K8sReport, GitlabReport, AnsibleReport)
-    produces = (MemoryNote,)
+    produces = (PendingAction,)
 
     async def run(
-        self, report: Artifact[K8sReport | GitlabReport | AnsibleReport]
-    ) -> MemoryNote:
-        memory = self.context.resources.get(MemoryStore)
+        self,
+        report: Artifact[K8sReport | GitlabReport | AnsibleReport],
+        effects: Effects,
+    ) -> None:
         text = getattr(report.data, "text", "") or ""
-        if memory is not None and text.strip():
-            source = self.context.get(report.data.query_id)
-            source_session = (
-                source.data.session_id
-                if source is not None and isinstance(source.data, UserMsg)
-                else ""
-            )
-            await memory.remember_from(
-                report,
-                key=f"report:{report.id}",
-                source_session=source_session,
-                text=text[:800],
-                tags={
-                    "kind": "report",
-                    "system": type(report.data).__name__.removesuffix("Report").lower(),
-                },
-                ttl_seconds=90 * 24 * 3600,
-            )
-        return MemoryNote(text=text)
+        if not text.strip():
+            return None
+        source = self.context.get(report.data.query_id)
+        source_session = (
+            source.data.session_id
+            if source is not None and isinstance(source.data, UserMsg)
+            else ""
+        )
+        memory = self.context.resources.require(MemoryStore)
+        memory.remember_after_commit(
+            effects,
+            report,
+            key=f"report:{report.id}",
+            source_session=source_session,
+            text=text[:800],
+            tags={
+                "kind": "report",
+                "system": type(report.data).__name__.removesuffix("Report").lower(),
+            },
+            ttl_seconds=90 * 24 * 3600,
+        )
+        return None
 
 
 __all__ = ["RememberReport"]

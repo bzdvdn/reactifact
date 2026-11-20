@@ -17,7 +17,7 @@ from examples.devops.agents import (
 )
 from examples.devops.auth import POLICY, PRINCIPALS, build_resources
 from examples.devops.models import AnsibleReport, ChatReply, K8sReport, UserMsg
-from reactifact import Budget, Context, Runtime
+from reactifact import Budget, Context, PendingAction, Runtime
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.recipes import MemoryStore
 
@@ -36,7 +36,7 @@ class ScriptedLLM(LLMProvider):
         yield LLMResponse(text="")
 
 
-def build_runtime(resources):
+def build_runtime(resources, dispatcher=MemoryStore.dispatch):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
@@ -48,6 +48,7 @@ def build_runtime(resources):
             RenderAgent(),
             MemoryAgent(),
         ],
+        dispatcher=dispatcher,
         budget=Budget(max_runs=200, max_tool_calls=12),
     )
     return ctx, runtime
@@ -109,6 +110,51 @@ def test_admin1_runs_ansible_and_indexes_the_report(tmp_path):
 
     # the source session is the unit of erasure (GDPR-style forget)
     assert asyncio.run(memory.forget_source("admin1:s1")) == 1
+
+
+def test_memory_intent_is_not_written_before_dispatch(tmp_path):
+    """The step records a PendingAction; without a dispatcher memory is untouched."""
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"tool_call","tool":"kubectl_get","args":'
+            '{"resource":"pods","namespace":"production"}}',
+            '{"type":"answer","text":"worker-2f1 OOMKilled in production"}',
+        ]
+    )
+    resources = build_resources(llm, "admin1", tmp_path)
+    ctx, runtime = build_runtime(resources, dispatcher=None)
+    ctx.create(UserMsg(text="почему падает под?", session_id="admin1:s1"))
+
+    asyncio.run(runtime.arun())
+
+    assert ctx.list_artifacts(K8sReport)
+    actions = ctx.list_artifacts(PendingAction)
+    assert len(actions) == 1
+    assert actions[0].data.status == "pending"
+    assert asyncio.run(resources.require(MemoryStore).list()) == []
+
+
+def test_broken_memory_does_not_block_routing(tmp_path, caplog):
+    """Recall is optional: a failing MemoryStore must not kill the turn."""
+    llm = ScriptedLLM(['{"target":"none"}'])
+    resources = build_resources(llm, "admin1", tmp_path)
+
+    class BrokenMemory:
+        async def search(self, *args, **kwargs):
+            raise RuntimeError("memory backend down")
+
+    resources.register(MemoryStore, BrokenMemory())
+    ctx, runtime = build_runtime(resources)
+    msg = ctx.create(UserMsg(text="привет"))
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(runtime.arun())
+
+    replies = replies_for(ctx, msg.id)
+    assert len(replies) == 1
+    assert "I help with k8s" in replies[0].data.text
+    assert "memory recall failed" in caplog.text
 
 
 def test_memory_is_per_user_and_recalled_into_routing(tmp_path):

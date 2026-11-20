@@ -84,6 +84,8 @@ resources=lambda session_id, request: build_resources(request.get("user"))
 `request=` is passed through unchanged (no extra keys are injected). If a turn
 needs the session id, read it from the request your `request_factory` built or
 from the user artifact the chat layer creates (it carries `session_id`).
+`history()` is read-only and does not call the factory; a shared
+`RuntimeResources` instance is still attached for a custom `session_state`.
 
 **Outbound side effects.** If an agent in the chat records an intent with
 `effects.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
