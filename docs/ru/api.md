@@ -105,7 +105,7 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
 | `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения перед исполнением |
 | `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL-авторинг: `ask(question, kind=, notes=, schema=, id=)` создаёт вопрос; `resume(question, answer)` принимает legacy-строку или Pydantic-модель/mapping (пишется в `resolution_data`) |
@@ -163,7 +163,9 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | Символ | Роль |
 | --- | --- |
 | `ReplayLLM(recording, mode="record"\|"replay", inner=…)` | записывает каждый LLM-вызов в JSONL или воспроизводит их точно; `ReplayMiss` при расхождении |
+| `RecordingToolRecorder` / `ReplayToolRecorder` | JSONL record/replay для tool-вызовов (имя + точные args + output/exception), покрывает и прямой `tool.execute`, и `execute_tool`; `ReplayMiss` на незаписанный вызов |
 | `ReplayMiss` | воспроизводимый вызов не совпал с записью |
+| `Runtime.replay_run(llm_recording=, tool_recording=, model=, save=False)` | временно ставит replay-обёртки, прогоняет обычный ход, восстанавливает resources; `save=False` отцепляет сессию |
 | `verify_run(build, *, recording=None, repeat=2)` | прогоняет `build(resources) -> Context` `repeat` раз под записанной моделью **и** строгими id (`counter_ids`), возвращает `ReproReport`; `ok=False`, если `context_hash` разошёлся (реальная недетерминированность) |
 | `counter_ids()` | детерминированный `id_factory` (`Model:0000`, `Model:0001`, …) для `RuntimeResources(id_factory=…)` — делает артефакты без явного id воспроизводимыми |
 | `replay_context(store, session_id, version=None)` | восстанавливает состояние сохранённой сессии на коммите |

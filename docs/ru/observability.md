@@ -19,7 +19,8 @@ Langfuse или Postgres.
   дополнительно дают child-span на каждый тул, размещённый по
   `ToolRun.started_at` (параллельные вызовы перекрываются). Аргументы по
   умолчанию не пишутся — включите `RuntimeResources(record_tool_args=True)`
-  (вычищаются `redactor=`).
+  (вычищаются `redactor=`). `Tool.execute` инструментируется на классе, поэтому
+  прямой вызов внутри шага попадает в тот же `tools`, что и `execute_tool`.
 - **Контракт агента** (`AgentContract`) — объявленные `consumes`/`produces`/
   `tools`/`priority` и конкретный `event_artifact_id`. В Work-view видны
   отдельные списки `consumes → produces`: элементы, которые объявлены, но не

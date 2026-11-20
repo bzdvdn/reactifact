@@ -19,7 +19,8 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   also emit a child span per tool, placed by `ToolRun.started_at` (parallel
   calls overlap). Tool args are omitted by default — set
   `RuntimeResources(record_tool_args=True)` to include them (scrubbed by
-  `redactor=`).
+  `redactor=`). `Tool.execute` is instrumented on the class, so a direct call
+  inside a step lands in the same `tools` list as `execute_tool`.
 - **Agent contract** (`AgentContract`) — the declared `consumes`/`produces`/
   `tools`/`priority`, plus the concrete `event_artifact_id`. The Work view
   renders explicit `consumes → produces` lists, mutes declared-but-not-run

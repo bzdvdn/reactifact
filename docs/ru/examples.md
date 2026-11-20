@@ -198,7 +198,7 @@ at-least-once-контракт и app-owned drain/retry-политика.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — примитивы фреймворка в двенадцати маленьких сценах
+## `tour` — примитивы фреймворка в тринадцати маленьких сценах
 
 **Что показывает:** то, что легко пропустить в большом приложении:
 типизированные артефакты с `version_history` / `diff` / `compact`;
@@ -208,9 +208,9 @@ uv run python -m examples.repo_agent.main
 retry агента и per-step дедлайны; schema-backed HITL-вопрос с типизированным
 ответом; чекпоинты/форки; типизированные режимы `Runtime.astream_events`;
 optimistic-конфликт записи, разрешённый merge-политикой; subflow на изолированном
-Context с trace-ссылкой на родительский run; MapReduce fan-out/reduce и
-peer-to-peer swarm handoff. Все сцены по умолчанию офлайн, а `model` идёт через
-провайдера только с `--llm`.
+Context с trace-ссылкой на родительский run; MapReduce fan-out/reduce,
+peer-to-peer swarm handoff и tool record/replay через `Runtime.replay_run`. Все
+сцены по умолчанию офлайн, а `model` идёт через провайдера только с `--llm`.
 
 ```bash
 uv run python -m examples.tour.main                 # все девять сцен, офлайн
@@ -224,6 +224,7 @@ uv run python -m examples.tour.main --scene conflicts
 uv run python -m examples.tour.main --scene subflow
 uv run python -m examples.tour.main --scene map_reduce
 uv run python -m examples.tour.main --scene swarm
+uv run python -m examples.tour.main --scene replay
 uv run python -m examples.tour.main --llm --scene model
 ```
 

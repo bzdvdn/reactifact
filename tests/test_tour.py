@@ -11,6 +11,7 @@ from examples.tour.scenes import (
     run_map_reduce_scene,
     run_model,
     run_reactive,
+    run_replay_scene,
     run_resilience,
     run_state,
     run_subflow_scene,
@@ -153,3 +154,12 @@ def test_swarm_scene_hands_off_with_provenance() -> None:
     assert report["to"] == "billing"
     assert report["run_ids"] == 2
     assert report["relations"] == 2
+
+
+def test_replay_scene_reuses_the_recording() -> None:
+    report = asyncio.run(run_replay_scene())
+
+    assert report["recorded"] == "replay me"
+    assert report["replayed"] == "replay me"
+    assert report["same"] is True
+    assert report["recording_lines"] == 1

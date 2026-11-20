@@ -101,7 +101,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
 | `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval on execution |
 | `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `Tool.execute` is instrumented once (trace `ToolRun` + hooks + record/replay) for both direct calls and `execute_tool`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL authoring: `ask(question, kind=, notes=, schema=, id=)` creates the question; `resume(question, answer)` accepts a legacy string or a Pydantic model/mapping (stored in `resolution_data`) |
@@ -159,7 +159,9 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `ReplayLLM(recording, mode="record"\|"replay", inner=…)` | records every LLM call to JSONL, or replays them exactly; `ReplayMiss` on divergence |
+| `RecordingToolRecorder` / `ReplayToolRecorder` | JSONL record/replay for tool calls (name + exact args + output/exception), covering direct `tool.execute` and `execute_tool`; `ReplayMiss` on an unrecorded call |
 | `ReplayMiss` | a replaying call did not match the recording |
+| `Runtime.replay_run(llm_recording=, tool_recording=, model=, save=False)` | temporarily installs the replay wrappers, runs a normal turn, restores resources; `save=False` detaches the session |
 | `verify_run(build, *, recording=None, repeat=2)` | runs `build(resources) -> Context` `repeat` times under a recorded model **and** strict ids (`counter_ids`), returns a `ReproReport`; `ok` is False when the `context_hash` differs (real nondeterminism) |
 | `counter_ids()` | a deterministic `id_factory` (`Model:0000`, `Model:0001`, …) for `RuntimeResources(id_factory=…)` — makes artifacts created without an explicit id reproducible |
 | `replay_context(store, session_id, version=None)` | reconstructs a saved session's state at a commit |

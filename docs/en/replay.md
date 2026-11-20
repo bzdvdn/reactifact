@@ -35,6 +35,45 @@ Because the deterministic paths (guards, calculations, routing) are unchanged,
 a replayed run produces identical artifacts — and you can walk the reproduced
 state (or render it with `context_to_mermaid`) to explain the answer.
 
+## Tool-level record & replay
+
+The same idea covers framework tool calls (`execute_tool`, used by
+`ToolUse`/`run_tool_loop`):
+
+```python
+from reactifact.replay import RecordingToolRecorder, ReplayToolRecorder
+
+record = RuntimeResources(tool_recorder=RecordingToolRecorder("tools.jsonl"))
+# ... run once; every execute_tool call appends name/args/output (or exception)
+
+replay = RuntimeResources(tool_recorder=ReplayToolRecorder("tools.jsonl"))
+# ... run again; calls match by (tool, exact args), FIFO for repeats
+```
+
+A call with no matching record raises `ReplayMiss` — never a silently wrong
+tool result. A recorded exception is re-raised as `RuntimeError` with the
+original message. Both `execute_tool(...)` and a direct `tool.execute(...)`
+inside a Runtime turn are instrumented (the wrapper is on `Tool` itself); use
+`begin_tool_runs`/`end_tool_runs` to open the same scope around direct calls
+outside a Runtime.
+
+## One-call replay: `Runtime.replay_run`
+
+`Runtime.replay_run()` temporarily installs the replay wrappers, runs the
+normal turn, and restores the resources:
+
+```python
+await runtime.replay_run(
+    llm_recording="calls.jsonl",
+    tool_recording="tools.jsonl",
+    model="claude-sonnet-4-6",   # part of the LLM recording key
+)
+```
+
+`save=False` (default) detaches the session so a replay never overwrites the
+recorded session; pass `save=True` if you intentionally want to persist the
+reproduced artifacts.
+
 ## Verify a run is reproducible
 
 Recording pins the model, but a run is only truly reproducible if nothing else is

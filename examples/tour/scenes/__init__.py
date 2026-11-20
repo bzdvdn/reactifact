@@ -7,6 +7,7 @@ from .hitl import run_hitl
 from .map_reduce import run_map_reduce_scene
 from .model import run_model
 from .reactive import run_reactive
+from .replay import run_replay_scene
 from .resilience import run_resilience
 from .state import run_state
 from .subflow import run_subflow_scene
@@ -21,6 +22,7 @@ __all__ = [
     "run_map_reduce_scene",
     "run_model",
     "run_reactive",
+    "run_replay_scene",
     "run_resilience",
     "run_state",
     "run_subflow_scene",

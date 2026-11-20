@@ -20,6 +20,7 @@ Two complementary halves:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import itertools
 import json
@@ -34,6 +35,7 @@ from .audit import context_hash
 from .context import Context
 from .interrupt import PendingAction
 from .providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
+from .tools import Tool, ToolOutput
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -155,6 +157,100 @@ class ReplayLLM(LLMProvider):
             finish_reason=response.get("finish_reason"),
             usage=dict(entry.get("usage") or {}),
         )
+
+
+def _tool_key(tool: str, args: dict[str, Any]) -> str:
+    payload = json.dumps(
+        {"tool": tool, "args": args},
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class RecordingToolRecorder:
+    """Records framework tool calls to a JSONL file.
+
+    Set `RuntimeResources(tool_recorder=RecordingToolRecorder(...))`; a replay
+    uses `ReplayToolRecorder` on the same file. Both `execute_tool` and a direct
+    `tool.execute(...)` inside a Runtime turn are captured (instrumentation is
+    on the `Tool` subclass itself), not just one entry point.
+    """
+
+    def __init__(self, recording: str | Path):
+        self.recording = Path(recording)
+        self.recording.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = asyncio.Lock()
+
+    async def execute(self, tool: Tool, args: dict[str, Any]) -> ToolOutput:
+        try:
+            raw = getattr(tool, "_raw_execute", None)
+            output = await (raw(args) if raw is not None else tool.execute(args))
+        except Exception as exc:
+            async with self._lock:
+                await asyncio.to_thread(
+                    self._append,
+                    {
+                        "tool": tool.name,
+                        "args": args,
+                        "exception": f"{type(exc).__name__}: {exc}",
+                    },
+                )
+            raise
+        async with self._lock:
+            await asyncio.to_thread(
+                self._append,
+                {
+                    "tool": tool.name,
+                    "args": args,
+                    "output": output.model_dump(mode="json"),
+                },
+            )
+        return output
+
+    def _append(self, entry: dict[str, Any]) -> None:
+        with self.recording.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+
+
+class ReplayToolRecorder:
+    """Replays recorded tool calls, matching `(tool name, exact args)`.
+
+    Identical calls are consumed FIFO. A call with no matching recording raises
+    `ReplayMiss` (never a silently wrong tool result). A recorded exception is
+    re-raised as `RuntimeError` with the original type/message.
+    """
+
+    def __init__(self, recording: str | Path):
+        self.recording = Path(recording)
+        self._pending: dict[str, list[dict[str, Any]]] = {}
+        self._lock = asyncio.Lock()
+        self._load()
+
+    def _load(self) -> None:
+        if not self.recording.exists():
+            return
+        for line in self.recording.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            key = _tool_key(entry["tool"], entry.get("args") or {})
+            self._pending.setdefault(key, []).append(entry)
+
+    async def execute(self, tool: Tool, args: dict[str, Any]) -> ToolOutput:
+        key = _tool_key(tool.name, args)
+        async with self._lock:
+            entries = self._pending.get(key)
+            if not entries:
+                raise ReplayMiss(
+                    f"tool {tool.name!r} was not recorded with these args; "
+                    "re-record with RecordingToolRecorder, or check the tool args."
+                )
+            entry = entries.pop(0)
+        if "exception" in entry:
+            raise RuntimeError(f"replayed tool error: {entry['exception']}")
+        return ToolOutput.model_validate(entry["output"])
 
 
 async def replay_context(
@@ -283,9 +379,11 @@ def replay_summary(context: Context) -> dict[str, Any]:
 
 
 __all__ = [
+    "RecordingToolRecorder",
     "ReproReport",
     "ReplayLLM",
     "ReplayMiss",
+    "ReplayToolRecorder",
     "counter_ids",
     "replay_context",
     "replay_summary",

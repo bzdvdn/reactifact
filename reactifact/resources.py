@@ -104,6 +104,7 @@ class RuntimeResources:
         authorizer: Authorizer | None = None,
         guardrails: GuardrailPolicy | None = None,
         quota: QuotaTracker | None = None,
+        tool_recorder: Any | None = None,
         **additional: Any,
     ):
         self.llm = llm
@@ -128,6 +129,9 @@ class RuntimeResources:
         # Cross-turn, per-principal usage limits (`reactifact.quota`). `None`
         # disables quota enforcement.
         self.quota = quota
+        #: Optional record/replay wrapper for framework tool calls
+        #: (`execute_tool`): `RecordingToolRecorder` / `ReplayToolRecorder`.
+        self.tool_recorder = tool_recorder
         # Applies `Budget.max_cost`: `(model, prompt_tokens, completion_tokens)
         # -> cost`. `None` (default) makes a cost limit inert — the framework
         # ships no built-in prices on purpose (see `reactifact.pricing`).

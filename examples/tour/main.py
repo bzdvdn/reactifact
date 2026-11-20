@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Twelve independent scenes, all runnable offline:
+Thirteen independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -14,7 +14,8 @@ Twelve independent scenes, all runnable offline:
 - `conflicts`  — optimistic `expected_version` conflict + merge policy;
 - `subflow`    — child agent on an isolated Context, trace/provenance link;
 - `map_reduce` — stable map tasks + one debounced reduce;
-- `swarm`      — peer handoff chain with a hop/cycle guard.
+- `swarm`      — peer handoff chain with a hop/cycle guard;
+- `replay`     — record a tool call, then replay the run without I/O.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -41,6 +42,7 @@ from .scenes import (
     run_map_reduce_scene,
     run_model,
     run_reactive,
+    run_replay_scene,
     run_resilience,
     run_state,
     run_subflow_scene,
@@ -65,6 +67,7 @@ SCENES = (
     "subflow",
     "map_reduce",
     "swarm",
+    "replay",
 )
 
 
@@ -174,6 +177,14 @@ def _print_swarm(report: dict[str, Any]) -> None:
     print(f"  relations:            {report['relations']}")
 
 
+def _print_replay(report: dict[str, Any]) -> None:
+    print("replay — recorded tool call, no re-execution")
+    print(f"  recorded:             {report['recorded']!r}")
+    print(f"  replayed:             {report['replayed']!r}")
+    print(f"  same:                 {report['same']}")
+    print(f"  recording lines:      {report['recording_lines']}")
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -205,6 +216,8 @@ async def _run(args: argparse.Namespace) -> int:
             _print_map_reduce(await run_map_reduce_scene())
         if args.scene in ("all", "swarm"):
             _print_swarm(await run_swarm_scene())
+        if args.scene in ("all", "replay"):
+            _print_replay(await run_replay_scene())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

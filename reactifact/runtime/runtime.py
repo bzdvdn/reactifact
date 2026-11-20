@@ -7,6 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from ..agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
@@ -712,6 +713,7 @@ class Runtime:
                     truncate=self._trace.data_char_limit,
                     on_start=self._trace.tool_started,
                     on_end=self._trace.tool_ended,
+                    recorder=self.context.resources.tool_recorder,
                 )
                 attempt_patch: Patch | None = None
                 attempt_slot: Effects | None = None
@@ -896,6 +898,49 @@ class Runtime:
         request: Mapping[str, Any] | None = None,
     ) -> int:
         return asyncio.run(self.arun(max_iterations, budget, request=request))
+
+    async def replay_run(
+        self,
+        *,
+        llm_recording: str | Path | None = None,
+        tool_recording: str | Path | None = None,
+        model: str = "",
+        budget: Budget | None = None,
+        max_iterations: int = 100,
+        request: Mapping[str, Any] | None = None,
+        save: bool = False,
+    ) -> int:
+        """Re-runs this Runtime against recorded LLM and/or tool calls (§55).
+
+        `llm_recording`/`tool_recording` are JSONL files written by
+        `ReplayLLM(mode="record")` / `RecordingToolRecorder`. The runtime's
+        resources are temporarily replaced with replay wrappers and restored in
+        `finally`; `save=False` (default) also detaches the session so a replay
+        never overwrites the recorded session. Pass `model=` when the LLM
+        recording was made with a non-empty model (it is part of the key).
+        """
+        if llm_recording is None and tool_recording is None:
+            raise ValueError("pass llm_recording= and/or tool_recording=")
+        from ..replay import ReplayLLM, ReplayToolRecorder
+
+        resources = self.context.resources
+        previous_llm = resources.llm
+        previous_tools = resources.tool_recorder
+        previous_session = self.session
+        try:
+            if llm_recording is not None:
+                resources.llm = ReplayLLM(llm_recording, mode="replay", model=model)
+            if tool_recording is not None:
+                resources.tool_recorder = ReplayToolRecorder(tool_recording)
+            if not save:
+                self.session = None
+            return await self.arun(
+                max_iterations=max_iterations, budget=budget, request=request
+            )
+        finally:
+            resources.llm = previous_llm
+            resources.tool_recorder = previous_tools
+            self.session = previous_session
 
     def _warn_no_runs(self) -> None:
         if self._no_runs_warned:

@@ -11,6 +11,7 @@ Tools are capabilities; they are not part of consume/produce: those bind artifac
 from __future__ import annotations
 
 import contextlib
+import functools
 import inspect
 import json
 import time
@@ -19,7 +20,7 @@ from collections.abc import Callable
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, overload
+from typing import Any, ClassVar, cast, overload
 
 from pydantic import BaseModel, Field, create_model
 
@@ -79,6 +80,9 @@ class _ToolRunLog:
     record_output: bool = True
     on_start: Callable[[str, dict[str, Any] | None], None] | None = None
     on_end: Callable[[ToolRun], None] | None = None
+    #: Optional record/replay wrapper for `execute_tool` (LLM-style replay;
+    #: see `reactifact.replay.RecordingToolRecorder`/`ReplayToolRecorder`).
+    recorder: Any | None = None
 
 
 _tool_run_log: ContextVar[_ToolRunLog | None] = ContextVar(
@@ -111,6 +115,7 @@ def begin_tool_runs(
     record_output: bool = True,
     on_start: Callable[[str, dict[str, Any] | None], None] | None = None,
     on_end: Callable[[ToolRun], None] | None = None,
+    recorder: Any | None = None,
 ) -> Token[Any]:
     """Opens the per-task tool-run log (see `ToolRun`).
 
@@ -126,6 +131,7 @@ def begin_tool_runs(
             record_output=record_output,
             on_start=on_start,
             on_end=on_end,
+            recorder=recorder,
         )
     )
 
@@ -140,12 +146,16 @@ def end_tool_runs(token: Token[Any]) -> None:
     _tool_run_log.reset(token)
 
 
-async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
-    """Executes `tool` and records the call in the current task's run log.
+async def _execute_instrumented(
+    tool: Tool,
+    raw_execute: Callable[[dict[str, Any]], Any],
+    args: dict[str, Any],
+) -> ToolOutput:
+    """The single instrumentation point for a tool execution.
 
-    Framework loops (`ToolUse`, `recipes.run_tool_loop`) use this instead of
-    `tool.execute` so tool calls show up on the trace span. A direct
-    `tool.execute` call is not traced.
+    Used by the `Tool.execute` wrapper (both direct calls and `execute_tool`)
+    and by `execute_tool` as a fallback for duck-typed tools that do not inherit
+    `Tool`. It owns the `ToolRun`/trace hooks and the optional record/replay.
     """
     started_at = datetime.now(UTC)
     started = time.monotonic()
@@ -155,7 +165,10 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
         with contextlib.suppress(Exception):  # best-effort observer
             log.on_start(tool.name, preview if isinstance(preview, dict) else None)
     try:
-        output = await tool.execute(args)
+        if log is not None and log.recorder is not None:
+            output = cast("ToolOutput", await log.recorder.execute(tool, args))
+        else:
+            output = await raw_execute(args)
     except Exception as exc:
         run = _record_tool_run(
             tool.name,
@@ -193,6 +206,19 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
     )
     _notify_tool_end(log, run)
     return output
+
+
+async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
+    """Executes a tool with the same trace/record instrumentation as `tool.execute`.
+
+    Kept as the compatibility entry point for framework loops (`ToolUse`,
+    `recipes.run_tool_loop`). Instrumentation lives on the `Tool` subclass
+    wrapper, so a direct `tool.execute(...)` inside a step is traced too; only
+    duck-typed tools that do not inherit `Tool` go through the fallback here.
+    """
+    if getattr(type(tool), "_reactifact_instrumented", False):
+        return await tool.execute(args)
+    return await _execute_instrumented(tool, tool.execute, args)
 
 
 def _redact_args(value: Any, redactor: Redactor | None) -> Any:
@@ -290,6 +316,32 @@ class Tool(ABC):
     description: str = ""
     destructive: bool = False
     schema: dict[str, Any] = {}
+    _reactifact_instrumented: ClassVar[bool] = False
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        raw = cls.__dict__.get("execute")
+        if (
+            raw is None
+            or getattr(raw, "_reactifact_instrumented", False)
+            or getattr(raw, "__isabstractmethod__", False)
+        ):
+            return
+
+        @functools.wraps(raw)
+        async def execute(self: Tool, args: dict[str, Any]) -> ToolOutput:
+            return await _execute_instrumented(
+                self, lambda call_args: raw(self, call_args), args
+            )
+
+        execute._reactifact_instrumented = True  # type: ignore[attr-defined]
+        cls.execute = execute  # type: ignore[method-assign]
+        cls._raw_execute = raw  # type: ignore[method-assign]
+        cls._reactifact_instrumented = True
+
+    async def _raw_execute(self, args: dict[str, Any]) -> ToolOutput:
+        """The uninstrumented implementation; set by `__init_subclass__`."""
+        raise NotImplementedError
 
     @abstractmethod
     async def execute(self, args: dict[str, Any]) -> ToolOutput:

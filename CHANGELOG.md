@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Tool record/replay + `Runtime.replay_run`.** `RecordingToolRecorder` /
+  `ReplayToolRecorder` capture tool calls (tool + exact args → output or
+  exception) in JSONL; a replay with no matching call raises `ReplayMiss`.
+  `Tool.execute` is now the single instrumentation point: direct calls inside a
+  step get the same `ToolRun`/trace hooks as `execute_tool`, and are recorded/
+  replayed too. `Runtime.replay_run(llm_recording=, tool_recording=, model=,
+  save=False)` temporarily installs the replay wrappers, runs a normal turn and
+  restores the resources, so a run reproduces without network/tool I/O.
 - **`swarm` recipe.** Peer-to-peer agent handoffs via a `Handoff` artifact:
   each hop runs the target through `run_subflow`, records a provenance-linked
   `Handoff` in the returned Context, and stops at the first non-handoff output

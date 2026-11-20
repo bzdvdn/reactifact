@@ -35,6 +35,44 @@ runtime.run()                          # те же артефакты, те же
 повторённый запуск даёт идентичные артефакты — и по воспроизведённому состоянию
 можно пройтись (или отрисовать `context_to_mermaid`), чтобы объяснить ответ.
 
+## Запись и воспроизведение tool-вызовов
+
+Та же идея для framework tool-вызовов (`execute_tool`, который используют
+`ToolUse`/`run_tool_loop`):
+
+```python
+from reactifact.replay import RecordingToolRecorder, ReplayToolRecorder
+
+record = RuntimeResources(tool_recorder=RecordingToolRecorder("tools.jsonl"))
+# ... один запуск; каждый execute_tool пишет name/args/output (или exception)
+
+replay = RuntimeResources(tool_recorder=ReplayToolRecorder("tools.jsonl"))
+# ... повторный запуск; совпадение по (tool, точные args), FIFO для повторов
+```
+
+Вызов без записи бросает `ReplayMiss` — никогда неверный tool-результат.
+Записанное исключение перебрасывается как `RuntimeError` с исходным сообщением.
+И `execute_tool(...)`, и прямой `tool.execute(...)` внутри хода Runtime
+инструментируются (wrapper стоит на самом `Tool`); для прямых вызовов вне
+Runtime откройте тот же scope через `begin_tool_runs`/`end_tool_runs`.
+
+## Один вызов: `Runtime.replay_run`
+
+`Runtime.replay_run()` временно ставит replay-обёртки, прогоняет обычный ход и
+восстанавливает resources:
+
+```python
+await runtime.replay_run(
+    llm_recording="calls.jsonl",
+    tool_recording="tools.jsonl",
+    model="claude-sonnet-4-6",   # часть ключа LLM-записи
+)
+```
+
+`save=False` (по умолчанию) отцепляет сессию, чтобы replay не перезаписал
+записанную; `save=True` — если нужно осознанно сохранить воспроизведённые
+артефакты.
+
 ## Проверить, что запуск воспроизводится
 
 Запись фиксирует модель, но запуск воспроизводим только если детерминировано и
