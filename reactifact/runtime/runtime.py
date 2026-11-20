@@ -661,44 +661,87 @@ class Runtime:
         started = time.monotonic()
         task = asyncio.current_task()
         self._trace.register_task(task, agent.name)
-        effects_token = set_effects(Effects(self.context))
-        produce_runs_token = begin_produce_runs()
-        tool_runs_token = begin_tool_runs(
-            record_args=self.context.resources.record_tool_args,
-            redactor=self.context.resources.redactor,
-            truncate=self._trace.data_char_limit,
-            on_start=self._trace.tool_started,
-            on_end=self._trace.tool_ended,
-        )
-        slot: Effects | None = None
+
+        policy = agent.retry
+        max_attempts = policy.max_attempts if policy is not None else 1
+        timeout = agent.timeout
+
+        async def _invoke() -> Patch | None:
+            if semaphore is not None:
+                async with semaphore:
+                    return await agent.run(event, self.context)
+            return await agent.run(event, self.context)
+
         patch: Patch | None = None
+        slot: Effects | None = None
+        runs: list[tuple[str, int, float, datetime]] = []
+        tools: list[ToolRun] = []
         error: BaseException | None = None
+        attempt = 0
+
         try:
-            try:
-                if semaphore is not None:
-                    async with semaphore:
-                        patch = await agent.run(event, self.context)
-                else:
-                    patch = await agent.run(event, self.context)
-                slot = current_effects()
-            except Exception as exc:
-                if not self.isolate_errors:
-                    raise
-                error = exc
-                logger.warning(
-                    "Agent %r raised %r; isolated (isolate_errors=True)",
-                    agent.name,
-                    exc,
+            while attempt < max_attempts:
+                attempt += 1
+                effects_token = set_effects(Effects(self.context))
+                produce_runs_token = begin_produce_runs()
+                tool_runs_token = begin_tool_runs(
+                    record_args=self.context.resources.record_tool_args,
+                    redactor=self.context.resources.redactor,
+                    truncate=self._trace.data_char_limit,
+                    on_start=self._trace.tool_started,
+                    on_end=self._trace.tool_ended,
                 )
-                if self.on_agent_error is not None:
-                    self.on_agent_error(agent, event, exc)
+                attempt_patch: Patch | None = None
+                attempt_slot: Effects | None = None
+                attempt_error: BaseException | None = None
+                try:
+                    if timeout is not None:
+                        async with asyncio.timeout(timeout):
+                            attempt_patch = await _invoke()
+                    else:
+                        attempt_patch = await _invoke()
+                    attempt_slot = current_effects()
+                except Exception as exc:
+                    attempt_error = exc
+                finally:
+                    # A failed attempt's effects are discarded: only the
+                    # successful attempt's slot below becomes the patch.
+                    runs = produce_runs()
+                    tools = tool_runs()
+                    end_produce_runs(produce_runs_token)
+                    end_tool_runs(tool_runs_token)
+                    reset_effects(effects_token)
+
+                if attempt_error is None:
+                    patch = attempt_patch
+                    slot = attempt_slot
+                    error = None
+                    break
+
+                error = attempt_error
+                can_retry = (
+                    policy is not None
+                    and attempt < max_attempts
+                    and policy.should_retry(attempt_error)
+                )
+                if not can_retry:
+                    break
+                self._trace.agent_retried(agent, attempt, attempt_error)
+                logger.warning(
+                    "agent retry",
+                    extra={
+                        "agent": agent.name,
+                        "attempt": attempt,
+                        "max_attempts": max_attempts,
+                        "error": repr(attempt_error),
+                    },
+                )
+                delay = policy.delay(attempt) if policy is not None else 0.0
+                if delay > 0:
+                    await asyncio.sleep(delay)
         finally:
-            runs = produce_runs()
-            tools = tool_runs()
-            end_produce_runs(produce_runs_token)
-            end_tool_runs(tool_runs_token)
-            reset_effects(effects_token)
             self._trace.unregister_task(task)
+
         latency = (time.monotonic() - started) * 1000
         if error is not None:
             logger.warning(
@@ -709,6 +752,15 @@ class Runtime:
                     "error": repr(error),
                 },
             )
+            if not self.isolate_errors:
+                raise error
+            logger.warning(
+                "Agent %r raised %r; isolated (isolate_errors=True)",
+                agent.name,
+                error,
+            )
+            if self.on_agent_error is not None:
+                self.on_agent_error(agent, event, error)
             return None, agent, event, reads, latency, error, runs, tools
         logger.debug(
             "agent finished",
@@ -753,24 +805,30 @@ class Runtime:
         logger.info("run started", extra={"max_iterations": limit})
         total_runs = 0
         remaining = self._turn_budget.remaining_seconds()
-        try:
-            if remaining is None:
-                total_runs = await run_generations(self, limit)
-            else:
-                # Hard deadline: cancel the in-flight generation when wall-clock
-                # runs out (the soft `_budget_exhausted` check only fires between
-                # generations). The generation in flight is not committed and its
-                # trigger batch is not consumed, so a resume re-dispatches it.
+        if remaining is None:
+            total_runs = await run_generations(self, limit)
+        else:
+            # Hard deadline: cancel the in-flight generation when wall-clock
+            # runs out (the soft `_budget_exhausted` check only fires between
+            # generations). The generation in flight is not committed and its
+            # trigger batch is not consumed, so a resume re-dispatches it.
+            #
+            # Only *this* timeout is the turn deadline: an agent/tool timeout
+            # (`Agent.timeout`) is an ordinary error and must propagate, not be
+            # misreported as `budget_time_exceeded`.
+            try:
                 async with asyncio.timeout(remaining):
                     total_runs = await run_generations(self, limit)
-        except TimeoutError:
-            self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
-            logger.warning(
-                "turn deadline exceeded",
-                extra={
-                    "max_seconds": active.max_seconds if active is not None else None
-                },
-            )
+            except TimeoutError:
+                self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
+                logger.warning(
+                    "turn deadline exceeded",
+                    extra={
+                        "max_seconds": (
+                            active.max_seconds if active is not None else None
+                        )
+                    },
+                )
         tracker = self._turn_budget.tracker
         self.last_stats = RunStats(
             runs=total_runs,

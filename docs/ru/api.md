@@ -87,13 +87,14 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `Agent` | тонкий контейнер: `name`, `steps`, `concurrency_limit`; триггеры выводятся из `consumes` шагов |
-| `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров |
+| `Agent` | тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов |
+| `create_agent` | конструктор-фабрика агента — без подкласса для обычных контейнеров; принимает `retry=`/`timeout=` |
+| `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
 | `Wakes(False)` / `Scope` / `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`); `also_creates=`/`reacts_to=` — deprecated алиасы |
+| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`); `also_creates=`/`reacts_to=` — deprecated алиасы. `timeout=` — жёсткий дедлайн шага: агент падает, `Agent.retry` может повторить агента целиком (частичного коммита шага нет) |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |

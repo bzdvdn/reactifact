@@ -83,13 +83,14 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Agent` | thin container: `name`, `steps`, `concurrency_limit`; step `consumes` derive triggers |
-| `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers |
+| `Agent` | thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
+| `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers; accepts `retry=`/`timeout=` |
+| `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
 | `Wakes(False)` / `Scope` / `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`) — `also_creates=`/`reacts_to=` are deprecated aliases |
+| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`) — `also_creates=`/`reacts_to=` are deprecated aliases. `timeout=` is a hard per-step deadline: the agent fails and `Agent.retry` may retry the whole agent (no partial step commit) |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |

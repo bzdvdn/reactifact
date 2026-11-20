@@ -152,6 +152,10 @@ class Tracer:
         """Called before an agent's `run()` (after authorization)."""
         pass
 
+    def on_agent_retry(self, agent: Agent, attempt: int, error: BaseException) -> None:
+        """Called after a failed attempt when the agent will be retried."""
+        pass
+
     def on_tool_start(self, tool: str, args: dict[str, Any] | None) -> None:
         """Called before a tool executes; `args` is redacted or `None`."""
         pass
@@ -349,6 +353,13 @@ class CompositeTracer:
                 tracer.on_agent_start(agent, event, reads)
             except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
                 _swallow_tracing_error(f"{type(tracer).__name__}.on_agent_start", exc)
+
+    def on_agent_retry(self, agent: Agent, attempt: int, error: BaseException) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_agent_retry(agent, attempt, error)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_agent_retry", exc)
 
     def on_tool_start(self, tool: str, args: dict[str, Any] | None) -> None:
         for tracer in self.tracers:
@@ -613,6 +624,14 @@ class RunTracer:
             self.tracer.on_agent_start(agent, event, reads)
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_agent_start", exc)
+
+    def agent_retried(self, agent: Agent, attempt: int, error: BaseException) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_agent_retry(agent, attempt, error)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_agent_retry", exc)
 
     def tool_started(self, tool: str, args: dict[str, Any] | None) -> None:
         if self.tracer is None:

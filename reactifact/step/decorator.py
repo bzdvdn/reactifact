@@ -19,6 +19,7 @@ def step(
     consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
     also_creates: Sequence[ArtifactType] | None = None,
     reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
+    timeout: float | None = None,
 ) -> Callable[[Callable[..., Any]], Step[Any]]:
     """Decorator to create a Step from a function.
 
@@ -62,6 +63,7 @@ def step(
             consumes=consumes,
             also_creates=also_creates,
             reacts_to=reacts_to,
+            timeout=timeout,
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func

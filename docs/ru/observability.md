@@ -354,6 +354,7 @@ MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят 
 ```python
 class LiveTracer(Tracer):
     def on_agent_start(self, agent, event, reads): ...
+    def on_agent_retry(self, agent, attempt, error): ...
     def on_tool_start(self, tool, args): ...   # args отредактирован или None
     def on_tool_end(self, run): ...             # ToolRun
     def on_commit(self, commit): ...            # после применения patch

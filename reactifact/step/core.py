@@ -150,6 +150,10 @@ class Step(Generic[TOut]):
     artifact_type: ArtifactType | None = None
     also_creates: tuple[ArtifactType, ...] = ()
     reacts_to: tuple[ArtifactType, ...] | None = None
+    #: Hard per-step deadline, in seconds. The runtime cancels this step when
+    #: it passes; the agent then fails (and `Agent.retry`, if set, may retry
+    #: the whole agent). `Agent.timeout` remains the outer bound.
+    timeout: float | None = None
 
     @staticmethod
     def _normalize_types(
@@ -229,6 +233,7 @@ class Step(Generic[TOut]):
         | None = None,
         also_creates: Sequence[ArtifactType] | None = None,
         reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
+        timeout: float | None = None,
     ):
         resolved_produces = self._normalize_types(produces)
         if resolved_produces is None:
@@ -279,6 +284,14 @@ class Step(Generic[TOut]):
             if resolved_consumes is not None
             else None
         )
+        self.timeout = (
+            timeout if timeout is not None else getattr(self.__class__, "timeout", None)
+        )
+        if self.timeout is not None:
+            if not isinstance(self.timeout, (int, float)):
+                raise TypeError("Step.timeout must be a number or None")
+            if self.timeout <= 0:
+                raise ValueError("Step.timeout must be > 0")
 
     def consume_specs(self) -> tuple[Consume, ...] | None:
         """The normalized (always-`Consume`) form of `consumes`."""

@@ -35,6 +35,7 @@ from .events import Event, EventType
 from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
+from .policy import RetryPolicy
 from .produce import Produce, ProduceCall, produce
 from .providers import (
     EmbeddingProvider,
@@ -91,6 +92,7 @@ __all__ = [
     "Relation",
     "ResourceKey",
     "ResourceScope",
+    "RetryPolicy",
     "RunOutcome",
     "RunStats",
     "Scope",

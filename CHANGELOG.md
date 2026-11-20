@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Per-agent execution policy: retries and timeouts.** `Agent` (and
+  `create_agent`) accepts `retry=RetryPolicy(max_attempts=…, backoff=…,
+  max_backoff=…, retry_on=…)` and `timeout=…` seconds. The runtime applies them
+  per execution: a retry gets a fresh `Effects` slot (a failed attempt's effects
+  are discarded, only the successful patch commits), `on_agent_retry` reports
+  each failed attempt, and `CancelledError` is never retried. External side
+  effects still belong in the outbox.
+- **`Step.timeout` (and `@step(timeout=...)`).** A hard per-step deadline: the
+  runtime cancels the step, the agent fails (its `Effects` slot is discarded, so
+  no partial step commit), and `Agent.retry` may retry the whole agent. Use it
+  for multi-step agents with different latency budgets; a one-step agent is
+  already covered by `Agent.timeout`.
+- **`Tracer.on_agent_retry`.** Lifecycle hook fired after a failed attempt that
+  will be retried; `CompositeTracer` fans it out and isolates failures.
 - **`Tracer` lifecycle hooks for live observability.** `on_agent_start`,
   `on_tool_start`, `on_tool_end` and `on_commit` run alongside the existing
   `on_turn_begin`/`on_span`/`on_turn_end`, so an app can build a live event log
@@ -22,6 +36,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Fixed
 
+- **Agent/tool timeouts are no longer reported as `budget_time_exceeded`.**
+  Only the turn's own `Budget.max_seconds` deadline sets
+  `RunOutcome.BUDGET_TIME_EXCEEDED`; a `TimeoutError` raised by an agent's
+  `timeout` (or a tool) now propagates as that agent's error, so retry policy
+  and `isolate_errors` handle it normally.
 - **Streaming LLM calls are now traced.** `RecordingLLM.stream` records one
   `LLMCall` per stream (concatenated response, terminal usage, errors, latency);
   previously streamed calls were invisible to traces/metrics/cost. The buffer is

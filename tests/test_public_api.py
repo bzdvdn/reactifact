@@ -48,6 +48,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Relation",
             "ResourceKey",
             "ResourceScope",
+            "RetryPolicy",
             "RunOutcome",
             "RunStats",
             "Scope",

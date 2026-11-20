@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from abc import ABC
 from collections.abc import Callable, Sequence
@@ -13,6 +14,7 @@ from .context import Context
 from .effects import current_effects
 from .events import Event, EventType
 from .patches import Patch
+from .policy import RetryPolicy
 from .step import (
     Step,
     StepCall,
@@ -83,6 +85,12 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     # the runtime default (max_concurrency). Use it to throttle LLM-bound
     # producers (rate limits) independently of cheap I/O (file reads).
     concurrency_limit: int | None = None
+    #: Retry policy for this agent's execution (class or instance level).
+    #: A retry gets a fresh `Effects` slot; only the successful patch commits.
+    retry: RetryPolicy | None = None
+    #: Hard per-execution deadline, in seconds. The runtime cancels the agent
+    #: when it passes; `asyncio.TimeoutError` then follows the retry policy.
+    timeout: float | None = None
     #: Whether the runtime auto-schedules this agent from matching events.
     #: `False` keeps it out of reactive scheduling (run it explicitly).
     wakes: bool | Callable[[Event, Context | None], bool] = True
@@ -101,12 +109,24 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         *,
         steps: Sequence[Step[Any]] | None = None,
         wakes: bool | Callable[[Event, Context | None], bool] | None = None,
+        retry: RetryPolicy | None = None,
+        timeout: float | None = None,
     ):
         self.name = name or self.name or self.__class__.__name__
 
         self.priority = (
             priority if priority is not None else getattr(self.__class__, "priority", 0)
         )
+        self.retry = (
+            retry if retry is not None else getattr(self.__class__, "retry", None)
+        )
+        self.timeout = (
+            timeout if timeout is not None else getattr(self.__class__, "timeout", None)
+        )
+        if self.retry is not None and not isinstance(self.retry, RetryPolicy):
+            raise TypeError("Agent.retry must be a RetryPolicy or None")
+        if self.timeout is not None and self.timeout <= 0:
+            raise ValueError("Agent.timeout must be > 0")
 
         existing_steps = self.__dict__.get("steps")
         existing_produces = self.__dict__.get("produces")
@@ -307,7 +327,11 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             context_token = set_step_context(context)
             call_token = set_step_call(call)
             try:
-                result = await invoke_step(p, call)
+                if p.timeout is not None:
+                    async with asyncio.timeout(p.timeout):
+                        result = await invoke_step(p, call)
+                else:
+                    result = await invoke_step(p, call)
                 p._apply_result(result, call.effects)
                 if trigger_cursor:
                     context._step_cursors[cursor_key] = trigger_cursor
@@ -392,6 +416,8 @@ def create_agent(
     concurrency_limit: int | None = None,
     triggers: list[Trigger] | None = None,
     wakes: bool | Callable[[Event, Context | None], bool] = True,
+    retry: RetryPolicy | None = None,
+    timeout: float | None = None,
 ) -> Agent:
     """Builds an Agent instance without subclassing.
 
@@ -423,6 +449,8 @@ def create_agent(
         priority=priority,
         steps=resolved_steps,
         wakes=wakes,
+        retry=retry,
+        timeout=timeout,
     )
     if consumes is not None:
         agent.consumes = consumes
