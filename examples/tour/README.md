@@ -1,4 +1,4 @@
-# tour — the framework primitives in ten small scenes
+# tour — the framework primitives in twelve small scenes
 
 The domain examples show complete applications. This one is the compact
 counterpart: each scene isolates a primitive that is easy to miss when reading a
@@ -22,6 +22,8 @@ Scenes:
 | `events` | `Runtime.astream_events` with all `stream_mode`s |
 | `conflicts` | `effects.update(expected_version=...)`, `ArtifactConflict`, merge policy |
 | `subflow` | `run_subflow` — child Context, provenance link, parent run id |
+| `map_reduce` | `map_reduce` — stable `MapTask`s, debounced reduce |
+| `swarm` | `swarm` — peer handoff chain, hop/cycle guard |
 
 Run one scene:
 
@@ -36,6 +38,8 @@ Run one scene:
 .venv/bin/python -m examples.tour.main --scene events
 .venv/bin/python -m examples.tour.main --scene conflicts
 .venv/bin/python -m examples.tour.main --scene subflow
+.venv/bin/python -m examples.tour.main --scene map_reduce
+.venv/bin/python -m examples.tour.main --scene swarm
 ```
 
 Keep the durable session to inspect or replay it yourself:
@@ -72,6 +76,8 @@ scene prints the offline brief rather than a fabricated answer.
 - `scenes/events.py` — typed `astream_events` modes;
 - `scenes/conflicts.py` — expected-version conflict + merge policy;
 - `scenes/subflow.py` — child Context with trace/provenance;
+- `scenes/map_reduce.py` — stable map tasks + debounced reduce;
+- `scenes/swarm.py` — peer handoff chain with a hop/cycle guard;
 - `main.py` — argument parsing and terminal output;
 - `../../tests/test_tour.py` — asserts every scene, including the offline and
   `FakeLLM` model paths.

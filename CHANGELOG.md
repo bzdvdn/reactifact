@@ -8,6 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **`swarm` recipe.** Peer-to-peer agent handoffs via a `Handoff` artifact:
+  each hop runs the target through `run_subflow`, records a provenance-linked
+  `Handoff` in the returned Context, and stops at the first non-handoff output
+  (linked `derived_from`). `max_hops` and `allow_repeat=False`
+  (`SwarmCycle`/`SwarmLimit`) prevent runaway chains. Adds a `swarm` tour
+  scene.
+- **`map_reduce` recipe.** Fans out stable `MapTask`s (`map-task:{key}:{i}`),
+  one `MapResult` per item, then a debounced `ReduceStep` that runs once all
+  results for the key exist (`map-reduced:{key}`). `on_error="collect"` keeps a
+  failed item as `MapResult(error=...)` and reduces the rest; `"fail_fast"`
+  propagates. The child run has its own commit DAG, reuses the parent
+  tracer/budget and links `trace_metadata.parent_run_id`. Adds a `map_reduce`
+  tour scene.
 - **Subflows (`run_subflow`).** Runs one or more child agents on an isolated
   `Context` (or a `parent.branch()` with `isolate=False`), returns
   `SubflowResult` (`context`, `seed`, `outputs`, `output`, `run_id`,

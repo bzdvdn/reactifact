@@ -4,11 +4,13 @@ from .conflicts import run_conflicts
 from .durable import run_durable
 from .events import run_events
 from .hitl import run_hitl
+from .map_reduce import run_map_reduce_scene
 from .model import run_model
 from .reactive import run_reactive
 from .resilience import run_resilience
 from .state import run_state
 from .subflow import run_subflow_scene
+from .swarm import run_swarm_scene
 from .time_travel import run_time_travel
 
 __all__ = [
@@ -16,10 +18,12 @@ __all__ = [
     "run_durable",
     "run_events",
     "run_hitl",
+    "run_map_reduce_scene",
     "run_model",
     "run_reactive",
     "run_resilience",
     "run_state",
     "run_subflow_scene",
+    "run_swarm_scene",
     "run_time_travel",
 ]

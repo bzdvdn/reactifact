@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Ten independent scenes, all runnable offline:
+Twelve independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -12,7 +12,9 @@ Ten independent scenes, all runnable offline:
 - `time_travel`— checkpoints, snapshot, session fork;
 - `events`     — typed `Runtime.astream_events` modes;
 - `conflicts`  — optimistic `expected_version` conflict + merge policy;
-- `subflow`    — child agent on an isolated Context, trace/provenance link.
+- `subflow`    — child agent on an isolated Context, trace/provenance link;
+- `map_reduce` — stable map tasks + one debounced reduce;
+- `swarm`      — peer handoff chain with a hop/cycle guard.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -36,11 +38,13 @@ from .scenes import (
     run_durable,
     run_events,
     run_hitl,
+    run_map_reduce_scene,
     run_model,
     run_reactive,
     run_resilience,
     run_state,
     run_subflow_scene,
+    run_swarm_scene,
     run_time_travel,
 )
 
@@ -59,6 +63,8 @@ SCENES = (
     "events",
     "conflicts",
     "subflow",
+    "map_reduce",
+    "swarm",
 )
 
 
@@ -151,6 +157,23 @@ def _print_subflow(report: dict[str, Any]) -> None:
     print(f"  child relations:      {report['relations']}")
 
 
+def _print_map_reduce(report: dict[str, Any]) -> None:
+    print("map_reduce — stable map tasks and one reduce")
+    print(f"  tasks/results:        {report['tasks']} / {report['results']}")
+    print(f"  failures:             {report['failures']}")
+    print(f"  reduced:              {report['reduced']}")
+    print(f"  context version:      {report['version']}")
+
+
+def _print_swarm(report: dict[str, Any]) -> None:
+    print("swarm — peer handoff chain")
+    print(f"  final:                {report['final']}")
+    print(f"  hops:                 {report['hops']}")
+    print(f"  from -> to:           {report['from']} -> {report['to']}")
+    print(f"  child runs:           {report['run_ids']}")
+    print(f"  relations:            {report['relations']}")
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -178,6 +201,10 @@ async def _run(args: argparse.Namespace) -> int:
             _print_conflicts(await run_conflicts())
         if args.scene in ("all", "subflow"):
             _print_subflow(await run_subflow_scene())
+        if args.scene in ("all", "map_reduce"):
+            _print_map_reduce(await run_map_reduce_scene())
+        if args.scene in ("all", "swarm"):
+            _print_swarm(await run_swarm_scene())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

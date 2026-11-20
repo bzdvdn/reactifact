@@ -49,6 +49,51 @@ Idempotency matters: the caller runs a search once per turn (guarded by its own
 marker) but may *re-run* on retries; the same ids are re-created, never
 duplicated. `on_start` / `on_count` give you progress announces over SSE.
 
+## `map_reduce` — fan out typed tasks, then reduce (§24)
+
+```python
+from reactifact.recipes import map_reduce
+
+result = await map_reduce(
+    context,
+    items=docs,
+    map_fn=lambda payload, index: summarize(payload),
+    reduce_fn=lambda rows: merge(rows),
+    key="summaries",
+    concurrency=8,
+    on_error="collect",
+)
+```
+
+Each item becomes a stable `MapTask` (`map-task:{key}:{i}`); a worker turns it
+into a `MapResult`, and a debounced `ReduceStep` runs once all results for the
+key exist (`map-reduced:{key}`). `on_error="collect"` turns a failing item into
+a `MapResult(error=...)` and reduces the rest; `"fail_fast"` propagates. The
+child run has its own commit DAG (`result.context`), reuses the parent
+tracer/budget, and stamps `trace_metadata.parent_run_id`.
+
+## `swarm` — peer-to-peer handoffs with a guard (§24)
+
+```python
+from reactifact.recipes import Handoff, swarm
+
+result = await swarm(
+    context,
+    agents={"triage": triage, "billing": billing},
+    start="triage",
+    input=Question(text="refund please"),
+    final_type=Answer,
+    max_hops=6,
+)
+```
+
+An agent creates a `Handoff(to=..., reason=..., payload=...)`; the helper runs
+that agent from the handoff, records the hop as a `Handoff` artifact linked to
+the previous step (`handoff_from`), and stops at the first non-handoff output
+(linked `derived_from`). `max_hops` is a hard cap; `allow_repeat=False` also
+rejects revisiting an agent (`SwarmCycle`/`SwarmLimit`). Each hop is a normal
+subflow, so trace/budget/provenance carry over.
+
 ## `materialize_doc` — lazy reference resolution
 
 ```python

@@ -81,6 +81,14 @@ from .conversation import (
 )
 from .identity import SeedIdentity
 from .inputs import find, find_all
+from .map_reduce import (
+    MapPlan,
+    MapReduced,
+    MapReduceResult,
+    MapResult,
+    MapTask,
+    map_reduce,
+)
 from .memory import (
     RollingDigestSummarizer,
     WindowPruner,
@@ -96,6 +104,7 @@ from .search import fan_out_sources
 from .skills import Skill, load_skills, match_skills
 from .status import StatusMachine, StatusState
 from .supervisor import ApprovalGate, Router
+from .swarm import Handoff, SwarmCycle, SwarmError, SwarmLimit, SwarmResult, swarm
 from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
 
@@ -105,7 +114,13 @@ __all__ = [
     "ConversationMessage",
     "EN_STOPWORDS",
     "EphemeralCleanup",
+    "Handoff",
     "MessageSpec",
+    "MapPlan",
+    "MapReduceResult",
+    "MapReduced",
+    "MapResult",
+    "MapTask",
     "PlanExecute",
     "PrefixedEphemeralCleanup",
     "ReflectionLoop",
@@ -115,6 +130,10 @@ __all__ = [
     "Skill",
     "StatusMachine",
     "StatusState",
+    "SwarmCycle",
+    "SwarmError",
+    "SwarmLimit",
+    "SwarmResult",
     "ToolLoopResult",
     "ToolObservation",
     "Transcript",
@@ -134,6 +153,7 @@ __all__ = [
     "llm_summarizer",
     "load_skills",
     "looks_like_tool_markup",
+    "map_reduce",
     "parse_textual_tool_calls",
     "parse_tool_calls_with_textual",
     "match_skills",
@@ -141,6 +161,7 @@ __all__ = [
     "run_tool_loop",
     "stem",
     "stem_words",
+    "swarm",
     "transcript",
     "turn_count",
 ]

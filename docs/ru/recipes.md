@@ -51,6 +51,52 @@ refs = await fan_out_sources(
 *повториться* при ретраях — те же id пересоздаются без дублей. `on_start` /
 `on_count` дают прогресс-аннонсы поверх SSE.
 
+## `map_reduce` — fan-out типизированных задач и reduce (§24)
+
+```python
+from reactifact.recipes import map_reduce
+
+result = await map_reduce(
+    context,
+    items=docs,
+    map_fn=lambda payload, index: summarize(payload),
+    reduce_fn=lambda rows: merge(rows),
+    key="summaries",
+    concurrency=8,
+    on_error="collect",
+)
+```
+
+Каждый item становится стабильным `MapTask` (`map-task:{key}:{i}`); worker
+превращает его в `MapResult`, а debounced `ReduceStep` срабатывает один раз,
+когда для ключа есть все результаты (`map-reduced:{key}`). `on_error="collect"`
+превращает упавший item в `MapResult(error=...)` и редьюсит остальные;
+`"fail_fast"` пробрасывает ошибку. Дочерний run имеет свой commit DAG
+(`result.context`), переиспользует tracer/budget родителя и пишет
+`trace_metadata.parent_run_id`.
+
+## `swarm` — peer-to-peer handoff с защитой (§24)
+
+```python
+from reactifact.recipes import Handoff, swarm
+
+result = await swarm(
+    context,
+    agents={"triage": triage, "billing": billing},
+    start="triage",
+    input=Question(text="refund please"),
+    final_type=Answer,
+    max_hops=6,
+)
+```
+
+Агент создаёт `Handoff(to=..., reason=..., payload=...)`; helper запускает
+целевого агента от handoff, записывает hop как `Handoff`-артефакт со связью
+`handoff_from` к предыдущему шагу и останавливается на первом не-handoff
+выходе (связь `derived_from`). `max_hops` — жёсткий потолок; `allow_repeat=False`
+дополнительно запрещает повторный визит агента (`SwarmCycle`/`SwarmLimit`).
+Каждый hop — обычный subflow, поэтому trace/budget/provenance переносятся.
+
 ## `materialize_doc` — ленивое разрешение ссылок
 
 ```python

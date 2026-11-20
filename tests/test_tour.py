@@ -8,11 +8,13 @@ from examples.tour.scenes import (
     run_durable,
     run_events,
     run_hitl,
+    run_map_reduce_scene,
     run_model,
     run_reactive,
     run_resilience,
     run_state,
     run_subflow_scene,
+    run_swarm_scene,
     run_time_travel,
 )
 from reactifact.providers import FakeLLM
@@ -130,3 +132,24 @@ def test_subflow_scene_links_child_trace_and_provenance() -> None:
     assert report["same_trace_link"] is True
     assert report["child_outputs"] == 1
     assert report["relations"] == 1
+
+
+def test_map_reduce_scene_fans_out_and_reduces() -> None:
+    report = asyncio.run(run_map_reduce_scene())
+
+    assert report["tasks"] == 3
+    assert report["results"] == 3
+    assert report["failures"] == 0
+    assert report["reduced"] == "ALPHA | BETA | GAMMA"
+    assert report["version"] >= 2
+
+
+def test_swarm_scene_hands_off_with_provenance() -> None:
+    report = asyncio.run(run_swarm_scene())
+
+    assert report["final"] == "billing handled: refund please"
+    assert report["hops"] == 1
+    assert report["from"] == "triage"
+    assert report["to"] == "billing"
+    assert report["run_ids"] == 2
+    assert report["relations"] == 2
