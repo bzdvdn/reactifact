@@ -24,15 +24,21 @@ from examples.devops.agents import (
     AnsibleAgent,
     GitlabAgent,
     K8sAgent,
+    MemoryAgent,
     RenderAgent,
     RouteAgent,
+)
+from examples.devops.auth import (
+    PRINCIPALS,
+    build_resources,
+    user_from_request,
 )
 from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
 from examples.devops.online_eval import build_evaluator
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, RuntimeResources, SessionStore
+from reactifact import Budget, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.eval import create_online_eval_router
@@ -66,18 +72,38 @@ load_dotenv(ROOT / ".env")
 FALLBACK_REPLY = "Failed to assemble the answer. Try rephrasing the question."
 
 
-AGENTS = [RouteAgent(), K8sAgent(), GitlabAgent(), AnsibleAgent(), RenderAgent()]
+AGENTS = [
+    RouteAgent(),
+    K8sAgent(),
+    GitlabAgent(),
+    AnsibleAgent(),
+    RenderAgent(),
+    MemoryAgent(),
+]
 
 #: Guardrails for the running assistant (see examples/devops/guardrails.py).
 GUARDRAILS = devops_guardrail_policy()
 
 
-def _resources(llm: Any) -> RuntimeResources:
-    return RuntimeResources(llm=llm, guardrails=GUARDRAILS)
+def _request_user(request: Request) -> dict[str, str]:
+    """Demo identity from `X-User` (default admin1); demo-authn only."""
+    user = request.headers.get("X-User") or "admin1"
+    if user not in PRINCIPALS:
+        raise HTTPException(
+            status_code=401,
+            detail=f"unknown devops user {user!r}",
+            headers={"X-Allowed-Users": ", ".join(sorted(PRINCIPALS))},
+        )
+    return {"user": user}
 
 
-def create_message(ctx: Any, text: str) -> str:
-    """HITL enter hook: a pending clarify question → resume, else a new message."""
+def create_message(ctx: Any, text: str, session_id: str) -> str:
+    """HITL enter hook: a pending clarify question → resume, else a new message.
+
+    Takes the 3-arg shape so the session id is stamped on the `UserMsg`; memory
+    provenance (`RememberReport` → `MemoryStore.remember_from`) reads it from
+    there instead of guessing from runtime state.
+    """
     pending = [q for q in ctx.pending_questions() if q.data.kind == "clarify"]
     if pending:
         question = pending[0]
@@ -101,9 +127,9 @@ def create_message(ctx: Any, text: str) -> str:
         )
         return msg_id
     message = (
-        decision.data
+        decision.data.model_copy(update={"session_id": session_id})
         if decision.action == "redact" and isinstance(decision.data, UserMsg)
-        else UserMsg(text=text, session_id="")
+        else UserMsg(text=text, session_id=session_id)
     )
     return str(ctx.create(message).id)
 
@@ -151,7 +177,11 @@ def create_app(
         reply=terminal_reply,
         session_state=session_state,
         create_message=create_message,
-        resources=lambda: _resources(active_llm),
+        resources=lambda _session_id, request: build_resources(
+            active_llm,
+            user_from_request(request),
+            Path(store_dir) / "memory" if store_dir else None,
+        ),
         budget=Budget(max_runs=200, max_tool_calls=12),
         tracer=lambda: Tracer(store=trace_store),
         status_kinds=("status", "agent"),
@@ -190,7 +220,7 @@ def create_app(
             password=os.environ.get("TRACE_PASSWORD") or None,
         )
     )
-    app.include_router(create_chat_router(assistant))
+    app.include_router(create_chat_router(assistant, request_factory=_request_user))
     # Quality monitoring over the same store: POST /api/evals/run scores the
     # latest traces with examples/devops/online_eval.py, tagging them eval /
     # eval:failed. The trace dashboard above then shows the results.

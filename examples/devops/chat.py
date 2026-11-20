@@ -5,6 +5,7 @@ Without OPENROUTER_API_KEY there is no LLM — agents honestly say «Could not r
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,12 +18,13 @@ from examples.devops.agents import (
     AnsibleAgent,
     GitlabAgent,
     K8sAgent,
+    MemoryAgent,
     RenderAgent,
     RouteAgent,
 )
-from examples.devops.guardrails import devops_guardrail_policy
+from examples.devops.auth import build_resources
 from examples.devops.models import ChatReply, UserMsg
-from reactifact import Budget, Runtime, RuntimeResources, SessionStore
+from reactifact import Budget, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.guardrails import GuardrailViolation
 from reactifact.providers import openai_llm, openrouter_llm
@@ -51,14 +53,17 @@ load_dotenv(ROOT / ".env")
 
 async def main() -> None:
     llm = build_llm()
+    user = os.getenv("DEVOPS_USER", "admin1")
     if llm is None:
         print(
             "LLM is not configured — agents won't be able to answer. Set OPENROUTER_API_KEY."
         )
 
-    resources = RuntimeResources(llm=llm, guardrails=devops_guardrail_policy())
+    resources = build_resources(llm, user)
     store = SessionStore(FileKVBackend(str(ROOT / "sessions")))
-    session = await store.open("devops", resources=resources)
+    session_id = f"{user}:cli"
+    session = await store.open(session_id, resources=resources)
+    print(f"User: {user} · session: {session_id}")
     print("New session" if not session.loaded else "Session restored")
     print(
         "I'll help with k8s, GitLab, Ansible. For example: «why is the pod crashing?»\n"
@@ -66,7 +71,14 @@ async def main() -> None:
 
     runtime = Runtime(
         session.context,
-        agents=[RouteAgent(), K8sAgent(), GitlabAgent(), AnsibleAgent(), RenderAgent()],
+        agents=[
+            RouteAgent(),
+            K8sAgent(),
+            GitlabAgent(),
+            AnsibleAgent(),
+            RenderAgent(),
+            MemoryAgent(),
+        ],
         session=session,
         budget=Budget(max_runs=200, max_tool_calls=12),
     )
@@ -82,7 +94,7 @@ async def main() -> None:
         if not text:
             continue
 
-        msg = session.context.create(UserMsg(text=text, session_id="devops"))
+        msg = session.context.create(UserMsg(text=text, session_id=session_id))
 
         try:
             async for event in runtime.astream():

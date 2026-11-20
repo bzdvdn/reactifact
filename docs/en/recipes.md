@@ -71,6 +71,29 @@ user/workspace; `tags` filter, `ttl_seconds` expires on read/list/search, and
 a pluggable `searcher(record, query)` for semantic recall. `forget()` clears a
 namespace. Records persist through any `KVBackend` (file/SQLite/Postgres).
 
+A store is a **cross-session index, not a copy of the chat**: sessions and
+checkpoints stay the source of truth. `remember_from(artifact, key=…)`
+indexes a curated artifact (a report, a preference) and records its
+`source_session` / `source_artifact` / `source_version`, so the entry can be
+rebuilt or erased later:
+
+```python
+record = await memory.remember_from(
+    report,
+    key=f"incident:{report.id}",
+    source_session=session_id,          # explicit: request/UserMsg/app state
+    text=report.data.text[:800],
+    tags={"kind": "report", "system": "k8s"},
+)
+assert record.source_artifact == report.id
+removed = await memory.forget_source(record.source_session)   # GDPR-style
+```
+
+`source_session` is a required explicit argument — provenance is data, not
+ambient runtime state. Pass the session from the request/user artifact, or `""`
+when the memory is not tied to one; `forget_source("")` is rejected so an empty
+key can never mass-delete sessionless records.
+
 ## `map_reduce` — fan out typed tasks, then reduce (§24)
 
 ```python

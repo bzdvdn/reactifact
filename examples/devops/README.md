@@ -17,8 +17,9 @@ devops/
 ├── chat.py           # CLI entry (build_resources, terminal loop)
 ├── web.py            # FastAPI/SSE app + trace dashboard (create_trace_router)
 ├── models.py         # artifact types (UserMsg, *Problem, *Report, ChatReply)
+├── auth.py           # demo identities, capabilities, per-user resources
 ├── agents.py         # thin containers: RouteAgent, K8sAgent, GitlabAgent,
-│                      #   AnsibleAgent (HITLLMAgent), RenderAgent
+│                      #   AnsibleAgent (HITLLMAgent), RenderAgent, MemoryAgent
 ├── tools.py           # fake tools (kubectl_get, gitlab_search/pipeline,
 │                      #   ansible_run) — simulated output, no real systems
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
@@ -28,6 +29,7 @@ devops/
 ├── steps/
 │   ├── router.py      #   UserMsg → the right *Problem (structured routing)
 │   ├── reports.py      #   K8s/Gitlab/AnsibleReportBuilder — tool loop → *Report
+│   ├── memory.py       #   *Report → MemoryNote (remember_from summary)
 │   └── reply.py        #   *Report → ChatReply (render step)
 └── web/index.html     # UI
 ```
@@ -125,6 +127,48 @@ specialist declaring that wiring itself (see `reactifact/llm_agent.py`).
 `render` fans in every `*Report` type into one `ChatReply`; a mandatory tool
 parameter that the router never captured is what forces the ask in the first
 place, not a manual "if missing, ask" branch anywhere in this demo's own code.
+
+## Multi-user: identity, authorization, memory
+
+The demo ships two identities so the server-side boundaries are visible in the
+UI: `admin1` (`admin` capability) and `admin2` (`analyst`). The CLI picks one
+with `DEVOPS_USER=admin2`; the web UI sends the selected identity as `X-User`
+and validates it in `request_factory` (unknown → `401`).
+
+`X-User` is **demo authentication**, not proof of identity — a real deployment
+resolves the principal from a verified session/JWT and maps roles to
+capabilities. The authorization half is real: `auth.py` builds a
+`RuntimeResources(principal=…)` with a `PermissionPolicy`, and `RouteProblem`
+asks `context.resources.authorize("run", target)` before it turns the message
+into a problem. `admin2` has no `run:ansible` / `execute:ansible_run`, so an
+Ansible request gets a normal "Access denied" `ChatReply` instead of starting
+the agent (the tool gate remains the second line of defence).
+
+Sessions are per-user by convention (`admin1:<uuid>`, stored under that key in
+`localStorage`), and long-term memory is per-user by construction:
+
+```python
+resources = build_resources(llm, "admin1")   # MemoryStore(namespace="user:admin1")
+ctx = Context(resources=resources)
+ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
+await Runtime(ctx, agents=AGENTS).arun()
+```
+
+`MemoryStore` is **not** a copy of the chat. `RememberReport` indexes a short
+summary of each `K8sReport`/`GitlabReport`/`AnsibleReport` with
+`memory.remember_from(...)`. The session id is not ambient: the chat layer
+stamps it on `UserMsg` (`create_message(ctx, text, session_id)`), the report
+keeps that message id in `query_id`, and `RememberReport` passes
+`source_session=msg.data.session_id` explicitly. The report (and the
+session/checkpoint) stay the source of truth. On a later question the router
+searches report summaries and passes the hits to the routing prompt as "Known
+context" — so a new session can recall "worker-2f1 OOMKilled in production"
+without replaying the transcript. Because the namespace is `user:<name>`,
+`admin2` never sees `admin1`'s memory, and `forget_source(session_id)` can
+erase one session's derived entries (GDPR-style).
+
+The `/api/runs/{id}` read/delete endpoints are unauthenticated in this demo;
+session ids are client-chosen. Treat them as a UI convenience, not an ACL.
 
 ## Trust & safety — custom guardrails
 

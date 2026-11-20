@@ -559,6 +559,39 @@ def test_shared_resources_instance_not_closed(tmp_path):
     assert llm.closed is False
 
 
+def test_callable_resources_closed_after_history(tmp_path):
+    """`history()` builds per-turn resources too: close them, existing or not."""
+    from reactifact import RuntimeResources
+
+    built: list[_SpyLLM] = []
+
+    def fresh_resources():
+        llm = _SpyLLM()
+        built.append(llm)
+        return RuntimeResources(llm=llm)
+
+    store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
+    assistant = ChatAssistant(
+        store=store,
+        agents=[ANSWER_AGENT],
+        user_message=Q,
+        reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
+        resources=fresh_resources,
+        max_concurrency=1,
+    )
+
+    _drain(assistant.stream("hi", session_id="s7"))
+    assert len(built) == 1 and built[0].closed is True
+
+    history = asyncio.run(assistant.history("s7"))
+    assert [m["role"] for m in history["messages"]] == ["user", "assistant"]
+    assert len(built) == 2 and built[1].closed is True
+
+    # a missing session still opened (and built resources) — no leak either
+    assert asyncio.run(assistant.history("missing"))["messages"] == []
+    assert len(built) == 3 and built[2].closed is True
+
+
 def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):
     """A failing session open must degrade to a fallback message, not an exception."""
 

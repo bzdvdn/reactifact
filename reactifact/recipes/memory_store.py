@@ -19,7 +19,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 from pydantic import BaseModel, Field
@@ -27,17 +27,29 @@ from pydantic import BaseModel, Field
 from ..checkpoints import KVBackend
 from .text import keyword_score
 
+if TYPE_CHECKING:
+    from ..artifacts import Artifact
+
 Searcher = Callable[["MemoryRecord", str], float]
 
 
 class MemoryRecord(BaseModel):
-    """One long-term memory entry (JSON-safe, persisted as a KV value)."""
+    """One long-term memory entry (JSON-safe, persisted as a KV value).
+
+    `source_*` fields point back to the Context artifact a curated memory came
+    from; the session/checkpoint remains the source of truth, this is a
+    rebuildable cross-session index entry.
+    """
 
     namespace: str
     key: str
     value: dict[str, Any] = Field(default_factory=dict)
     text: str = ""
     tags: dict[str, str] = Field(default_factory=dict)
+    kind: str = "fact"
+    source_session: str = ""
+    source_artifact: str = ""
+    source_version: int | None = None
     created_at: datetime
     updated_at: datetime
     expires_at: datetime | None = None
@@ -112,6 +124,10 @@ class MemoryStore:
         text: str | None = None,
         tags: Mapping[str, str] | None = None,
         ttl_seconds: float | None = None,
+        kind: str | None = None,
+        source_session: str | None = None,
+        source_artifact: str | None = None,
+        source_version: int | None = None,
     ) -> MemoryRecord:
         """Creates or replaces a record (`created_at` is preserved on replace)."""
         if not key.strip():
@@ -128,6 +144,26 @@ class MemoryStore:
                     text if text is not None else (existing.text if existing else "")
                 ),
                 tags=dict(tags or (existing.tags if existing else {})),
+                kind=(
+                    kind
+                    if kind is not None
+                    else (existing.kind if existing is not None else "fact")
+                ),
+                source_session=(
+                    source_session
+                    if source_session is not None
+                    else (existing.source_session if existing is not None else "")
+                ),
+                source_artifact=(
+                    source_artifact
+                    if source_artifact is not None
+                    else (existing.source_artifact if existing is not None else "")
+                ),
+                source_version=(
+                    source_version
+                    if source_version is not None
+                    else (existing.source_version if existing is not None else None)
+                ),
                 created_at=existing.created_at if existing is not None else now,
                 updated_at=now,
                 expires_at=(
@@ -214,6 +250,80 @@ class MemoryStore:
             reverse=True,
         )
         return hits[:k]
+
+    async def remember_from(
+        self,
+        artifact: Artifact[Any],
+        *,
+        key: str,
+        source_session: str,
+        text: str | None = None,
+        value: Mapping[str, Any] | None = None,
+        tags: Mapping[str, str] | None = None,
+        ttl_seconds: float | None = None,
+        namespace: str | None = None,
+        kind: str = "summary",
+    ) -> MemoryRecord:
+        """Indexes a curated artifact, recording its session/id/version as source.
+
+        The artifact stays the source of truth; by default this stores only a
+        pointer (`value={"artifact": id, "data_type": …}`) plus the searchable
+        `text` you choose (or the artifact's `text`/JSON when omitted).
+
+        `source_session` is explicit, not ambient: pass the session the entry
+        came from (often `request`/`UserMsg.session_id`, or `""` when the
+        memory is not tied to one) so `forget_source()` can erase everything
+        derived from that session later.
+        """
+        data = artifact.data
+        if text is None:
+            text = getattr(data, "text", None)
+            if not isinstance(text, str):
+                text = json.dumps(
+                    (
+                        data.model_dump(mode="json")
+                        if isinstance(data, BaseModel)
+                        else {"value": str(data)}
+                    ),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    default=str,
+                )
+        if value is None:
+            value = {"artifact": artifact.id, "data_type": artifact.data_type}
+        return await self.put(
+            key,
+            value,
+            namespace=namespace,
+            text=text,
+            tags=tags,
+            ttl_seconds=ttl_seconds,
+            kind=kind,
+            source_session=source_session,
+            source_artifact=artifact.id,
+            source_version=artifact.version,
+        )
+
+    async def forget_source(
+        self, source_session: str, *, namespace: str | None = None
+    ) -> int:
+        """Deletes records derived from one session; returns the number removed.
+
+        An empty `source_session` is rejected: records without a session are
+        not a single erasure unit, so deleting them by the empty key would be a
+        surprising mass delete.
+        """
+        if not source_session.strip():
+            raise ValueError("forget_source needs a non-empty source_session")
+        ns = self._ns(namespace)
+        records = await self.list(namespace=ns)
+        keys = [
+            record.key for record in records if record.source_session == source_session
+        ]
+        async with self._lock:
+            for key in keys:
+                await self.backend.delete(self._key(ns, key))
+        return len(keys)
 
     async def forget(self, *, namespace: str | None = None) -> int:
         """Deletes every record in a namespace; returns the number removed."""

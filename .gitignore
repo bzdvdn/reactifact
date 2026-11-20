@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Runtime artifacts (session storage)
+# Runtime artifacts (session storage, long-term memory)
 sessions/
+memory/
 
 # Tooling caches
 .pytest_cache/

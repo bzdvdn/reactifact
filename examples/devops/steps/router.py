@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from reactifact import Artifact, Step
+from reactifact.recipes import MemoryStore
 
 from ..models import (
     AnsibleProblem,
@@ -29,7 +30,23 @@ class RouteProblem(Step):
     ) -> K8sProblem | GitlabProblem | AnsibleProblem | ChatReply | None:
         context = self.context
         context.announce("Parsing the question…", kind="status")
-        target = await route_target(context, msg.data.text)
+
+        memory_text = ""
+        memory = context.resources.get(MemoryStore)
+        if memory is not None:
+            hits = await memory.search(msg.data.text, k=3, tags={"kind": "report"})
+            memory_text = "\n".join(hit.record.text for hit in hits if hit.score > 0)
+
+        target = await route_target(context, msg.data.text, memory=memory_text)
+        if target != "none" and not context.resources.authorize("run", target):
+            return ChatReply(
+                query_id=msg.id,
+                text=(
+                    f"Access denied: this user may not run the {target!r} "
+                    "agent. Ask an admin for the required capability."
+                ),
+                kind="denied",
+            )
         if target == "k8s":
             return K8sProblem(text=msg.data.text, query_id=msg.id)
         if target == "gitlab":

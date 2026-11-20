@@ -90,8 +90,16 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 А ещё он оценивает собственный трафик: `online_eval.py` сэмплирует обслуженные
 прогоны из трейс-стора (`trace_source`, кастомные `routed`/`routed_to`), тегирует
 прошедшие `eval` / проваленные `eval:failed`, а `web.py` монтирует
-`create_online_eval_router` (`POST /api/evals/run`). Отдельные демо (без LLM и
-сети):
+`create_online_eval_router` (`POST /api/evals/run`). Две демо-личности
+показывают multi-user слой: `admin1` (админ) и `admin2` (аналитик), выбор в UI
+уходит заголовком `X-User` (только демо-аутентификация). Каждый запуск получает
+`Principal` + `PermissionPolicy` (`auth.py`), поэтому `admin2` может общаться,
+пользоваться k8s и GitLab, но получает отказ до старта Ansible-агента.
+Долговременная память — per-user (`MemoryStore(namespace="user:<name>")`):
+summary отчёта индексируется через `remember_from(source_session=…)` (id берётся
+из сообщения пользователя, а не из ambient-состояния) и подмешивается в routing
+в следующих сессиях, не копируя историю чата и не попадая в namespace другого
+пользователя. Отдельные демо (без LLM и сети):
 
 ```bash
 uv run python ./examples/devops/web.py      # SSE UI + трейс-дашборд

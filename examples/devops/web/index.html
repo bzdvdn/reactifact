@@ -25,10 +25,11 @@
   #input { flex:1; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--fg); }
   button { padding:10px 18px; border-radius:10px; border:1px solid var(--acc); background:transparent; color:var(--acc); cursor:pointer; }
   button:hover { background:#ff9d5c22; }
+  select { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 9px; }
 </style>
 </head>
 <body>
-<header><b>DevOps AI</b><span class="muted" id="sid"></span><a href="/traces" style="margin-left:auto; color:var(--acc); text-decoration:none; font-size:13px;">▲ Traces</a><button id="new-session">New session</button></header>
+<header><b>DevOps AI</b><select id="user" title="demo identity"><option>admin1</option><option>admin2</option></select><span class="muted" id="sid"></span><a href="/traces" style="margin-left:auto; color:var(--acc); text-decoration:none; font-size:13px;">▲ Traces</a><button id="new-session">New session</button></header>
 <main>
   <div id="messages"></div>
   <div>
@@ -43,8 +44,12 @@
   </div>
 </main>
 <script>
-let sid = localStorage["devops-session"] || (localStorage["devops-session"] = crypto.randomUUID().replace(/-/g,"").slice(0,24));
-function renderSid() { document.getElementById("sid").textContent = "session: " + sid; }
+let user = localStorage["devops-user"] || "admin1";
+function sessionKey() { return "devops-session:" + user; }
+function newSessionId() { return user + ":" + crypto.randomUUID().replace(/-/g,"").slice(0,24); }
+let sid = localStorage[sessionKey()] || (localStorage[sessionKey()] = newSessionId());
+function renderSid() { document.getElementById("sid").textContent = user + " · session: " + sid; }
+document.getElementById("user").value = user;
 renderSid();
 
 function add(kind, text) {
@@ -59,7 +64,7 @@ async function send(text) {
   add("user", text);
   const resp = await fetch("/api/chat/stream", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {"Content-Type": "application/json", "X-User": user},
     body: JSON.stringify({message: text, session_id: sid}),
   });
   const reader = resp.body.getReader();
@@ -104,7 +109,7 @@ function addTo(kind, text) {
 }
 
 async function loadHistory() {
-  const r = await fetch("/api/runs/" + sid);
+  const r = await fetch("/api/runs/" + sid, {headers: {"X-User": user}});
   const state = await r.json();
   for (const m of state.messages || []) add(m.role === "user" ? "user" : "assistant", m.text);
 }
@@ -118,9 +123,17 @@ function submit(text) {
 document.getElementById("send").addEventListener("click", () => submit(document.getElementById("input").value.trim()));
 document.getElementById("input").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(document.getElementById("input").value.trim()); });
 document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => submit(c.textContent)));
+document.getElementById("user").addEventListener("change", (e) => {
+  user = e.target.value;
+  localStorage["devops-user"] = user;
+  sid = localStorage[sessionKey()] || (localStorage[sessionKey()] = newSessionId());
+  renderSid();
+  document.getElementById("messages").innerHTML = "";
+  loadHistory();
+});
 document.getElementById("new-session").addEventListener("click", async () => {
   await fetch("/api/runs/" + sid, { method: "DELETE" });
-  sid = (localStorage["devops-session"] = crypto.randomUUID().replace(/-/g,"").slice(0,24));
+  sid = (localStorage[sessionKey()] = newSessionId());
   renderSid();
   document.getElementById("messages").innerHTML = "";
 });

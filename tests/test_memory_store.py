@@ -122,3 +122,67 @@ def test_namespace_is_required():
 
     with pytest.raises(ValueError, match="namespace"):
         asyncio.run(memory.put("x", {"text": "y"}))
+
+
+def test_remember_from_records_provenance_and_forget_source():
+    """A curated memory points back to its artifact; session erasure follows."""
+    from pydantic import BaseModel
+    from reactifact import Context
+
+    class Report(BaseModel):
+        text: str
+
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+    ctx = Context()
+    report = ctx.create(Report(text="worker-2f1 OOMKilled in production"))
+
+    record = asyncio.run(
+        memory.remember_from(
+            report,
+            key=f"report:{report.id}",
+            source_session="admin1:s1",
+            tags={"kind": "report"},
+        )
+    )
+
+    assert record.kind == "summary"
+    assert record.text == "worker-2f1 OOMKilled in production"
+    assert record.source_session == "admin1:s1"
+    assert record.source_artifact == report.id
+    assert record.source_version == report.version
+    assert record.value == {"artifact": report.id, "data_type": report.data_type}
+
+    assert asyncio.run(memory.forget_source("other-session")) == 0
+    assert asyncio.run(memory.forget_source("admin1:s1")) == 1
+    assert asyncio.run(memory.list()) == []
+
+
+def test_forget_source_rejects_an_empty_session():
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+
+    with pytest.raises(ValueError, match="non-empty source_session"):
+        asyncio.run(memory.forget_source(""))
+    with pytest.raises(ValueError, match="non-empty source_session"):
+        asyncio.run(memory.forget_source("   "))
+
+
+def test_records_written_before_provenance_still_load():
+    """Records persisted by the first MemoryStore release load with defaults."""
+    backend = InMemoryKVBackend()
+    memory = MemoryStore(backend, namespace="user:1")
+    asyncio.run(memory.put("pref", {"tone": "concise"}, text="concise"))
+
+    async def strip_new_fields() -> None:
+        key = (await backend.keys())[0]
+        raw = await backend.get(key)
+        for field in ("kind", "source_session", "source_artifact", "source_version"):
+            raw.pop(field)
+        await backend.set(key, raw)
+
+    asyncio.run(strip_new_fields())
+    loaded = asyncio.run(memory.get("pref"))
+    assert loaded is not None
+    assert loaded.text == "concise"
+    assert loaded.kind == "fact"
+    assert loaded.source_session == ""
+    assert loaded.source_version is None

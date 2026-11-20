@@ -89,8 +89,16 @@ injection and unapproved prod changes, redacts PII/secrets, and screens the
 raw input too. And it scores its own traffic: `online_eval.py` samples served
 runs from the trace store (`trace_source`, custom `routed`/`routed_to`
 evaluators), tags passes `eval` / failures `eval:failed`, and `web.py` mounts
-`create_online_eval_router` (`POST /api/evals/run`). Run the standalone demos
-(no LLM, no network):
+`create_online_eval_router` (`POST /api/evals/run`). Two demo identities show
+the multi-user layer: `admin1` (admin) and `admin2` (analyst), picked in the UI
+and sent as `X-User` (demo authentication only). Each runs with a
+`Principal` + `PermissionPolicy` (`auth.py`), so `admin2` can chat, use k8s and
+GitLab but is refused before the Ansible agent starts. Long-term memory is
+per-user (`MemoryStore(namespace="user:<name>")`): a report summary is indexed
+with `remember_from(source_session=…)` (the id comes from the user message, not
+ambient state) and recalled into routing in later sessions, never copied from
+the chat history, and never visible in the other user's namespace. Run the
+standalone demos (no LLM, no network):
 
 ```bash
 uv run python ./examples/devops/web.py      # SSE UI + trace dashboard

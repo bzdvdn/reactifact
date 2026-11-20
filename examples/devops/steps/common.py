@@ -67,9 +67,14 @@ def keyword_target(text: str) -> str:
     return "none"
 
 
-async def route_target(context: Context, text: str) -> str:
-    """LLM routing (reasoning, §68) with a deterministic keyword fallback (§67)."""
-    decision = await _route_prompt.call(context, user=text)
+async def route_target(context: Context, text: str, *, memory: str = "") -> str:
+    """LLM routing (reasoning, §68) with a deterministic keyword fallback (§67).
+
+    `memory` is optional recalled context; it is shown to the LLM but never
+    used by the deterministic fallback (keywords come from the question).
+    """
+    user = text if not memory.strip() else f"{text}\n\nKnown context:\n{memory}"
+    decision = await _route_prompt.call(context, user=user)
     if decision is not None and decision.target in ("k8s", "gitlab", "ansible"):
         return decision.target
     return keyword_target(text)

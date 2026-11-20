@@ -73,6 +73,18 @@ long-lived provider shared across sessions. Per-turn budget/deadline/token
 tracking and tracing wrappers are installed on a shallow copy, so concurrent
 turns never mutate the shared instance.
 
+**Per-request resources.** A `resources=` factory may take `(session_id,
+request)` — the same turn mapping — to build user/tenant-scoped resources per
+turn instead of sharing one mutable instance:
+
+```python
+resources=lambda session_id, request: build_resources(request.get("user"))
+```
+
+`request=` is passed through unchanged (no extra keys are injected). If a turn
+needs the session id, read it from the request your `request_factory` built or
+from the user artifact the chat layer creates (it carries `session_id`).
+
 **Outbound side effects.** If an agent in the chat records an intent with
 `effects.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
 they go straight to the `Runtime` the assistant builds per turn, so committed

@@ -1,8 +1,8 @@
 """Devops demo: container agents.
 
 Base chat router + three LLM agents (k8s / gitlab / ansible), each with its own
-tools and report builder, + render of the answer into the chat. Logic lives in
-`steps/`.
+tools and report builder, + render of the answer into the chat + a memory agent
+that indexes report summaries. Logic lives in `steps/`.
 """
 
 from reactifact import Agent, Consume
@@ -18,6 +18,7 @@ from .steps import (
     AnsibleReportBuilder,
     GitlabReportBuilder,
     K8sReportBuilder,
+    RememberReport,
     RenderReply,
     RouteProblem,
 )
@@ -79,3 +80,11 @@ class RenderAgent(Agent):
 
     name = "render"
     steps = [RenderReply()]
+
+
+class MemoryAgent(Agent):
+    """Indexes report summaries for cross-session recall (priority: last)."""
+
+    name = "memory"
+    priority = 10
+    steps = [RememberReport()]

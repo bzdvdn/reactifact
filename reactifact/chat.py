@@ -217,18 +217,22 @@ def _accepts_arg(func: Callable[..., Any], count: int) -> bool:
     return len(params) >= count
 
 
-def _resolve_with_session(value: Any, session_id: str) -> Any:
-    """Like `_resolve`, but passes `session_id` to `value` when it declares a
-    parameter for it — the per-request factory shape
-    (`resources=lambda session_id: build_resources(session_id)`) alongside
-    the pre-existing zero-arg one (`resources=lambda: build_resources()`),
-    which keeps working unchanged. `ChatAssistant` already knows `session_id`
-    at the point it resolves `resources=`; this just lets a factory opt into
-    reading it instead of reaching for a contextvar/side-channel to get
-    per-request data (e.g. an authenticated user) into `RuntimeResources`.
+def _resolve_with_session(
+    value: Any,
+    session_id: str,
+    request: Mapping[str, Any] | None = None,
+) -> Any:
+    """Like `_resolve`, but passes `session_id` (and optionally `request`) when
+    the factory declares the extra parameters — the per-request resource shape
+    (`resources=lambda session_id, request: build_resources(...)`) alongside
+    the pre-existing one-arg (`resources=lambda session_id: ...`) and zero-arg
+    forms, which keep working unchanged. `ChatAssistant` already knows the
+    session and turn request at this point; a factory can opt into either.
     """
     if not callable(value):
         return value
+    if _accepts_arg(value, 2):
+        return value(session_id, request or {})
     return value(session_id) if _accepts_arg(value, 1) else value()
 
 
@@ -461,8 +465,10 @@ class ChatAssistant:
                         self._lock_refs.pop(session_id, None)
                         self._session_locks.pop(session_id, None)
 
-    async def _open(self, session_id: str) -> Session:
-        resources = _resolve_with_session(self._resources, session_id)
+    async def _open(
+        self, session_id: str, request: Mapping[str, Any] | None = None
+    ) -> Session:
+        resources = _resolve_with_session(self._resources, session_id, request)
         try:
             return await self.store.open(session_id, resources=resources)
         except Exception:
@@ -560,7 +566,7 @@ class ChatAssistant:
         async with self._locked_session(session_id):
             session: Session | None = None
             try:
-                session = await self._open(session_id)
+                session = await self._open(session_id, request)
                 runtime = self._build_runtime(session)
             except Exception:
                 logger.exception(
@@ -631,17 +637,29 @@ class ChatAssistant:
         return message
 
     async def history(self, session_id: str = "") -> dict[str, Any]:
-        """Reconstruct the chat thread of a persisted session."""
+        """Reconstruct the chat thread of a persisted session.
+
+        `resources=` may be a per-turn factory; `_open` builds a fresh instance
+        even for this read-only path, so close it here — same contract as
+        `stream()` for a callable factory. A shared instance is left alone.
+        """
         try:
             session = await self._open(session_id)
         except Exception:
             logger.exception("chat.ChatAssistant: history open failed %r", session_id)
             return {"messages": []}
-        if not session.loaded:
-            return {"messages": []}
-        if self._session_state is not None:
-            return self._session_state(session.context)
-        return default_session_state(session.context, user_message=self._user_message)
+        try:
+            if not session.loaded:
+                return {"messages": []}
+            if self._session_state is not None:
+                return self._session_state(session.context)
+            return default_session_state(
+                session.context, user_message=self._user_message
+            )
+        finally:
+            if callable(self._resources):
+                with suppress(Exception):
+                    await session.context.resources.aclose()
 
     def reply_fallback(self) -> dict[str, Any]:
         """The honest terminal payload when nothing was assembled (§59)."""

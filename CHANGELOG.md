@@ -8,6 +8,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **`MemoryStore` provenance and session erasure.** `MemoryRecord` gained
+  `kind` / `source_session` / `source_artifact` / `source_version`;
+  `remember_from(artifact, key=..., source_session=...)` indexes a curated
+  artifact (its summary + a pointer back at the version) and
+  `forget_source(session_id)` erases everything derived from one session. The
+  session is an explicit argument (from the request/user artifact/app state),
+  not ambient runtime state; `forget_source("")` is rejected. The report stays
+  the source of truth — the store is a rebuildable cross-session index, not a
+  copy of the chat history.
+- **Per-request resources for chat turns.** A `resources=` factory on
+  `ChatAssistant` may take `(session_id, request)`, so each turn can build
+  tenant/user-scoped resources. The caller's `request=` mapping is passed
+  through unchanged.
+- **devops example: identities, authorization, per-user memory.** `admin1` /
+  `admin2` run with a `Principal` + `PermissionPolicy` (the analyst cannot start
+  the Ansible agent), each with its own `MemoryStore` namespace; report
+  summaries are recalled into routing in later sessions and erased by
+  `forget_source` (GDPR-style). The web UI gains an `X-User` demo-identity
+  selector and per-user sessions.
 - **`MemoryStore` recipe.** Namespaced long-term memory over any `KVBackend`:
   `put/get/list/search/delete/forget`, mandatory namespace (store-level or per
   call), tags, `ttl_seconds`, deterministic keyword search (stems/plurals) with
@@ -119,6 +138,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Fixed
 
+- **`ChatAssistant.history()` no longer leaks per-turn resources.** With a
+  callable `resources=` factory, `history()` built a fresh `RuntimeResources`
+  (and typically an LLM/HTTP client) and never closed it; it now closes the
+  instance in `finally`, for an existing and a missing session alike.
 - **Agent/tool timeouts are no longer reported as `budget_time_exceeded`.**
   Only the turn's own `Budget.max_seconds` deadline sets
   `RunOutcome.BUDGET_TIME_EXCEEDED`; a `TimeoutError` raised by an agent's

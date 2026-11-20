@@ -94,6 +94,31 @@ class Query(BaseModel):
     category: str = ""
 
 
+def test_resources_factory_receives_session_and_request(tmp_path):
+    """A two-arg `resources=` factory gets both the session and the turn request."""
+    from reactifact import RuntimeResources, SessionStore
+    from reactifact.chat import ChatAssistant
+    from reactifact.checkpoints import FileKVBackend
+
+    seen: dict[str, object] = {}
+
+    def make_resources(session_id, request):
+        seen["session_id"] = session_id
+        seen["user"] = (request or {}).get("user")
+        return RuntimeResources()
+
+    assistant = ChatAssistant(
+        store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
+        agents=[],
+        user_message=Query,
+        reply=lambda ctx, mid: {"reply": "ok"},
+        resources=make_resources,
+    )
+    asyncio.run(assistant.invoke("hi", session_id="s1", request={"user": "admin2"}))
+
+    assert seen == {"session_id": "s1", "user": "admin2"}
+
+
 def _query_assistant(tmp_path, create_message):
     from reactifact import SessionStore
     from reactifact.chat import ChatAssistant

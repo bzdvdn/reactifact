@@ -1,6 +1,11 @@
+import asyncio
+from pathlib import Path
+
 from examples.devops.web import create_app
 from fastapi.testclient import TestClient
+from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
+from reactifact.recipes import MemoryStore
 
 
 class EmptyLLM(LLMProvider):
@@ -217,3 +222,64 @@ def test_sse_refuses_unsafe_request_via_guardrail(tmp_path):
         body = "".join(response.iter_text())
     assert "refused by a guardrail" in body
     assert "production_change" in body
+
+
+def test_unknown_x_user_is_rejected(tmp_path):
+    """`X-User` is validated before the turn: unknown identity → 401."""
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/chat/stream",
+        json={"message": "привет", "session_id": "s7"},
+        headers={"X-User": "nobody"},
+    )
+    assert response.status_code == 401
+    assert "unknown devops user" in response.json()["detail"]
+
+
+def test_sse_admin2_is_denied_ansible(tmp_path):
+    """The analyst identity cannot reach the Ansible agent; the reply explains it."""
+    llm = ScriptedLLM(['{"target":"ansible"}'])
+    app = create_app(llm=llm, store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "запусти playbook деплоя", "session_id": "admin2:s1"},
+        headers={"X-User": "admin2"},
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert "Access denied" in body
+    assert "ansible" in body
+
+
+def test_sse_memory_provenance_uses_the_request_session(tmp_path):
+    """The session id from the request reaches MemoryStore through the UserMsg."""
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"tool_call","tool":"kubectl_get","args":'
+            '{"resource":"pods","namespace":"production"}}',
+            '{"type":"answer","text":"worker-2f1 OOMKilled in production"}',
+        ]
+    )
+    app = create_app(llm=llm, store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "почему падает под?", "session_id": "admin1:web-1"},
+    ) as response:
+        "".join(response.iter_text())
+
+    memory = MemoryStore(
+        FileKVBackend(str(Path(tmp_path) / "memory")),
+        namespace="user:admin1",
+    )
+    hits = asyncio.run(memory.search("OOMKilled", tags={"kind": "report"}))
+    assert len(hits) == 1
+    assert hits[0].record.source_session == "admin1:web-1"

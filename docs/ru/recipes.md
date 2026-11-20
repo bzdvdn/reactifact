@@ -74,6 +74,29 @@ read/list/search, а `search` — детерминированный keyword-ran
 для семантики. `forget()` очищает namespace. Записи персистятся через любой
 `KVBackend` (file/SQLite/Postgres).
 
+Store — это **межсессионный индекс, а не копия чата**: сессии и чекипоинты
+остаются источником истины. `remember_from(artifact, key=…)` индексирует
+curated-артефакт (отчёт, предпочтение) и записывает
+`source_session` / `source_artifact` / `source_version`, поэтому запись можно
+пересобрать или удалить:
+
+```python
+record = await memory.remember_from(
+    report,
+    key=f"incident:{report.id}",
+    source_session=session_id,          # явно: request/UserMsg/состояние приложения
+    text=report.data.text[:800],
+    tags={"kind": "report", "system": "k8s"},
+)
+assert record.source_artifact == report.id
+removed = await memory.forget_source(record.source_session)   # GDPR-style
+```
+
+`source_session` — обязательный явный аргумент: provenance это данные, а не
+ambient-состояние рантайма. Передайте сессию из запроса/артефакта пользователя
+или `""`, если запись не привязана к сессии; `forget_source("")` отклоняется,
+чтобы пустой ключ не удалил разом все записи без сессии.
+
 ## `map_reduce` — fan-out типизированных задач и reduce (§24)
 
 ```python
