@@ -3,6 +3,7 @@ import json
 import re
 from datetime import UTC, datetime
 
+import pytest
 from pydantic import BaseModel
 from reactifact import (
     Agent,
@@ -15,7 +16,13 @@ from reactifact import (
     Step,
     create_agent,
 )
-from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, Message
+from reactifact.providers import (
+    LLMProvider,
+    LLMRequest,
+    LLMResponse,
+    LLMResponseChunk,
+    Message,
+)
 from reactifact.tracing import (
     AgentSpan,
     ArtifactRef,
@@ -1301,3 +1308,332 @@ def test_produce_run_alias_points_to_step_run():
     from reactifact.tracing import ProduceRun, StepRun
 
     assert ProduceRun is StepRun
+
+
+# ---- streaming LLM recording ---------------------------------------------- #
+
+
+class _StreamLLM(LLMProvider):
+    """Yields `chunks`, then the terminal usage (if any)."""
+
+    def __init__(
+        self,
+        chunks: list[str],
+        usage: dict[str, int] | None = None,
+        *,
+        fail_after: int | None = None,
+    ):
+        self.chunks = chunks
+        self.usage = usage or {}
+        self.fail_after = fail_after
+
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        return LLMResponse(text="".join(self.chunks), usage=self.usage)
+
+    async def stream(self, request):
+        for index, text in enumerate(self.chunks):
+            if self.fail_after is not None and index == self.fail_after:
+                raise RuntimeError("stream failed")
+            yield LLMResponseChunk(
+                text=text,
+                usage=(
+                    self.usage if index == len(self.chunks) - 1 and self.usage else None
+                ),
+            )
+
+
+def _consume_stream(llm: RecordingLLM, request: LLMRequest):
+    async def go():
+        return [chunk async for chunk in llm.stream(request)]
+
+    return asyncio.run(go())
+
+
+def test_recording_llm_stream_records_one_call():
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        _StreamLLM(["Hel", "lo"], usage={"prompt_tokens": 3, "completion_tokens": 2}),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+        truncate=100,
+    )
+    request = LLMRequest(messages=[Message.user("hi")], prompt_hash="p1")
+
+    chunks = _consume_stream(llm, request)
+
+    assert "".join(chunk.text for chunk in chunks) == "Hello"
+    assert len(recorded) == 1
+    call = recorded[0]
+    assert call.agent == "a"
+    assert call.response == "Hello"
+    assert call.prompt_tokens == 3
+    assert call.completion_tokens == 2
+    assert call.prompt_hash == "p1"
+    assert call.started_at is not None
+    assert call.latency_ms >= 0
+
+
+def test_recording_llm_stream_records_error_and_reraises():
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        _StreamLLM(["par", "tial"], fail_after=1),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+    )
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        _consume_stream(llm, LLMRequest(messages=[Message.user("hi")]))
+
+    assert len(recorded) == 1
+    assert recorded[0].response == "par"
+    assert "RuntimeError" in (recorded[0].error or "")
+
+
+def test_recording_llm_stream_truncates_response():
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        _StreamLLM(["abc", "def"]),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+        truncate=5,
+    )
+
+    _consume_stream(llm, LLMRequest(messages=[Message.user("hi")]))
+
+    assert recorded[0].response == "abcde…"
+
+
+def test_recording_llm_stream_records_on_early_close():
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        _StreamLLM(["one", "two"]),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+    )
+
+    async def go():
+        stream = llm.stream(LLMRequest(messages=[Message.user("hi")]))
+        first = await stream.__anext__()
+        await stream.aclose()
+        return first
+
+    first = asyncio.run(go())
+
+    assert first.text == "one"
+    assert len(recorded) == 1
+    assert recorded[0].response == "one"
+
+
+def test_recording_llm_stream_writes_once_for_many_chunks():
+    recorded: list[LLMCall] = []
+    llm = RecordingLLM(
+        _StreamLLM(["x"] * 10_000),
+        on_call=recorded.append,
+        agent_of=lambda: "a",
+        truncate=None,
+    )
+
+    _consume_stream(llm, LLMRequest(messages=[Message.user("hi")]))
+
+    assert len(recorded) == 1
+
+
+def test_recording_llm_stream_ignores_a_failing_recorder():
+    def boom(call: LLMCall) -> None:
+        raise RuntimeError("tracer is down")
+
+    llm = RecordingLLM(_StreamLLM(["ok"]), on_call=boom, agent_of=lambda: "a")
+
+    chunks = _consume_stream(llm, LLMRequest(messages=[Message.user("hi")]))
+
+    assert "".join(chunk.text for chunk in chunks) == "ok"
+
+
+def test_runtime_records_streamed_llm_calls(tmp_path):
+    class StreamStep(Step):
+        consumes = (Question,)
+        produces = (Answer,)
+
+        async def run(self, context: Context, question: Question) -> Answer:
+            llm = context.resources.llm
+            assert llm is not None
+            request = LLMRequest(messages=[Message.user(question.text)])
+            text = "".join([chunk.text async for chunk in llm.stream(request)])
+            return Answer(text=text)
+
+    store = TraceStore(str(tmp_path / "stream.db"))
+    ctx = Context(
+        resources=RuntimeResources(
+            llm=_StreamLLM(
+                ["he", "llo"],
+                usage={"prompt_tokens": 4, "completion_tokens": 2},
+            )
+        )
+    )
+    runtime = Runtime(
+        ctx,
+        agents=[create_agent("streamer", steps=[StreamStep()])],
+        tracer=Tracer(store=store),
+    )
+    ctx.create(Question(text="hi"))
+    asyncio.run(runtime.arun())
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    span = next(s for s in trace.spans if s.agent == "streamer")
+    assert len(span.llm_calls) == 1
+    call = span.llm_calls[0]
+    assert call.response == "hello"
+    assert call.prompt_tokens == 4
+    assert call.completion_tokens == 2
+
+
+# ---- lifecycle observer hooks --------------------------------------------- #
+
+
+class _EventTracer(Tracer):
+    def __init__(self):
+        super().__init__()
+        self.events: list[tuple[str, str]] = []
+
+    def on_turn_begin(self, run_id, *, session_id, started_at):
+        self.events.append(("run_start", run_id))
+
+    def on_agent_start(self, agent, event, reads):
+        self.events.append(("agent_start", agent.name))
+
+    def on_tool_start(self, tool, args):
+        self.events.append(("tool_start", tool))
+
+    def on_tool_end(self, run):
+        self.events.append(("tool_end", run.tool))
+
+    def on_commit(self, commit):
+        self.events.append(("commit", commit.author))
+
+    def on_span(self, span):
+        self.events.append(("span", span.agent))
+
+    async def on_turn_end(self, trace):
+        self.events.append(("run_end", trace.id))
+
+
+def test_runtime_emits_lifecycle_hooks_in_order():
+    from reactifact.tools import execute_tool, tool
+
+    @tool
+    async def echo(text: str) -> str:
+        "Echo the text back."
+        return text
+
+    class ToolStep(Step):
+        consumes = (Question,)
+        produces = (Answer,)
+
+        async def run(self, context: Context, question: Question) -> Answer:
+            output = await execute_tool(echo, {"text": question.text})
+            return Answer(text=output.text)
+
+    tracer = _EventTracer()
+    ctx = Context()
+    runtime = Runtime(
+        ctx,
+        agents=[create_agent("tooler", steps=[ToolStep()])],
+        tracer=tracer,
+    )
+    ctx.create(Question(text="hi"))
+
+    asyncio.run(runtime.arun())
+
+    assert [name for name, _ in tracer.events] == [
+        "run_start",
+        "agent_start",
+        "tool_start",
+        "tool_end",
+        "span",
+        "commit",
+        "run_end",
+    ]
+
+
+def test_lifecycle_hook_error_does_not_fail_the_run():
+    class BoomTracer(Tracer):
+        def on_agent_start(self, agent, event, reads):
+            raise RuntimeError("observer is down")
+
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=BoomTracer())
+    ctx.create(Question(text="hi"))
+
+    assert asyncio.run(runtime.arun()) >= 1
+    assert ctx.list_artifacts(Answer)
+
+
+# ---- trace scope / metadata ------------------------------------------------ #
+
+
+def test_trace_scope_and_metadata_roundtrip(tmp_path):
+    store = TraceStore(str(tmp_path / "scope.db"))
+    run(
+        store.export(
+            RunTrace(
+                id="r1",
+                session_id="s1",
+                scope="ws1",
+                metadata={"user_id": "u1"},
+            )
+        )
+    )
+    run(store.export(RunTrace(id="r2", session_id="s2", scope="ws2")))
+
+    page = run(store.query(scope="ws1"))
+    assert [item["id"] for item in page["items"]] == ["r1"]
+    assert page["items"][0]["scope"] == "ws1"
+    assert page["items"][0]["metadata"] == {"user_id": "u1"}
+
+    trace = run(store.get("r1"))
+    assert trace is not None
+    assert trace.scope == "ws1"
+    assert trace.metadata == {"user_id": "u1"}
+
+    sessions = run(store.sessions(scope="ws1"))
+    assert [item["session_id"] for item in sessions["items"]] == ["s1"]
+
+
+def test_runtime_stamps_scope_and_metadata_from_request(tmp_path):
+    store = TraceStore(str(tmp_path / "runtime-scope.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(store=store))
+    ctx.create(Question(text="hi"))
+
+    asyncio.run(
+        runtime.arun(
+            request={
+                "workspace_id": "ws1",
+                "trace_metadata": {"user_id": "u1", "agent_version": "v3"},
+            }
+        )
+    )
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    assert trace.scope == "ws1"
+    assert trace.metadata == {"user_id": "u1", "agent_version": "v3"}
+
+
+def test_runtime_explicit_trace_scope_wins(tmp_path):
+    store = TraceStore(str(tmp_path / "explicit-scope.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(
+        ctx,
+        agents=[Greeter()],
+        tracer=Tracer(store=store),
+        trace_scope="ws-explicit",
+    )
+    ctx.create(Question(text="hi"))
+
+    asyncio.run(runtime.arun(request={"workspace_id": "ws-request"}))
+
+    trace = run(store.get(run(store.query())["items"][0]["id"]))
+    assert trace is not None
+    assert trace.scope == "ws-explicit"

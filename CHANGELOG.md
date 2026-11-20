@@ -4,6 +4,30 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [Unreleased]
+
+### Added
+
+- **`Tracer` lifecycle hooks for live observability.** `on_agent_start`,
+  `on_tool_start`, `on_tool_end` and `on_commit` run alongside the existing
+  `on_turn_begin`/`on_span`/`on_turn_end`, so an app can build a live event log
+  (agent/tool progress, committed artifacts) instead of waiting for the finished
+  trace. Hooks are sync, best-effort and exception-isolated; `on_tool_start`
+  receives args only when `RuntimeResources(record_tool_args=True)` (redacted).
+- **`RunTrace.scope` and `RunTrace.metadata`.** `Runtime(trace_scope=...)` or
+  `request={"workspace_id": ..., "trace_metadata": {...}}` stamp a run; both
+  SQLite and Postgres stores persist them, and `query(scope=...)` /
+  `sessions(scope=...)` (also `?scope=` on the dashboard API) filter by
+  workspace.
+
+### Fixed
+
+- **Streaming LLM calls are now traced.** `RecordingLLM.stream` records one
+  `LLMCall` per stream (concatenated response, terminal usage, errors, latency);
+  previously streamed calls were invisible to traces/metrics/cost. The buffer is
+  clipped to `trace_truncate` and the recording happens once at stream end, not
+  per chunk.
+
 ## [0.21.0] — 2026-11-16
 
 ### Added

@@ -116,6 +116,7 @@ class Runtime:
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
+        trace_scope: str = "",
     ):
         self.context = context
         self.agents = agents or []
@@ -154,6 +155,10 @@ class Runtime:
         # to resilience explicitly rather than silently swallowing bugs.
         self.isolate_errors = isolate_errors
         self.on_agent_error = on_agent_error
+        #: Workspace/tenant id stamped onto every trace this Runtime produces.
+        #: Falls back to `request["workspace_id"]` (see `_begin_turn`); use it
+        #: when one app serves several workspaces from a shared trace store.
+        self.trace_scope = trace_scope
         self.tracer: Tracer | CompositeTracer | None = (
             tracer
             if isinstance(tracer, Tracer) or tracer is None
@@ -267,8 +272,16 @@ class Runtime:
         self.outcome = RunOutcome.COMPLETED
         self._turn_budget.begin(budget or self.budget, self.context.resources)
         self._turn_started = True
+        request = current_request()
+        raw_metadata = request.get("trace_metadata")
         self._trace.begin_turn(
-            session_id=self.session.session_id if self.session is not None else ""
+            session_id=self.session.session_id if self.session is not None else "",
+            scope=self.trace_scope or str(request.get("workspace_id", "") or ""),
+            metadata=(
+                {str(key): str(value) for key, value in raw_metadata.items()}
+                if isinstance(raw_metadata, Mapping)
+                else {}
+            ),
         )
         self._generation = 0
         # A per-turn id for logs/registry. Tracing mints its own only when a
@@ -579,6 +592,7 @@ class Runtime:
                 span.writes = self._trace.write_refs(patch, commit.writes)
                 span.relations = self._trace.relation_refs(patch)
             self.context.log_commit(commit)
+            self._trace.committed(commit)
 
     def _has_pending_work(self) -> bool:
         """True while triggers or undispatched outbox actions remain (§42)."""
@@ -643,6 +657,7 @@ class Runtime:
         # Authz: a principal may be denied running a given agent. Denial is not
         # an agent bug, so it always propagates (not swallowed by isolate_errors).
         self.context.resources.require_authorized("run", agent.name)
+        self._trace.agent_started(agent, event, reads)
         started = time.monotonic()
         task = asyncio.current_task()
         self._trace.register_task(task, agent.name)
@@ -652,6 +667,8 @@ class Runtime:
             record_args=self.context.resources.record_tool_args,
             redactor=self.context.resources.redactor,
             truncate=self._trace.data_char_limit,
+            on_start=self._trace.tool_started,
+            on_end=self._trace.tool_ended,
         )
         slot: Effects | None = None
         patch: Patch | None = None

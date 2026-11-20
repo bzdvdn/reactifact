@@ -346,6 +346,49 @@ MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят 
   запуска (повтор считается новым запуском), и трейс каждого хода финализируется
   один раз.
 
+### Live-хуки жизненного цикла
+
+Готовый `RunTrace` — источник истины, но UI часто нужно показывать работу *пока
+она идёт*. У `Tracer` есть необязательные sync-хуки (best-effort):
+
+```python
+class LiveTracer(Tracer):
+    def on_agent_start(self, agent, event, reads): ...
+    def on_tool_start(self, tool, args): ...   # args отредактирован или None
+    def on_tool_end(self, run): ...             # ToolRun
+    def on_commit(self, commit): ...            # после применения patch
+```
+
+Они вызываются рядом с `on_turn_begin`/`on_span`/`on_turn_end`. Держите их
+неблокирующими (положите в bounded queue, I/O — отдельно): исключение в хуке
+логируется и проглатывается, наблюдаемость не должна ронять запуск.
+
+### Streaming-вызовы LLM
+
+`RecordingLLM` записывает и `complete()`, и `stream()`. Streamed-вызов
+записывается **один раз**, после конца (или закрытия) потока: склеенный текст,
+терминальный usage и ошибка; ответ клипается до `trace_truncate` (по умолчанию
+1500). Оверхед на чанк — один async-generator frame, без записи на каждый токен.
+
+### Scope и metadata запуска
+
+Общий trace store может обслуживать несколько workspace. Проставляйте scope на
+runtime или на запрос:
+
+```python
+Runtime(..., trace_scope="workspace-42")
+# или на ход:
+await runtime.arun(request={
+    "workspace_id": "workspace-42",
+    "trace_metadata": {"user_id": "u1", "agent_version": "v3"},
+})
+```
+
+`RunTrace.scope` и `RunTrace.metadata` сохраняются вместе с запуском;
+`store.query(scope="workspace-42")` и `store.sessions(scope=...)` фильтруют по
+нему (в API дашборда — `?scope=`). `trace_scope` побеждает
+`request["workspace_id"]`.
+
 ## Логи
 
 reactifact пишет структурные **коррелированные** логи в пространстве логгеров

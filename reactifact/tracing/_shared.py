@@ -62,6 +62,7 @@ def run_insert_values(
     trace: RunTrace,
     *,
     timestamp: Callable[[datetime], Any],
+    jsonify: Callable[[Any], Any] = json.dumps,
 ) -> tuple[Any, ...]:
     started = trace.started_at or datetime.now(UTC)
     prompt_tokens = sum(call.prompt_tokens for call in trace.llm_calls)
@@ -69,6 +70,8 @@ def run_insert_values(
     return (
         trace.id,
         trace.session_id,
+        trace.scope,
+        jsonify(trace.metadata),
         timestamp(started),
         trace.duration_ms,
         trace.outcome,

@@ -10,6 +10,7 @@ Tools are capabilities; they are not part of consume/produce: those bind artifac
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import json
 import time
@@ -76,6 +77,8 @@ class _ToolRunLog:
     redactor: Redactor | None = None
     truncate: int | None = 1500
     record_output: bool = True
+    on_start: Callable[[str, dict[str, Any] | None], None] | None = None
+    on_end: Callable[[ToolRun], None] | None = None
 
 
 _tool_run_log: ContextVar[_ToolRunLog | None] = ContextVar(
@@ -106,14 +109,23 @@ def begin_tool_runs(
     redactor: Redactor | None = None,
     truncate: int | None = 1500,
     record_output: bool = True,
+    on_start: Callable[[str, dict[str, Any] | None], None] | None = None,
+    on_end: Callable[[ToolRun], None] | None = None,
 ) -> Token[Any]:
-    """Opens the per-task tool-run log (see `ToolRun`)."""
+    """Opens the per-task tool-run log (see `ToolRun`).
+
+    `on_start`/`on_end` are optional, best-effort lifecycle observers (the
+    runtime uses them to feed a `Tracer`); they must be sync and must not
+    block. `on_start` receives redacted args only when `record_args=True`.
+    """
     return _tool_run_log.set(
         _ToolRunLog(
             record_args=record_args,
             redactor=redactor,
             truncate=truncate,
             record_output=record_output,
+            on_start=on_start,
+            on_end=on_end,
         )
     )
 
@@ -137,10 +149,15 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
     """
     started_at = datetime.now(UTC)
     started = time.monotonic()
+    log = _tool_run_log.get()
+    if log is not None and log.on_start is not None:
+        preview = _redact_args(args, log.redactor) if log.record_args else None
+        with contextlib.suppress(Exception):  # best-effort observer
+            log.on_start(tool.name, preview if isinstance(preview, dict) else None)
     try:
         output = await tool.execute(args)
     except Exception as exc:
-        _record_tool_run(
+        run = _record_tool_run(
             tool.name,
             started_at=started_at,
             latency_ms=(time.monotonic() - started) * 1000,
@@ -148,6 +165,7 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
             error=f"{type(exc).__name__}: {exc}",
             args=args,
         )
+        _notify_tool_end(log, run)
         raise
     if output.error:
         error = output.error
@@ -159,7 +177,7 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
             if output.text
             else len(json.dumps(output.data, ensure_ascii=False))
         )
-    _record_tool_run(
+    run = _record_tool_run(
         tool.name,
         started_at=started_at,
         latency_ms=(time.monotonic() - started) * 1000,
@@ -173,6 +191,7 @@ async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
             else None
         ),
     )
+    _notify_tool_end(log, run)
     return output
 
 
@@ -196,6 +215,14 @@ def _truncate_text(text: str, limit: int | None) -> str:
     return f"{text[:limit]}\n…[truncated {len(text) - limit} chars]"
 
 
+def _notify_tool_end(log: _ToolRunLog | None, run: ToolRun | None) -> None:
+    """Delivers a finished `ToolRun` to the optional observer (best-effort)."""
+    if log is None or log.on_end is None or run is None:
+        return
+    with contextlib.suppress(Exception):  # best-effort observer
+        log.on_end(run)
+
+
 def _record_tool_run(
     tool: str,
     *,
@@ -206,29 +233,29 @@ def _record_tool_run(
     chars: int = 0,
     args: dict[str, Any] | None = None,
     output_text: str | None = None,
-) -> None:
+) -> ToolRun | None:
     log = _tool_run_log.get()
     if log is None:
-        return
+        return None
     recorded_args = _redact_args(args, log.redactor) if log.record_args else None
     recorded_output = None
     if log.record_output and output_text is not None:
         recorded_output = _truncate_text(
             str(_redact_args(output_text, log.redactor)), log.truncate
         )
-    log.runs.append(
-        ToolRun(
-            tool=tool,
-            latency_ms=latency_ms,
-            ok=ok,
-            error=error,
-            chars=chars,
-            args=recorded_args if isinstance(recorded_args, dict) else None,
-            started_at=started_at,
-            produce=_current_produce.get(),
-            output=recorded_output,
-        )
+    run = ToolRun(
+        tool=tool,
+        latency_ms=latency_ms,
+        ok=ok,
+        error=error,
+        chars=chars,
+        args=recorded_args if isinstance(recorded_args, dict) else None,
+        started_at=started_at,
+        produce=_current_produce.get(),
+        output=recorded_output,
     )
+    log.runs.append(run)
+    return run
 
 
 class ToolOutput(BaseModel):

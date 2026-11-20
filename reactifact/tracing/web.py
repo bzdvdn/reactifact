@@ -178,6 +178,7 @@ def create_trace_router(
     @router.get("/api/traces")
     async def list_traces(
         session_id: str | None = Query(default=None),
+        scope: str | None = Query(default=None),
         outcome: str | None = Query(default=None),
         tag: list[str] | None = Query(default=None),  # noqa: B008
         tag_mode: str = Query(default="any", pattern="^(any|all)$"),
@@ -190,6 +191,7 @@ def create_trace_router(
         return await _read(
             store.query(
                 session_id=session_id,
+                scope=scope,
                 outcome=outcome,
                 tags=tag,
                 tag_mode=tag_mode,
@@ -209,6 +211,7 @@ def create_trace_router(
     @router.get("/api/traces/export", response_model=None)
     async def export_traces(
         session_id: str | None = Query(default=None),
+        scope: str | None = Query(default=None),
         outcome: str | None = Query(default=None),
         tag: list[str] | None = Query(default=None),  # noqa: B008
         tag_mode: str = Query(default="any", pattern="^(any|all)$"),
@@ -221,6 +224,7 @@ def create_trace_router(
         listed = await _read(
             store.query(
                 session_id=session_id,
+                scope=scope,
                 outcome=outcome,
                 tags=tag,
                 tag_mode=tag_mode,
@@ -257,11 +261,12 @@ def create_trace_router(
 
     @router.get("/api/sessions")
     async def list_sessions(
+        scope: str | None = Query(default=None),
         q: str | None = Query(default=None),
         limit: int = Query(default=50, ge=1, le=200),
         offset: int = Query(default=0, ge=0),
     ) -> dict[str, Any]:
-        return await _read(store.sessions(q=q, limit=limit, offset=offset))
+        return await _read(store.sessions(scope=scope, q=q, limit=limit, offset=offset))
 
     @router.get("/api/columns")
     async def list_columns() -> dict[str, Any]:

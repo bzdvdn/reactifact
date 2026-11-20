@@ -69,6 +69,8 @@ class PostgresStore:
                     CREATE TABLE IF NOT EXISTS runs (
                         id TEXT PRIMARY KEY,
                         session_id TEXT NOT NULL DEFAULT '',
+                        scope TEXT NOT NULL DEFAULT '',
+                        metadata JSONB NOT NULL DEFAULT '{}',
                         started_at TIMESTAMPTZ NOT NULL,
                         duration_ms REAL NOT NULL,
                         outcome TEXT NOT NULL,
@@ -130,7 +132,15 @@ class PostgresStore:
                 await cur.execute(
                     "CREATE INDEX IF NOT EXISTS idx_run_tags_run ON run_tags(run_id)",
                 )
-                # Old databases predate the token columns.
+                # Old databases predate the token/scope columns.
+                await cur.execute(
+                    "ALTER TABLE runs ADD COLUMN IF NOT EXISTS "
+                    "scope TEXT NOT NULL DEFAULT ''"
+                )
+                await cur.execute(
+                    "ALTER TABLE runs ADD COLUMN IF NOT EXISTS "
+                    "metadata JSONB NOT NULL DEFAULT '{}'"
+                )
                 await cur.execute(
                     "ALTER TABLE runs ADD COLUMN IF NOT EXISTS "
                     "prompt_tokens INTEGER NOT NULL DEFAULT 0"
@@ -180,10 +190,14 @@ class PostgresStore:
         try:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO runs (id, session_id, started_at, duration_ms, "
-                    "outcome, prompt_tokens, completion_tokens, truncated) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    run_insert_values(trace, timestamp=lambda moment: moment),
+                    "INSERT INTO runs (id, session_id, scope, metadata, started_at, "
+                    "duration_ms, outcome, prompt_tokens, completion_tokens, truncated) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    run_insert_values(
+                        trace,
+                        timestamp=lambda moment: moment,
+                        jsonify=lambda value: psycopg.types.json.Jsonb(value),
+                    ),
                 )
                 for span in trace.spans:
                     await cur.execute(
@@ -283,6 +297,7 @@ class PostgresStore:
     def _where(
         self,
         session_id: str | None,
+        scope: str | None,
         outcome: str | None,
         tags: list[str] | None,
         tag_mode: str,
@@ -293,6 +308,9 @@ class PostgresStore:
         if session_id is not None:
             where.append("session_id = %s")
             args.append(session_id)
+        if scope is not None:
+            where.append("scope = %s")
+            args.append(scope)
         if outcome is not None:
             where.append("outcome = %s")
             args.append(outcome)
@@ -327,6 +345,7 @@ class PostgresStore:
         self,
         *,
         session_id: str | None = None,
+        scope: str | None = None,
         outcome: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
@@ -338,7 +357,7 @@ class PostgresStore:
         offset: int = 0,
     ) -> dict[str, Any]:
         await self._ensure_schema()
-        where_sql, args = self._where(session_id, outcome, tags, tag_mode, q)
+        where_sql, args = self._where(session_id, scope, outcome, tags, tag_mode, q)
         sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
@@ -361,8 +380,8 @@ class PostgresStore:
                     "completion_tokens": totals[3],
                 }
                 await cur.execute(
-                    f"SELECT id, session_id, started_at, duration_ms, outcome, "
-                    f"prompt_tokens, completion_tokens, "
+                    f"SELECT id, session_id, scope, metadata, started_at, "
+                    f"duration_ms, outcome, prompt_tokens, completion_tokens, "
                     f"(SELECT COUNT(*) FROM spans WHERE run_id = runs.id) AS spans_count "
                     f"FROM runs{where_sql} ORDER BY {sort_col} {direction} "
                     f"LIMIT %s OFFSET %s",
@@ -453,18 +472,20 @@ class PostgresStore:
             {
                 "id": r[0],
                 "session_id": r[1],
-                "started_at": r[2],
-                "duration_ms": round(r[3], 1),
-                "outcome": r[4],
-                "prompt_tokens": r[5],
-                "completion_tokens": r[6],
-                "spans": r[7],
+                "scope": r[2],
+                "metadata": r[3] or {},
+                "started_at": r[4],
+                "duration_ms": round(r[5], 1),
+                "outcome": r[6],
+                "prompt_tokens": r[7],
+                "completion_tokens": r[8],
+                "spans": r[9],
                 "tags": tags_by_run.get(r[0], []),
                 "fields": fields_by_run.get(r[0], {}),
                 "fields_truncated": bool(
                     columns
                     and self.column_scan_limit is not None
-                    and r[7] > self.column_scan_limit
+                    and r[9] > self.column_scan_limit
                 ),
             }
             for r in rows
@@ -483,7 +504,8 @@ class PostgresStore:
         try:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT id, session_id, started_at, duration_ms, outcome, truncated "
+                    "SELECT id, session_id, scope, metadata, started_at, "
+                    "duration_ms, outcome, truncated "
                     "FROM runs WHERE id = %s",
                     (trace_id,),
                 )
@@ -522,14 +544,16 @@ class PostgresStore:
         return RunTrace(
             id=row[0],
             session_id=row[1],
-            started_at=as_datetime(row[2]) or datetime.now(UTC),
-            duration_ms=row[3],
-            outcome=row[4],
+            scope=row[2],
+            metadata=row[3] or {},
+            started_at=as_datetime(row[4]) or datetime.now(UTC),
+            duration_ms=row[5],
+            outcome=row[6],
             spans=spans,
             span_total=span_total,
             span_offset=span_offset,
             has_more_spans=span_offset + len(spans) < span_total,
-            trace_truncated=bool(row[5]),
+            trace_truncated=bool(row[7]),
             annotations=annotations,
         )
 
@@ -600,6 +624,7 @@ class PostgresStore:
     async def sessions(
         self,
         *,
+        scope: str | None = None,
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -607,6 +632,9 @@ class PostgresStore:
         await self._ensure_schema()
         where = " WHERE session_id != ''"
         args: list[Any] = []
+        if scope is not None:
+            where += " AND scope = %s"
+            args.append(scope)
         if q:
             where += " AND session_id LIKE %s ESCAPE '!'"
             args.append(like(q))

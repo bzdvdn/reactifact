@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..patches import Create, Link, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
-from ..tools import current_produce_name
+from ..tools import ToolRun, current_produce_name
 from .models import (
     AgentContract,
     AgentSpan,
@@ -40,12 +40,11 @@ from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
     from ..agents import Agent
-    from ..commit import Read, Write
+    from ..commit import Commit, Read, Write
     from ..context import Context
     from ..events import Event
     from ..patches import Patch
     from ..redaction import Redactor
-    from ..tools import ToolRun
 
 logger = logging.getLogger(__name__)
 
@@ -116,9 +115,15 @@ def _clip_messages(
 class Tracer:
     """Observer of runs for the Runtime (§54).
 
-    Runtime invokes `on_turn_begin` / `on_span` (sync, no I/O) and
-    `on_turn_end` (async — the sinks write to SQLite/Postgres/Langfuse).
-    `on_turn_end` awaits each sink's `export`, so sinks are async stores.
+    Runtime invokes `on_turn_begin` / `on_agent_start` / `on_tool_start` /
+    `on_tool_end` / `on_span` / `on_commit` (sync, no I/O) and `on_turn_end`
+    (async — the sinks write to SQLite/Postgres/Langfuse). `on_turn_end`
+    awaits each sink's `export`, so sinks are async stores.
+
+    The lifecycle hooks are intentionally best-effort and non-blocking: a
+    live UI (a Studio event log) can consume them, but must enqueue rather
+    than do I/O in the callback. The finished `RunTrace` remains the source
+    of truth; these hooks only make its construction observable.
     """
 
     def __init__(
@@ -141,6 +146,22 @@ class Tracer:
     def on_turn_begin(
         self, run_id: str, *, session_id: str, started_at: datetime
     ) -> None:
+        pass
+
+    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+        """Called before an agent's `run()` (after authorization)."""
+        pass
+
+    def on_tool_start(self, tool: str, args: dict[str, Any] | None) -> None:
+        """Called before a tool executes; `args` is redacted or `None`."""
+        pass
+
+    def on_tool_end(self, run: ToolRun) -> None:
+        """Called after a tool finishes (success or error)."""
+        pass
+
+    def on_commit(self, commit: Commit) -> None:
+        """Called after a generation's patch is committed."""
         pass
 
     def on_span(self, span: AgentSpan) -> None:
@@ -196,8 +217,58 @@ class RecordingLLM(LLMProvider):
         )
         return response
 
-    def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
-        return self._inner.stream(request)
+    async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
+        """Yields the provider's chunks and records one `LLMCall` at the end.
+
+        The extra layer is deliberately cheap: chunks are appended to a list
+        (never `text +=`), the buffer is capped at `truncate`, and `_record`
+        runs once — in `finally` — not per chunk. Token-level deltas are not
+        emitted here; a live UI should consume the chunks it already gets or
+        use the lifecycle hooks, never a blocking callback in this loop.
+        """
+        started_at = datetime.now(UTC)
+        started = time.monotonic()
+        parts: list[str] = []
+        size = 0
+        limit = self._truncate
+        truncated = False
+        usage: dict[str, Any] = {}
+        error: str | None = None
+        try:
+            async for chunk in self._inner.stream(request):
+                if chunk.usage:
+                    usage.update(chunk.usage)
+                if chunk.text:
+                    if limit is None:
+                        parts.append(chunk.text)
+                    elif size < limit:
+                        take = chunk.text[: limit - size]
+                        parts.append(take)
+                        size += len(take)
+                        if len(take) < len(chunk.text):
+                            truncated = True
+                    else:
+                        truncated = True
+                yield chunk
+        except asyncio.CancelledError:
+            error = "cancelled"
+            raise
+        except Exception as exc:  # noqa: BLE001 — record and re-raise
+            error = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            text = "".join(parts)
+            if truncated and limit is not None:
+                # `_record` clips to `limit` and adds the ellipsis itself;
+                # passing the marker through keeps that single clip honest.
+                text += "…"
+            self._safe_record(
+                request,
+                LLMResponse(text=text, usage=usage),
+                (time.monotonic() - started) * 1000,
+                error,
+                started_at,
+            )
 
     def _safe_record(
         self,
@@ -272,6 +343,34 @@ class CompositeTracer:
             except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
                 _swallow_tracing_error(f"{type(tracer).__name__}.on_turn_begin", exc)
 
+    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_agent_start(agent, event, reads)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_agent_start", exc)
+
+    def on_tool_start(self, tool: str, args: dict[str, Any] | None) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_tool_start(tool, args)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_tool_start", exc)
+
+    def on_tool_end(self, run: ToolRun) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_tool_end(run)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_tool_end", exc)
+
+    def on_commit(self, commit: Commit) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_commit(commit)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_commit", exc)
+
     def on_span(self, span: AgentSpan) -> None:
         for tracer in self.tracers:
             try:
@@ -316,6 +415,11 @@ class RunTracer:
         self._truncate = getattr(context.resources, "trace_truncate", TRACE_TRUNCATE)
         self.run_id = ""
         self.spans: list[AgentSpan] = []
+        #: Workspace/scope of this run (copied onto `RunTrace.scope`), so a
+        #: self-hosted dashboard can filter traces per workspace.
+        self.scope = ""
+        #: App-provided run metadata (copied onto `RunTrace.metadata`).
+        self.metadata: dict[str, str] = {}
         #: Wall-clock start of the current turn, used as the trace's `started_at`
         #: (and the origin for the dashboard's timeline).
         self.started_at: datetime | None = None
@@ -466,7 +570,13 @@ class RunTracer:
 
     # ---- per-turn lifecycle ----
 
-    def begin_turn(self, *, session_id: str) -> None:
+    def begin_turn(
+        self,
+        *,
+        session_id: str,
+        scope: str = "",
+        metadata: dict[str, str] | None = None,
+    ) -> None:
         if self.tracer is None:
             return
         # Install the recording wrapper at turn start, not at Runtime
@@ -485,6 +595,8 @@ class RunTracer:
         self.run_id = str(uuid.uuid4())
         self.spans = []
         self.truncated = False
+        self.scope = scope
+        self.metadata = dict(metadata or {})
         self._trace_data_cache = {}
         self.started_at = datetime.now(UTC)
         try:
@@ -493,6 +605,38 @@ class RunTracer:
             )
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_turn_begin", exc)
+
+    def agent_started(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_agent_start(agent, event, reads)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_agent_start", exc)
+
+    def tool_started(self, tool: str, args: dict[str, Any] | None) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_tool_start(tool, args)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_tool_start", exc)
+
+    def tool_ended(self, run: ToolRun) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_tool_end(run)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_tool_end", exc)
+
+    def committed(self, commit: Commit) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_commit(commit)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_commit", exc)
 
     def record_span(
         self,
@@ -599,6 +743,8 @@ class RunTracer:
             started_at=self.started_at or datetime.now(UTC),
             duration_ms=duration_ms,
             outcome=outcome,
+            scope=self.scope,
+            metadata=self.metadata,
             spans=self.spans,
             trace_truncated=self.truncated,
         )

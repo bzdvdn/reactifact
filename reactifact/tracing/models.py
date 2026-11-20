@@ -176,6 +176,13 @@ class RunTrace(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str = ""
+    #: Workspace/tenant scope of the run (empty when the app does not set one).
+    #: Stored and filterable, so a self-hosted dashboard can show one
+    #: workspace's traces without leaking another's.
+    scope: str = ""
+    #: Free-form, app-provided run metadata (e.g. user, agent version). Kept
+    #: small and string-valued so it serializes identically in SQLite/Postgres.
+    metadata: dict[str, str] = Field(default_factory=dict)
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     duration_ms: float = 0.0
     outcome: str = ""

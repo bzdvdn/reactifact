@@ -343,6 +343,51 @@ generation isn't counted.
 - `on_turn_end` is the single delivery point: a new `astream`/`arun` advances the
   run id (a re-run counts as a new run), and each turn's trace is finalized once.
 
+### Live lifecycle hooks
+
+A finished `RunTrace` is the source of truth, but a UI often needs to show work
+*while it happens*. `Tracer` exposes optional, sync, best-effort hooks:
+
+```python
+class LiveTracer(Tracer):
+    def on_agent_start(self, agent, event, reads): ...
+    def on_tool_start(self, tool, args): ...   # args is redacted or None
+    def on_tool_end(self, run): ...             # ToolRun
+    def on_commit(self, commit): ...            # after the patch is applied
+```
+
+They are called alongside the existing `on_turn_begin`/`on_span`/`on_turn_end`.
+Keep them non-blocking (enqueue to a bounded queue; do the I/O elsewhere): an
+exception in a hook is logged and swallowed, so observability can never fail the
+run.
+
+### Streaming LLM calls
+
+`RecordingLLM` records `complete()` and `stream()` calls. A streamed call is
+recorded **once**, after the stream ends (or is closed), with the concatenated
+text, terminal token usage and any error; the stored response is clipped to
+`trace_truncate` (default 1500). The per-chunk overhead is one async-generator
+frame, no per-token recording.
+
+### Workspace scope and metadata
+
+A shared trace store can serve several workspaces. Stamp runs either on the
+runtime or per request:
+
+```python
+Runtime(..., trace_scope="workspace-42")
+# or, per turn:
+await runtime.arun(request={
+    "workspace_id": "workspace-42",
+    "trace_metadata": {"user_id": "u1", "agent_version": "v3"},
+})
+```
+
+`RunTrace.scope` and `RunTrace.metadata` are stored with the run;
+`store.query(scope="workspace-42")` and `store.sessions(scope=...)` filter by it
+(also exposed as `?scope=` on the dashboard API). `trace_scope` wins over
+`request["workspace_id"]`.
+
 ## Logging
 
 reactifact writes structured, **correlated** logs under the `reactifact.*`

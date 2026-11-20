@@ -54,6 +54,7 @@ class TraceReader(Protocol):
         self,
         *,
         session_id: str | None = None,
+        scope: str | None = None,
         outcome: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
@@ -80,6 +81,7 @@ class TraceReader(Protocol):
     async def sessions(
         self,
         *,
+        scope: str | None = None,
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -148,6 +150,8 @@ class TraceStore:
             CREATE TABLE IF NOT EXISTS runs (
                 id TEXT PRIMARY KEY,
                 session_id TEXT NOT NULL DEFAULT '',
+                scope TEXT NOT NULL DEFAULT '',
+                metadata TEXT NOT NULL DEFAULT '{}',
                 started_at REAL NOT NULL,
                 duration_ms REAL NOT NULL,
                 outcome TEXT NOT NULL,
@@ -230,6 +234,14 @@ class TraceStore:
                 "ALTER TABLE spans ADD COLUMN contract TEXT NOT NULL DEFAULT '{}'"
             )
         run_cols = {row[1] for row in self._conn.execute("PRAGMA table_info(runs)")}
+        if "scope" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN scope TEXT NOT NULL DEFAULT ''"
+            )
+        if "metadata" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'"
+            )
         if "prompt_tokens" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0"
@@ -256,6 +268,7 @@ class TraceStore:
         self,
         *,
         session_id: str | None = None,
+        scope: str | None = None,
         outcome: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
@@ -269,6 +282,7 @@ class TraceStore:
         return await asyncio.to_thread(
             self._query_sync,
             session_id,
+            scope,
             outcome,
             tags,
             tag_mode,
@@ -299,11 +313,12 @@ class TraceStore:
     async def sessions(
         self,
         *,
+        scope: str | None = None,
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
-        return await asyncio.to_thread(self._sessions_sync, q, limit, offset)
+        return await asyncio.to_thread(self._sessions_sync, scope, q, limit, offset)
 
     async def delete_run(self, trace_id: str) -> bool:
         """Deletes one run and its spans/tags; returns whether it existed."""
@@ -343,9 +358,9 @@ class TraceStore:
     def _export_sync(self, trace: RunTrace) -> None:
         try:
             self._conn.execute(
-                "INSERT INTO runs (id, session_id, started_at, duration_ms, outcome, "
-                "prompt_tokens, completion_tokens, truncated) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO runs (id, session_id, scope, metadata, started_at, "
+                "duration_ms, outcome, prompt_tokens, completion_tokens, truncated) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 run_insert_values(trace, timestamp=lambda moment: moment.timestamp()),
             )
             for span in trace.spans:
@@ -420,6 +435,7 @@ class TraceStore:
     def _where(
         self,
         session_id: str | None,
+        scope: str | None,
         outcome: str | None,
         tags: list[str] | None,
         tag_mode: str,
@@ -430,6 +446,9 @@ class TraceStore:
         if session_id is not None:
             where.append("session_id = ?")
             args.append(session_id)
+        if scope is not None:
+            where.append("scope = ?")
+            args.append(scope)
         if outcome is not None:
             where.append("outcome = ?")
             args.append(outcome)
@@ -480,6 +499,7 @@ class TraceStore:
     def _query_sync(
         self,
         session_id: str | None,
+        scope: str | None,
         outcome: str | None,
         tags: list[str] | None,
         tag_mode: str,
@@ -494,7 +514,7 @@ class TraceStore:
 
         Returns ``{"items": [...], "total": n}``, where total is before pagination.
         """
-        where_sql, args = self._where(session_id, outcome, tags, tag_mode, q)
+        where_sql, args = self._where(session_id, scope, outcome, tags, tag_mode, q)
         sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
@@ -512,7 +532,7 @@ class TraceStore:
             "completion_tokens": totals[3],
         }
         rows = self._conn.execute(
-            f"SELECT id, session_id, started_at, duration_ms, outcome, "
+            f"SELECT id, session_id, scope, metadata, started_at, duration_ms, outcome, "
             f"prompt_tokens, completion_tokens, "
             f"(SELECT COUNT(*) FROM spans WHERE run_id = runs.id) AS spans_count "
             f"FROM runs{where_sql} ORDER BY {sort_col} {direction} LIMIT ? OFFSET ?",
@@ -529,18 +549,20 @@ class TraceStore:
             {
                 "id": row[0],
                 "session_id": row[1],
-                "started_at": row[2],
-                "duration_ms": round(row[3], 1),
-                "outcome": row[4],
-                "prompt_tokens": row[5],
-                "completion_tokens": row[6],
-                "spans": row[7],
+                "scope": row[2],
+                "metadata": json.loads(row[3] or "{}"),
+                "started_at": row[4],
+                "duration_ms": round(row[5], 1),
+                "outcome": row[6],
+                "prompt_tokens": row[7],
+                "completion_tokens": row[8],
+                "spans": row[9],
                 "tags": tags_by_run.get(row[0], []),
                 "fields": fields_by_run.get(row[0], {}),
                 "fields_truncated": bool(
                     columns
                     and self.column_scan_limit is not None
-                    and row[7] > self.column_scan_limit
+                    and row[9] > self.column_scan_limit
                 ),
             }
             for row in rows
@@ -657,8 +679,8 @@ class TraceStore:
         span_offset: int = 0,
     ) -> RunTrace | None:
         row = self._conn.execute(
-            "SELECT id, session_id, started_at, duration_ms, outcome, truncated "
-            "FROM runs WHERE id = ?",
+            "SELECT id, session_id, scope, metadata, started_at, duration_ms, "
+            "outcome, truncated FROM runs WHERE id = ?",
             (trace_id,),
         ).fetchone()
         if row is None:
@@ -688,21 +710,28 @@ class TraceStore:
         return RunTrace(
             id=row[0],
             session_id=row[1],
-            started_at=datetime.fromtimestamp(row[2], tz=UTC),
-            duration_ms=row[3],
-            outcome=row[4],
+            scope=row[2],
+            metadata=json.loads(row[3] or "{}"),
+            started_at=datetime.fromtimestamp(row[4], tz=UTC),
+            duration_ms=row[5],
+            outcome=row[6],
             spans=spans,
             span_total=span_total,
             span_offset=span_offset,
             has_more_spans=span_offset + len(spans) < span_total,
-            trace_truncated=bool(row[5]),
+            trace_truncated=bool(row[7]),
             annotations=annotations,
         )
 
-    def _sessions_sync(self, q: str | None, limit: int, offset: int) -> dict[str, Any]:
+    def _sessions_sync(
+        self, scope: str | None, q: str | None, limit: int, offset: int
+    ) -> dict[str, Any]:
         """Sessions with aggregates: one row per non-empty `session_id`."""
         where = " WHERE session_id != ''"
         args: list[Any] = []
+        if scope is not None:
+            where += " AND scope = ?"
+            args.append(scope)
         if q:
             where += " AND session_id LIKE ? ESCAPE '!'"
             args.append(like(q))
