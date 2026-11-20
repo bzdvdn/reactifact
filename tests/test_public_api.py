@@ -67,6 +67,9 @@ FROZEN: dict[str, frozenset[str]] = {
             "Trigger",
             "Unlink",
             "Update",
+            "ValidationError",
+            "ValidationIssue",
+            "ValidationReport",
             "View",
             "Wakes",
             "When",
@@ -81,6 +84,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "run_subflow",
             "step",
             "tool",
+            "validate_agents",
         }
     ),
     "reactifact.eval": frozenset(

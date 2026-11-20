@@ -7,6 +7,7 @@ from examples.tour.scenes import (
     run_conflicts,
     run_durable,
     run_events,
+    run_experiment_scene,
     run_hitl,
     run_map_reduce_scene,
     run_model,
@@ -17,6 +18,7 @@ from examples.tour.scenes import (
     run_subflow_scene,
     run_swarm_scene,
     run_time_travel,
+    run_validate_scene,
 )
 from reactifact.providers import FakeLLM
 
@@ -163,3 +165,20 @@ def test_replay_scene_reuses_the_recording() -> None:
     assert report["replayed"] == "replay me"
     assert report["same"] is True
     assert report["recording_lines"] == 1
+
+
+def test_experiment_scene_picks_upper_variant() -> None:
+    report = asyncio.run(run_experiment_scene())
+
+    assert report["winner"] == "upper"
+    assert report["rows"][0]["quality"] == 1.0
+    assert report["rows"][1]["quality"] == 0.0
+
+
+def test_validate_scene_finds_missing_producer() -> None:
+    report = run_validate_scene()
+
+    assert report["ok"] is True
+    assert report["warnings"] == 0
+    assert "unknown_input" in report["bad_codes"]
+    assert "error" in report["bad_render"]

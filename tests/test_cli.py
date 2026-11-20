@@ -83,6 +83,16 @@ def test_graph_command_prints_mermaid(capsys):
     assert "graph" in out or "-->" in out
 
 
+def test_graph_check_command(capsys):
+    spec = "tests.cli_agents_fixture:AGENTS"
+
+    assert main(["graph", spec, "--check", "--seed", "In", "--terminal", "Out"]) == 0
+    assert "validate: ok" in capsys.readouterr().out
+
+    assert main(["graph", spec, "--check", "--terminal", "Out"]) == 1
+    assert "unknown_input" in capsys.readouterr().out
+
+
 def _seed_session(path: str) -> str:
     ctx = Context()
     ctx.create(Doc(text="hello"))

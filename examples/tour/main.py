@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Thirteen independent scenes, all runnable offline:
+Fifteen independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -15,7 +15,9 @@ Thirteen independent scenes, all runnable offline:
 - `subflow`    — child agent on an isolated Context, trace/provenance link;
 - `map_reduce` — stable map tasks + one debounced reduce;
 - `swarm`      — peer handoff chain with a hop/cycle guard;
-- `replay`     — record a tool call, then replay the run without I/O.
+- `replay`     — record a tool call, then replay the run without I/O;
+- `experiment` — A/B variants on a dataset, scored, with a winner;
+- `validate`   — static consumes/produces contract check.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -38,6 +40,7 @@ from .scenes import (
     run_conflicts,
     run_durable,
     run_events,
+    run_experiment_scene,
     run_hitl,
     run_map_reduce_scene,
     run_model,
@@ -48,6 +51,7 @@ from .scenes import (
     run_subflow_scene,
     run_swarm_scene,
     run_time_travel,
+    run_validate_scene,
 )
 
 ROOT = Path(__file__).resolve().parent
@@ -68,6 +72,8 @@ SCENES = (
     "map_reduce",
     "swarm",
     "replay",
+    "experiment",
+    "validate",
 )
 
 
@@ -185,6 +191,24 @@ def _print_replay(report: dict[str, Any]) -> None:
     print(f"  recording lines:      {report['recording_lines']}")
 
 
+def _print_experiment(report: dict[str, Any]) -> None:
+    print("experiment — variants on one dataset")
+    for row in report["rows"]:
+        print(
+            f"  {row['variant']:<10} quality={row['quality']:.2f} "
+            f"cost={row['cost']:.6f} latency={row['avg_latency_s']:.2f}s"
+        )
+    print(f"  winner:               {report['winner']}")
+
+
+def _print_validate(report: dict[str, Any]) -> None:
+    print("validate — static contract check")
+    print(f"  good contracts ok:    {report['ok']}")
+    print(f"  good warnings:        {report['warnings']}")
+    print(f"  missing producer:     {', '.join(report['bad_codes'])}")
+    print(report["bad_render"])
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -218,6 +242,10 @@ async def _run(args: argparse.Namespace) -> int:
             _print_swarm(await run_swarm_scene())
         if args.scene in ("all", "replay"):
             _print_replay(await run_replay_scene())
+        if args.scene in ("all", "experiment"):
+            _print_experiment(await run_experiment_scene())
+        if args.scene in ("all", "validate"):
+            _print_validate(run_validate_scene())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

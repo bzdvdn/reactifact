@@ -110,6 +110,33 @@ report = evaluate(
 )
 ```
 
+## Experiments / Arena
+
+`reactifact.experiments.Experiment` runs several variants over the same dataset,
+scores each with the evaluators above, and picks a winner by quality (cost and
+latency break ties):
+
+```python
+from reactifact.experiments import Experiment
+
+result = await Experiment(
+    base=context,
+    variants={"gpt": gpt_agents, "claude": claude_agents},
+    dataset=Dataset.from_file("evals/qa.json"),
+    seed=lambda ctx, inputs: ctx.create(Question(text=inputs["question"])),
+    evaluators=[exact_answer],
+    metric="exact",              # optional: default is the report's overall
+).run()
+
+print(result.render())           # markdown table + winner
+winner_contexts = result.winner_result.contexts
+```
+
+Each example runs on its own `base.branch()`, so variants never mutate the base
+or each other; `VariantResult` carries the `EvalReport`, per-run `RunStats`
+(cost/tokens/latency) and the contexts. The returned contexts are real branches
+— inspect them, or merge a chosen one yourself.
+
 ## Evaluators
 
 An `Evaluator` is any callable `EvalInput -> Feedback | bool | float |

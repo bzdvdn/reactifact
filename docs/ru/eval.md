@@ -110,6 +110,33 @@ report = evaluate(
 )
 ```
 
+## Эксперименты / Arena
+
+`reactifact.experiments.Experiment` прогоняет несколько вариантов на одном
+датасете, оценивает их теми же evaluators и выбирает победителя по качеству
+(cost/latency — тай-брейк):
+
+```python
+from reactifact.experiments import Experiment
+
+result = await Experiment(
+    base=context,
+    variants={"gpt": gpt_agents, "claude": claude_agents},
+    dataset=Dataset.from_file("evals/qa.json"),
+    seed=lambda ctx, inputs: ctx.create(Question(text=inputs["question"])),
+    evaluators=[exact_answer],
+    metric="exact",              # опционально; по умолчанию overall отчёта
+).run()
+
+print(result.render())           # markdown-таблица + winner
+winner_contexts = result.winner_result.contexts
+```
+
+Каждый пример идёт на своём `base.branch()`, поэтому варианты не мутируют базу
+и друг друга; `VariantResult` содержит `EvalReport`, `RunStats` (cost/tokens/
+latency) и контексты. Возвращённые контексты — настоящие ветки: их можно
+инспектировать или смержить выбранную.
+
 ## Эвалуаторы
 
 `Evaluator` — любой callable `EvalInput -> Feedback | bool | float |

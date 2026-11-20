@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Static contract validation (`validate_agents`).** Checks consumed types
+  against producers/seeds (errors), dead outputs/never-scheduled/unreachable
+  agents/cycles without a bounding Budget (warnings); `ValidationReport.render()`
+  / `raise_for_errors()`. CLI: `reactifact graph <module> --check --seed TYPE
+  --terminal TYPE`. Adds a `validate` tour scene.
+- **`Experiment` / Arena.** Runs named variants over one `Dataset`, each example
+  on its own `base.branch()`; scores with the existing `reactifact.eval`
+  evaluators and returns `ExperimentReport` (`VariantResult` with report,
+  cost/tokens/latency and contexts). Winner is highest quality (a chosen
+  `metric=`, or weighted overall) with cost/latency as tie-breakers; `render()`
+  prints a Markdown table. Adds an `experiment` tour scene.
 - **Tool record/replay + `Runtime.replay_run`.** `RecordingToolRecorder` /
   `ReplayToolRecorder` capture tool calls (tool + exact args → output or
   exception) in JSONL; a replay with no matching call raises `ReplayMiss`.

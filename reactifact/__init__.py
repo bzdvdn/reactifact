@@ -57,6 +57,12 @@ from .subflow import SubflowResult, run_subflow
 from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
+from .validate import (
+    ValidationError,
+    ValidationIssue,
+    ValidationReport,
+    validate_agents,
+)
 
 try:
     __version__ = _distribution_version("reactifact")
@@ -115,6 +121,9 @@ __all__ = [
     "Trigger",
     "Unlink",
     "Update",
+    "ValidationError",
+    "ValidationIssue",
+    "ValidationReport",
     "View",
     "Wakes",
     "When",
@@ -129,4 +138,5 @@ __all__ = [
     "run_subflow",
     "step",
     "tool",
+    "validate_agents",
 ]

@@ -19,12 +19,16 @@ GitHub, Notion, or [mermaid.live](https://mermaid.live).
 ```bash
 python -m reactifact graph examples.knowledge.agents        # all agents of a module
 python -m reactifact graph examples.knowledge.agents:Planner # one agent
+python -m reactifact graph examples.knowledge.agents --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
 ```
 
 - `graph` instantiates every `Agent` subclass defined in the module (or a
-  single one via `module:Attr`) and prints the blueprint.
+  single one via `module:Attr`) and prints the blueprint. With `--check` it
+  runs `validate_agents` instead: unknown inputs are errors (exit 1), dead
+  outputs/unreachable/cycles are warnings; `--seed TYPE`/`--terminal TYPE` are
+  repeatable.
 - `context` reads a saved session from a KV backend (file directory or
   SQLite) and prints its provenance graph; `--session` picks a session,
   `--limit` caps the number of artifacts.
