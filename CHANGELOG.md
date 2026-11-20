@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Checkpoints and session forks.** `ContextCheckpoint` is a lightweight view
+  of one commit; `context.checkpoints()` / `context.checkpoint(id_or_version)`
+  list/resolve history, `context.at(...)` accepts a commit id or checkpoint
+  (not just a version), and `SessionStore.fork(..., new_id=..., at=...)` (also
+  `Session.fork`) starts an independent session from a past state. `replay`
+  gained `--at <commit-id>` and `replay_context(at=...)`; `store.checkpoints(id)`
+  lists history without opening a session.
 - **Typed HITL answers.** `PendingQuestion` gained `resolution_schema` and
   `resolution_data`; `effects.ask(..., schema=Model)` stores the model's JSON
   Schema, and `effects.resume(question, answer)` / `Context.resume` accept a

@@ -18,6 +18,7 @@ from reactifact import Context
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.cli import build_parser, main
 from reactifact.cli.common import load_agents, open_store
+from reactifact.commit import Commit
 from reactifact.session import SessionStore
 from reactifact.tracing import RunTrace, TraceStore
 
@@ -90,6 +91,15 @@ def _seed_session(path: str) -> str:
     return "s1"
 
 
+def _seed_committed_session(path: str) -> str:
+    ctx = Context()
+    ctx.create(Doc(text="hello"))
+    ctx.log_commit(Commit(author="test", message="seed", operations=[]))
+    store = SessionStore(open_store(path, "auto"))
+    run(store.save_session("s1", ctx))
+    return ctx.head_id or ""
+
+
 def test_context_command_happy_path(tmp_path, capsys):
     db = str(tmp_path / "sessions.sqlite3")
     _seed_session(db)
@@ -124,6 +134,17 @@ def test_replay_command_missing_session_reports_error(tmp_path):
     db = str(tmp_path / "sessions.sqlite3")
     _seed_session(db)
     assert main(["replay", db, "--session", "nope"]) == 1
+
+
+def test_replay_command_at_checkpoint(tmp_path, capsys):
+    db = str(tmp_path / "sessions.sqlite3")
+    commit_id = _seed_committed_session(db)
+
+    assert main(["replay", db, "--at", commit_id]) == 0
+    assert "replay v1" in capsys.readouterr().out
+
+    assert main(["replay", db, "--at", "missing"]) == 1
+    assert main(["replay", db, "--at", commit_id, "--version", "1"]) == 1
 
 
 def test_branch_command_save_then_list(tmp_path, capsys):

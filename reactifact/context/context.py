@@ -13,7 +13,7 @@ from ..artifacts import (
     ArtifactVersion,
 )
 from ..checkpoints import CheckpointBackend, FileBackend, KVBackend
-from ..commit import Commit
+from ..commit import Commit, ContextCheckpoint
 from ..commit_log import CommitLog
 from ..events import Event, EventType
 from ..interrupt import PendingAction, PendingQuestion
@@ -631,6 +631,41 @@ class Context:
         """History: an ordered chain of commits from the oldest to head."""
         return self._log.history()
 
+    @staticmethod
+    def _as_checkpoint(commit: Commit) -> ContextCheckpoint:
+        return ContextCheckpoint(
+            id=commit.id,
+            version=commit.context_version or 0,
+            parent_ids=tuple(commit.parent_ids),
+            created_at=commit.timestamp,
+            author=commit.author,
+            message=commit.message,
+            writes=tuple(commit.writes),
+        )
+
+    def checkpoints(self) -> list[ContextCheckpoint]:
+        """History as lightweight checkpoints (oldest to head).
+
+        A checkpoint is a commit's read-only view (`id`, `version`,
+        `created_at`, `author`, `message`, `writes`), suitable for a
+        time-travel UI. `Context.at(...)` accepts one, and
+        `SessionStore.fork(..., at=...)` starts a new session from it.
+        """
+        return [self._as_checkpoint(commit) for commit in self._log.history()]
+
+    def checkpoint(
+        self, ref: int | str | ContextCheckpoint
+    ) -> ContextCheckpoint | None:
+        """Resolve a checkpoint by commit id, context version, or itself."""
+        if isinstance(ref, ContextCheckpoint):
+            return ref
+        for commit in self._log.history():
+            if ref == commit.id or (
+                isinstance(ref, int) and ref == (commit.context_version or 0)
+            ):
+                return self._as_checkpoint(commit)
+        return None
+
     def compact(self, *, keep_commits: int, keep_versions: int | None = None) -> int:
         """Bounds memory: squash old commit history into a baseline snapshot.
 
@@ -781,24 +816,37 @@ class Context:
         """Every stored revision with this payload hash (content addressing)."""
         return self._store.find_versions(content_hash, data_type)
 
-    def at(self, version: int) -> Context:
+    def at(self, version: int | str | ContextCheckpoint) -> Context:
         """An immutable snapshot view of this Context at a commit version.
 
-        `self` is not mutated (unlike `checkout`); the returned Context is a
-        detached copy with no pending events and no step cursors. Useful for
-        reading a historical state without rewinding the live run.
+        `version` may be an integer context version, a commit id, or a
+        `ContextCheckpoint` from `checkpoints()`. `self` is not mutated (unlike
+        `checkout`); the returned Context is a detached copy with no pending
+        events and no step cursors. Useful for reading a historical state
+        without rewinding the live run.
         """
-        if not (0 <= version <= self.version):
+        if isinstance(version, (str, ContextCheckpoint)):
+            checkpoint = self.checkpoint(version)
+            if checkpoint is None:
+                raise KeyError(f"checkpoint {version!r} not found")
+            resolved = checkpoint.version
+        else:
+            resolved = version
+        if not (0 <= resolved <= self.version):
             raise ValueError(
-                f"Invalid snapshot version: {version} (head={self.version})"
+                f"Invalid snapshot version: {resolved} (head={self.version})"
             )
-        if version < self.compacted_at:
+        if resolved < self.compacted_at:
             raise ValueError(
-                f"cannot snapshot version {version}: history below the "
+                f"cannot snapshot version {resolved}: history below the "
                 f"compaction baseline ({self.compacted_at}) was discarded"
             )
         snapshot = self.clone()
-        snapshot.checkout(version)
+        # A snapshot is detached *state*, not detached collaborators: keep the
+        # same resources so an inspection/verification step can still use the
+        # providers configured for this context (same as `branch()`).
+        snapshot.resources = self.resources
+        snapshot.checkout(resolved)
         snapshot.replace_events([])
         snapshot._step_cursors = {}
         return snapshot

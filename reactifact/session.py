@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
 from .checkpoints import AppendBackend, KVBackend
+from .commit import ContextCheckpoint
 from .context import Context
 from .resources import RuntimeResources
 
@@ -31,6 +32,26 @@ class Session:
 
     async def delete(self) -> None:
         await self._store.delete_session(self.session_id)
+
+    def checkpoints(self) -> list[ContextCheckpoint]:
+        """This session's history as lightweight checkpoints."""
+        return self.context.checkpoints()
+
+    async def fork(
+        self,
+        new_id: str,
+        *,
+        at: int | str | ContextCheckpoint | None = None,
+        overwrite: bool = False,
+    ) -> Session:
+        """Starts a new session from this one (optionally at a checkpoint)."""
+        return await self._store.fork(
+            self.session_id,
+            new_id=new_id,
+            at=at,
+            resources=self.context.resources,
+            overwrite=overwrite,
+        )
 
 
 class SessionStore:
@@ -95,6 +116,45 @@ class SessionStore:
 
     async def delete_session(self, session_id: str) -> None:
         await self.backend.delete(session_id)
+
+    async def checkpoints(
+        self,
+        session_id: str,
+        resources: RuntimeResources | None = None,
+    ) -> list[ContextCheckpoint]:
+        """A session's commit history as lightweight checkpoints."""
+        context = await self.load_session(session_id, resources)
+        if context is None:
+            raise KeyError(f"session {session_id!r} not found")
+        return context.checkpoints()
+
+    async def fork(
+        self,
+        session_id: str,
+        *,
+        new_id: str,
+        at: int | str | ContextCheckpoint | None = None,
+        resources: RuntimeResources | None = None,
+        overwrite: bool = False,
+    ) -> Session:
+        """Creates a new session from `session_id`, optionally at a checkpoint.
+
+        With `at=`, the new session starts from that committed state as a
+        detached snapshot (no pending events/step cursors), which is the
+        time-travel primitive. Without `at=`, the current state (including a
+        pending trigger queue) is copied. The source session is never mutated.
+        """
+        if not new_id:
+            raise ValueError("new_id must be non-empty")
+        if not overwrite and await self.has_session(new_id):
+            raise ValueError(f"session {new_id!r} already exists")
+        context = await self.load_session(session_id, resources)
+        if context is None:
+            raise KeyError(f"session {session_id!r} not found")
+        if at is not None:
+            context = context.at(at)
+        await self.save_session(new_id, context)
+        return Session(new_id, context, self, loaded=True)
 
     async def open(
         self,

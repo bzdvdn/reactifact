@@ -68,6 +68,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
 | `current_request()` | the active turn's request mapping (same as `StepCall.request`) |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
+| `ContextCheckpoint` | lightweight view of one commit (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
 ## Artifacts & changes
 
@@ -271,7 +272,7 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `Session`, `SessionStore` | durable per-chat working memory across requests; `SessionStore(backend, compact_every=N)` bounds the append-only log (roughly every N saves it rewrites the snapshot) |
+| `Session`, `SessionStore` | durable per-chat working memory across requests; `SessionStore(backend, compact_every=N)` bounds the append-only log (roughly every N saves it rewrites the snapshot); `store.checkpoints(id)` lists history, `store.fork(id, new_id=…, at=…)` starts a new session from a checkpoint |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value checkpoints backing sessions (`pg` extra for Postgres) — async-native: file I/O runs off-thread, SQLite/Postgres each hold one persistent connection (WAL + busy_timeout on SQLite) serialized by an `asyncio.Lock`; SQLite/Postgres also implement `AppendBackend` (snapshot + append-only commit log, so a save writes only new commits) |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | full-context checkpoints |
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `AgentContract`, `RunTrace`, `LLMCall`, `StepRun` (`ProduceRun` alias), `ToolRun`, `TraceStore` | tracing primitives (async sinks: `export`/`query`/`get`/`sessions`; `AgentSpan.started_at` powers the dashboard timeline; `AgentSpan.event_artifact_type`/`event_artifact_id` identify the triggering artifact, `AgentSpan.contract` carries the declared consumes/produces/tools/priority, `AgentSpan.produces` lists the step runs that ran, and `AgentSpan.tools` lists `ToolRun`s; `get(span_limit=…, span_offset=…)` pages a large run and reports `span_total`/`has_more_spans`/`trace_truncated`; both stores expose `delete_run`/`delete_session`) |

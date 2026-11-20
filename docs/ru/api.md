@@ -72,6 +72,7 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
 | `current_request()` | request-маппинг активного хода (то же, что `StepCall.request`) |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
+| `ContextCheckpoint` | лёгкое представление одного коммита (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
 ## Артефакты и изменения
 
@@ -275,7 +276,7 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `Session`, `SessionStore` | долгоживущая память чата между запросами; `SessionStore(backend, compact_every=N)` ограничивает append-журнал (примерно каждые N сохранений снапшот перезаписывается) |
+| `Session`, `SessionStore` | долгоживущая память чата между запросами; `SessionStore(backend, compact_every=N)` ограничивает append-журнал (примерно каждые N сохранений снапшот перезаписывается); `store.checkpoints(id)` перечисляет историю, `store.fork(id, new_id=…, at=…)` создаёт новую сессию из чекпоинта |
 | `KVBackend`, `FileKVBackend`, `SQLiteKVBackend`, `PostgreSQLKVBackend` | key/value чекпоинты под сессии (`pg` extra для Postgres) — async-native: файловый I/O уходит в отдельный поток, SQLite/Postgres держат одно постоянное соединение (WAL + busy_timeout у SQLite) под `asyncio.Lock`; SQLite/Postgres также реализуют `AppendBackend` (снапшот + append-only журнал коммитов, сохранение пишет только новые коммиты) |
 | `CheckpointBackend`, `FileBackend`, `SQLiteBackend` | чекпоинты всего контекста |
 | `Tracer`, `CompositeTracer`, `AgentSpan`, `AgentContract`, `RunTrace`, `LLMCall`, `StepRun` (`ProduceRun` alias), `ToolRun`, `TraceStore` | примитивы трейсинга (async-приёмники: `export`/`query`/`get`; `AgentSpan.event_artifact_type`/`event_artifact_id` — артефакт-триггер, `AgentSpan.contract` — объявленные consumes/produces/tools/priority, `AgentSpan.produces` — отработавшие `StepRun` (`ProduceRun` alias), а `AgentSpan.tools` — `ToolRun`; `get(span_limit=…, span_offset=…)` постранично читает большой run и отдаёт `span_total`/`has_more_spans`/`trace_truncated`; оба стора умеют `delete_run`/`delete_session`) |

@@ -38,6 +38,7 @@ from .providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from .commit import ContextCheckpoint
     from .resources import RuntimeResources
     from .session import SessionStore
 
@@ -161,15 +162,22 @@ async def replay_context(
     session_id: str,
     *,
     version: int | None = None,
+    at: int | str | ContextCheckpoint | None = None,
 ) -> Context:
-    """Reconstructs a saved session's state, optionally at a past commit (§55).
+    """Reconstructs a saved session's state, optionally at a past checkpoint (§55).
 
     The session checkpoint carries the full deterministic commit chain (§14), so
     replaying to a version needs no agent execution — it is pure state recovery.
+    `at=` accepts a context version, a commit id, or a `ContextCheckpoint`;
+    `version=` is the older integer-only spelling. Passing both is an error.
     """
+    if at is not None and version is not None:
+        raise ValueError("pass either at= or version=, not both")
     context = await store.load_session(session_id)
     if context is None:
         raise KeyError(f"session {session_id!r} not found")
+    if at is not None:
+        return context.at(at)
     if version is not None:
         context.checkout(version)
     return context

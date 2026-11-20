@@ -144,3 +144,34 @@ class Commit:
             reads=[Read.from_dict(r) for r in d.get("reads", [])],
             writes=[Write.from_dict(w) for w in d.get("writes", [])],
         )
+
+
+@dataclass(frozen=True)
+class ContextCheckpoint:
+    """Read-only view of one commit — a named point in a Context's history.
+
+    `Context.checkpoints()` projects the commit log into these; `Context.at()`
+    and `SessionStore.fork(..., at=...)` accept one (or its `id`/`version`)
+    without exposing the full `Commit` (operations, reads) to a UI.
+    """
+
+    id: str
+    version: int
+    parent_ids: tuple[str, ...] = ()
+    created_at: datetime | None = None
+    author: str = ""
+    message: str = ""
+    writes: tuple[Write, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "version": self.version,
+            "parent_ids": list(self.parent_ids),
+            "created_at": (
+                self.created_at.isoformat() if self.created_at is not None else ""
+            ),
+            "author": self.author,
+            "message": self.message,
+            "writes": [write.to_dict() for write in self.writes],
+        }

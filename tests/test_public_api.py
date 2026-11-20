@@ -22,6 +22,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "BudgetTracker",
             "Consume",
             "Context",
+            "ContextCheckpoint",
             "Create",
             "Delete",
             "Effects",

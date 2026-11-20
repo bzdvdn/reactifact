@@ -200,6 +200,27 @@ Two different operations, often confused:
 
 The first is execution; the second is audit.
 
+### Checkpoints and forks
+
+Each commit is also a lightweight checkpoint. `context.checkpoints()` returns
+them oldest-to-head (`id`, `version`, `author`, `message`, `writes`);
+`context.checkpoint(id_or_version)` resolves one, and `context.at(checkpoint)`
+gives a detached snapshot without rewinding the live context.
+
+To start an independent session from a past state:
+
+```python
+history = context.checkpoints()
+fork = await store.fork("s1", new_id="s1-try2", at=history[-2])
+# fork.context is the state at that checkpoint; the source session is untouched
+```
+
+Without `at=`, the current state is copied (including the pending trigger
+queue); with `at=`, pending events/step cursors are cleared — a clean
+time-travel base. `store.checkpoints("s1")` lists them without opening a
+`Session`. `reactifact replay <store> --at <commit-id>` does the read-only
+variant from the CLI.
+
 ## Deadlines, graceful shutdown & in-flight runs
 
 `Budget.max_seconds` is enforced as a **hard** per-turn deadline: the runtime

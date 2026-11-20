@@ -24,9 +24,15 @@ async def _cmd_replay(args: argparse.Namespace) -> int:
         print("no sessions found")
         return 1
     session_id = args.session or sessions[-1]
+    if args.at is not None and args.version is not None:
+        print("pass either --at or --version, not both")
+        return 1
+    at = args.at
+    if isinstance(at, str) and at.isdigit():
+        at = int(at)
     try:
-        context = await replay_context(store, session_id, version=args.version)
-    except KeyError as exc:
+        context = await replay_context(store, session_id, version=args.version, at=at)
+    except (KeyError, ValueError) as exc:
         print(str(exc))
         return 1
     summary = replay_summary(context)
@@ -82,6 +88,12 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     )
     p_replay.add_argument(
         "--version", type=int, default=None, help="replay to this commit"
+    )
+    p_replay.add_argument(
+        "--at",
+        default=None,
+        metavar="CHECKPOINT",
+        help="replay to this commit id (or numeric version)",
     )
     p_replay.add_argument("--backend", choices=["file", "sqlite"], default="auto")
     p_replay.add_argument(

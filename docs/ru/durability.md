@@ -198,6 +198,26 @@ register_type(
 
 Первое — исполнение, второе — аудит.
 
+### Чекпоинты и форки
+
+Каждый коммит — ещё и лёгкий чекпоинт. `context.checkpoints()` возвращает их
+от старых к head (`id`, `version`, `author`, `message`, `writes`);
+`context.checkpoint(id_or_version)` находит один, а `context.at(checkpoint)` —
+отсоединённый снапшот без отката живого контекста.
+
+Чтобы начать независимую сессию из прошлого состояния:
+
+```python
+history = context.checkpoints()
+fork = await store.fork("s1", new_id="s1-try2", at=history[-2])
+# fork.context — состояние на этом чекпоинте; исходная сессия не меняется
+```
+
+Без `at=` копируется текущее состояние (включая очередь отложенных триггеров);
+с `at=` очередь событий/курсоры шагов очищаются — чистая база для time travel.
+`store.checkpoints("s1")` перечисляет чекпоинты без открытия `Session`.
+`reactifact replay <store> --at <commit-id>` — read-only вариант из CLI.
+
 ## Дедлайны, graceful shutdown и активные прогоны
 
 `Budget.max_seconds` работает как **жёсткий** per-turn дедлайн: runtime отменяет

@@ -28,6 +28,7 @@ from .agents import Agent, create_agent
 from .artifacts import Artifact
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
+from .commit import ContextCheckpoint
 from .consume import Consume, consume
 from .context import Context, View
 from .effects import Effects, Handle
@@ -68,6 +69,7 @@ __all__ = [
     "BudgetTracker",
     "Consume",
     "Context",
+    "ContextCheckpoint",
     "Create",
     "Delete",
     "EmbeddingProvider",
