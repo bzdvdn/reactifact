@@ -6,6 +6,7 @@ from .events import run_events
 from .experiment import run_experiment_scene
 from .hitl import run_hitl
 from .map_reduce import run_map_reduce_scene
+from .memory import run_memory_scene
 from .model import run_model
 from .reactive import run_reactive
 from .replay import run_replay_scene
@@ -23,6 +24,7 @@ __all__ = [
     "run_experiment_scene",
     "run_hitl",
     "run_map_reduce_scene",
+    "run_memory_scene",
     "run_model",
     "run_reactive",
     "run_replay_scene",

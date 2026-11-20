@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Fifteen independent scenes, all runnable offline:
+Sixteen independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -17,7 +17,8 @@ Fifteen independent scenes, all runnable offline:
 - `swarm`      — peer handoff chain with a hop/cycle guard;
 - `replay`     — record a tool call, then replay the run without I/O;
 - `experiment` — A/B variants on a dataset, scored, with a winner;
-- `validate`   — static consumes/produces contract check.
+- `validate`   — static consumes/produces contract check;
+- `memory`     — namespaced long-term memory with search/TTL.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -43,6 +44,7 @@ from .scenes import (
     run_experiment_scene,
     run_hitl,
     run_map_reduce_scene,
+    run_memory_scene,
     run_model,
     run_reactive,
     run_replay_scene,
@@ -74,6 +76,7 @@ SCENES = (
     "replay",
     "experiment",
     "validate",
+    "memory",
 )
 
 
@@ -209,6 +212,15 @@ def _print_validate(report: dict[str, Any]) -> None:
     print(report["bad_render"])
 
 
+def _print_memory(report: dict[str, Any]) -> None:
+    print("memory — namespaced long-term recall")
+    print(f"  user top:             {report['user_top']}")
+    print(f"  user hits:            {', '.join(report['user_hits'])}")
+    print(f"  team hits:            {', '.join(report['team_hits'])}")
+    print(f"  cross namespace:      {report['cross_namespace']}")
+    print(f"  forgotten:            {report['forgotten']}")
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -246,6 +258,8 @@ async def _run(args: argparse.Namespace) -> int:
             _print_experiment(await run_experiment_scene())
         if args.scene in ("all", "validate"):
             _print_validate(run_validate_scene())
+        if args.scene in ("all", "memory"):
+            _print_memory(await run_memory_scene())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

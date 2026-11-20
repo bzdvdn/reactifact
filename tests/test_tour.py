@@ -10,6 +10,7 @@ from examples.tour.scenes import (
     run_experiment_scene,
     run_hitl,
     run_map_reduce_scene,
+    run_memory_scene,
     run_model,
     run_reactive,
     run_replay_scene,
@@ -182,3 +183,13 @@ def test_validate_scene_finds_missing_producer() -> None:
     assert report["warnings"] == 0
     assert "unknown_input" in report["bad_codes"]
     assert "error" in report["bad_render"]
+
+
+def test_memory_scene_is_namespaced_and_searchable() -> None:
+    report = asyncio.run(run_memory_scene())
+
+    assert report["user_top"] == {"value": "concise"}
+    assert report["user_hits"][0] == "tone"
+    assert report["team_hits"] == ["escalation"]
+    assert report["cross_namespace"] == []
+    assert report["forgotten"] == 2

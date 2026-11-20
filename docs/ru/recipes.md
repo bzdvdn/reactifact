@@ -51,6 +51,29 @@ refs = await fan_out_sources(
 *повториться* при ретраях — те же id пересоздаются без дублей. `on_start` /
 `on_count` дают прогресс-аннонсы поверх SSE.
 
+## `MemoryStore` — namespaced long-term memory (§27)
+
+```python
+from reactifact.recipes import MemoryStore
+
+memory = MemoryStore(backend, namespace=f"user:{user_id}")
+await memory.put(
+    "tone",
+    {"value": "concise"},
+    text="prefers concise answers with citations",
+    tags={"kind": "preference"},
+    ttl_seconds=90 * 24 * 3600,
+)
+hits = await memory.search("how should answers be written?", k=3)
+```
+
+Namespace обязателен (или задан на store), поэтому recall не прочитает чужого
+пользователя/workspace; `tags` фильтруют, `ttl_seconds` истекает на
+read/list/search, а `search` — детерминированный keyword-ranking
+(`keyword_score`, стемы/плюрализация) с подключаемым `searcher(record, query)`
+для семантики. `forget()` очищает namespace. Записи персистятся через любой
+`KVBackend` (file/SQLite/Postgres).
+
 ## `map_reduce` — fan-out типизированных задач и reduce (§24)
 
 ```python

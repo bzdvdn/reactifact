@@ -49,6 +49,28 @@ Idempotency matters: the caller runs a search once per turn (guarded by its own
 marker) but may *re-run* on retries; the same ids are re-created, never
 duplicated. `on_start` / `on_count` give you progress announces over SSE.
 
+## `MemoryStore` — namespaced long-term memory (§27)
+
+```python
+from reactifact.recipes import MemoryStore
+
+memory = MemoryStore(backend, namespace=f"user:{user_id}")
+await memory.put(
+    "tone",
+    {"value": "concise"},
+    text="prefers concise answers with citations",
+    tags={"kind": "preference"},
+    ttl_seconds=90 * 24 * 3600,
+)
+hits = await memory.search("how should answers be written?", k=3)
+```
+
+Namespaces are mandatory (or set on the store), so a recall cannot read another
+user/workspace; `tags` filter, `ttl_seconds` expires on read/list/search, and
+`search` is deterministic keyword ranking (`keyword_score`, stems/plurals) with
+a pluggable `searcher(record, query)` for semantic recall. `forget()` clears a
+namespace. Records persist through any `KVBackend` (file/SQLite/Postgres).
+
 ## `map_reduce` — fan out typed tasks, then reduce (§24)
 
 ```python

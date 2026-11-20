@@ -96,6 +96,7 @@ from .memory import (
     llm_digest_summarizer,
     llm_summarizer,
 )
+from .memory_store import MemoryHit, MemoryRecord, MemoryStore
 from .plan_execute import PlanExecute
 from .reflection import ReflectionLoop
 from .resolve import materialize_doc
@@ -121,6 +122,9 @@ __all__ = [
     "MapReduced",
     "MapResult",
     "MapTask",
+    "MemoryHit",
+    "MemoryRecord",
+    "MemoryStore",
     "PlanExecute",
     "PrefixedEphemeralCleanup",
     "ReflectionLoop",

@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **`MemoryStore` recipe.** Namespaced long-term memory over any `KVBackend`:
+  `put/get/list/search/delete/forget`, mandatory namespace (store-level or per
+  call), tags, `ttl_seconds`, deterministic keyword search (stems/plurals) with
+  an optional custom `searcher`; JSON records persist through file/SQLite/
+  Postgres. Adds a `memory` tour scene.
 - **Static contract validation (`validate_agents`).** Checks consumed types
   against producers/seeds (errors), dead outputs/never-scheduled/unreachable
   agents/cycles without a bounding Budget (warnings); `ValidationReport.render()`

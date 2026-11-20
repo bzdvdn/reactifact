@@ -195,7 +195,7 @@ The provider is scripted, so the demo is offline and deterministic.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — the framework primitives in fifteen small scenes
+## `tour` — the framework primitives in sixteen small scenes
 
 **What it shows:** the parts that are easy to miss when reading a full app:
 typed artifacts with `version_history` / `diff` / `compact`; typed inputs with
@@ -206,9 +206,9 @@ question resumed with a Pydantic model; checkpoints/forks; the typed
 `Runtime.astream_events` modes; an optimistic-write conflict resolved by a
 merge policy; and a subflow on an isolated Context with a parent-run trace link,
 plus a MapReduce fan-out/reduce, a peer-to-peer swarm handoff, tool
-record/replay via `Runtime.replay_run`, an A/B experiment with a winner, and a
-static contract validation. Every scene is offline by default, and the `model`
-scene runs with a provider only when `--llm` is passed.
+record/replay via `Runtime.replay_run`, an A/B experiment with a winner, a static
+contract validation, and namespaced long-term memory. Every scene is offline by
+default, and the `model` scene runs with a provider only when `--llm` is passed.
 
 ```bash
 uv run python -m examples.tour.main                 # all eight scenes, offline
@@ -225,6 +225,7 @@ uv run python -m examples.tour.main --scene swarm
 uv run python -m examples.tour.main --scene replay
 uv run python -m examples.tour.main --scene experiment
 uv run python -m examples.tour.main --scene validate
+uv run python -m examples.tour.main --scene memory
 uv run python -m examples.tour.main --llm --scene model
 ```
 
