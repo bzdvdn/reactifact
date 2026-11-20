@@ -187,6 +187,26 @@ class Context:
     def unsubscribe(self, queue: QueueEvent) -> None:
         self._hub.unsubscribe(queue)
 
+    def touch(self, artifact_id: str) -> bool:
+        """Queues an ARTIFACT_UPDATED event for an existing artifact, no state change.
+
+        Useful when a subflow starts from a branch and must wake agents that
+        consume an already-present parent artifact (there is no `create()` to
+        emit the event). It only enqueues a trigger; the next `arun()` decides
+        what runs from it.
+        """
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None:
+            return False
+        self._events.append(
+            Event(
+                type=EventType.ARTIFACT_UPDATED,
+                artifact_type=type(artifact.data),
+                artifact_id=artifact_id,
+            )
+        )
+        return True
+
     def create(self, data: TData, id: str | None = None) -> Artifact[TData]:
         """Creates a new artifact and generates an ARTIFACT_CREATED event.
 

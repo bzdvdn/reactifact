@@ -8,6 +8,7 @@ from .model import run_model
 from .reactive import run_reactive
 from .resilience import run_resilience
 from .state import run_state
+from .subflow import run_subflow_scene
 from .time_travel import run_time_travel
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "run_reactive",
     "run_resilience",
     "run_state",
+    "run_subflow_scene",
     "run_time_travel",
 ]

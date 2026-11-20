@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Subflows (`run_subflow`).** Runs one or more child agents on an isolated
+  `Context` (or a `parent.branch()` with `isolate=False`), returns
+  `SubflowResult` (`context`, `seed`, `outputs`, `output`, `run_id`,
+  `parent_run_id`, `stats`), optionally links outputs to the seed for
+  provenance, passes the parent's tracer, and stamps the child trace's
+  `trace_metadata.parent_run_id`. The shared resources mean the parent's
+  `BudgetLLM`/tracker already counts child usage. `Context.touch(id)` wakes
+  child agents from an existing branch artifact; the tour gained a `subflow`
+  scene.
 - **Optimistic concurrency and merge policies.** `effects.update(...,
   expected_version=...)` (also `Patch.update`/`Context.update`) records the
   version the writer read; the runtime validates every `expected_version` in a

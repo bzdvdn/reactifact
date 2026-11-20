@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Nine independent scenes, all runnable offline:
+Ten independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -11,7 +11,8 @@ Nine independent scenes, all runnable offline:
 - `hitl`       — schema-backed question, typed `context.resume`;
 - `time_travel`— checkpoints, snapshot, session fork;
 - `events`     — typed `Runtime.astream_events` modes;
-- `conflicts`  — optimistic `expected_version` conflict + merge policy.
+- `conflicts`  — optimistic `expected_version` conflict + merge policy;
+- `subflow`    — child agent on an isolated Context, trace/provenance link.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -39,6 +40,7 @@ from .scenes import (
     run_reactive,
     run_resilience,
     run_state,
+    run_subflow_scene,
     run_time_travel,
 )
 
@@ -56,6 +58,7 @@ SCENES = (
     "time_travel",
     "events",
     "conflicts",
+    "subflow",
 )
 
 
@@ -139,6 +142,15 @@ def _print_conflicts(report: dict[str, Any]) -> None:
     print(f"  merged with policy:   {report['merged']}")
 
 
+def _print_subflow(report: dict[str, Any]) -> None:
+    print("subflow — child Context with trace and provenance")
+    print(f"  final:                {report['final']}")
+    print(f"  child run id:         {report['child_run_id']}")
+    print(f"  parent linked:        {report['same_trace_link']}")
+    print(f"  child outputs:        {report['child_outputs']}")
+    print(f"  child relations:      {report['relations']}")
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -164,6 +176,8 @@ async def _run(args: argparse.Namespace) -> int:
             _print_events(await run_events())
         if args.scene in ("all", "conflicts"):
             _print_conflicts(await run_conflicts())
+        if args.scene in ("all", "subflow"):
+            _print_subflow(await run_subflow_scene())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

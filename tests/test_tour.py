@@ -12,6 +12,7 @@ from examples.tour.scenes import (
     run_reactive,
     run_resilience,
     run_state,
+    run_subflow_scene,
     run_time_travel,
 )
 from reactifact.providers import FakeLLM
@@ -118,3 +119,14 @@ def test_conflicts_scene_is_atomic_then_merge_policy() -> None:
     assert report["artifact_after"] == "base"
     assert report["merge_conflict"] is True
     assert report["merged"] == "left+right"
+
+
+def test_subflow_scene_links_child_trace_and_provenance() -> None:
+    report = asyncio.run(run_subflow_scene())
+
+    assert report["final"] == "HELLO FROM SUBFLOW"
+    assert report["child_run_id"]
+    assert report["parent_run_id"]
+    assert report["same_trace_link"] is True
+    assert report["child_outputs"] == 1
+    assert report["relations"] == 1

@@ -198,7 +198,7 @@ at-least-once-контракт и app-owned drain/retry-политика.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — примитивы фреймворка в девяти маленьких сценах
+## `tour` — примитивы фреймворка в десяти маленьких сценах
 
 **Что показывает:** то, что легко пропустить в большом приложении:
 типизированные артефакты с `version_history` / `diff` / `compact`;
@@ -207,8 +207,9 @@ uv run python -m examples.repo_agent.main
 возобновляет pending-событие и реплеит прошлый коммит; опциональный LLM-шаг;
 retry агента и per-step дедлайны; schema-backed HITL-вопрос с типизированным
 ответом; чекпоинты/форки; типизированные режимы `Runtime.astream_events`;
-optimistic-конфликт записи, разрешённый merge-политикой. Все сцены по умолчанию
-офлайн, а `model` идёт через провайдера только с `--llm`.
+optimistic-конфликт записи, разрешённый merge-политикой; subflow на изолированном
+Context с trace-ссылкой на родительский run. Все сцены по умолчанию офлайн, а
+`model` идёт через провайдера только с `--llm`.
 
 ```bash
 uv run python -m examples.tour.main                 # все девять сцен, офлайн
@@ -219,6 +220,7 @@ uv run python -m examples.tour.main --scene hitl
 uv run python -m examples.tour.main --scene time_travel
 uv run python -m examples.tour.main --scene events
 uv run python -m examples.tour.main --scene conflicts
+uv run python -m examples.tour.main --scene subflow
 uv run python -m examples.tour.main --llm --scene model
 ```
 

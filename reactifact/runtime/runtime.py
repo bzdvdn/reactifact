@@ -244,6 +244,11 @@ class Runtime:
         """Whether this Runtime is currently running a turn."""
         return self._in_turn
 
+    @property
+    def run_id(self) -> str:
+        """The current/last turn's run id (empty before the first turn)."""
+        return self._run_id
+
     async def ashutdown(self, *, timeout: float | None = None) -> None:
         """Graceful shutdown: stop at a boundary, then wait for the turn to end.
 
@@ -282,9 +287,10 @@ class Runtime:
         self._turn_started = True
         request = current_request()
         raw_metadata = request.get("trace_metadata")
+        scope = self.trace_scope or str(request.get("workspace_id", "") or "")
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else "",
-            scope=self.trace_scope or str(request.get("workspace_id", "") or ""),
+            scope=scope,
             metadata=(
                 {str(key): str(value) for key, value in raw_metadata.items()}
                 if isinstance(raw_metadata, Mapping)
@@ -296,6 +302,9 @@ class Runtime:
         # tracer is configured; reuse it when present so both agree, and mint
         # one otherwise.
         self._run_id = self._trace.run_id or uuid.uuid4().hex
+        self.context.resources.run_id = self._run_id
+        self.context.resources.trace_scope = scope
+        self.context.resources.tracer = self.tracer
         # Correlation fields for every log line of this turn (inherited by the
         # child tasks a generation fans out to).
         self._log_token = set_context(

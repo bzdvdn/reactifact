@@ -53,6 +53,7 @@ from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import Runtime
 from .session import Session, SessionStore
 from .step import Latest, Scope, Step, StepCall, Wakes, When, step
+from .subflow import SubflowResult, run_subflow
 from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
 from .types import register as register_type
@@ -92,6 +93,7 @@ __all__ = [
     "ProduceCall",
     "Step",
     "StepCall",
+    "SubflowResult",
     "Relation",
     "ResourceKey",
     "ResourceScope",
@@ -124,6 +126,7 @@ __all__ = [
     "get_logger",
     "produce",
     "register_type",
+    "run_subflow",
     "step",
     "tool",
 ]

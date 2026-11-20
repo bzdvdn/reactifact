@@ -60,6 +60,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "SessionStore",
             "Step",
             "StepCall",
+            "SubflowResult",
             "Tool",
             "ToolError",
             "ToolOutput",
@@ -77,6 +78,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "get_logger",
             "produce",
             "register_type",
+            "run_subflow",
             "step",
             "tool",
         }

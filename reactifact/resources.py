@@ -189,6 +189,12 @@ class RuntimeResources:
         self.budget: Budget | None = None
         self.budget_deadline: float | None = None
         self.budget_tracker: BudgetTracker | None = None
+        #: Current turn's run id / trace scope / tracer, set by `Runtime` on the
+        #: per-turn copy. Subflows read them to keep a child run linked to the
+        #: parent (trace metadata `parent_run_id`) and to share the tracer.
+        self.run_id: str = ""
+        self.trace_scope: str = ""
+        self.tracer: Any | None = None
 
     def get_source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)
