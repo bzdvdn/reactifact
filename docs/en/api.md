@@ -75,6 +75,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `Artifact` | immutable `(id, version, data, content_hash)` handle; history lives in `Context` (`artifact_version`/`version_history`/`find_versions`) |
+| `ArtifactConflict` | optimistic-concurrency failure: `effects.update(..., expected_version=…)` / `Context.update` expected a different version; the runtime validates the whole generation before applying any patch |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | stable persisted type identity: a rename/move of a model no longer breaks loading old sessions/commits/events. `type_id_of`/`resolve`/`migrate_payload`; default id is the qualified name |
 | `Patch` | the runtime's compiled change-set (transport); steps write effects (`effects`/`call.effects`), `Patch` is assembled by the runtime |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
@@ -103,6 +104,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL authoring: `ask(question, kind=, notes=, schema=, id=)` creates the question; `resume(question, answer)` accepts a legacy string or a Pydantic model/mapping (stored in `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the step; `None` if it already exists |
+| `Effects.update(artifact, *, expected_version=…, **fields)` | field-bump of an existing artifact; `expected_version=` opts into optimistic concurrency (`ArtifactConflict` instead of last-write-wins) |
 | `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 
 ## Runtime
@@ -166,8 +168,9 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `Context.branch(name="")` | forks an isolated copy; records the base snapshot for three-way merge |
-| `Context.merge(other, message=…)` | atomic three-way merge; `MergeConflict` on diverged artifacts |
+| `Context.merge(other, message=…, policies=…)` | atomic three-way merge; `MergeConflict` on diverged artifacts unless a per-type `MergePolicy` resolves them |
 | `MergeConflict` | raised when both sides changed an artifact differently since the fork |
+| `MergePolicy` (`reactifact.branching`) | `(target_data, other_data) -> merged_data` callable passed per model type to `Context.merge`; default stays fail-loud |
 | `BranchStore(KVBackend)` | persists branches as `branch:<session>:<name>` over a KV backend |
 | `python -m reactifact branch …` | CLI: `list` / `save` / `merge` |
 

@@ -1,5 +1,6 @@
 """One module per tour scene; the CLI and tests import only these entry points."""
 
+from .conflicts import run_conflicts
 from .durable import run_durable
 from .events import run_events
 from .hitl import run_hitl
@@ -10,6 +11,7 @@ from .state import run_state
 from .time_travel import run_time_travel
 
 __all__ = [
+    "run_conflicts",
     "run_durable",
     "run_events",
     "run_hitl",

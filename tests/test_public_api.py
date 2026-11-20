@@ -18,6 +18,7 @@ FROZEN: dict[str, frozenset[str]] = {
         {
             "Agent",
             "Artifact",
+            "ArtifactConflict",
             "Budget",
             "BudgetTracker",
             "Consume",

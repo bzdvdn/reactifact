@@ -8,12 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
-- **Tour scenes for the new runtime features.** `examples/tour` gained four
+- **Optimistic concurrency and merge policies.** `effects.update(...,
+  expected_version=...)` (also `Patch.update`/`Context.update`) records the
+  version the writer read; the runtime validates every `expected_version` in a
+  generation before applying any patch and raises `ArtifactConflict`, so a
+  conflict leaves no partial commit. `Context.merge(other, policies={Type: fn})`
+  can resolve a diverged artifact deterministically; without a policy it stays
+  fail-loud with `MergeConflict`. `ArtifactConflict`/`MergePolicy` are exported;
+  the tour gained a `conflicts` scene.
+- **Tour scenes for the new runtime features.** `examples/tour` gained five
   offline scenes: `resilience` (`Agent.retry`/`RetryPolicy` + `Step.timeout`),
   `hitl` (schema-backed question + typed `context.resume`), `time_travel`
-  (`context.checkpoints()`/`at()` + `SessionStore.fork`), and `events`
-  (`Runtime.astream_events` across all stream modes), each covered by
-  `tests/test_tour.py` and documented in the tour README.
+  (`context.checkpoints()`/`at()` + `SessionStore.fork`), `events`
+  (`Runtime.astream_events` across all stream modes), and `conflicts`
+  (`expected_version` + merge policy), each covered by `tests/test_tour.py` and
+  documented in the tour README.
 - **Typed run events (`Runtime.astream_events`).** A `RunEvent` union with
   `RunStart`/`GenerationStart`/`AgentStart`/`AgentRetry`/`AgentEnd`/`ToolStart`/
   `ToolEnd`/`ArtifactWrite`/`Values`/`LLMDelta`/`CustomEvent`/`RunEnd`/

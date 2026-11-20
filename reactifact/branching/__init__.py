@@ -2,6 +2,7 @@
 
 from .ops import (
     MergeConflict,
+    MergePolicy,
     clone_context,
     fork_context,
     merge_context_from,
@@ -12,6 +13,7 @@ from .store import BranchStore
 __all__ = [
     "BranchStore",
     "MergeConflict",
+    "MergePolicy",
     "clone_context",
     "fork_context",
     "merge_context_from",

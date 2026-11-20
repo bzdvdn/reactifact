@@ -25,6 +25,7 @@ backend (matching the constitution: semantics live in Context operations).
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -48,6 +49,12 @@ class MergeConflict(Exception):
     def __init__(self, message: str, conflicts: list[str] | None = None):
         super().__init__(message)
         self.conflicts = conflicts or []
+
+
+#: Resolves a diverged artifact in `Context.merge`: given the target and the
+#: incoming data, return the merged data (same model type). Opt-in, per type;
+#: without a policy the merge stays fail-loud with `MergeConflict`.
+MergePolicy = Callable[[Any, Any], BaseModel]
 
 
 def clone_context(source: Context) -> Context:
@@ -142,7 +149,11 @@ def _kind_short(signature: Any) -> str:
 
 
 def merge_contexts(
-    target: Context, other: Context, *, message: str = "Merged branch"
+    target: Context,
+    other: Context,
+    *,
+    message: str = "Merged branch",
+    policies: Mapping[type[BaseModel], MergePolicy] | None = None,
 ) -> None:
     """Merges `other` into `target` with explicit conflicts, atomically (§40).
 
@@ -157,6 +168,9 @@ def merge_contexts(
 
     So a change adopted from `other` never silently overwrites a change made
     on `target` since the fork (§40: the framework must not choose silently).
+    `policies` can opt a specific model type into a deterministic resolution:
+    the callable receives `(target_data, other_data)` and returns merged data of
+    the same type; a policy that raises or returns a wrong type still fails.
     """
     base = other._base if other._base is not None else target._base
     if base is None:
@@ -204,10 +218,28 @@ def merge_contexts(
                     else Update(artifact_id, other_art.data)
                 )
         else:
-            conflicts.append(
-                f"{artifact_id} diverged since the fork "
-                f"(target={_kind_short(st)}, other={_kind_short(so)})"
-            )
+            policy = None
+            if (
+                policies is not None
+                and target_art is not None
+                and other_art is not None
+            ):
+                policy = policies.get(type(target_art.data))
+            if policy is not None:
+                assert target_art is not None and other_art is not None
+                merged = policy(target_art.data, other_art.data)
+                if not isinstance(merged, type(target_art.data)):
+                    raise TypeError(
+                        f"merge policy for {type(target_art.data).__name__} "
+                        f"returned {type(merged).__name__}"
+                    )
+                pending[artifact_id] = merged
+                operations.append(Update(artifact_id, merged))
+            else:
+                conflicts.append(
+                    f"{artifact_id} diverged since the fork "
+                    f"(target={_kind_short(st)}, other={_kind_short(so)})"
+                )
 
     if conflicts:
         raise MergeConflict(
@@ -258,6 +290,7 @@ def merge_contexts(
 
 __all__ = [
     "MergeConflict",
+    "MergePolicy",
     "clone_context",
     "fork_context",
     "merge_context_from",

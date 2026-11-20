@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 from pydantic import BaseModel
 
 from ..artifacts import (
     Artifact,
+    ArtifactConflict,
     ArtifactStore,
     ArtifactVersion,
 )
@@ -38,6 +39,9 @@ from .serialization import (
 from .serialization import (
     migrate_context_payload as migrate_context_payload,
 )
+
+if TYPE_CHECKING:
+    from ..branching import MergePolicy
 
 TData = TypeVar("TData", bound=BaseModel)
 TArtifact = TypeVar("TArtifact", bound=BaseModel)
@@ -210,15 +214,25 @@ class Context:
         """Returns the artifact by id or None."""
         return self._artifacts.get(artifact_id)
 
-    def update(self, artifact_id: str, new_data: TData) -> Artifact[TData] | None:
+    def update(
+        self,
+        artifact_id: str,
+        new_data: TData,
+        *,
+        expected_version: int | None = None,
+    ) -> Artifact[TData] | None:
         """Updates artifact data, creates a new version, generates ARTIFACT_UPDATED.
 
-        If the data did not change, the version and the event are left untouched:
-        no-op patches must not cascade into reactions (§41, §42).
+        With `expected_version=`, raises `ArtifactConflict` when the artifact is
+        no longer at that version (optimistic concurrency). If the data did not
+        change, the version and the event are left untouched: no-op patches must
+        not cascade into reactions (§41, §42).
         """
         artifact = self._artifacts.get(artifact_id)
         if artifact is None:
             return None
+        if expected_version is not None and artifact.version != expected_version:
+            raise ArtifactConflict(artifact_id, expected_version, artifact.version)
         if artifact.data == new_data:
             return artifact
         old_type = type(artifact.data)
@@ -497,18 +511,26 @@ class Context:
 
         return fork_context(self, name=name)
 
-    def merge(self, other: Context, *, message: str = "Merged branch") -> None:
+    def merge(
+        self,
+        other: Context,
+        *,
+        message: str = "Merged branch",
+        policies: Mapping[type[BaseModel], MergePolicy] | None = None,
+    ) -> None:
         """Merges `other` into `self` with explicit conflicts, atomically (§40).
 
         Three-way merge against the shared fork base (the fork snapshot of
         `other`, or of `self` when `other` has none) — raises `MergeConflict`
         (`reactifact.branching.MergeConflict`, re-exported as `reactifact.MergeConflict`)
-        rather than silently choosing a side. Algorithm lives in
+        rather than silently choosing a side. `policies` maps a model type to a
+        `(target_data, other_data) -> merged_data` callable for the diverged
+        cases that should be resolved deterministically. Algorithm lives in
         `reactifact.branching.merge_contexts`.
         """
         from ..branching.ops import merge_contexts
 
-        merge_contexts(self, other, message=message)
+        merge_contexts(self, other, message=message, policies=policies)
 
     def log_commit(self, commit: Commit) -> None:
         """Applies the commit to the repository: fills in parent/version, moves head."""

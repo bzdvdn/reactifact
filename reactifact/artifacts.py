@@ -36,6 +36,26 @@ def blob_key(data_type: str, content_hash: str) -> str:
     return f"{data_type}:{content_hash}"
 
 
+class ArtifactConflict(RuntimeError):
+    """An optimistic-concurrency update expected a different artifact version.
+
+    Raised by `effects.update(..., expected_version=...)`, `Context.update`, or
+    the runtime before a commit when a patch would overwrite a version another
+    writer already moved. The runtime validates the whole generation first, so
+    no patch from that generation is applied.
+    """
+
+    def __init__(self, artifact_id: str, expected: int, actual: int | None) -> None:
+        self.artifact_id = artifact_id
+        self.expected = expected
+        self.actual = actual
+        actual_text = actual if actual is not None else "absent"
+        super().__init__(
+            f"artifact {artifact_id!r} version conflict: expected {expected}, "
+            f"actual {actual_text}"
+        )
+
+
 @dataclass(frozen=True)
 class ArtifactVersion:
     """One immutable artifact revision, addressed by content hash.

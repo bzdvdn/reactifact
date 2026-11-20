@@ -1,4 +1,4 @@
-# tour — the framework primitives in eight small scenes
+# tour — the framework primitives in nine small scenes
 
 The domain examples show complete applications. This one is the compact
 counterpart: each scene isolates a primitive that is easy to miss when reading a
@@ -20,6 +20,7 @@ Scenes:
 | `hitl` | `effects.ask(..., schema=Model)` + typed `context.resume(...)` |
 | `time_travel` | `context.checkpoints()`, `context.at(checkpoint)`, `SessionStore.fork` |
 | `events` | `Runtime.astream_events` with all `stream_mode`s |
+| `conflicts` | `effects.update(expected_version=...)`, `ArtifactConflict`, merge policy |
 
 Run one scene:
 
@@ -32,6 +33,7 @@ Run one scene:
 .venv/bin/python -m examples.tour.main --scene hitl
 .venv/bin/python -m examples.tour.main --scene time_travel
 .venv/bin/python -m examples.tour.main --scene events
+.venv/bin/python -m examples.tour.main --scene conflicts
 ```
 
 Keep the durable session to inspect or replay it yourself:
@@ -66,6 +68,7 @@ scene prints the offline brief rather than a fabricated answer.
 - `scenes/hitl.py` — schema-backed question + typed resume;
 - `scenes/time_travel.py` — checkpoints, snapshot, fork;
 - `scenes/events.py` — typed `astream_events` modes;
+- `scenes/conflicts.py` — expected-version conflict + merge policy;
 - `main.py` — argument parsing and terminal output;
 - `../../tests/test_tour.py` — asserts every scene, including the offline and
   `FakeLLM` model paths.

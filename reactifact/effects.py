@@ -170,8 +170,18 @@ class Effects:
         """
         return self.create(data, id=id)
 
-    def update(self, artifact: Artifact[Any], **fields: Any) -> Effects:
+    def update(
+        self,
+        artifact: Artifact[Any],
+        **fields: Any,
+    ) -> Effects:
         """Bumps fields of an *existing* artifact (a new version).
+
+        Pass `expected_version=` for optimistic concurrency: the runtime checks
+        it before committing the generation and raises `ArtifactConflict` (no
+        patch from that generation is applied) if another writer moved the
+        artifact. This is the typed alternative to a silent last-write-wins.
+        `expected_version` is reserved; it is never copied into the artifact.
 
         Note the name means something different here than on `Patch.update`/
         `Context.update`/`Artifact.update` (a full data replacement) — this is
@@ -181,8 +191,13 @@ class Effects:
         name; the lower-level, less-used `Patch`/`Context`/`Artifact` surface
         keeps `update` for the operation it's actually named after.
         """
+        expected_version = fields.pop("expected_version", None)
+        if expected_version is not None and not isinstance(expected_version, int):
+            raise TypeError("expected_version must be an int or None")
         new_data = artifact.data.model_copy(update=fields)
-        self.operations.append(Update(artifact.id, new_data))
+        self.operations.append(
+            Update(artifact.id, new_data, expected_version=expected_version)
+        )
         return self
 
     def delete(self, artifact: Any) -> Effects:

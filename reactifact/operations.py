@@ -78,6 +78,10 @@ class Update(Operation):
     artifact_id: str
     new_data: Any  # Pydantic model with updated data
     data_type: str = ""
+    #: Optimistic concurrency: when set, the write only applies if the
+    #: artifact is still at this version. The runtime validates every patch in
+    #: a generation before applying any of them.
+    expected_version: int | None = None
 
     def __post_init__(self) -> None:
         if not self.data_type and hasattr(self.new_data, "__class__"):
@@ -177,7 +181,10 @@ def operation_from_dict(
     elif op_type == "update":
         data_type, new_data = _payload_from_dict(d, blobs)
         return Update(
-            artifact_id=d["artifact_id"], new_data=new_data, data_type=data_type
+            artifact_id=d["artifact_id"],
+            new_data=new_data,
+            data_type=data_type,
+            expected_version=d.get("expected_version"),
         )
     elif op_type == "delete":
         return Delete(artifact_id=d["artifact_id"])

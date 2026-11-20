@@ -589,6 +589,10 @@ class Runtime:
         generation in `_arun_once_impl`, after the trigger batch is consumed,
         so the saved snapshot is queue-consistent (see the note there).
         """
+        # Validate every optimistic `expected_version` in the generation
+        # before applying the first patch: a conflict must leave state
+        # untouched, not half of this generation committed.
+        self._patches.validate_versions(patch for patch, _, _, _ in patches_to_apply)
         for patch, agent, reads, span in patches_to_apply:
             commit = Commit(
                 author=agent.name,

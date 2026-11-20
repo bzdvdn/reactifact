@@ -25,7 +25,7 @@ from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 
 from .agents import Agent, create_agent
-from .artifacts import Artifact
+from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .commit import ContextCheckpoint
@@ -65,6 +65,7 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
 __all__ = [
     "Agent",
     "Artifact",
+    "ArtifactConflict",
     "Budget",
     "BudgetTracker",
     "Consume",

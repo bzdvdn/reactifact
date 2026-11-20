@@ -59,7 +59,33 @@ except MergeConflict as exc:
 ```
 
 The conflict list is the input for a verifier/merge policy — the framework does
-not choose (§40).
+not choose (§40). When a type has a deterministic resolution, opt in per type:
+
+```python
+left.merge(
+    right,
+    policies={Note: lambda a, b: Note(text=f"{a.text}\n{b.text}")},
+)
+```
+
+A policy receives the target and incoming data and must return the same model
+type; without one, the merge stays fail-loud. Policies are explicit and
+auditable — the merge commit records the resolved value.
+
+### Optimistic writes, not last-write-wins
+
+Parallel agents in one generation share a snapshot; a plain `context.update`
+would silently keep the last write. Mark the version you read instead:
+
+```python
+effects.update(note, expected_version=note.version, text="new")
+# raises ArtifactConflict if another writer moved `note`
+```
+
+The runtime validates every `expected_version` in a generation **before**
+applying any patch, so a conflict leaves the generation untouched. Re-run the
+turn (or let a `RetryPolicy` handle the error, if you model it as one) and the
+agent reads the new version.
 
 ## Persistence: `BranchStore` on top of the KV backend
 

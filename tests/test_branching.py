@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from pydantic import BaseModel
 from reactifact import Context, MergeConflict, RuntimeResources
 from reactifact.branching import BranchStore
@@ -90,6 +91,30 @@ def test_merge_delete_conflict():
         pass
     else:  # pragma: no cover
         raise AssertionError("expected MergeConflict")
+
+
+def test_merge_policy_resolves_a_same_type_conflict():
+    fork_a = _base_context().branch(name="a")
+    fork_b = _base_context().branch(name="b")
+    fork_a.update("note:1", Note(text="a-wins"))
+    fork_b.update("note:1", Note(text="b-wins"))
+
+    fork_a.merge(
+        fork_b,
+        policies={Note: lambda left, right: Note(text=f"{left.text}+{right.text}")},
+    )
+
+    assert fork_a.get("note:1").data.text == "a-wins+b-wins"  # type: ignore[union-attr]
+
+
+def test_merge_policy_wrong_type_still_fails():
+    fork_a = _base_context().branch(name="a")
+    fork_b = _base_context().branch(name="b")
+    fork_a.update("note:1", Note(text="a-wins"))
+    fork_b.update("note:1", Note(text="b-wins"))
+
+    with pytest.raises(TypeError, match="merge policy"):
+        fork_a.merge(fork_b, policies={Note: lambda left, right: Tag(label="wrong")})
 
 
 def test_merge_clean_delete_propagates():

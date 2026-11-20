@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 from examples.tour.scenes import (
+    run_conflicts,
     run_durable,
     run_events,
     run_hitl,
@@ -107,3 +108,13 @@ def test_events_scene_streams_typed_events() -> None:
     assert report["tool_starts"] == 1
     assert report["custom"] == "calling the model…"
     assert report["outcome"] == "completed"
+
+
+def test_conflicts_scene_is_atomic_then_merge_policy() -> None:
+    report = asyncio.run(run_conflicts())
+
+    assert report["conflict_raised"] is True
+    assert report["conflict_actual"] == 1
+    assert report["artifact_after"] == "base"
+    assert report["merge_conflict"] is True
+    assert report["merged"] == "left+right"

@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Eight independent scenes, all runnable offline:
+Nine independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -10,7 +10,8 @@ Eight independent scenes, all runnable offline:
 - `resilience` — agent retry policy and a per-step deadline;
 - `hitl`       — schema-backed question, typed `context.resume`;
 - `time_travel`— checkpoints, snapshot, session fork;
-- `events`     — typed `Runtime.astream_events` modes.
+- `events`     — typed `Runtime.astream_events` modes;
+- `conflicts`  — optimistic `expected_version` conflict + merge policy.
 
 Run:  .venv/bin/python -m examples.tour.main
       .venv/bin/python -m examples.tour.main --scene state
@@ -30,6 +31,7 @@ from dotenv import load_dotenv
 from reactifact.providers import from_env
 
 from .scenes import (
+    run_conflicts,
     run_durable,
     run_events,
     run_hitl,
@@ -53,6 +55,7 @@ SCENES = (
     "hitl",
     "time_travel",
     "events",
+    "conflicts",
 )
 
 
@@ -127,6 +130,15 @@ def _print_events(report: dict[str, Any]) -> None:
     print(f"  outcome:              {report['outcome']}")
 
 
+def _print_conflicts(report: dict[str, Any]) -> None:
+    print("conflicts — optimistic concurrency and merge policy")
+    print(f"  conflict raised:      {report['conflict_raised']}")
+    print(f"  actual version:       {report['conflict_actual']}")
+    print(f"  artifact after:       {report['artifact_after']}")
+    print(f"  merge conflict:       {report['merge_conflict']}")
+    print(f"  merged with policy:   {report['merged']}")
+
+
 async def _run(args: argparse.Namespace) -> int:
     provider = from_env() if args.llm else None
     if args.llm and provider is None:
@@ -150,6 +162,8 @@ async def _run(args: argparse.Namespace) -> int:
             _print_time_travel(await run_time_travel())
         if args.scene in ("all", "events"):
             _print_events(await run_events())
+        if args.scene in ("all", "conflicts"):
+            _print_conflicts(await run_conflicts())
     finally:
         aclose = getattr(provider, "aclose", None)
         if aclose is not None:

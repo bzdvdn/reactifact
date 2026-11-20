@@ -54,16 +54,39 @@ class Patch:
     def create(self, data: Any, id: str | None = None) -> Patch:
         return self.add(Create(data, id=id))
 
-    def update(self, artifact_id: Any, new_data: Any) -> Patch:
-        return self.add(Update(_id_of(artifact_id), new_data))
+    def update(
+        self,
+        artifact_id: Any,
+        new_data: Any,
+        *,
+        expected_version: int | None = None,
+    ) -> Patch:
+        return self.add(
+            Update(
+                _id_of(artifact_id),
+                new_data,
+                expected_version=expected_version,
+            )
+        )
 
-    def update_fields(self, artifact: Artifact[Any], **fields: Any) -> Patch:
+    def update_fields(
+        self,
+        artifact: Artifact[Any],
+        *,
+        expected_version: int | None = None,
+        **fields: Any,
+    ) -> Patch:
         """Update artifact fields without rebuilding the model.
 
         Sugar over `update`: it does the `model_copy(update=fields)` itself and puts
         the full new model into `Update` (preserving commit replayability).
+        `expected_version=` is passed through for optimistic concurrency.
         """
-        return self.update(artifact.id, artifact.data.model_copy(update=fields))
+        return self.update(
+            artifact.id,
+            artifact.data.model_copy(update=fields),
+            expected_version=expected_version,
+        )
 
     def delete(self, artifact_id: Any) -> Patch:
         return self.add(Delete(_id_of(artifact_id)))

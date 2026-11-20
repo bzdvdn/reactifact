@@ -79,6 +79,7 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | Символ | Роль |
 | --- | --- |
 | `Artifact` | неизменяемый handle `(id, version, data, content_hash)`; история — в `Context` (`artifact_version`/`version_history`/`find_versions`) |
+| `ArtifactConflict` | конфликт optimistic-concurrency: `effects.update(..., expected_version=…)` / `Context.update` ожидал другую версию; runtime проверяет всю generation до применения хоть одного patch |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | стабильная персистентная идентичность типа: переименование/перенос модели больше не ломает загрузку старых сессий/коммитов/событий. `type_id_of`/`resolve`/`migrate_payload`; дефолтный id — qualified name |
 | `Patch` | скомпилированный набор изменений рантайма (транспорт); шаги пишут эффекты (`effects`/`call.effects`), `Patch` собирает рантайм |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | скомпилированные операции, которые несёт патч (§12) |
@@ -107,6 +108,7 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL-авторинг: `ask(question, kind=, notes=, schema=, id=)` создаёт вопрос; `resume(question, answer)` принимает legacy-строку или Pydantic-модель/mapping (пишется в `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
+| `Effects.update(artifact, *, expected_version=…, **fields)` | обновление полей существующего артефакта; `expected_version=` включает optimistic concurrency (`ArtifactConflict` вместо last-write-wins) |
 | `PendingAction` | записанный внешний side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); выполняется один раз через `Runtime(dispatcher=...)`, затем `dispatched` / `failed` (`retry_action` возвращает в очередь) |
 
 ## Runtime
@@ -170,8 +172,9 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | Символ | Роль |
 | --- | --- |
 | `Context.branch(name="")` | форкает изолированную копию; фиксирует снимок базы для трёхстороннего слияния |
-| `Context.merge(other, message=…)` | атомарное трёхстороннее слияние; `MergeConflict` при разошедшихся артефактах |
+| `Context.merge(other, message=…, policies=…)` | атомарное трёхстороннее слияние; `MergeConflict` при разошедшихся артефактах, если их не разрешает per-type `MergePolicy` |
 | `MergeConflict` | бросается, когда обе стороны изменили артефакт по-разному после форка |
+| `MergePolicy` (`reactifact.branching`) | callable `(target_data, other_data) -> merged_data`, передаётся по типу модели в `Context.merge`; по умолчанию — fail-loud |
 | `BranchStore(KVBackend)` | хранит ветки как `branch:<session>:<name>` поверх KV-бэкенда |
 | `python -m reactifact branch …` | CLI: `list` / `save` / `merge` |
 

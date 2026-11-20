@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from ..agents import Agent
-from ..artifacts import artifact_content_hash
+from ..artifacts import ArtifactConflict, artifact_content_hash
 from ..commit import Commit, Write
 from ..context import Context
 from ..guardrails import GuardrailViolation
@@ -90,8 +92,49 @@ class PatchApplicator:
             )
         return patch
 
+    def validate_versions(self, patches: Iterable[Patch]) -> None:
+        """Validate `expected_version` checks for a whole generation, up front.
+
+        Tracks projected versions across the generation's patches, so two
+        writers that both expect the same version conflict **before** the first
+        commit — a failed generation leaves the context untouched. A `Create`
+        with an existing id is treated as an update (that is how
+        `PatchApplicator.apply` applies it).
+        """
+        projected: dict[str, int | None] = {}
+        for patch in patches:
+            for op in patch.operations:
+                if isinstance(op, Update):
+                    if op.artifact_id in projected:
+                        current = projected[op.artifact_id]
+                    else:
+                        artifact = self.context.get(op.artifact_id)
+                        current = artifact.version if artifact is not None else None
+                    if (
+                        op.expected_version is not None
+                        and current != op.expected_version
+                    ):
+                        raise ArtifactConflict(
+                            op.artifact_id, op.expected_version, current
+                        )
+                    projected[op.artifact_id] = (
+                        op.expected_version + 1
+                        if op.expected_version is not None
+                        else (current + 1 if current is not None else None)
+                    )
+                elif isinstance(op, Create) and op.id is not None:
+                    if op.id in projected:
+                        current = projected[op.id]
+                    else:
+                        artifact = self.context.get(op.id)
+                        current = artifact.version if artifact is not None else None
+                    projected[op.id] = 0 if current is None else current + 1
+                elif isinstance(op, Delete):
+                    projected[op.artifact_id] = None
+
     def apply(self, patch: Patch, commit: Commit) -> list[Write]:
         """Apply a patch's operations to the Context and return its writes."""
+        self.validate_versions([patch])
         writes: list[Write] = []
         for op in patch.operations:
             if isinstance(op, Create):
