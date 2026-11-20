@@ -15,8 +15,9 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
-from examples.devops.auth import POLICY, PRINCIPALS, build_resources
 from examples.devops.models import AnsibleReport, ChatReply, K8sReport, UserMsg
+from examples.devops.policy import POLICY, PRINCIPALS
+from examples.devops.resources import build_resources
 from reactifact import Budget, Context, PendingAction, Runtime
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.recipes import MemoryStore

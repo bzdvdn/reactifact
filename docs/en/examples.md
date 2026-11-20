@@ -92,7 +92,7 @@ evaluators), tags passes `eval` / failures `eval:failed`, and `web.py` mounts
 `create_online_eval_router` (`POST /api/evals/run`). Two demo identities show
 the multi-user layer: `admin1` (admin) and `admin2` (analyst), picked in the UI
 and sent as `X-User` (demo authentication only). Each runs with a
-`Principal` + `PermissionPolicy` (`auth.py`), so `admin2` can chat, use k8s and
+`Principal` + `PermissionPolicy` (`policy.py`), so `admin2` can chat, use k8s and
 GitLab but is refused before the Ansible agent starts. Long-term memory is
 per-user (`MemoryStore(namespace="user:<name>")`): a report summary is recorded
 as an outbox `PendingAction` (`remember_after_commit`) and indexed after the

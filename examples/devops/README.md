@@ -17,7 +17,8 @@ devops/
 ├── chat.py           # CLI entry (build_resources, terminal loop)
 ├── web.py            # FastAPI/SSE app + trace dashboard (create_trace_router)
 ├── models.py         # artifact types (UserMsg, *Problem, *Report, ChatReply)
-├── auth.py           # demo identities, capabilities, per-user resources
+├── policy.py         # demo identities + PermissionPolicy (pure)
+├── resources.py      # per-user RuntimeResources (principal, memory, guardrails)
 ├── agents.py         # thin containers: RouteAgent, K8sAgent, GitlabAgent,
 │                      #   AnsibleAgent (HITLLMAgent), RenderAgent, MemoryAgent
 ├── tools.py           # fake tools (kubectl_get, gitlab_search/pipeline,
@@ -143,9 +144,10 @@ and validates it in `request_factory` (unknown → `401`).
 
 `X-User` is **demo authentication**, not proof of identity — a real deployment
 resolves the principal from a verified session/JWT and maps roles to
-capabilities. The authorization half is real: `auth.py` builds a
-`RuntimeResources(principal=…)` with a `PermissionPolicy`, and `RouteProblem`
-asks `context.resources.authorize("run", target)` before it turns the message
+capabilities. The authorization half is real: `policy.py` defines the
+identities and the `PermissionPolicy`, `resources.py` builds a
+`RuntimeResources(principal=…)` with them, and `RouteProblem` asks
+`context.resources.authorize("run", target)` before it turns the message
 into a problem. `admin2` has no `run:ansible` / `execute:ansible_run`, so an
 Ansible request gets a normal "Access denied" `ChatReply` instead of starting
 the agent (the tool gate remains the second line of defence).

@@ -1,23 +1,19 @@
-"""Demo identities, capabilities and per-user resources for the devops app.
+"""Demo identities and authorization policy for the devops app.
 
 `X-User` is demo authentication, not proof of identity: anyone can claim it.
 A real app resolves the principal from a verified session/JWT and maps roles to
 capabilities; the `PermissionPolicy` below is the part that stays.
+
+This module is deliberately pure policy — no storage, providers or resource
+composition (that lives in `resources.py`).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
-from examples.devops.guardrails import devops_guardrail_policy
-from reactifact import RuntimeResources
 from reactifact.authz import PermissionPolicy, Principal
-from reactifact.checkpoints import FileKVBackend
-from reactifact.recipes import MemoryStore
-
-ROOT = Path(__file__).resolve().parent
 
 PRINCIPALS: dict[str, Principal] = {
     "admin1": Principal(id="admin1", capabilities=("admin",)),
@@ -62,30 +58,4 @@ def user_from_request(request: Mapping[str, Any] | None) -> str:
     return "admin1"
 
 
-def build_resources(
-    llm: Any | None,
-    user: str = "admin1",
-    memory_dir: str | Path | None = None,
-) -> RuntimeResources:
-    """Per-user resources: authz principal + namespaced long-term memory."""
-    memory = MemoryStore(
-        FileKVBackend(str(Path(memory_dir) if memory_dir else ROOT / "memory")),
-        namespace=f"user:{user}",
-    )
-    resources = RuntimeResources(
-        llm=llm,
-        guardrails=devops_guardrail_policy(),
-        principal=principal_for(user),
-        authorizer=POLICY,
-    )
-    resources.register(MemoryStore, memory)
-    return resources
-
-
-__all__ = [
-    "POLICY",
-    "PRINCIPALS",
-    "build_resources",
-    "principal_for",
-    "user_from_request",
-]
+__all__ = ["POLICY", "PRINCIPALS", "principal_for", "user_from_request"]

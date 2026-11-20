@@ -22,8 +22,8 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
-from examples.devops.auth import build_resources
 from examples.devops.models import ChatReply, UserMsg
+from examples.devops.resources import build_resources
 from reactifact import Budget, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.guardrails import GuardrailViolation

@@ -93,7 +93,7 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 `create_online_eval_router` (`POST /api/evals/run`). Две демо-личности
 показывают multi-user слой: `admin1` (админ) и `admin2` (аналитик), выбор в UI
 уходит заголовком `X-User` (только демо-аутентификация). Каждый запуск получает
-`Principal` + `PermissionPolicy` (`auth.py`), поэтому `admin2` может общаться,
+`Principal` + `PermissionPolicy` (`policy.py`), поэтому `admin2` может общаться,
 пользоваться k8s и GitLab, но получает отказ до старта Ansible-агента.
 Долговременная память — per-user (`MemoryStore(namespace="user:<name>")`):
 summary отчёта записывается как outbox-`PendingAction` (`remember_after_commit`)

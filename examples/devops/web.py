@@ -28,14 +28,11 @@ from examples.devops.agents import (
     RenderAgent,
     RouteAgent,
 )
-from examples.devops.auth import (
-    PRINCIPALS,
-    build_resources,
-    user_from_request,
-)
 from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
 from examples.devops.online_eval import build_evaluator
+from examples.devops.policy import PRINCIPALS, user_from_request
+from examples.devops.resources import build_resources
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, SessionStore
