@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..artifacts import Artifact
-from ..interrupt import PendingAction, PendingQuestion
+from ..interrupt import (
+    PendingAction,
+    PendingQuestion,
+    answer_payload,
+    schema_json,
+)
 
 if TYPE_CHECKING:
     from .context import Context
@@ -17,9 +22,15 @@ def interrupt(
     question: str,
     kind: str = "general",
     notes: dict[str, object] | None = None,
+    schema: dict[str, Any] | type | None = None,
 ) -> Artifact[PendingQuestion]:
     return context.create(
-        PendingQuestion(question=question, kind=kind, notes=notes or {})
+        PendingQuestion(
+            question=question,
+            kind=kind,
+            notes=notes or {},
+            resolution_schema=schema_json(schema),
+        )
     )
 
 
@@ -45,15 +56,17 @@ def latest_pending_question(
 
 
 def resume(
-    context: Context, question_id: str, answer: str
+    context: Context, question_id: str, answer: Any
 ) -> Artifact[PendingQuestion] | None:
     artifact = context.get(question_id)
     if artifact is None or not isinstance(artifact.data, PendingQuestion):
         return None
+    text, data = answer_payload(answer)
     updated = artifact.data.model_copy(
         update={
             "answered": True,
-            "resolution": answer,
+            "resolution": text,
+            "resolution_data": data,
             "resolved_at": datetime.now(UTC),
         }
     )

@@ -27,6 +27,7 @@ class PendingQuestion(BaseModel):
     question: str
     kind: str = "general"          # например "clarify", "approval"
     notes: dict[str, Any] = {}     # маршрутизация ("какой агент спросил")
+    resolution_schema: dict | None = None   # опциональная JSON Schema для формы
 ```
 
 Шаг создаёт его через `effects.ask(...)`, а ответ человека приходит
@@ -39,6 +40,24 @@ effects.ask("Утвердить смету?", kind="approval")
 effects.resume(question_artifact, "да")
 return None
 ```
+
+Если UI нужен типизированный ответ, передай Pydantic-модель в `schema=` и
+возобновляй моделью или mapping’ом — `resolution_data` хранит JSON-safe
+значение, а `resolution` остаётся legacy-строкой:
+
+```python
+class RefundApproval(BaseModel):
+    approved: bool
+    note: str = ""
+
+effects.ask("Утвердить возврат?", kind="approve", schema=RefundApproval)
+# ...
+effects.resume(question_artifact, RefundApproval(approved=True, note="ok"))
+# или: effects.resume(question_artifact, {"approved": True})
+```
+
+Читать обратно: `question.data.approved()` / `question.data.answer_text()`
+(fallback на `resolution` сохраняет старый код рабочим).
 
 Производящий агент видит ответ как новое событие (артефакт `PendingQuestion`
 обновляется). Web-демо запрашивают `context.pending_questions()`, чтобы понять,

@@ -103,7 +103,8 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
-| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)` |
+| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
+| `Effects.ask(...)` / `Effects.resume(...)` | HITL-авторинг: `ask(question, kind=, notes=, schema=, id=)` создаёт вопрос; `resume(question, answer)` принимает legacy-строку или Pydantic-модель/mapping (пишется в `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
 | `PendingAction` | записанный внешний side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); выполняется один раз через `Runtime(dispatcher=...)`, затем `dispatched` / `failed` (`retry_action` возвращает в очередь) |
 

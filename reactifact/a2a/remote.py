@@ -115,7 +115,7 @@ class A2ARemoteProduce(Step[Any]):
             )
             source = original.data if original is not None else data
             result = await self._client.send(
-                data.resolution or "",
+                data.answer_text(),
                 task_id=notes.get("a2a_task_id"),
                 context_id=notes.get("a2a_context_id"),
             )

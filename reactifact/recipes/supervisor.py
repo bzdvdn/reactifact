@@ -219,7 +219,7 @@ class _ApprovalStep(Step[Any]):
         if any(not q.data.answered for q in thread_questions):
             return None  # still waiting for the human
 
-        answer = thread_questions[-1].data.resolution or ""
+        answer = thread_questions[-1].data.answer_text()
         final_data = (
             await owner.on_approve(context, report)
             if owner.is_yes(answer)

@@ -391,10 +391,11 @@ class Context:
         question: str,
         kind: str = "general",
         notes: dict[str, Any] | None = None,
+        schema: dict[str, Any] | type | None = None,
     ) -> Artifact[PendingQuestion]:
         from .pending import interrupt
 
-        return interrupt(self, question, kind=kind, notes=notes)
+        return interrupt(self, question, kind=kind, notes=notes, schema=schema)
 
     def pending_questions(self) -> list[Artifact[PendingQuestion]]:
         from .pending import pending_questions
@@ -411,7 +412,7 @@ class Context:
 
         return latest_pending_question(self)
 
-    def resume(self, question_id: str, answer: str) -> Artifact[PendingQuestion] | None:
+    def resume(self, question_id: str, answer: Any) -> Artifact[PendingQuestion] | None:
         from .pending import resume
 
         return resume(self, question_id, answer)

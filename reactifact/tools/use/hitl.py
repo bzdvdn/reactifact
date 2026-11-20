@@ -106,12 +106,11 @@ class ToolUseHITL(_ToolLoopBase):
             notes = question.data.notes if question is not None else {}
             tool_id = notes.get("tool_id", "")
             args = notes.get("args", {})
-            approved = extra.strip().lower() in (
-                "yes",
-                "y",
-                "approve",
-                "approved",
-                "true",
+            approved = (
+                question.data.approved()
+                if question is not None
+                else extra.strip().lower()
+                in ("yes", "y", "approve", "approved", "true")
             )
             if approved:
                 result = await self._run_tool(
@@ -159,7 +158,7 @@ class ToolUseHITL(_ToolLoopBase):
                 and q.data.question == decision.text
             ]
             if asked:
-                answers = [q.data.resolution for q in asked if q.data.answered]
+                answers = [q.data.answer_text() for q in asked if q.data.answered]
                 if not answers:
                     # the same question was already asked and awaits an answer
                     return None
@@ -227,13 +226,7 @@ class ToolUseHITL(_ToolLoopBase):
                 pending = [q for q in prior if not q.data.answered]
                 if pending:
                     return None  # awaiting the human's decision
-                last_approved = (prior[-1].data.resolution or "").strip().lower() in (
-                    "yes",
-                    "y",
-                    "approve",
-                    "approved",
-                    "true",
-                )
+                last_approved = prior[-1].data.approved()
                 text = (
                     f"You already asked to run '{decision.tool}' with these args and "
                     f"the user {'approved' if last_approved else 'denied'} it. "
@@ -355,7 +348,7 @@ class ToolUseHITL(_ToolLoopBase):
             if not qid:
                 return None
             resume_kind = "resume_approve" if data.kind == "approve" else "resume"
-            return qid, resume_kind, data.resolution or ""
+            return qid, resume_kind, data.answer_text()
         if isinstance(data, ToolAnswer):
             return None  # final answer is handled by user produces
         return artifact.id, "start", ""

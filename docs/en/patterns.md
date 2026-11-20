@@ -27,6 +27,7 @@ class PendingQuestion(BaseModel):
     question: str
     kind: str = "general"          # e.g. "clarify", "approval"
     notes: dict[str, Any] = {}     # routing info ("which agent asked")
+    resolution_schema: dict | None = None   # optional JSON Schema for a form
 ```
 
 A step creates one with `effects.ask(...)`, and the human's answer
@@ -39,6 +40,24 @@ effects.ask("Approve the estimate?", kind="approval")
 effects.resume(question_artifact, "да")
 return None
 ```
+
+When the UI needs a typed answer, pass a Pydantic model as `schema=` and
+resume with a model or a mapping — `resolution_data` carries the JSON-safe
+value, while `resolution` keeps the legacy string form:
+
+```python
+class RefundApproval(BaseModel):
+    approved: bool
+    note: str = ""
+
+effects.ask("Approve the refund?", kind="approve", schema=RefundApproval)
+# ...
+effects.resume(question_artifact, RefundApproval(approved=True, note="ok"))
+# or: effects.resume(question_artifact, {"approved": True})
+```
+
+Read it back with `question.data.approved()` / `question.data.answer_text()`
+(fallback to `resolution` keeps old code working).
 
 The producing agent sees the answer as a new event (the corresponding
 `PendingQuestion` artifact is updated). Web demos query

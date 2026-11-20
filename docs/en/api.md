@@ -99,7 +99,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
-| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)` |
+| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
+| `Effects.ask(...)` / `Effects.resume(...)` | HITL authoring: `ask(question, kind=, notes=, schema=, id=)` creates the question; `resume(question, answer)` accepts a legacy string or a Pydantic model/mapping (stored in `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the step; `None` if it already exists |
 | `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 

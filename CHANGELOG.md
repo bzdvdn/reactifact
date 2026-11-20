@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Typed HITL answers.** `PendingQuestion` gained `resolution_schema` and
+  `resolution_data`; `effects.ask(..., schema=Model)` stores the model's JSON
+  Schema, and `effects.resume(question, answer)` / `Context.resume` accept a
+  Pydantic model or mapping. The legacy `resolution: str` is preserved (typed
+  data is mirrored as JSON), and `approved()` / `answer_text()` read either
+  form. `ToolUseHITL`, the supervisor recipe and A2A use the helpers, so typed
+  approvals/answers work without string parsing.
 - **Per-agent execution policy: retries and timeouts.** `Agent` (and
   `create_agent`) accepts `retry=RetryPolicy(max_attempts=…, backoff=…,
   max_backoff=…, retry_on=…)` and `timeout=…` seconds. The runtime applies them

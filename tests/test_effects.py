@@ -157,6 +157,56 @@ def test_effects_resume_answers_pending_question():
     assert updated.data.resolved_at is not None
 
 
+def test_effects_ask_stores_typed_schema():
+    class Approval(BaseModel):
+        approved: bool
+        note: str = ""
+
+    effects = Effects(Context(resources=RuntimeResources()))
+    effects.ask("Approve?", schema=Approval)
+
+    op = effects.operations[0]
+    assert isinstance(op, Create)
+    assert op.data.resolution_schema == Approval.model_json_schema()
+
+
+def test_effects_resume_accepts_typed_answer():
+    from reactifact import PendingQuestion
+    from reactifact.effects import current_effects
+
+    class Approval(BaseModel):
+        approved: bool
+        note: str = ""
+
+    class TypedResumer(Agent):
+        consumes = [Consume(Doc)]
+
+        async def run(self, event, context):
+            question = context.list_artifacts(PendingQuestion)[0]
+            current_effects().resume(
+                question, Approval(approved=True, note="looks good")
+            )
+            return None
+
+    ctx = Context(resources=RuntimeResources())
+    question = ctx.create(
+        PendingQuestion(
+            question="Approve?",
+            kind="approval",
+            resolution_schema=Approval.model_json_schema(),
+        )
+    )
+    runtime = Runtime(ctx, agents=[TypedResumer()])
+    ctx.create(Doc(text="trigger"), id="doc:1")
+    asyncio.run(runtime.arun())
+
+    updated = ctx.get(question.id)
+    assert updated is not None
+    assert updated.data.resolution_data == {"approved": True, "note": "looks good"}
+    assert updated.data.approved() is True
+    assert updated.data.answer_text() == "yes"
+
+
 class Greeting(Produce[Note]):
     artifact_type = Note
 

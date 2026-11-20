@@ -23,6 +23,7 @@ still build a `Patch` explicitly and return it — the runtime merges both.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Any
 
@@ -200,20 +201,29 @@ class Effects:
         *,
         kind: str = "general",
         notes: dict[str, Any] | None = None,
+        schema: Mapping[str, Any] | type | None = None,
         id: str | None = None,
     ) -> Handle:
         """Poses a question to a human (HITL, §60): creates a `PendingQuestion`.
 
         Returns a handle you can link later; the human answer is recorded via
-        `effects.resume(question_art, resolution)` (§60). Pass `id` for a
-        stable, re-derivable question (e.g. `f"steer:{qid}:{round}"`) so a
-        guard like `if context.get(id) is not None: return None` can stop the
-        produce from asking again while the question is still unanswered.
+        `effects.resume(question_art, answer)` (§60). Pass `schema=` (a Pydantic
+        model class or JSON-schema mapping) to let a UI render a typed form;
+        resume with a model/mapping to fill `PendingQuestion.resolution_data`.
+        Pass `id` for a stable, re-derivable question (e.g.
+        `f"steer:{qid}:{round}"`) so a guard like
+        `if context.get(id) is not None: return None` can stop the produce from
+        asking again while the question is still unanswered.
         """
-        from .interrupt import PendingQuestion
+        from .interrupt import PendingQuestion, schema_json
 
         return self.create(
-            PendingQuestion(question=question, kind=kind, notes=dict(notes or {})),
+            PendingQuestion(
+                question=question,
+                kind=kind,
+                notes=dict(notes or {}),
+                resolution_schema=schema_json(schema),
+            ),
             id=id,
         )
 
@@ -244,14 +254,23 @@ class Effects:
         )
         return self.create_once(data, id=id or f"action:{key}")
 
-    def resume(self, question: Any, resolution: str) -> Effects:
-        """Records the human answer on a `PendingQuestion` (HITL, §60)."""
+    def resume(self, question: Any, answer: Any) -> Effects:
+        """Records the human answer on a `PendingQuestion` (HITL, §60).
+
+        `answer` may stay a plain string (legacy) or be a Pydantic model /
+        mapping for a question created with `schema=`. A typed answer is stored
+        in `resolution_data`; `resolution` mirrors it as JSON for old readers.
+        """
         from datetime import UTC, datetime
 
+        from .interrupt import answer_payload
+
+        text, data = answer_payload(answer)
         self.update(
             question,
             answered=True,
-            resolution=resolution,
+            resolution=text,
+            resolution_data=data,
             resolved_at=datetime.now(UTC),
         )
         return self

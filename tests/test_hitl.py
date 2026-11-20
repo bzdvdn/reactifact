@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Patch, Runtime, SessionStore
+from reactifact import Agent, Consume, Context, Patch, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.interrupt import PendingQuestion
 
@@ -9,6 +9,11 @@ from reactifact.interrupt import PendingQuestion
 class Project(BaseModel):
     name: str
     budget: int
+
+
+class RefundApproval(BaseModel):
+    approved: bool
+    note: str = ""
 
 
 class Estimate(BaseModel):
@@ -155,3 +160,70 @@ async def _test_multiple_questions_isolated(tmp_path):
 
     ctx.resume(second.id, "a2")
     assert not ctx.has_pending_question()
+
+
+def test_interrupt_stores_answer_schema():
+    ctx = Context()
+    question = ctx.interrupt(
+        "Approve the refund?",
+        kind="approve",
+        schema=RefundApproval,
+    )
+
+    assert question.data.resolution_schema == RefundApproval.model_json_schema()
+
+
+def test_resume_with_typed_model_and_mapping():
+    ctx = Context()
+    model_question = ctx.interrupt("Approve?", kind="approve", schema=RefundApproval)
+    mapping_question = ctx.interrupt(
+        "Approve?",
+        kind="approve",
+        schema={"type": "object", "properties": {"approved": {"type": "boolean"}}},
+    )
+
+    ctx.resume(model_question.id, RefundApproval(approved=True, note="ok"))
+    ctx.resume(mapping_question.id, {"approved": False})
+
+    model_answer = ctx.get(model_question.id)
+    assert model_answer is not None
+    assert model_answer.data.resolution_data == {"approved": True, "note": "ok"}
+    assert model_answer.data.resolution == '{"approved": true, "note": "ok"}'
+    assert model_answer.data.approved() is True
+    assert model_answer.data.answer_text() == "yes"
+
+    mapping_answer = ctx.get(mapping_question.id)
+    assert mapping_answer is not None
+    assert mapping_answer.data.resolution_data == {"approved": False}
+    assert mapping_answer.data.approved() is False
+    assert mapping_answer.data.answer_text() == "no"
+
+
+def test_legacy_string_resume_still_works():
+    ctx = Context()
+    question = ctx.interrupt("Approve?", kind="approve")
+
+    ctx.resume(question.id, "yes")
+
+    updated = ctx.get(question.id)
+    assert updated is not None
+    assert updated.data.resolution == "yes"
+    assert updated.data.resolution_data is None
+    assert updated.data.approved() is True
+    assert updated.data.answer_text() == "yes"
+
+
+def test_typed_clarify_answer_uses_text_field():
+    ctx = Context()
+    question = ctx.interrupt(
+        "Which environment?",
+        kind="clarify",
+        schema={"type": "object", "properties": {"text": {"type": "string"}}},
+    )
+
+    ctx.resume(question.id, {"text": "prod"})
+
+    updated = ctx.get(question.id)
+    assert updated is not None
+    assert updated.data.answer_text() == "prod"
+    assert updated.data.approved() is False

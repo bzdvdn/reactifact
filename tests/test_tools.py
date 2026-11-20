@@ -598,7 +598,7 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
     assert questions[0].data.notes["tool_id"] == "delete_pod"
     assert "delete_pod" not in calls
 
-    ctx.resume(questions[0].id, "yes")
+    ctx.resume(questions[0].id, {"approved": True})
     asyncio.run(runtime.arun())
 
     assert calls["delete_pod"] == [{"name": "web-1"}]
