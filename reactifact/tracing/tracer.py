@@ -148,6 +148,31 @@ class Tracer:
     ) -> None:
         pass
 
+    def on_generation_start(self, run_id: str, generation: int) -> None:
+        """Called when a new generation starts inside the current turn."""
+        pass
+
+    def on_llm_delta(
+        self,
+        agent: str,
+        step: str,
+        delta: str,
+        provider: str,
+        model: str,
+        streamed: bool,
+    ) -> None:
+        """Called for streamed (or one-shot completed) LLM text.
+
+        Only tracers that opt in via `wants_llm_deltas` receive it, so a normal
+        `TraceStore`/metrics setup pays nothing per token.
+        """
+        pass
+
+    @property
+    def wants_llm_deltas(self) -> bool:
+        """Whether this tracer needs `on_llm_delta` (opt-in; default `False`)."""
+        return False
+
     def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
         """Called before an agent's `run()` (after authorization)."""
         pass
@@ -180,7 +205,12 @@ class Tracer:
 
 
 class RecordingLLM(LLMProvider):
-    """LLM wrapper: records calls (prompt/response/tokens) into `on_call`."""
+    """LLM wrapper: records calls (prompt/response/tokens) into `on_call`.
+
+    With `on_delta`, streamed chunks are also forwarded as they arrive (and a
+    non-streamed `complete()` emits one final delta). The callback is opt-in
+    (`Tracer.wants_llm_deltas`), sync, and best-effort: it must not block.
+    """
 
     def __init__(
         self,
@@ -190,13 +220,16 @@ class RecordingLLM(LLMProvider):
         provider: str = "",
         redactor: Redactor | None = None,
         truncate: int | None = TRACE_TRUNCATE,
+        on_delta: Callable[[str, str, str, bool], None] | None = None,
     ):
         self._inner = inner
         self._on_call = on_call
         self._agent_of = agent_of
         self._provider = provider or type(inner).__name__
+        self._model = str(getattr(inner, "model", "") or "")
         self._redactor = redactor
         self._truncate = truncate
+        self._on_delta = on_delta
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
         started_at = datetime.now(UTC)
@@ -212,6 +245,7 @@ class RecordingLLM(LLMProvider):
                 started_at,
             )
             raise
+        self._safe_delta(response.text, streamed=False)
         self._safe_record(
             request,
             response,
@@ -226,9 +260,8 @@ class RecordingLLM(LLMProvider):
 
         The extra layer is deliberately cheap: chunks are appended to a list
         (never `text +=`), the buffer is capped at `truncate`, and `_record`
-        runs once — in `finally` — not per chunk. Token-level deltas are not
-        emitted here; a live UI should consume the chunks it already gets or
-        use the lifecycle hooks, never a blocking callback in this loop.
+        runs once — in `finally` — not per chunk. When `on_delta` is set, each
+        chunk is forwarded (sync, best-effort) for a live UI.
         """
         started_at = datetime.now(UTC)
         started = time.monotonic()
@@ -253,6 +286,8 @@ class RecordingLLM(LLMProvider):
                             truncated = True
                     else:
                         truncated = True
+                if chunk.text:
+                    self._safe_delta(chunk.text, streamed=True)
                 yield chunk
         except asyncio.CancelledError:
             error = "cancelled"
@@ -292,6 +327,15 @@ class RecordingLLM(LLMProvider):
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("RecordingLLM._record", exc)
 
+    def _safe_delta(self, text: str, *, streamed: bool) -> None:
+        """Forwards one LLM text chunk, isolated from the provider call."""
+        if self._on_delta is None or not text:
+            return
+        try:
+            self._on_delta(text, self._provider, self._model, streamed)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("RecordingLLM._delta", exc)
+
     def _record(
         self,
         request: LLMRequest,
@@ -305,7 +349,7 @@ class RecordingLLM(LLMProvider):
             agent=self._agent_of(),
             step=current_produce_name(),
             provider=self._provider,
-            model=str(getattr(self._inner, "model", "") or ""),
+            model=self._model,
             messages=_clip_messages(request.messages, self._redactor),
             prompt_hash=request.prompt_hash,
             response=(
@@ -346,6 +390,36 @@ class CompositeTracer:
                 )
             except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
                 _swallow_tracing_error(f"{type(tracer).__name__}.on_turn_begin", exc)
+
+    def on_generation_start(self, run_id: str, generation: int) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_generation_start(run_id, generation)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(
+                    f"{type(tracer).__name__}.on_generation_start", exc
+                )
+
+    def on_llm_delta(
+        self,
+        agent: str,
+        step: str,
+        delta: str,
+        provider: str,
+        model: str,
+        streamed: bool,
+    ) -> None:
+        for tracer in self.tracers:
+            try:
+                tracer.on_llm_delta(agent, step, delta, provider, model, streamed)
+            except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
+                _swallow_tracing_error(f"{type(tracer).__name__}.on_llm_delta", exc)
+
+    @property
+    def wants_llm_deltas(self) -> bool:
+        return any(
+            getattr(tracer, "wants_llm_deltas", False) for tracer in self.tracers
+        )
 
     def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
         for tracer in self.tracers:
@@ -474,6 +548,24 @@ class RunTracer:
     def _record_llm(self, call: LLMCall) -> None:
         self._pending_llm.setdefault(call.agent, []).append(call)
 
+    def _record_llm_delta(
+        self, delta: str, provider: str, model: str, streamed: bool
+    ) -> None:
+        """Forwards a live LLM chunk to tracers that opted into deltas."""
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_llm_delta(
+                self._current_agent_name(),
+                current_produce_name(),
+                delta,
+                provider,
+                model,
+                streamed,
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_llm_delta", exc)
+
     # ---- ArtifactRef / RelationRef builders ----
 
     def _artifact_data(self, artifact_id: str) -> Any | None:
@@ -596,12 +688,14 @@ class RunTracer:
         # instance shared across sessions/turns free of stacked wrappers.
         llm = self._context.resources.llm
         if llm is not None:
+            wants_deltas = getattr(self.tracer, "wants_llm_deltas", False)
             self._context.resources.llm = RecordingLLM(
                 llm,
                 on_call=self._record_llm,
                 agent_of=self._current_agent_name,
                 redactor=self._redactor,
                 truncate=self._truncate,
+                on_delta=self._record_llm_delta if wants_deltas else None,
             )
         self.run_id = str(uuid.uuid4())
         self.spans = []
@@ -616,6 +710,14 @@ class RunTracer:
             )
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_turn_begin", exc)
+
+    def generation_started(self, generation: int) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self.tracer.on_generation_start(self.run_id, generation)
+        except Exception as exc:  # noqa: BLE001 — best-effort observability
+            _swallow_tracing_error("on_generation_start", exc)
 
     def agent_started(self, agent: Agent, event: Event, reads: list[Read]) -> None:
         if self.tracer is None:

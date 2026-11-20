@@ -4,7 +4,7 @@ import copy
 import sys
 import time
 import uuid
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, cast
@@ -21,11 +21,19 @@ from ..request import current_request, reset_request, set_request
 from ..resources import RuntimeResources
 from ..scheduler import Scheduler
 from ..session import Session
-from ..streaming import ProgressEvent
+from ..streaming import (
+    RUN_EVENT_MODES,
+    CustomEvent,
+    ProgressEvent,
+    RunEnd,
+    RunEvent,
+    RunFailed,
+)
 from ..tools import ToolRun, begin_tool_runs, end_tool_runs, tool_runs
 from ..tracing.models import AgentSpan
 from ..tracing.tracer import CompositeTracer, RunTracer, Tracer
 from .budget import TurnBudget
+from .events import RunEventCollector
 from .loop import run_generations
 from .outbox import (
     Dispatcher as Dispatcher,
@@ -353,6 +361,7 @@ class Runtime:
         if not self._turn_started:
             self._begin_turn(budget)
         self._generation += 1
+        self._trace.generation_started(self._generation)
         info = _ACTIVE_RUNS.get(self._run_id)
         if info is not None:
             info.generation = self._generation
@@ -973,3 +982,157 @@ class Runtime:
                     timeout=_CANCEL_GRACE_SECONDS,
                 )
             self.context.unsubscribe(queue)
+
+    async def astream_events(
+        self,
+        budget: Budget | None = None,
+        max_iterations: int = 1000,
+        *,
+        request: Mapping[str, Any] | None = None,
+        stream_mode: str | Sequence[str] = "debug",
+    ) -> AsyncIterator[RunEvent]:
+        """Typed event stream of a run (§54): `RunEvent` union, not status text.
+
+        `stream_mode` is one mode or several:
+
+        - `custom` — `Context.announce(...)` as `CustomEvent`;
+        - `updates` — `ArtifactWrite` after each committed patch;
+        - `values` — `Values` (context diff) after each commit;
+        - `debug` — `GenerationStart`/`AgentStart`/`AgentRetry`/`AgentEnd`/
+          `ToolStart`/`ToolEnd`;
+        - `messages` — `LLMDelta` chunks (streamed, or one final delta for a
+          non-streamed completion).
+
+        `RunStart`/`RunEnd`/`RunFailed` are always emitted. The legacy
+        `astream()` is unchanged and still yields `ProgressEvent`s; prefer this
+        method for a live UI/Studio event log.
+        """
+        modes = (
+            frozenset({stream_mode})
+            if isinstance(stream_mode, str)
+            else frozenset(stream_mode)
+        )
+        unknown = modes - RUN_EVENT_MODES
+        if unknown:
+            raise ValueError(
+                f"unknown stream_mode {sorted(unknown)!r}; "
+                f"choose from {sorted(RUN_EVENT_MODES)!r}"
+            )
+
+        session_id = self.session.session_id if self.session is not None else ""
+        active_request = request or {}
+        raw_metadata = active_request.get("trace_metadata")
+        metadata = (
+            {str(key): str(value) for key, value in raw_metadata.items()}
+            if isinstance(raw_metadata, Mapping)
+            else {}
+        )
+        scope = self.trace_scope or str(active_request.get("workspace_id", "") or "")
+
+        queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=4096)
+        collector = RunEventCollector(
+            queue,
+            context=self.context,
+            modes=modes,
+            session_id=session_id,
+            scope=scope,
+            metadata=metadata,
+        )
+        previous_tracer = self.tracer
+        if previous_tracer is None:
+            self.tracer = collector
+        elif isinstance(previous_tracer, CompositeTracer):
+            self.tracer = CompositeTracer([*previous_tracer.tracers, collector])
+        else:
+            self.tracer = CompositeTracer([previous_tracer, collector])
+        self._trace.tracer = self.tracer
+
+        custom_queue = self.context.subscribe() if "custom" in modes else None
+        forwarder: asyncio.Task[Any] | None = None
+        if custom_queue is not None:
+
+            async def _forward_custom() -> None:
+                while True:
+                    event = await custom_queue.get()
+                    try:
+                        queue.put_nowait(
+                            CustomEvent(run_id=collector.run_id, event=event)
+                        )
+                    except asyncio.QueueFull:
+                        with contextlib.suppress(asyncio.QueueEmpty):
+                            queue.get_nowait()
+                        with contextlib.suppress(asyncio.QueueFull):
+                            queue.put_nowait(
+                                CustomEvent(run_id=collector.run_id, event=event)
+                            )
+
+            forwarder = asyncio.create_task(_forward_custom())
+
+        done = asyncio.Event()
+        failure: BaseException | None = None
+
+        async def _runner() -> None:
+            nonlocal failure
+            try:
+                await self.arun(
+                    max_iterations=max_iterations, budget=budget, request=request
+                )
+            except BaseException as exc:
+                failure = exc
+                raise
+            finally:
+                done.set()
+
+        task = asyncio.create_task(_runner())
+        try:
+            while True:
+                if done.is_set() and queue.empty():
+                    break
+                get_event = asyncio.ensure_future(queue.get())
+                wait_done = asyncio.ensure_future(done.wait())
+                try:
+                    finished, _ = await asyncio.wait(
+                        {get_event, wait_done}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if get_event in finished:
+                        yield get_event.result()
+                finally:
+                    for fut in (get_event, wait_done):
+                        if not fut.done():
+                            fut.cancel()
+                    await asyncio.gather(get_event, wait_done, return_exceptions=True)
+            if failure is not None:
+                yield RunFailed(
+                    run_id=collector.run_id,
+                    error=f"{type(failure).__name__}: {failure}",
+                )
+                # Re-raise the real exception after the terminal event.
+                await task
+                return
+            stats = self.last_stats
+            yield RunEnd(
+                run_id=collector.run_id,
+                outcome=stats.outcome.value if stats is not None else "completed",
+                runs=stats.runs if stats is not None else 0,
+                duration_ms=(stats.duration * 1000) if stats is not None else 0.0,
+                errors=stats.errors if stats is not None else 0,
+                prompt_tokens=stats.prompt_tokens if stats is not None else 0,
+                completion_tokens=(stats.completion_tokens if stats is not None else 0),
+                cost=stats.cost if stats is not None else 0.0,
+            )
+        finally:
+            collector.close()
+            self.tracer = previous_tracer
+            self._trace.tracer = previous_tracer
+            if custom_queue is not None:
+                self.context.unsubscribe(custom_queue)
+            if forwarder is not None:
+                forwarder.cancel()
+                with contextlib.suppress(Exception):
+                    await asyncio.gather(forwarder, return_exceptions=True)
+            task.cancel()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(
+                    asyncio.gather(task, return_exceptions=True),
+                    timeout=_CANCEL_GRACE_SECONDS,
+                )

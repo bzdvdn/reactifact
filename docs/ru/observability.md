@@ -371,6 +371,36 @@ class LiveTracer(Tracer):
 терминальный usage и ошибка; ответ клипается до `trace_truncate` (по умолчанию
 1500). Оверхед на чанк — один async-generator frame, без записи на каждый токен.
 
+### Типизированные события (`astream_events`)
+
+`Runtime.astream()` — legacy-поток статусов (`ProgressEvent`: run start, текст
+статуса, run end). Для живого UI/Studio используйте `astream_events`: он отдаёт
+типизированные `RunEvent` и выбирает нужное через режимы:
+
+```python
+async for event in runtime.astream_events(
+    stream_mode=["debug", "updates", "values", "messages"]
+):
+    match event:
+        case AgentStart(agent=name): ...
+        case ArtifactWrite(writes=writes): ...
+        case LLMDelta(delta=text): ...
+        case RunEnd(outcome=outcome): ...
+```
+
+| режим | события |
+| --- | --- |
+| `custom` | `CustomEvent` — `Context.announce(...)` |
+| `updates` | `ArtifactWrite` после каждого закоммиченного patch |
+| `values` | `Values` — дифф контекста после коммита |
+| `debug` | `GenerationStart`, `AgentStart`, `AgentRetry`, `AgentEnd`, `ToolStart`, `ToolEnd` |
+| `messages` | `LLMDelta`-чанки (streamed, или один финальный delta для `complete()`) |
+
+`RunStart`, `RunEnd` и `RunFailed` эмитятся всегда; упавший run отдаёт
+`RunFailed` и затем пробрасывает исходное исключение. События best-effort:
+внутренняя очередь ограничена и дропает самый старый элемент, а не
+back-pressure’ит runtime.
+
 ### Scope и metadata запуска
 
 Общий trace store может обслуживать несколько workspace. Проставляйте scope на

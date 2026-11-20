@@ -195,19 +195,25 @@ The provider is scripted, so the demo is offline and deterministic.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — the framework primitives in four small scenes
+## `tour` — the framework primitives in eight small scenes
 
 **What it shows:** the parts that are easy to miss when reading a full app:
 typed artifacts with `version_history` / `diff` / `compact`; typed inputs with
 `Latest`, `Wakes(False)` and `Consume(..., debounce=True)`; a SQLite session
 that survives a restart, resumes a pending event and replays an earlier commit;
-and an optional LLM step. Every scene is offline by default, and the `model`
-scene runs with a provider only when `--llm` is passed.
+an optional LLM step; agent retries and per-step deadlines; a schema-backed HITL
+question resumed with a Pydantic model; checkpoints/forks; and the typed
+`Runtime.astream_events` modes. Every scene is offline by default, and the
+`model` scene runs with a provider only when `--llm` is passed.
 
 ```bash
-uv run python -m examples.tour.main                 # all four scenes, offline
+uv run python -m examples.tour.main                 # all eight scenes, offline
 uv run python -m examples.tour.main --scene state   # versions + compaction
 uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
+uv run python -m examples.tour.main --scene resilience
+uv run python -m examples.tour.main --scene hitl
+uv run python -m examples.tour.main --scene time_travel
+uv run python -m examples.tour.main --scene events
 uv run python -m examples.tour.main --llm --scene model
 ```
 

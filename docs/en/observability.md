@@ -370,6 +370,36 @@ text, terminal token usage and any error; the stored response is clipped to
 `trace_truncate` (default 1500). The per-chunk overhead is one async-generator
 frame, no per-token recording.
 
+### Typed run events (`astream_events`)
+
+`Runtime.astream()` is the legacy status stream (`ProgressEvent`: run start,
+status text, run end). For a live UI/Studio, use `astream_events`, which yields
+typed `RunEvent`s and selects what you need:
+
+```python
+async for event in runtime.astream_events(
+    stream_mode=["debug", "updates", "values", "messages"]
+):
+    match event:
+        case AgentStart(agent=name): ...
+        case ArtifactWrite(writes=writes): ...
+        case LLMDelta(delta=text): ...
+        case RunEnd(outcome=outcome): ...
+```
+
+| mode | events |
+| --- | --- |
+| `custom` | `CustomEvent` — `Context.announce(...)` |
+| `updates` | `ArtifactWrite` after each committed patch |
+| `values` | `Values` — context diff after each commit |
+| `debug` | `GenerationStart`, `AgentStart`, `AgentRetry`, `AgentEnd`, `ToolStart`, `ToolEnd` |
+| `messages` | `LLMDelta` chunks (streamed, or one final delta for `complete()`) |
+
+`RunStart`, `RunEnd` and `RunFailed` are always emitted; a failed run yields
+`RunFailed` and then re-raises the original exception. Events are best-effort:
+the internal queue is bounded and drops the oldest item rather than
+back-pressuring the runtime.
+
 ### Workspace scope and metadata
 
 A shared trace store can serve several workspaces. Stamp runs either on the

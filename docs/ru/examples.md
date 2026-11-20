@@ -198,20 +198,25 @@ at-least-once-контракт и app-owned drain/retry-политика.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — примитивы фреймворка в четырёх маленьких сценах
+## `tour` — примитивы фреймворка в восьми маленьких сценах
 
 **Что показывает:** то, что легко пропустить в большом приложении:
 типизированные артефакты с `version_history` / `diff` / `compact`;
 типизированные входы с `Latest`, `Wakes(False)` и
 `Consume(..., debounce=True)`; SQLite-сессию, которая переживает перезапуск,
-возобновляет pending-событие и реплеит прошлый коммит; и опциональный
-LLM-шаг. Все сцены по умолчанию офлайн, а `model` идёт через провайдера только
-с `--llm`.
+возобновляет pending-событие и реплеит прошлый коммит; опциональный LLM-шаг;
+retry агента и per-step дедлайны; schema-backed HITL-вопрос с типизированным
+ответом; чекпоинты/форки; типизированные режимы `Runtime.astream_events`. Все
+сцены по умолчанию офлайн, а `model` идёт через провайдера только с `--llm`.
 
 ```bash
-uv run python -m examples.tour.main                 # все четыре сцены, офлайн
+uv run python -m examples.tour.main                 # все восемь сцен, офлайн
 uv run python -m examples.tour.main --scene state   # версии + компакция
 uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
+uv run python -m examples.tour.main --scene resilience
+uv run python -m examples.tour.main --scene hitl
+uv run python -m examples.tour.main --scene time_travel
+uv run python -m examples.tour.main --scene events
 uv run python -m examples.tour.main --llm --scene model
 ```
 

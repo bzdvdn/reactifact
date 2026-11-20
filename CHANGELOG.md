@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Tour scenes for the new runtime features.** `examples/tour` gained four
+  offline scenes: `resilience` (`Agent.retry`/`RetryPolicy` + `Step.timeout`),
+  `hitl` (schema-backed question + typed `context.resume`), `time_travel`
+  (`context.checkpoints()`/`at()` + `SessionStore.fork`), and `events`
+  (`Runtime.astream_events` across all stream modes), each covered by
+  `tests/test_tour.py` and documented in the tour README.
+- **Typed run events (`Runtime.astream_events`).** A `RunEvent` union with
+  `RunStart`/`GenerationStart`/`AgentStart`/`AgentRetry`/`AgentEnd`/`ToolStart`/
+  `ToolEnd`/`ArtifactWrite`/`Values`/`LLMDelta`/`CustomEvent`/`RunEnd`/
+  `RunFailed`, selected by `stream_mode`: `custom`, `updates`, `values`,
+  `debug`, `messages`. `RunStart`/`RunEnd`/`RunFailed` always fire; a failed run
+  yields `RunFailed` and re-raises. The legacy `astream()` still yields
+  `ProgressEvent`s. `Tracer.on_llm_delta`/`wants_llm_deltas` add opt-in token
+  deltas (a normal `TraceStore` pays nothing per token).
 - **Checkpoints and session forks.** `ContextCheckpoint` is a lightweight view
   of one commit; `context.checkpoints()` / `context.checkpoint(id_or_version)`
   list/resolve history, `context.at(...)` accepts a commit id or checkpoint
