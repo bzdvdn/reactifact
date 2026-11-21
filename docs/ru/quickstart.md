@@ -30,6 +30,10 @@ uv run uvicorn app.main:create_app --factory --reload
 traces, бюджеты/LLM из settings). Сгенерированный проект сам объявляет
 `reactifact[web]`; core-пакет FastAPI не требует.
 
+`reactifact new daemon` генерирует scheduled-агент вместо web: LLM/бюджеты из
+settings, трейсы, graceful shutdown и `APP_RUN_ONCE=true` для одноразового
+smoke-запуска.
+
 ## 0. Он-рамп для 80%: `reactifact.quick`
 
 Большинство первых задач — одна из четырёх. `reactifact.quick` собирает каждую
@@ -346,7 +350,7 @@ scoped-сессии, SSE, трейсы, бюджеты/LLM из settings, тес
 - [Recipes](recipes.md) — строительные блоки, использованные на этой странице
   (`fan_out_sources`, `materialize_doc`, `find`), и те, что не использованы
   (`StatusMachine`, `WindowSummarizer`, `Skill`).
-- [Examples](examples.md) — все двадцать три, с тем, чему конкретно учит каждый.
+- [Examples](examples.md) — все тринадцать, с тем, чему конкретно учит каждый.
 - [Port matrix](port-matrix.md) — если вы знаете LangGraph/CrewAI, какой
   пример соответствует какому знакомому паттерну.
 - [Agent skills](skills.md) — официальные Agent Skills, ставятся командой

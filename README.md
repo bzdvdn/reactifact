@@ -351,6 +351,7 @@ uv init my-agent && cd my-agent
 uv add reactifact                 # core + CLI; FastAPI stays optional
 uv run reactifact skills install  # teach your coding agent the model
 uv run reactifact new app my-app  # FastAPI template (auth, SSE, traces)
+uv run reactifact new daemon my-worker  # scheduled agent loop
 ```
 
 The generated FastAPI project declares `reactifact[web]` itself; installing
@@ -378,6 +379,7 @@ Prefer a notebook? [![Open in Colab](https://colab.research.google.com/assets/co
 - `knowledge_base` — real ingestion: connector → chunks → SQLite/Qdrant, incremental state, hybrid query.
 - `medic_lab` — hypothesis laboratory: competing hypotheses scored, HITL steering, honest report.
 - `devops` — HITL tool agents + LLM tool router + trace dashboard.
+- `code_review` — deterministic-first diff review: rules + optional LLM findings → linked report.
 - `repair` — budget-aware replanning (chat/data in Russian by design).
 - `chat` — minimal offline single-model multi-turn conversation (`Conversation` + bounded `ChatMemory`).
 - `forklab` — deterministic branch & merge: two strategies on their own forks, three-way merge.

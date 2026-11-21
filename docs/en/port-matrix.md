@@ -15,6 +15,7 @@ a concrete example (`examples/`).
 | Evaluation-driven dev (DSPy) | DSPy | `reactifact.eval` multi-level metrics (§56) | tests + kept examples |
 | Tool budget / honesty on failure | — | `Budget` + deterministic fallbacks, `None` paths (§59) | `devops`, `repair` |
 | External side effects (outbox) | — | `effects.act` + `Runtime(dispatcher=...)`, stable id, replay-safe state | `outbox` |
+| Code review / diff analysis | — | deterministic rule steps + optional `StructuredLLM` findings, linked report | `code_review` |
 | Framework primitives (versions, selectors, durability) | — | `version_history`/`diff`/`compact`, `Latest`/`Wakes`/`debounce`, `SessionStore`/replay | `tour` |
 
 Everything above runs **offline** (deterministic fallbacks) and, with a model

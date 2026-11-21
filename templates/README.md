@@ -7,18 +7,13 @@ The canonical template lives inside the package so an installed
   production-shaped FastAPI chat: `Depends` auth, scoped sessions, SSE, traces,
   settings-driven budgets and an OpenAI-compatible/custom LLM gateway. Opts into
   `reactifact[web]` itself; the core package stays FastAPI-optional.
+- [`reactifact/templates/daemon`](../reactifact/templates/daemon) — scheduled
+  agent loop with settings-driven LLM/budget, traces and graceful shutdown.
+  No FastAPI; `APP_RUN_ONCE=true` is a one-shot smoke mode.
 
-Run it directly from a checkout, or generate a project with:
+Generate either one:
 
 ```bash
 reactifact new app my-app
-```
-
-Working inside the reactifact repo (before the next PyPI release):
-
-```bash
-cd reactifact/templates/fastapi_chat
-uv venv
-uv pip install -e ../../.. 'pydantic-settings>=2.0' 'pytest>=8' httpx
-PYTHONPATH=. .venv/bin/python -m pytest -q
+reactifact new daemon my-worker
 ```

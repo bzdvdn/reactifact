@@ -1,8 +1,8 @@
 # Примеры
 
-В `examples/` живут одиннадцать запускаемых примеров (в репозитории, не в
-пайплайне сборки): десять полноценных приложений и `tour`, который изолирует
-примитивы. Это эталонные реализации
+В `examples/` живут тринадцать запускаемых примеров (в репозитории, не в
+пайплайне сборки): двенадцать полноценных приложений и `tour`, который
+изолирует примитивы. Это эталонные реализации
 [рецептов](recipes.md), [паттернов](patterns.md) и
 [port-матрицы](port-matrix.md) — канонические примеры разбиты на пакет `steps/`
 (стадии) + тонкие `web.py`/`chat.py`/`main.py`.
@@ -106,6 +106,19 @@ summary отчёта записывается как outbox-`PendingAction` (`re
 uv run python ./examples/devops/web.py      # SSE UI + трейс-дашборд
 uv run python ./examples/devops/safety.py   # кастомные guardrails, end-to-end
 uv run python ./examples/devops/online_eval.py   # online-eval по прогонам
+```
+
+## `code_review` — детерминированный review-агент
+
+**Что показывает:** unified diff → `ChangedFile` → `FileReview` на файл
+(детерминированные правила + опциональный LLM) → `ReviewReport` с Markdown.
+Правила ловят `eval`/`exec`, `shell=True`, захардкоженные секреты, bare
+`except`, `TODO` и debug `print`; отчёт ссылается на каждый проверенный файл
+(`reviewed`). Работает офлайн, без API-ключа.
+
+```bash
+python -m examples.code_review.main --demo
+git diff | python -m examples.code_review.main
 ```
 
 ## `repair` — перепланирование под бюджет (русский по замыслу)

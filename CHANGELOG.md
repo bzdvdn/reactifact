@@ -8,12 +8,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
-- **`reactifact new app` and `reactifact doctor`.** The CLI can now scaffold the
-  bundled FastAPI chat template (auth, scoped sessions, SSE, traces,
-  settings-driven budgets/LLM) offline, and diagnose a settings/app factory
-  (auth, stores, provider/model, budgets, session scoping, deprecated aliases).
-  The template ships as `reactifact.templates` package data and itself depends on
-  `reactifact[web]`; FastAPI remains optional for the core package.
+- **`reactifact new app|daemon` and `reactifact doctor`.** The CLI can scaffold
+  the bundled FastAPI chat template (auth, scoped sessions, SSE, traces,
+  settings-driven budgets/LLM) or the scheduled-daemon template (LLM/budget,
+  traces, graceful shutdown, one-shot smoke mode), offline; `doctor` diagnoses a
+  settings/app factory (auth, stores, provider/model, budgets, session scoping,
+  deprecated aliases). The templates ship as `reactifact.templates` package data;
+  the FastAPI one depends on `reactifact[web]`, so FastAPI remains optional for
+  the core package.
+- **`code_review` example.** A unified diff becomes changed files, per-file
+  findings (deterministic rules plus optional LLM) and a Markdown report linked
+  to each reviewed file; runs offline via `python -m examples.code_review.main
+  --demo`.
 - **`MemoryStore` provenance and session erasure.** `MemoryRecord` gained
   `kind` / `source_session` / `source_artifact` / `source_version`;
   `remember_from(artifact, key=..., source_session=...)` indexes a curated

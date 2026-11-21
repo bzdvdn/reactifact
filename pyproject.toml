@@ -121,6 +121,11 @@ reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
     "fastapi_chat/app/agent/*.py",
     "fastapi_chat/app/agent/steps/*.py",
     "fastapi_chat/tests/*.py",
+    "daemon/*",
+    "daemon/.env.example",
+    "daemon/.gitignore",
+    "daemon/app/*.py",
+    "daemon/tests/*.py",
 ]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
 "reactifact.knowledge" = ["templates/*.html"]

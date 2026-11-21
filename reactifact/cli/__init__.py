@@ -2,7 +2,7 @@
 
 Subcommands:
 
-    new      create a project from a bundled template (FastAPI chat)
+    new      create a project (FastAPI chat or scheduled daemon)
     doctor   check app settings and common boundaries
     graph    static agent blueprint from a module path ("pkg.mod:Attr")
     context  live provenance graph from a saved session (KV backend)
@@ -16,6 +16,7 @@ Subcommands:
 Examples:
 
     reactifact new app my-app
+    reactifact new daemon my-worker
     reactifact doctor
     reactifact graph examples.knowledge.agents
     reactifact context examples/knowledge/sessions/traces.sqlite3
@@ -79,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("Start a new project:")
         print("  reactifact new app <dir>       FastAPI chat template")
+        print("  reactifact new daemon <dir>    scheduled agent loop")
         print("  reactifact doctor              check an app's settings")
         print("  reactifact skills install      add agent skills to your project\n")
         print("Inspect what your app already did:")

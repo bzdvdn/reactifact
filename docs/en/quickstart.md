@@ -30,6 +30,10 @@ uv run uvicorn app.main:create_app --factory --reload
 traces, settings-driven budgets/LLM). The generated project owns its
 `reactifact[web]` dependency; the core package never requires FastAPI.
 
+`reactifact new daemon` generates a scheduled agent loop instead: settings-driven
+LLM/budget, traces, graceful shutdown, and `APP_RUN_ONCE=true` for a one-shot
+smoke run.
+
 ## 0. The 80% on-ramp: `reactifact.quick`
 
 Most first tasks are one of four things. `reactifact.quick` wires each of them
@@ -344,7 +348,7 @@ agents, more sources, more error paths. From here:
 - [Recipes](recipes.md) — the building blocks this page used
   (`fan_out_sources`, `materialize_doc`, `find`) plus the ones it didn't
   (`StatusMachine`, `WindowSummarizer`, `Skill`).
-- [Examples](examples.md) — all twenty-three, with what each one specifically teaches.
+- [Examples](examples.md) — all thirteen, with what each one specifically teaches.
 - [Port matrix](port-matrix.md) — if you know LangGraph/CrewAI, which example
   maps to which pattern you already know.
 - [Agent skills](skills.md) — the official Agent Skills, installed with

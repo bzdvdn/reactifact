@@ -24,3 +24,14 @@ def test_new_app_refuses_a_non_empty_destination(tmp_path):
 
     assert main(["new", "app", str(destination)]) == 1
     assert (destination / "keep.txt").read_text() == "do not overwrite"
+
+
+def test_new_daemon_creates_a_worker_project(tmp_path):
+    destination = tmp_path / "worker"
+    assert main(["new", "daemon", str(destination)]) == 0
+
+    assert (destination / "pyproject.toml").is_file()
+    assert (destination / "app" / "main.py").is_file()
+    assert (destination / "app" / "prompts.py").is_file()
+    assert "run_once" in (destination / "app" / "config.py").read_text()
+    assert "uvicorn" not in (destination / "README.md").read_text()

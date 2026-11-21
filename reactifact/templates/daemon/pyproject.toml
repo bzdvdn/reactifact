@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reactifact-daemon-template"
+version = "0.1.0"
+description = "Scheduled reactifact agent daemon: settings-driven LLM/budget, graceful shutdown"
+requires-python = ">=3.11"
+dependencies = [
+    "reactifact>=0.21.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "mypy>=1.11",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["app"]
+strict = true

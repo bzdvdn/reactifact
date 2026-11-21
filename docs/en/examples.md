@@ -1,7 +1,7 @@
 # Examples
 
-Eleven runnable examples ship in `examples/` (in-repo, not packaged). Ten are
-full applications; `tour` isolates the primitives. They are the reference
+Thirteen runnable examples ship in `examples/` (in-repo, not packaged). Twelve
+are full applications; `tour` isolates the primitives. They are the reference
 implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
 examples are split into a `steps/` package (stages) plus thin
@@ -105,6 +105,19 @@ the standalone demos (no LLM, no network):
 uv run python ./examples/devops/web.py      # SSE UI + trace dashboard
 uv run python ./examples/devops/safety.py   # custom guardrails, end to end
 uv run python ./examples/devops/online_eval.py   # online-eval over served runs
+```
+
+## `code_review` — deterministic-first review agent
+
+**What it shows:** a unified diff → `ChangedFile` → per-file `FileReview`
+(deterministic rules plus an optional LLM) → `ReviewReport` with Markdown
+findings. Rules catch `eval`/`exec`, `shell=True`, hardcoded secrets, bare
+`except`, `TODO` and debug `print`; the report links back to every reviewed
+file (`reviewed` relation). Runs offline with no API key.
+
+```bash
+python -m examples.code_review.main --demo
+git diff | python -m examples.code_review.main
 ```
 
 ## `repair` — budget-aware replanning (Russian by design)
