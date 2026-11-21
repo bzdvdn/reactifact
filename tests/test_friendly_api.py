@@ -6,7 +6,7 @@ from reactifact import (
     Context,
     Runtime,
     create_agent,
-    produce,
+    step,
 )
 
 
@@ -18,7 +18,7 @@ class Output(BaseModel):
     text: str
 
 
-@produce(Output)
+@step(Output)
 async def echo(call):
     if not call.inputs:
         return None

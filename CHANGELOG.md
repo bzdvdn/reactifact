@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-21
+
 ### Added
 
 - **`reactifact new app|daemon` and `reactifact doctor`.** The CLI can scaffold
@@ -15,7 +17,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   settings/app factory (auth, stores, provider/model, budgets, session scoping,
   deprecated aliases). The templates ship as `reactifact.templates` package data;
   the FastAPI one depends on `reactifact[web]`, so FastAPI remains optional for
-  the core package.
+  the core package. CI generates both templates from the built wheel and runs
+  their tests, ruff/mypy and a `doctor` smoke before publishing.
 - **`code_review` example.** A unified diff becomes changed files, per-file
   findings (deterministic rules plus optional LLM) and a Markdown report linked
   to each reviewed file; runs offline via `python -m examples.code_review.main
@@ -150,6 +153,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Changed
 
+- **The FastAPI template ships only wired settings.** The unused RAG/embedding
+  placeholders were removed; a RAG project will be a separate template instead
+  of dead `APP_RAG_*` switches in the chat template.
 - **Deprecated 0.1.x aliases leave the top-level public surface.** `Produce`,
   `ProduceCall` and `@produce` remain importable from `reactifact` and
   `reactifact.produce` for the 0.21 compatibility window, but are no longer in

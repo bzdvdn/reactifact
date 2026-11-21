@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Consume, SessionStore, create_agent, produce
+from reactifact import Consume, SessionStore, create_agent, step
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.web import create_chat_router
@@ -25,7 +25,7 @@ async def make_answer(call):
     return None
 
 
-ASSISTANT_PROD = produce(A)(make_answer)
+ASSISTANT_PROD = step(A)(make_answer)
 ANSWER_AGENT = create_agent("a", consumes=[Consume(Q)], produces=[ASSISTANT_PROD])
 
 
@@ -202,7 +202,7 @@ def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
         call.effects.create(A(text="answer"))
         return None
 
-    prod = produce(A)(capture)
+    prod = step(A)(capture)
     agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
@@ -242,7 +242,7 @@ def test_web_router_async_request_factory_is_awaited(tmp_path):
         call.effects.create(A(text="answer"))
         return None
 
-    prod = produce(A)(capture)
+    prod = step(A)(capture)
     agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
@@ -280,7 +280,7 @@ def test_web_router_without_request_factory_has_no_request(tmp_path):
         call.effects.create(A(text="answer"))
         return None
 
-    prod = produce(A)(capture)
+    prod = step(A)(capture)
     agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
@@ -374,7 +374,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     for mod in [m for m in sys.modules if m == "fastapi" or m.startswith("fastapi.")]:
         monkeypatch.delitem(sys.modules, mod)
     monkeypatch.setattr(builtins, "__import__", blocked)
-    from reactifact import Consume, create_agent, produce
+    from reactifact import Consume, create_agent, step
     from reactifact.chat import ChatAssistant
 
     class _Q(BaseModel):
@@ -384,7 +384,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     async def _m(call):
         return None
 
-    agent = create_agent("a", consumes=[Consume(_Q)], produces=[produce(_Q)(_m)])
+    agent = create_agent("a", consumes=[Consume(_Q)], produces=[step(_Q)(_m)])
     with pytest.raises(ImportError, match=r"reactifact\[web\]"):
         create_chat_router(
             ChatAssistant(

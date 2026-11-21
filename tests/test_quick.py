@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Effects, create_agent, produce
+from reactifact import Consume, Context, Effects, create_agent, step
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.providers import FakeLLM, LLMProvider, LLMRequest, LLMResponse
 from reactifact.quick import Answer, Question, agent, chat_agent, rag, tools_agent
@@ -238,7 +238,7 @@ class ChatReply(BaseModel):
     text: str
 
 
-@produce(ChatReply)
+@step(ChatReply)
 async def echo_reply(call):
     question = call.trigger
     if question is None or not isinstance(question.data, Question):
@@ -262,7 +262,7 @@ def test_chat_agent_in_memory_session_and_history():
     assert "hi" in texts and "echo: hi" in texts and "again" in texts
 
 
-@produce(ChatReply)
+@step(ChatReply)
 async def llm_chat_reply(call):
     from reactifact.structured import llm_reply
 

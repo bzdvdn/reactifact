@@ -27,6 +27,20 @@ entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
 
+- **0.22.0** — CLI scaffolding (`new app|daemon`, `doctor`) and bundled
+  FastAPI/daemon templates (FastAPI remains an optional core extra);
+  provenance-aware `MemoryStore` with post-commit indexing; per-request chat
+  resources; typed run events, checkpoints/forks, retries/timeouts, tool
+  record/replay, swarm/map_reduce, optimistic concurrency/merge policies, typed
+  HITL answers and trace scopes. `Produce`/`ProduceCall`/`@produce` leave the
+  top-level `__all__` but remain importable until 0.23.0.
+- **0.21.0** — the optional, code-first `reactifact.knowledge` layer:
+  `Connector → RawDocument → Document → Chunk → Index`, incremental `DocStore`
+  state, `FilesystemConnector`, hybrid BM25 + RRF retrieval, `MemoryIndex` /
+  `SqliteIndex` / `QdrantIndex` / `ChromaIndex` / `PgVectorIndex`, a domain
+  `rerank=` hook plus `llm_reranker`, and an optional knowledge status router.
+  `IndexSource` / `IngestStep` are the explicit bridges into `Source` / `Step`;
+  core has no new runtime dependency.
 - **0.20.0** — the new core line. `Step`/`@step` replace the `Produce` authoring
   surface; class steps take `effects: Effects` (`self.effects` is gone);
   `Artifact` is a frozen handle over a content-addressed version store; sessions

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reactifact"
-version = "0.21.0"
+version = "0.22.0"
 description = "Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -42,6 +42,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "import-linter>=2.0",
+    "httpx2",
 ]
 knowledge = []  # code-first knowledge layer; no extra runtime deps
 knowledge-chroma = ["chromadb>=0.5"]
@@ -77,6 +78,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "import-linter>=2.0",
+    "httpx2",
 ]
 knowledge-chroma = ["chromadb>=0.5"]
 web = [

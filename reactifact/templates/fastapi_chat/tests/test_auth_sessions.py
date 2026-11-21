@@ -19,8 +19,8 @@ def test_one_user_cannot_read_or_clear_another_users_session(settings, monkeypat
             "POST",
             "/api/chat/stream",
             json={"message": "secret", "session_id": "shared"},
-        ):
-            pass
+        ) as response:
+            "".join(response.iter_text())
 
         app.dependency_overrides[get_current_user] = lambda: User(id="bob", username="bob")
         bob_history = client.get("/api/chat/history", params={"session_id": "shared"}).json()

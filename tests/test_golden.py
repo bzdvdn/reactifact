@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, create_agent, produce
+from reactifact import Consume, Context, Runtime, create_agent, step
 from reactifact.testing import (
     AssertionFailure,
     assert_golden,
@@ -23,7 +23,7 @@ class Answer(BaseModel):
     text: str
 
 
-@produce(Answer)
+@step(Answer)
 async def answer(call):
     question = call.trigger
     if question is None or not isinstance(question.data, Question):

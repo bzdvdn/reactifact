@@ -1,8 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime
-from reactifact.produce import produce
+from reactifact import Agent, Consume, Context, Produce, Runtime, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -135,7 +134,7 @@ def test_reacts_to_accepts_a_bare_single_type_at_the_constructor():
     assert len(ctx.list_artifacts(DraftAnswer)) == 1
 
 
-@produce(DraftAnswer, reacts_to=(ResolvedDocuments,))
+@step(DraftAnswer, reacts_to=(ResolvedDocuments,))
 def decorated_reactor(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 

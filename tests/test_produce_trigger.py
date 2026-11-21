@@ -1,8 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Event, EventType, Produce, Runtime
-from reactifact.produce import produce
+from reactifact import Agent, Consume, Context, Event, EventType, Produce, Runtime, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -182,7 +181,7 @@ def test_resolve_produce_call_deleted_event_still_runs_with_trigger_none():
     assert trigger is None
 
 
-@produce(DraftAnswer, reacts_to=(ResolvedDocuments,))
+@step(DraftAnswer, reacts_to=(ResolvedDocuments,))
 def decorated_with_trigger(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 

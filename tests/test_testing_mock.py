@@ -16,7 +16,7 @@ import time
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, ResourceKey, RuntimeResources, produce, tool
+from reactifact import Agent, Consume, ResourceKey, RuntimeResources, step, tool
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioError, ScenarioLab
 from reactifact.testing.mock import ResourceFault, ResourceFaultInstaller, _FailingProxy
@@ -355,7 +355,7 @@ class Reply(BaseModel):
     text: str
 
 
-@produce(Reply)
+@step(Reply)
 async def use_catalog(call):
     catalog = call.context.resources.require(CATALOG_KEY)
     try:

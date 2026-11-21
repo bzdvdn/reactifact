@@ -19,7 +19,7 @@ from reactifact import (
     ProduceCall,
     ResourceKey,
     RuntimeResources,
-    produce,
+    step,
     tool,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -311,7 +311,7 @@ def test_scenario_report_aggregates_across_turns():
 DECISION_TOOLS: ResourceKey[list] = ResourceKey("decision_tools")
 
 
-@produce(Report)
+@step(Report)
 async def run_dynamic_tools(call: ProduceCall) -> None:
     tools = call.context.resources.require(DECISION_TOOLS)
     try:

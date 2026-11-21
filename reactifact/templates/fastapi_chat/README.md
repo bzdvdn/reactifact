@@ -29,7 +29,7 @@ app/
   main.py              # create_app + lifespan
   config.py            # Settings: budgets, LLM, stores, auth, chat
   llm_presets.py       # provider presets (OpenAI-compatible + Anthropic)
-  llm.py               # build_llm / build_embedder from Settings
+  llm.py               # build_llm from Settings
   security.py          # demo bearer auth + session key scoping
   bootstrap.py         # stores, Budget, ChatMemory, assistant
   api/

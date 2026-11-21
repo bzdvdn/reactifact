@@ -4,13 +4,7 @@ from __future__ import annotations
 
 import os
 
-from reactifact.providers import (
-    EmbeddingProvider,
-    LLMProvider,
-    OpenAICompatEmbedder,
-    OpenAICompatProvider,
-    anthropic_llm,
-)
+from reactifact.providers import LLMProvider, OpenAICompatProvider, anthropic_llm
 
 from app.config import Settings
 
@@ -63,15 +57,4 @@ def build_llm(settings: Settings) -> LLMProvider | None:
     )
 
 
-def build_embedder(settings: Settings) -> EmbeddingProvider | None:
-    if not settings.embedding_model or not settings.embedding_base_url:
-        return None
-    return OpenAICompatEmbedder(
-        base_url=settings.embedding_base_url,
-        api_key=_api_key(settings, settings.embedding_api_key_env),
-        model=settings.embedding_model,
-        timeout=settings.embedding_timeout,
-    )
-
-
-__all__ = ["build_embedder", "build_llm"]
+__all__ = ["build_llm"]

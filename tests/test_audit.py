@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, create_agent, produce
+from reactifact import Consume, Context, Runtime, create_agent, step
 from reactifact.audit import (
     build_report,
     context_hash,
@@ -26,7 +26,7 @@ class Answer(BaseModel):
     text: str
 
 
-@produce(Evidence, also_creates=(SourceRef,))
+@step(Evidence, also_creates=(SourceRef,))
 async def gather(call):
     question = call.trigger
     if question is None or not isinstance(question.data, Question):
@@ -41,7 +41,7 @@ async def gather(call):
     return None
 
 
-@produce(Answer)
+@step(Answer)
 async def answer(call):
     evidence = next((a for a in call.inputs if isinstance(a.data, Evidence)), None)
     if evidence is None:

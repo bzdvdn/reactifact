@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, RuntimeResources, produce
+from reactifact import Consume, Context, Runtime, RuntimeResources, step
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.redaction import NoopRedactor, RegexRedactor
 from reactifact.tracing import RunTrace, Tracer
@@ -45,7 +45,7 @@ class CapturingTracer(Tracer):
 def _run_with(redactor) -> tuple[Context, CapturingTracer]:
     from reactifact.structured import structured_llm
 
-    @produce(Contact)
+    @step(Contact)
     async def make_contact(call):
         question = call.trigger
         if question is None or not isinstance(question.data, Question):

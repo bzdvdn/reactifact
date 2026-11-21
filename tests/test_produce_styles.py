@@ -1,4 +1,5 @@
 import asyncio
+import warnings
 
 import pytest
 from pydantic import BaseModel
@@ -12,6 +13,12 @@ from reactifact import (
     Step,
     produce,
     step,
+)
+
+# This module intentionally exercises the deprecated @produce alias until it is
+# removed in 0.23.0; the decorators run at import time, before pytest marks.
+warnings.filterwarnings(
+    "ignore", message="reactifact.produce is deprecated", category=DeprecationWarning
 )
 
 

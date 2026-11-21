@@ -34,8 +34,8 @@ def test_history_replays_the_scoped_session(client, auth_headers, monkeypatch):
         "/api/chat/stream",
         json={"message": "hi", "session_id": "s2"},
         headers=auth_headers,
-    ):
-        pass
+    ) as response:
+        "".join(response.iter_text())
 
     state = client.get(
         "/api/chat/history", params={"session_id": "s2"}, headers=auth_headers

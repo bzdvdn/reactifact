@@ -427,7 +427,7 @@ npx --yes pyright        # static check with the repo's pyproject config
 
 ## Status & contributing
 
-Active, `0.21.0`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
+Active, `0.22.0`, pre-1.0 — the API is stabilizing and `1.0` will freeze it
 (see the [roadmap](docs/roadmap.md)); releases follow
 [Keep a Changelog](CHANGELOG.md). Questions and design discussion live in
 [GitHub Discussions](https://github.com/bzdvdn/reactifact/discussions); a star,

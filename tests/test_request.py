@@ -9,7 +9,7 @@ from reactifact import (
     Runtime,
     create_agent,
     current_request,
-    produce,
+    step,
 )
 
 
@@ -24,7 +24,7 @@ class Out(BaseModel):
 def test_call_request_is_available_inside_produces():
     seen: dict[str, object] = {}
 
-    @produce(Out)
+    @step(Out)
     async def p(call):
         seen["user"] = call.request.get("user")
         seen["all"] = dict(call.request)
@@ -44,7 +44,7 @@ def test_call_request_is_available_inside_produces():
 def test_request_is_empty_when_not_passed_and_reset_after():
     seen: dict[str, object] = {}
 
-    @produce(Out)
+    @step(Out)
     async def p(call):
         seen["request"] = dict(call.request)
         call.effects.create(Out(text="ok"))
@@ -68,7 +68,7 @@ def test_chat_invoke_passes_request_to_produces(tmp_path):
 
     seen: dict[str, object] = {}
 
-    @produce(Out)
+    @step(Out)
     async def p(call):
         seen["user"] = call.request.get("user")
         call.effects.create(Out(text="ok"))

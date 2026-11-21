@@ -9,7 +9,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     create_agent,
-    produce,
+    step,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.replay import ReplayLLM, counter_ids, verify_run
@@ -23,7 +23,7 @@ class R(BaseModel):
     text: str
 
 
-@produce(R)
+@step(R)
 async def auto_id_produce(call):
     question = call.trigger
     if question is None:
@@ -32,7 +32,7 @@ async def auto_id_produce(call):
     return None
 
 
-@produce(R)
+@step(R)
 async def random_data_produce(call):
     import uuid
 
@@ -119,7 +119,7 @@ class Body(BaseModel):
     text: str
 
 
-@produce(Body)
+@step(Body)
 async def llm_produce(call):
     from reactifact.structured import structured_llm
 

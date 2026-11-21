@@ -82,5 +82,22 @@ jobs:
           uv pip install --python /tmp/reactifact-ci/bin/python dist/reactifact-*.whl
           /tmp/reactifact-ci/bin/python -c "import reactifact; print('version', reactifact.__version__)"
           /tmp/reactifact-ci/bin/reactifact --help >/dev/null
-          /tmp/reactifact-ci/bin/reactifact graph examples.knowledge.agents >/dev/null 2>&1 || true
-          if unzip -l dist/reactifact-*.whl | grep -qE "examples/|tests/"; then echo "examples/tests leaked into wheel"; exit 1; fi
+          if unzip -Z1 dist/reactifact-*.whl | grep -qE "^(examples|tests)/"; then echo "examples/tests leaked into wheel"; exit 1; fi
+          if ! unzip -Z1 dist/reactifact-*.whl | grep -q "^reactifact/templates/fastapi_chat/app/main.py$"; then echo "fastapi template missing from wheel"; exit 1; fi
+          if ! unzip -Z1 dist/reactifact-*.whl | grep -q "^reactifact/templates/daemon/app/main.py$"; then echo "daemon template missing from wheel"; exit 1; fi
+      - name: Generated template smoke
+        run: |
+          uv pip install --python /tmp/reactifact-ci/bin/python \
+            pydantic-settings pytest fastapi uvicorn ruff mypy httpx2
+          rm -rf /tmp/reactifact-app /tmp/reactifact-daemon
+
+          /tmp/reactifact-ci/bin/reactifact new app /tmp/reactifact-app
+          (cd /tmp/reactifact-app && PYTHONPATH=. /tmp/reactifact-ci/bin/python -m pytest -q)
+          (cd /tmp/reactifact-app && /tmp/reactifact-ci/bin/ruff check app tests)
+          (cd /tmp/reactifact-app && MYPYPATH=. /tmp/reactifact-ci/bin/mypy)
+          (cd /tmp/reactifact-app && APP_AUTH_TOKEN=ci /tmp/reactifact-ci/bin/reactifact doctor --path .)
+
+          /tmp/reactifact-ci/bin/reactifact new daemon /tmp/reactifact-daemon
+          (cd /tmp/reactifact-daemon && PYTHONPATH=. /tmp/reactifact-ci/bin/python -m pytest -q)
+          (cd /tmp/reactifact-daemon && /tmp/reactifact-ci/bin/ruff check app tests)
+          (cd /tmp/reactifact-daemon && MYPYPATH=. /tmp/reactifact-ci/bin/mypy)

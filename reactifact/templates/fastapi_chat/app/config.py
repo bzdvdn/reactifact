@@ -49,12 +49,6 @@ class Settings(BaseSettings):
     llm_extra_body: dict[str, object] = {}
     llm_stream_usage: bool = True
 
-    # ── Embeddings (optional RAG) ───────────────────────────────────────
-    embedding_model: str | None = None
-    embedding_base_url: str | None = None
-    embedding_api_key_env: str | None = None
-    embedding_timeout: float = 60.0
-
     # ── Budget (per turn) ───────────────────────────────────────────────
     budget_max_runs: int | None = 120
     budget_max_iterations: int | None = 100
@@ -78,11 +72,6 @@ class Settings(BaseSettings):
     session_url: str | None = None
     trace_backend: Literal["sqlite"] = "sqlite"
     trace_path: str = "./data/traces.db"
-
-    # ── Optional RAG ────────────────────────────────────────────────────
-    rag_enabled: bool = False
-    qdrant_url: str = "http://localhost:6333"
-    rag_top_k: int = 6
 
     @model_validator(mode="after")
     def apply_provider_preset(self) -> Settings:

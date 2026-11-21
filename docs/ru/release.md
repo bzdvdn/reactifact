@@ -26,6 +26,20 @@ Changelog). При бампе версии:
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.22.0** — CLI-scaffolding (`new app|daemon`, `doctor`) и встроенные
+  FastAPI/daemon-шаблоны (FastAPI остаётся опциональным extra ядра);
+  provenance-aware `MemoryStore` с индексацией после commit; per-request
+  ресурсы чата; типизированные run-события, checkpoints/forks, retries/timeouts,
+  tool record/replay, swarm/map_reduce, optimistic concurrency/merge policies,
+  типизированные HITL-ответы и trace scopes. `Produce`/`ProduceCall`/`@produce`
+  уходят из top-level `__all__`, но импортируются до 0.23.0.
+- **0.21.0** — опциональный code-first слой `reactifact.knowledge`:
+  `Connector → RawDocument → Document → Chunk → Index`, инкрементальное
+  состояние `DocStore`, `FilesystemConnector`, hybrid BM25 + RRF, индексы
+  `MemoryIndex` / `SqliteIndex` / `QdrantIndex` / `ChromaIndex` /
+  `PgVectorIndex`, hook `rerank=` и `llm_reranker`, опциональный knowledge
+  status router. `IndexSource` / `IngestStep` — явные мосты в `Source` / `Step`;
+  новых runtime-зависимостей у ядра нет.
 - **0.20.0** — новая core-линия. `Step`/`@step` заменяют авторский слой
   `Produce`; класс-шаги получают `effects: Effects` (`self.effects` удалён);
   `Artifact` — frozen handle поверх content-addressed version store; сессии
