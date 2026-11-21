@@ -11,6 +11,15 @@
 > **Это не:** managed-платформа · распределённая очередь задач · готовый
 > маркетплейс агентов/инструментов
 
+## Выберите путь
+
+| Что нужно | Начните с | Дальше |
+| --- | --- | --- |
+| Собрать web-приложение | `reactifact new app my-app` + [Quickstart](quickstart.md) | [Chat](chat.md), [FastAPI-шаблон](../../reactifact/templates/fastapi_chat) |
+| Встроить в существующий код | [Quickstart](quickstart.md) / `reactifact.quick` | [Concepts](concepts.md), [Effects](effects.md) |
+| Понять модель | [Почему reactifact](why-reactifact.md) | [Concepts](concepts.md), [Сравнение](comparison.md) |
+| Эксплуатировать/отлаживать | [Observability](observability.md) | [Replay](replay.md), [CLI](viz.md) |
+
 Вопрос вроде *«почему в Q2 выросли инфраструктурные расходы?»* требует таблицы,
 политики и страницы из веба — а *следующий* вопрос требует уже другого набора.
 Это не один граф, который можно нарисовать заранее. Вы объявляете, какие

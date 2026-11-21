@@ -87,15 +87,13 @@ plugins:
 # outside docs_dir: those render as normal links but mkdocs' link-checker
 # can't verify them (not --strict here on purpose, for that reason).
 nav:
-  - Home: en/index.md
-  - Why reactifact: en/why-reactifact.md
-  - Quickstart: en/quickstart.md
-  - Migrating: en/migrating.md
-  - Migrating from 0.1.x: en/migration-0.20.md
-  - Comparison: en/comparison.md
-  - Concepts: en/concepts.md
-  - Execution model: en/scheduler-semantics.md
-  - Core:
+  - Start here:
+      - Home: en/index.md
+      - Quickstart: en/quickstart.md
+      - Concepts: en/concepts.md
+      - Multi-turn & chat: en/chat.md
+      - Agent skills: en/skills.md
+  - Build:
       - Effects: en/effects.md
       - Sources: en/sources.md
       - Knowledge base: en/knowledge.md
@@ -103,23 +101,28 @@ nav:
       - Recipes: en/recipes.md
       - Patterns: en/patterns.md
       - Evaluation: en/eval.md
-      - Agent skills: en/skills.md
       - Trust & safety: en/safety.md
       - Testing: en/testing.md
-      - Multi-turn & chat: en/chat.md
-      - Branching & merge: en/branching.md
-      - Replay: en/replay.md
-      - Visualization: en/viz.md
       - MCP: en/mcp.md
       - A2A: en/a2a.md
+  - Operate:
+      - Execution model: en/scheduler-semantics.md
       - Observability: en/observability.md
       - Durability & resume: en/durability.md
+      - Branching & merge: en/branching.md
+      - Replay: en/replay.md
+      - Visualization & CLI: en/viz.md
+      - Troubleshooting: en/troubleshooting.md
+  - Migrate & compare:
+      - Migrating: en/migrating.md
+      - Migrating from 0.1.x: en/migration-0.20.md
+      - Why reactifact: en/why-reactifact.md
+      - Comparison: en/comparison.md
+      - Port matrix: en/port-matrix.md
   - Reference:
       - API: en/api.md
       - Auto-generated reference: reference.md
-      - Port matrix: en/port-matrix.md
       - Examples: en/examples.md
-      - Troubleshooting: en/troubleshooting.md
   - Design notes:
       - Adaptive scheduler: en/design-notes/adaptive.md
       - Patch model: en/design-notes/patches.md

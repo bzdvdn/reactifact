@@ -42,6 +42,15 @@ exactly-once — the *model* is Celery-shaped, the deployment is not.
 
 </details>
 
+## Choose your path
+
+| I want to… | Start with | Then |
+| --- | --- | --- |
+| Build a web app | `reactifact new app my-app` + [Quickstart](quickstart.md) | [Chat](chat.md), [FastAPI template](../../reactifact/templates/fastapi_chat) |
+| Use it in existing code | [Quickstart](quickstart.md#0-the-80-on-ramp-reactifactquick) / `reactifact.quick` | [Concepts](concepts.md), [Effects](effects.md) |
+| Understand the model | [Why reactifact](why-reactifact.md) | [Concepts](concepts.md), [Comparison](comparison.md) |
+| Operate/debug a run | [Observability](observability.md) | [Replay](replay.md), [CLI](viz.md) |
+
 ## On top: a provable answer
 
 [`examples/fintech_audit`](../../examples/fintech_audit) — a transactions CSV, a

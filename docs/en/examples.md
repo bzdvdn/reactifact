@@ -34,9 +34,11 @@ transport and session persistence come from the framework.
 | `repo_agent` | destructive tool behind approval | CLI/guardrail |
 | `tour` | framework primitives in small scenes | learning |
 
-Use this table to pick the example closest to your problem. Examples stay
-deliberately focused; they do **not** all carry auth/settings. The
-production-shaped scaffold is `reactifact new app|daemon`, not another example.
+Use this table to pick the example closest to your problem. If you read only
+three, start with `starter_app` (smallest web), `devops` (tools/authz/memory)
+and `fintech_audit` (computed, reproducible answer). Examples stay deliberately
+focused; they do **not** all carry auth/settings. The production-shaped scaffold
+is `reactifact new app|daemon`, not another example.
 
 ## `starter_app` — a copy-pasteable web app over the quick cases
 

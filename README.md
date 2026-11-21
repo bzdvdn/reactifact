@@ -15,6 +15,35 @@
 > **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · optional code-first knowledge base (SQLite/Qdrant) · runs offline, no API key
 > **Isn't:** a managed platform · a distributed task queue · a pre-built agent/tool marketplace
 
+## Start here
+
+**Build an app**
+```bash
+uv init my-agent && cd my-agent
+uv add reactifact                 # core + CLI; FastAPI stays optional
+uv run reactifact new app my-app  # FastAPI: auth, sessions, SSE, traces
+# or: uv run reactifact new daemon my-worker
+```
+
+The generated FastAPI project declares `reactifact[web]` itself; installing
+`reactifact` alone never pulls FastAPI. The template and the code review
+example are the best starting points; see [Examples](docs/en/examples.md).
+
+**Use it in existing code**
+```bash
+uv add reactifact
+uv run reactifact skills install   # teach your coding agent the mental model
+```
+Then start with `reactifact.quick` in [Quickstart](docs/en/quickstart.md), or
+read [Concepts](docs/en/concepts.md) before designing artifacts.
+
+**Inspect what a run actually did**
+```bash
+reactifact graph  my_app.agents
+reactifact trace  traces.db
+reactifact replay sessions.sqlite3
+```
+
 A question like *"why did infra costs jump in Q2?"* needs a spreadsheet, a policy doc and a page off the web — and the *next* question needs a different subset. That is not one graph you can draw up front. You declare what artifacts exist and what agents can do with them; the runtime derives the order — and the dependency graph — from state. You don't draw the graph.
 
 Every derived artifact then links to what produced it
@@ -343,20 +372,6 @@ Skills: `reactifact` (mental model), `reactifact-agents`, `reactifact-llm`,
 `reactifact-rag`, `reactifact-testing`, `reactifact-eval`,
 `reactifact-observability`, `reactifact-from-langchain` — see
 [Agent skills](docs/en/skills.md).
-
-## Start a project with uv
-
-```bash
-uv init my-agent && cd my-agent
-uv add reactifact                 # core + CLI; FastAPI stays optional
-uv run reactifact skills install  # teach your coding agent the model
-uv run reactifact new app my-app  # FastAPI template (auth, SSE, traces)
-uv run reactifact new daemon my-worker  # scheduled agent loop
-```
-
-The generated FastAPI project declares `reactifact[web]` itself; installing
-`reactifact` alone never pulls FastAPI. `reactifact doctor` checks an app's
-settings and common boundaries; `reactifact graph/trace` inspect agents and runs.
 
 ## Run a demo
 
