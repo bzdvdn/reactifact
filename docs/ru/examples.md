@@ -16,6 +16,28 @@
 только доменные хуки (агенты, входная модель, терминальный ответ), а
 SSE-транспорт и сохранение сессий берёт из фреймворка.
 
+## Чему учит каждый пример
+
+| Пример | Чему учит | Форма |
+| --- | --- | --- |
+| `starter_app` | минимальное FastAPI-приложение поверх `quick` | он-рамп; без auth/settings |
+| `knowledge` | multi-source RAG, evidence и детерминированный расчёт по CSV | доменное web-приложение |
+| `knowledge_base` | connector → chunks → index, инкрементальное состояние, hybrid query | ingestion/CLI |
+| `medic_lab` | конкурирующие гипотезы, скоринг, HITL steering | доменный сервис |
+| `devops` | HITL-инструменты, authz, per-user memory, трейсы | ближе всего к production; demo auth |
+| `code_review` | детерминированные правила по diff + опциональный LLM, связанный отчёт | CLI/worker |
+| `repair` | stage-driven replanning, бюджет, HITL | доменное web-приложение |
+| `chat` | минимальный транскрипт + ограниченный `ChatMemory` | офлайн-чат |
+| `forklab` | `branch`/`merge`, конфликты и политики | CLI/исследование состояния |
+| `fintech_audit` | вычисленный воспроизводимый ответ с context hash | CLI/аудируемый пайплайн |
+| `outbox` | закоммиченные side effects, retry и replay | паттерн worker/daemon |
+| `repo_agent` | destructive-инструмент за одобрением | CLI/guardrail |
+| `tour` | примитивы фреймворка в маленьких сценах | обучение |
+
+Выбирайте пример, ближайший к вашей задаче. Примеры намеренно узкие: у них
+**нет** обязательного auth/settings. Production-shape scaffold — это
+`reactifact new app|daemon`, а не ещё один пример.
+
 ## `starter_app` — копипастибельное веб-приложение поверх quick-кейсов
 
 **Что показывает:** один FastAPI-процесс, который можно склонировать и

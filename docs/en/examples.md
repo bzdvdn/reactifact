@@ -16,6 +16,28 @@ on the canonical `reactifact.chat` + `reactifact.web` contract — each supplies
 only the domain hooks (agents, input model, terminal reply), and the SSE
 transport and session persistence come from the framework.
 
+## What each example teaches
+
+| Example | What it teaches | Shape |
+| --- | --- | --- |
+| `starter_app` | minimal FastAPI app over the `quick` cases | on-ramp; no auth/settings |
+| `knowledge` | multi-source RAG, evidence and deterministic CSV calculation | domain web app |
+| `knowledge_base` | connector → chunks → index, incremental state, hybrid query | ingestion/CLI |
+| `medic_lab` | competing hypotheses, scoring, HITL steering | domain service |
+| `devops` | HITL tools, authz, per-user memory, traces | closest to production; demo auth |
+| `code_review` | deterministic diff rules + optional LLM, linked report | CLI/worker |
+| `repair` | stage-driven replanning, budget, HITL | domain web app |
+| `chat` | minimal transcript + bounded `ChatMemory` | offline chat |
+| `forklab` | `branch`/`merge`, conflicts and policies | CLI/state exploration |
+| `fintech_audit` | computed, reproducible answer with context hash | CLI/auditable pipeline |
+| `outbox` | committed side effects, retry and replay | worker/daemon pattern |
+| `repo_agent` | destructive tool behind approval | CLI/guardrail |
+| `tour` | framework primitives in small scenes | learning |
+
+Use this table to pick the example closest to your problem. Examples stay
+deliberately focused; they do **not** all carry auth/settings. The
+production-shaped scaffold is `reactifact new app|daemon`, not another example.
+
 ## `starter_app` — a copy-pasteable web app over the quick cases
 
 **What it shows:** one FastAPI process you can clone and run, covering the
