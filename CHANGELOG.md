@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **`reactifact new app` and `reactifact doctor`.** The CLI can now scaffold the
+  bundled FastAPI chat template (auth, scoped sessions, SSE, traces,
+  settings-driven budgets/LLM) offline, and diagnose a settings/app factory
+  (auth, stores, provider/model, budgets, session scoping, deprecated aliases).
+  The template ships as `reactifact.templates` package data and itself depends on
+  `reactifact[web]`; FastAPI remains optional for the core package.
 - **`MemoryStore` provenance and session erasure.** `MemoryRecord` gained
   `kind` / `source_session` / `source_artifact` / `source_version`;
   `remember_from(artifact, key=..., source_session=...)` indexes a curated
@@ -135,6 +141,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   SQLite and Postgres stores persist them, and `query(scope=...)` /
   `sessions(scope=...)` (also `?scope=` on the dashboard API) filter by
   workspace.
+
+### Changed
+
+- **Deprecated 0.1.x aliases leave the top-level public surface.** `Produce`,
+  `ProduceCall` and `@produce` remain importable from `reactifact` and
+  `reactifact.produce` for the 0.21 compatibility window, but are no longer in
+  `reactifact.__all__`; removal is planned for 0.23.0. New code uses
+  `Step`/`@step`/`StepCall`.
 
 ### Fixed
 

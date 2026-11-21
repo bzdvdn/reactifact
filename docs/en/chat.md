@@ -15,7 +15,7 @@ page maps the multi-turn pieces (and the LangGraph equivalents) to reactifact.
 | `interrupt()` / `Command(resume=…)` | `effects.ask(...)` → `PendingQuestion` → `effects.resume(...)` |
 | `get_state_history` / resume a checkpoint | `context.history()` / `context.checkout(v)` / `context.branch()` / `reactifact replay` |
 | bound the transcript / summarize | `ChatMemory` → `WindowPruner` / `RollingDigestSummarizer`; `Context.compact` for history |
-| `store` (long-term, cross-thread memory) | not built in — see [Sources](sources.md) / an app-owned `SessionStore` |
+| `store` (long-term, cross-thread memory) | `MemoryStore` recipe (namespaced facts, TTL, `forget_source`); `SessionStore` remains conversation history — see [Recipes](recipes.md#memorystore-namespaced-long-term-memory-27) |
 
 The difference in kind: a reducer merges opaque messages, whereas reactifact
 keeps **typed, versioned artifacts** — so a turn's provenance, the ability to
@@ -178,6 +178,21 @@ When the thread really is more than one artifact type, pass
 concrete types inherit it. The memory agent wakes on every listed type (and,
 for a marker base, on its subclasses), so one window bounds the whole thread;
 `message_type` also accepts a sequence for the same effect.
+
+## Three kinds of memory
+
+These are different lifecycles, not alternatives:
+
+| What | Where it lives | Lifetime | Use it for |
+| --- | --- | --- | --- |
+| Conversation history | `SessionStore` + the session `Context` | per `session_id`, until deleted | continue/replay a thread; `history()` |
+| Working window | `ChatMemory` (`WindowPruner` / `RollingDigestSummarizer`), `Context.compact` | the live `Context` | bound the prompt/history without growing forever |
+| Long-term facts | `MemoryStore` (`recipes`) | per namespace (`user:<id>`), TTL/`forget_source` | preferences and learned facts across sessions |
+| Operational traces | `TraceStore` | retention policy | debugging/quality monitoring, not user memory |
+
+`SessionStore` is *what happened in this conversation*; `MemoryStore` is
+*what the agent should remember about this user*; `ChatMemory` is *how much of
+the transcript to keep in the prompt*. Keep them separate.
 
 ## Human-in-the-loop turns
 

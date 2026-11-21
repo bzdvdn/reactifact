@@ -111,6 +111,17 @@ packages = { find = { where = ["."], include = ["reactifact*"], exclude = ["exam
 
 [tool.setuptools.package-data]
 reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
+"reactifact.templates" = [
+    "fastapi_chat/*",
+    "fastapi_chat/.env.example",
+    "fastapi_chat/.gitignore",
+    "fastapi_chat/app/*.py",
+    "fastapi_chat/app/api/*.py",
+    "fastapi_chat/app/api/routes/*.py",
+    "fastapi_chat/app/agent/*.py",
+    "fastapi_chat/app/agent/steps/*.py",
+    "fastapi_chat/tests/*.py",
+]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
 "reactifact.knowledge" = ["templates/*.html"]
 
@@ -132,7 +143,7 @@ line-length = 88
 src = ["reactifact", "examples"]
 # Notebooks are Colab artifacts (IPython magics, top-level await) — not package
 # code; don't lint/format them.
-extend-exclude = ["*.ipynb"]
+extend-exclude = ["*.ipynb", "templates", "reactifact/templates"]
 
 [tool.ruff.lint]
 select = [
@@ -164,6 +175,7 @@ python_version = "3.11"
 packages = ["reactifact", "examples"]
 strict = true
 warn_unused_ignores = true
+exclude = ["reactifact/templates"]
 
 # pyright defaults its target to the interpreter it finds, which can resolve
 # below the 3.11 floor this package requires — making `StrEnum`/`datetime.UTC`
@@ -173,7 +185,7 @@ pythonVersion = "3.11"
 include = ["reactifact", "examples"]
 venvPath = "."
 venv = ".venv"
-exclude = ["build", "dist", ".venv", ".scratch", "**/__pycache__"]
+exclude = ["build", "dist", ".venv", ".scratch", "reactifact/templates", "templates", "**/__pycache__"]
 
 
 [tool.importlinter]

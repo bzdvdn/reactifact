@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reactifact-fastapi-chat-template"
+version = "0.1.0"
+description = "FastAPI chat template for reactifact (auth, sessions, SSE, traces, settings-driven budgets/LLM)"
+requires-python = ">=3.11"
+dependencies = [
+    # FastAPI is an optional extra of reactifact — the template opts in.
+    "reactifact[web]>=0.21.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "mypy>=1.11",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI `Depends(...)` in default args is idiomatic.
+"app/api/routes/chat.py" = ["B008"]
+"app/security.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["app"]
+strict = true

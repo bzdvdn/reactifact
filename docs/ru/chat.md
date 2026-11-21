@@ -16,7 +16,7 @@
 | `interrupt()` / `Command(resume=…)` | `effects.ask(...)` → `PendingQuestion` → `effects.resume(...)` |
 | `get_state_history` / resume с checkpoint | `context.history()` / `context.checkout(v)` / `context.branch()` / `reactifact replay` |
 | ограничить транскрипт / суммаризовать | `ChatMemory` → `WindowPruner` / `RollingDigestSummarizer`; `Context.compact` для истории |
-| `store` (долговременная память между потоками) | не встроена — см. [Sources](sources.md) / `SessionStore` приложения |
+| `store` (долговременная память между потоками) | рецепт `MemoryStore` (namespaced-факты, TTL, `forget_source`); `SessionStore` остаётся историей разговора — см. [Рецепты](recipes.md#memorystore-namespaced-long-term-memory-27) |
 
 Отличие в сути: reducer сливает непрозрачные сообщения, а reactifact хранит
 **типизированные версионируемые артефакты** — поэтому провенанс хода,
@@ -183,6 +183,21 @@ assistant = ChatAssistant(
 которой наследуются конкретные типы. Агент памяти просыпается на каждом
 перечисленном типе (а для marker-базы — и на её наследниках), поэтому одно
 окно ограничивает весь поток; `message_type` тоже принимает последовательность.
+
+## Три вида памяти
+
+Это разные жизненные циклы, а не альтернативы:
+
+| Что | Где живёт | Время жизни | Для чего |
+| --- | --- | --- | --- |
+| История разговора | `SessionStore` + `Context` сессии | по `session_id`, до удаления | продолжить/воспроизвести поток; `history()` |
+| Рабочее окно | `ChatMemory` (`WindowPruner` / `RollingDigestSummarizer`), `Context.compact` | живой `Context` | ограничить prompt/историю, чтобы она не росла бесконечно |
+| Долговременные факты | `MemoryStore` (`recipes`) | namespace (`user:<id>`), TTL/`forget_source` | предпочтения и выученные факты между сессиями |
+| Операционные трейсы | `TraceStore` | политика хранения | отладка/качество, не память пользователя |
+
+`SessionStore` — *что было в этом разговоре*; `MemoryStore` — *что агент должен
+помнить о пользователе*; `ChatMemory` — *сколько транскрипта держать в prompt*.
+Не смешивайте их.
 
 ## Ходы с человеком в цикле
 

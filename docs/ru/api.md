@@ -157,6 +157,7 @@ reactifact всё ещё pre-1.0 (`0.21.0`), но не `rc` — поверхно
 | `context_to_mermaid(context)` | живой граф провенанса контекста (артефакты + связи) |
 | `trace_to_mermaid(trace)` | один запуск как Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI, печатающий диаграммы в stdout |
+| `reactifact new app` / `reactifact doctor` | CLI: scaffold встроенного FastAPI-шаблона / проверка settings и границ |
 | `trace_provenance_to_mermaid(trace)` | граф доказательств запуска (записанные артефакты + рёбра `patch.link`) |
 
 ## Replay (reactifact.replay, §55)

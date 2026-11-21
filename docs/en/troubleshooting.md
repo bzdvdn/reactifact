@@ -43,7 +43,7 @@ won't show up as one.
   node (`⚠ <message>`), so this is the fastest way to see *which* agent
   actually erred versus *which* legitimately declined to act.
 - If nothing errored and the span shows no writes, the guard inside your
-  `produce()` returned `None` — this is a case for a breakpoint/print at the
+  `step()`/`run()` returned `None` — this is a case for a breakpoint/print at the
   specific `return None` sites, not for the tracer (the tracer records what
   happened, not why a guard chose not to act).
 - `Runtime(isolate_errors=True, on_agent_error=...)` is opt-in — by default

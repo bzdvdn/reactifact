@@ -7,7 +7,7 @@ from LangGraph, CrewAI, LlamaIndex, or plain Python, start with
 0.20.0 is a breaking release, but the migration is mechanical for most apps:
 the runtime and the commit DAG are the same, while the authoring surface gains
 explicit types. The old names remain importable through the 0.20 compatibility
-window; this page shows the replacements and what to plan for 0.21.0.
+window; this page shows the replacements and what to plan for 0.23.0.
 
 ## 1. What changed
 
@@ -24,8 +24,9 @@ window; this page shows the replacements and what to plan for 0.21.0.
 | v1 session payload | v2 `blobs` + `data_ref`; v1 payloads migrate on load |
 | `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool` | `reactifact.tools.use`, `reactifact.tools.native`, `reactifact.tools.agent` |
 
-Everything marked as a bridge remains available in 0.20.x. Removal is planned
-for 0.21.0, so finish the migration before that release.
+Everything marked as a bridge remains importable in 0.21.x, but the
+top-level `Produce`/`ProduceCall`/`@produce` are no longer in `__all__`.
+Removal is planned for 0.23.0, so finish the migration before that release.
 
 ## 2. Steps and agents
 
@@ -208,7 +209,7 @@ from reactifact.tools.agent import AgentAsTool
 | `reactifact.native_tool_use` | `reactifact.tools.native` |
 | `reactifact.agent_tool` | `reactifact.tools.agent` |
 
-The shims stay through 0.20.x and are scheduled for removal in 0.21.0.
+The shims stay importable through 0.21.x and are scheduled for removal in 0.23.0.
 
 ## 8. Removed examples
 
@@ -247,7 +248,7 @@ API.
 
 ## 10. Compatibility and removal
 
-Kept in 0.20.x, removed in 0.21.0:
+Kept importable in 0.21.x, removed in 0.23.0:
 
 - `Produce`, `ProduceCall`, `@produce`
 - `Agent.produces`

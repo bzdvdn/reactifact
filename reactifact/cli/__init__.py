@@ -2,6 +2,8 @@
 
 Subcommands:
 
+    new      create a project from a bundled template (FastAPI chat)
+    doctor   check app settings and common boundaries
     graph    static agent blueprint from a module path ("pkg.mod:Attr")
     context  live provenance graph from a saved session (KV backend)
     trace    run diagram from a trace store (SQLite)
@@ -13,13 +15,15 @@ Subcommands:
 
 Examples:
 
-    python -m reactifact graph examples.knowledge.agents
-    python -m reactifact context examples/knowledge/sessions/traces.sqlite3
-    python -m reactifact trace traces.db
-    python -m reactifact skills install --target both
+    reactifact new app my-app
+    reactifact doctor
+    reactifact graph examples.knowledge.agents
+    reactifact context examples/knowledge/sessions/traces.sqlite3
+    reactifact trace traces.db
+    reactifact skills install --target both
 
-Everything prints Mermaid source to stdout — paste it into GitHub, Notion or
-mermaid.live.
+Inspection commands print Mermaid source to stdout — paste it into GitHub,
+Notion or mermaid.live.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ import argparse
 import sys
 
 from .. import __version__
-from . import branch, context, eval, graph, replay, scenario, skills, trace
+from . import branch, context, doctor, eval, graph, new, replay, scenario, skills, trace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,7 +48,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    for module in (graph, context, trace, replay, branch, scenario, skills, eval):
+    for module in (
+        graph,
+        context,
+        trace,
+        replay,
+        branch,
+        scenario,
+        skills,
+        eval,
+        new,
+        doctor,
+    ):
         module.add_parser(sub)
 
     return parser
@@ -62,17 +77,22 @@ def main(argv: list[str] | None = None) -> int:
             f"reactifact {__version__} — inspect & visualize agents, contexts and"
             " traces as Mermaid.\n"
         )
-        print("Render what your agent app already did:")
+        print("Start a new project:")
+        print("  reactifact new app <dir>       FastAPI chat template")
+        print("  reactifact doctor              check an app's settings")
+        print("  reactifact skills install      add agent skills to your project\n")
+        print("Inspect what your app already did:")
         print("  reactifact graph   <module:Agent>   static blueprint")
         print("  reactifact trace   <trace.db>       run diagram")
         print("  reactifact context <sessions.sqlite3>  live provenance graph")
         print("  reactifact replay  <sessions.sqlite3>  deterministic replay")
         print("  reactifact branch  <path> <session> <action>  persistent forks")
         print("  reactifact scenario <module>  run reactifact.testing scenarios\n")
-        print("  reactifact skills  install   add agent skills to your project\n")
         print("  reactifact eval    <traces.db>  online-evaluate finished runs\n")
-        print("Run 'reactifact <command> --help' for details, or try an example:")
-        print("  uv run python ./examples/llm_ladder/level1.py")
+        print("Install into an app:")
+        print("  uv add reactifact              core + CLI")
+        print("  uv add 'reactifact[web]'       + FastAPI/uvicorn")
+        print("Run 'reactifact <command> --help' for details.")
         parser.print_help()
         return 0
     return int(args.func(args))

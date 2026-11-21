@@ -153,6 +153,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `context_to_mermaid(context)` | live provenance graph of a context (artifacts + relations) |
 | `trace_to_mermaid(trace)` | one run as a Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI printing the diagrams to stdout |
+| `reactifact new app` / `reactifact doctor` | CLI: scaffold the bundled FastAPI chat template / check app settings and boundaries |
 | `trace_provenance_to_mermaid(trace)` | a run's evidence graph (written artifacts + `patch.link` edges) |
 
 ## Replay (reactifact.replay, §55)

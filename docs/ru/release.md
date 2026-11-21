@@ -31,8 +31,9 @@ Changelog). При бампе версии:
   `Artifact` — frozen handle поверх content-addressed version store; сессии
   используют v2-формат `blobs`/`data_ref`; старый набор примеров удалён.
   `Produce`, `ProduceCall`, `@produce`, `Agent.produces`,
-  `Artifact.at/history/diff` и top-level shims инструментов остаются на окно
-  совместимости 0.2.
+  `Artifact.at/history/diff` и top-level shims инструментов остаются
+  импортируемыми на окно совместимости 0.21; `Produce`/`ProduceCall`/`@produce`
+  больше не входят в top-level `__all__`, а в 0.23.0 удаляются все.
 - **0.14.0** — поведенчески заметные (не ломающие) изменения:
   - `Budget.max_seconds` теперь **жёсткий** дедлайн хода: runtime отменяет
     генерацию в полёте, когда он истекает (зависший LLM-вызов действительно

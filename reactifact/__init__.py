@@ -37,6 +37,9 @@ from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
 from .policy import RetryPolicy
+
+# Deprecated 0.1.x aliases: importable for the compatibility window, but kept
+# out of `__all__` (the public surface) until their removal.
 from .produce import Produce, ProduceCall, produce
 from .providers import (
     EmbeddingProvider,
@@ -95,8 +98,6 @@ __all__ = [
     "Patch",
     "PendingAction",
     "PendingQuestion",
-    "Produce",
-    "ProduceCall",
     "Step",
     "StepCall",
     "SubflowResult",
@@ -133,7 +134,6 @@ __all__ = [
     "create_agent",
     "current_request",
     "get_logger",
-    "produce",
     "register_type",
     "run_subflow",
     "step",

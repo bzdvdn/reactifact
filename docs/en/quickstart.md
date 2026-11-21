@@ -8,6 +8,28 @@ session-persisted chat bot — each pointing at the full, production-shaped
 example it's trimmed from. Every snippet on this page was run to produce the
 output shown; none of it is hypothetical.
 
+## Install and scaffold with uv
+
+```bash
+uv init my-agent && cd my-agent
+uv add reactifact                 # core + CLI; FastAPI stays optional
+uv run reactifact skills install  # teach your coding agent the model
+```
+
+For a web app, either add the extra yourself or generate the template:
+
+```bash
+uv add "reactifact[web]"          # + FastAPI/uvicorn
+uv run reactifact new app my-app  # or: uvx reactifact new app my-app
+cd my-app && uv sync --extra dev
+cp .env.example .env
+uv run uvicorn app.main:create_app --factory --reload
+```
+
+`reactifact new app` copies the bundled FastAPI template (auth, sessions, SSE,
+traces, settings-driven budgets/LLM). The generated project owns its
+`reactifact[web]` dependency; the core package never requires FastAPI.
+
 ## 0. The 80% on-ramp: `reactifact.quick`
 
 Most first tasks are one of four things. `reactifact.quick` wires each of them
@@ -301,6 +323,14 @@ agents behind the same two calls, plus a trace dashboard. `resources=` there
 is a callable (`lambda: build_resources()`) exactly like this snippet, for
 the same reason: `ChatAssistant` closes a callable-built `RuntimeResources`
 after every turn automatically, so a real provider's HTTP client never leaks.
+
+## Production shape: the FastAPI template
+
+The snippets above keep the loop small. For a real web app, copy
+[`templates/fastapi_chat`](../../reactifact/templates/fastapi_chat): FastAPI `Depends` auth,
+scoped sessions, SSE, traces, settings-driven budgets/LLM, tests and Docker.
+It depends on `reactifact[web]` itself — the core package still does not pull
+FastAPI.
 
 ## Where this leaves you
 

@@ -344,6 +344,19 @@ Skills: `reactifact` (mental model), `reactifact-agents`, `reactifact-llm`,
 `reactifact-observability`, `reactifact-from-langchain` — see
 [Agent skills](docs/en/skills.md).
 
+## Start a project with uv
+
+```bash
+uv init my-agent && cd my-agent
+uv add reactifact                 # core + CLI; FastAPI stays optional
+uv run reactifact skills install  # teach your coding agent the model
+uv run reactifact new app my-app  # FastAPI template (auth, SSE, traces)
+```
+
+The generated FastAPI project declares `reactifact[web]` itself; installing
+`reactifact` alone never pulls FastAPI. `reactifact doctor` checks an app's
+settings and common boundaries; `reactifact graph/trace` inspect agents and runs.
+
 ## Run a demo
 
 Offline-capable, no API keys required (deterministic fallbacks):

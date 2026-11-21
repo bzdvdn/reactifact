@@ -201,3 +201,50 @@ Why this matters:
 - **`Session` / `SessionStore`** — durable, per-chat working memory across
   requests, backed by a KV checkpoint (file or SQLite); `Context.compact(...)`
   bounds a long session's history.
+
+## Which API do I use?
+
+This is a ladder, not more concepts: start at the first row and only descend
+when the task actually needs it.
+
+### Authoring a step
+
+| Need | Use | Notes |
+| --- | --- | --- |
+| One typed transformation | `@step(produces=..., consumes=...)` | return the produced model, or use `call.effects` for updates/links |
+| Typed inputs, several effects, HITL | class `Step` with `run(..., effects: Effects)` | the full form; see [Effects](effects.md) |
+| Hand-assembled operations / imperative agent | `Patch`, `Agent.run(event, context)` | escape hatch, not the everyday style |
+| 0.1.x code | `Produce` / `@produce` / `ProduceCall` | migration only; not part of the top-level `__all__` |
+
+### Scheduling
+
+| Need | Use |
+| --- | --- |
+| React to a type | `Consume(Type)` |
+| Conditional edge | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
+| Read without waking / latest / scoped lookup | `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Periodic/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
+
+### Streams
+
+| Need | Use |
+| --- | --- |
+| Canonical chat UI | `ChatEvent` from `ChatAssistant.stream()` / `create_chat_router` |
+| Live UI / Studio / token deltas | `RunEvent` from `Runtime.astream_events(stream_mode=...)` |
+| Simple CLI/status | `ProgressEvent` from `Runtime.astream()` (legacy status stream) |
+
+### Persistence and memory
+
+| Need | Use |
+| --- | --- |
+| Continue a conversation | `SessionStore` + `session_id` |
+| Bound/summarize the prompt | `ChatMemory` (`WindowPruner` / `RollingDigestSummarizer`) |
+| Remember facts across sessions | `MemoryStore` (`recipes`) |
+| Inspect/rewind a turn | `ContextCheckpoint` (`context.checkpoints()` / `at()`) |
+| Try alternative paths | `context.branch()` + `merge()` |
+
+### Resource ownership
+
+`RuntimeResources.aclose()` closes only `llm` and `embedder`. Everything else
+(`sources`, custom clients, `MemoryStore`, DB pools) is app-owned: close it in
+your lifespan, not per turn.

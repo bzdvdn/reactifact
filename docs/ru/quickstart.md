@@ -8,6 +8,28 @@
 которого он урезан. Каждый сниппет на этой странице был реально запущен —
 вывод, который вы видите, не выдуман.
 
+## Установка и scaffold через uv
+
+```bash
+uv init my-agent && cd my-agent
+uv add reactifact                 # core + CLI; FastAPI остаётся опциональным
+uv run reactifact skills install  # научить кодового агента модели
+```
+
+Для web-приложения либо добавьте extra сами, либо сгенерируйте шаблон:
+
+```bash
+uv add "reactifact[web]"          # + FastAPI/uvicorn
+uv run reactifact new app my-app  # или: uvx reactifact new app my-app
+cd my-app && uv sync --extra dev
+cp .env.example .env
+uv run uvicorn app.main:create_app --factory --reload
+```
+
+`reactifact new app` копирует встроенный FastAPI-шаблон (auth, sessions, SSE,
+traces, бюджеты/LLM из settings). Сгенерированный проект сам объявляет
+`reactifact[web]`; core-пакет FastAPI не требует.
+
 ## 0. Он-рамп для 80%: `reactifact.quick`
 
 Большинство первых задач — одна из четырёх. `reactifact.quick` собирает каждую
@@ -303,6 +325,13 @@ app.include_router(create_chat_router(assistant))
 сниппете, и по той же причине: `ChatAssistant` сам закрывает построенный
 через callable `RuntimeResources` после каждого хода, так что HTTP-клиент
 настоящего провайдера никогда не течёт.
+
+## Production-shape: FastAPI-шаблон
+
+Сниппеты выше держат цикл маленьким. Для настоящего web-приложения скопируйте
+[`templates/fastapi_chat`](../../reactifact/templates/fastapi_chat): FastAPI `Depends` auth,
+scoped-сессии, SSE, трейсы, бюджеты/LLM из settings, тесты и Docker. Шаблон сам
+зависит от `reactifact[web]` — core-пакет по-прежнему не тянет FastAPI.
 
 ## Куда дальше отсюда
 

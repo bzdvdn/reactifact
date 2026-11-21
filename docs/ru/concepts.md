@@ -201,3 +201,50 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 - **`Session` / `SessionStore`** — долговременная рабочая память чата между
   запросами, поверх KV-чекпойнта (файл или SQLite); `Context.compact(...)`
   ограничивает историю долгоживущей сессии.
+
+## Какой API использовать?
+
+Это лестница, а не новые концепции: начинайте с первой строки и спускайтесь
+ниже только когда задача действительно этого требует.
+
+### Авторинг шага
+
+| Что нужно | Что использовать | Заметка |
+| --- | --- | --- |
+| Одно типизированное преобразование | `@step(produces=..., consumes=...)` | верните модель или используйте `call.effects` для update/link |
+| Типизированные входы, несколько эффектов, HITL | класс `Step` с `run(..., effects: Effects)` | полная форма; см. [Effects](effects.md) |
+| Ручная сборка операций / императивный агент | `Patch`, `Agent.run(event, context)` | escape hatch, не повседневный стиль |
+| Код 0.1.x | `Produce` / `@produce` / `ProduceCall` | только миграция; не входит в top-level `__all__` |
+
+### Планирование
+
+| Что нужно | Что использовать |
+| --- | --- |
+| Реакция на тип | `Consume(Type)` |
+| Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
+| Читать без пробуждения / latest / scoped lookup | `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
+
+### Потоки
+
+| Что нужно | Что использовать |
+| --- | --- |
+| Канонический чат-UI | `ChatEvent` из `ChatAssistant.stream()` / `create_chat_router` |
+| Живой UI / Studio / token deltas | `RunEvent` из `Runtime.astream_events(stream_mode=...)` |
+| Простой CLI/статус | `ProgressEvent` из `Runtime.astream()` (legacy status stream) |
+
+### Persistence и память
+
+| Что нужно | Что использовать |
+| --- | --- |
+| Продолжить разговор | `SessionStore` + `session_id` |
+| Ограничить/суммаризовать prompt | `ChatMemory` (`WindowPruner` / `RollingDigestSummarizer`) |
+| Помнить факты между сессиями | `MemoryStore` (`recipes`) |
+| Посмотреть/отыграть ход | `ContextCheckpoint` (`context.checkpoints()` / `at()`) |
+| Попробовать альтернативные пути | `context.branch()` + `merge()` |
+
+### Владение ресурсами
+
+`RuntimeResources.aclose()` закрывает только `llm` и `embedder`. Всё остальное
+(`sources`, кастомные клиенты, `MemoryStore`, пулы БД) принадлежит приложению:
+закрывайте в lifespan, не на каждый ход.

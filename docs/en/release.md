@@ -32,8 +32,9 @@ frameworks):
   `Artifact` is a frozen handle over a content-addressed version store; sessions
   use the v2 `blobs`/`data_ref` format; and the legacy example set was removed.
   `Produce`, `ProduceCall`, `@produce`, `Agent.produces`, `Artifact.at/history/
-  diff` and the top-level tool-module shims remain for the 0.20 compatibility
-  window.
+  diff` and the top-level tool-module shims remain importable for the 0.21
+  compatibility window; `Produce`/`ProduceCall`/`@produce` are no longer part of
+  the top-level `__all__`, and all of them are removed in 0.23.0.
 - **0.14.0** — behavior-visible (non-breaking) changes to know about:
   - `Budget.max_seconds` is now a **hard** turn deadline: the runtime cancels
     the generation in flight when it passes (a hung LLM call is actually

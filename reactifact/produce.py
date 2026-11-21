@@ -11,7 +11,8 @@ This module keeps the old names working for the 0.1.x surface:
 - `@produce(...)` is `@step(...)` (emits a `DeprecationWarning`)
 
 The implementation lives in `reactifact.step`. This module exists only for the
-deprecation window; it will be removed in 0.21.0.
+compatibility window: the aliases remain importable, but they are **not** in
+`reactifact.__all__` (the public surface) and will be removed in 0.23.0.
 """
 
 from __future__ import annotations
