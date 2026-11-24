@@ -221,7 +221,6 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Одно типизированное преобразование | `@step(produces=..., consumes=...)` | верните модель или используйте `call.effects` для update/link |
 | Типизированные входы, несколько эффектов, HITL | класс `Step` с `run(..., effects: Effects)` | полная форма; см. [Effects](effects.md) |
 | Ручная сборка операций / императивный агент | `Patch`, `StepGroup.run(event, context)` | escape hatch, не повседневный стиль |
-| Код 0.1.x | `Produce` / `@produce` / `ProduceCall` | только миграция; не входит в top-level `__all__` |
 
 ### Планирование
 

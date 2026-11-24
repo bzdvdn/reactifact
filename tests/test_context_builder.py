@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime, RuntimeResources
+from reactifact import Agent, Consume, Context, Runtime, RuntimeResources, Step
 from reactifact.context_builder import HeuristicTokenCounter, TokenBudgetContextBuilder
 
 
@@ -13,10 +13,10 @@ class Seen(BaseModel):
     texts: list[str]
 
 
-class RecordSeen(Produce[Seen]):
+class RecordSeen(Step[Seen]):
     artifact_type = Seen
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Seen(texts=[i.data.text for i in call.inputs]))
 
 
@@ -30,10 +30,10 @@ class Marker(BaseModel):
     `exempt_types` is for."""
 
 
-class RecordItemsOnly(Produce[Seen]):
+class RecordItemsOnly(Step[Seen]):
     artifact_type = Seen
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             Seen(texts=[i.data.text for i in call.inputs if isinstance(i.data, Item)])
         )

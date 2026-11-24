@@ -18,8 +18,6 @@ def step(
     *,
     produces: ArtifactType | Sequence[ArtifactType] | None = None,
     consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
-    also_creates: Sequence[ArtifactType] | None = None,
-    reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
     timeout: float | None = None,
     auto_link: bool | str = False,
     priority: int | None = None,
@@ -67,8 +65,6 @@ def step(
         instance = _FunctionStep(
             produces=resolved_produces,
             consumes=consumes,
-            also_creates=also_creates,
-            reacts_to=reacts_to,
             timeout=timeout,
             auto_link=auto_link,
             priority=priority,

@@ -7,10 +7,10 @@ from reactifact import (
     Consume,
     Context,
     PendingQuestion,
-    Produce,
-    ProduceCall,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
     tool,
 )
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
@@ -95,10 +95,10 @@ def test_single_agent_loop_and_report():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -160,10 +160,10 @@ def test_deferred_tool_group_loads_on_demand_once():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -207,20 +207,20 @@ def test_two_agents_do_not_crossfire():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildK8sReport(Produce[K8sReport]):
+    class BuildK8sReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             invoked["k8s_report"] += 1
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class BuildGitlabReport(Produce[GitlabReport]):
+    class BuildGitlabReport(Step[GitlabReport]):
         artifact_type = GitlabReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             invoked["gitlab_report"] += 1
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
@@ -289,10 +289,10 @@ def test_tool_failure_is_returned_to_llm():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -320,10 +320,10 @@ def test_budget_max_tool_calls_stops_loop():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -350,10 +350,10 @@ def test_unknown_tool_reported_to_llm():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -405,10 +405,10 @@ def test_llm_agent_tools_only_no_produces():
         consumes = [Consume(K8sProblems)]
         # no produces — ToolAnswer itself is the result
 
-    class RenderFromBaseChat(Produce[ChatReply]):
+    class RenderFromBaseChat(Step[ChatReply]):
         artifact_type = ChatReply
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if (
                 a is None
@@ -443,10 +443,10 @@ def test_forced_answer_when_loop_hits_step_limit():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -474,10 +474,10 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -530,10 +530,10 @@ def test_max_asks_caps_rephrased_clarifications():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -572,10 +572,10 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -616,10 +616,10 @@ def test_hitl_destructive_tool_denied_is_not_executed():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -657,10 +657,10 @@ def test_max_approvals_caps_repeated_destructive_calls():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    class BuildReport(Produce[K8sReport]):
+    class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None

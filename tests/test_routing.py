@@ -8,7 +8,7 @@ import asyncio
 import httpx
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, ProduceCall, Runtime
+from reactifact import Agent, Consume, Context, Runtime, Step, StepCall
 from reactifact.agents import create_agent
 from reactifact.providers import (
     LLMProvider,
@@ -135,10 +135,10 @@ class Answer(BaseModel):
     text: str
 
 
-class Ask(Produce[Answer]):
+class Ask(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         response = await call.context.resources.llm.complete(  # type: ignore[union-attr]
             LLMRequest(messages=[Message.user("hi")])
         )

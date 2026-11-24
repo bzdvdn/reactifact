@@ -26,7 +26,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(Evidence, also_creates=(SourceRef,))
+@step(produces=(Evidence, SourceRef))
 async def gather(call):
     question = call.trigger
     if question is None or not isinstance(question.data, Question):

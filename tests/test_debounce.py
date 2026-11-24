@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime
+from reactifact import Agent, Consume, Context, Runtime, Step
 from reactifact.budget import Budget
 
 
@@ -17,10 +17,10 @@ class Collected(BaseModel):
     texts: list[str]
 
 
-class RecordCollected(Produce[Collected]):
+class RecordCollected(Step[Collected]):
     artifact_type = Collected
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             Collected(
                 texts=sorted(

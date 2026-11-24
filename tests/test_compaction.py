@@ -12,9 +12,9 @@ from reactifact import (
     Budget,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     Runtime,
+    Step,
+    StepCall,
 )
 from reactifact.audit import context_hash
 
@@ -23,12 +23,12 @@ class Number(BaseModel):
     value: int
 
 
-class Increment(Produce[Number]):
+class Increment(Step[Number]):
     """Updates one stable artifact each run, so commits and history both grow."""
 
     artifact_type = Number
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         trigger = call.trigger
         if trigger is None:
             return None

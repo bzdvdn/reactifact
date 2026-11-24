@@ -7,12 +7,12 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
+from reactifact import Step, StepCall
 from reactifact.agents import create_agent
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
 from reactifact.context import Context
-from reactifact.produce import Produce, ProduceCall
 from reactifact.recipes.conversation import (
     ConversationMessage,
     create_turn,
@@ -20,10 +20,10 @@ from reactifact.recipes.conversation import (
 from reactifact.session import SessionStore
 
 
-class _Echo(Produce[ConversationMessage]):
+class _Echo(Step[ConversationMessage]):
     artifact_type = ConversationMessage
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         trigger = call.trigger
         if trigger is not None and trigger.data.role == "user":
             call.effects.create(
@@ -152,10 +152,10 @@ class _BotMsg(BaseModel):
     session_id: str = ""
 
 
-class _Bot(Produce[_BotMsg]):
+class _Bot(Step[_BotMsg]):
     artifact_type = _BotMsg
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         trigger = call.trigger
         if trigger is not None and isinstance(trigger.data, _UserMsg):
             call.effects.create(

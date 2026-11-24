@@ -32,10 +32,6 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.Agent
 
-### Produce
-
-::: reactifact.Produce
-
 ### Consume
 
 ::: reactifact.Consume

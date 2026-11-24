@@ -10,8 +10,8 @@ from reactifact import (
     Agent,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
+    Step,
+    StepCall,
 )
 from reactifact.audit import context_hash
 from reactifact.testing import ScenarioLab, assert_golden_file
@@ -88,10 +88,10 @@ class Out(BaseModel):
     value: int
 
 
-class Doubler(Produce[Out]):
+class Doubler(Step[Out]):
     artifact_type = Out
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         seed = next((a for a in call.inputs if isinstance(a.data, Seed)), None)
         if seed is None:
             return None

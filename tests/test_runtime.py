@@ -8,8 +8,8 @@ from reactifact import (
     Context,
     EventType,
     Patch,
-    Produce,
     Runtime,
+    Step,
     Trigger,
 )
 
@@ -132,7 +132,7 @@ def test_produces_validation_rejects_unknown_type():
     class BadAgent(Agent):
         name = "bad_agent"
         consumes = [Consume(Input)]  # <-- now there are triggers
-        produces = [Produce(Output)]  # only Output declared
+        produces = [Step(Output)]  # only Output declared
 
         async def run(self, event, context):
             return Patch().create(WrongOutput(text="wrong"))

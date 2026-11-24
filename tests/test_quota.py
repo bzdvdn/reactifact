@@ -7,10 +7,10 @@ from reactifact import (
     Consume,
     Context,
     FakeLLM,
-    Produce,
     RunOutcome,
     Runtime,
     RuntimeResources,
+    Step,
     create_agent,
 )
 from reactifact.authz import Principal
@@ -33,10 +33,10 @@ class Sentiment(BaseModel):
     label: str
 
 
-class Classify(Produce[Sentiment]):
+class Classify(Step[Sentiment]):
     artifact_type = Sentiment
 
-    async def produce(self, call):
+    async def run(self, call):
         result = await structured_llm(
             call.context, schema=Sentiment, user=call.trigger.data.text
         )

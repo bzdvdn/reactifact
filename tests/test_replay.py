@@ -8,10 +8,10 @@ from reactifact import (
     Budget,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
 )
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -32,10 +32,10 @@ class Seed(BaseModel):
     text: str
 
 
-class Pass(Produce[Note]):
+class Pass(Step[Note]):
     artifact_type = Note
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         note1 = call.effects.create(Note(text="v1"), id="note:1")
         call.effects.create(Note(text="v2"), id="note:2")
         note1.link("supported_by", "note:2")

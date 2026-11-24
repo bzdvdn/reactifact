@@ -15,10 +15,10 @@ from reactifact import (
     Agent,
     Consume,
     Patch,
-    Produce,
-    ProduceCall,
     ResourceKey,
     RuntimeResources,
+    Step,
+    StepCall,
     step,
     tool,
 )
@@ -79,10 +79,10 @@ class UsageLLM(LLMProvider):
         yield LLMResponse(text="")
 
 
-class BuildReport(Produce[Report]):
+class BuildReport(Step[Report]):
     artifact_type = Report
 
-    async def produce(self, call: ProduceCall) -> Patch | None:
+    async def run(self, call: StepCall) -> Patch | None:
         a = call.trigger
         if a is None or not isinstance(a.data, ToolAnswer):
             return None
@@ -312,7 +312,7 @@ DECISION_TOOLS: ResourceKey[list] = ResourceKey("decision_tools")
 
 
 @step(Report)
-async def run_dynamic_tools(call: ProduceCall) -> None:
+async def run_dynamic_tools(call: StepCall) -> None:
     tools = call.context.resources.require(DECISION_TOOLS)
     try:
         output = await tools[0].execute({"resource": "pods"})

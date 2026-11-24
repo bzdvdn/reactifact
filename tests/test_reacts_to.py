@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, Runtime, step
+from reactifact import Agent, Consume, Context, Runtime, Step, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -20,25 +20,25 @@ class DraftAnswer(BaseModel):
     source: str
 
 
-class FinalizeWithDocuments(Produce[DraftAnswer]):
+class FinalizeWithDocuments(Step[DraftAnswer]):
     """Same output type as DirectFinalize below, but reacts only to
     ResolvedDocuments — the exact case that rules out reusing
     `artifact_type` for both directions."""
 
     artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
+    consumes = (ResolvedDocuments,)
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="documents")
         )
 
 
-class DirectFinalize(Produce[DraftAnswer]):
+class DirectFinalize(Step[DraftAnswer]):
     artifact_type = DraftAnswer
-    reacts_to = (DecisionReply,)
+    consumes = (DecisionReply,)
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             DraftAnswer(query_id=call.trigger.data.query_id, source="direct")
         )
@@ -76,13 +76,13 @@ def test_the_other_reacts_to_type_runs_the_other_produce_only():
     assert drafts[0].data.source == "direct"
 
 
-class UnrestrictedRecorder(Produce[DraftAnswer]):
+class UnrestrictedRecorder(Step[DraftAnswer]):
     """No `reacts_to` at all — must run on every matching event, unchanged
     from pre-`reacts_to` behavior."""
 
     artifact_type = DraftAnswer
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(DraftAnswer(query_id="q1", source="unrestricted"))
 
 
@@ -103,16 +103,15 @@ def test_reacts_to_none_is_unrestricted_by_default():
     assert len(ctx.list_artifacts(DraftAnswer)) == 2
 
 
-class SingleTypeReactor(Produce[DraftAnswer]):
-    """`reacts_to=` passed as a bare single type at the constructor call
-    site (not a tuple) — the documented convenience shorthand."""
+class SingleTypeReactor(Step[DraftAnswer]):
+    """`consumes=` passed as a bare single type at the constructor call site."""
 
     artifact_type = DraftAnswer
 
     def __init__(self):
-        super().__init__(reacts_to=ResolvedDocuments)
+        super().__init__(consumes=ResolvedDocuments)
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(DraftAnswer(query_id="q1", source="single-type"))
 
 
@@ -121,7 +120,7 @@ class SingleTypeAgent(Agent):
     produces = [SingleTypeReactor()]
 
 
-def test_reacts_to_accepts_a_bare_single_type_at_the_constructor():
+def test_consumes_accepts_a_bare_single_type_at_the_constructor():
     ctx = Context()
     runtime = Runtime(ctx, agents=[SingleTypeAgent()])
 
@@ -134,7 +133,7 @@ def test_reacts_to_accepts_a_bare_single_type_at_the_constructor():
     assert len(ctx.list_artifacts(DraftAnswer)) == 1
 
 
-@step(DraftAnswer, reacts_to=(ResolvedDocuments,))
+@step(DraftAnswer, consumes=(ResolvedDocuments,))
 def decorated_reactor(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 

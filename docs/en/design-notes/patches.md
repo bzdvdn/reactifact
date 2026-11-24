@@ -110,7 +110,7 @@ Give a produce the *right* to mutate the context directly; the runtime wraps
 whatever it changed into one commit.
 
 ```python
-async def produce(self, call: ProduceCall) -> None:
+async def run(self, call: StepCall) -> None:
     if <guard>: return None
     call.context.create(ChatReply(...), id=f"reply:{msg_id}")
     call.context.update("project:1", new_project)   # or context.patch(...)

@@ -10,7 +10,6 @@ from reactifact import (
     Consume,
     Context,
     Patch,
-    Produce,
     Runtime,
     RuntimeResources,
     Step,
@@ -202,16 +201,16 @@ def test_runtime_records_spans_and_trace(tmp_path):
 
 
 def test_runtime_records_which_produce_ran(tmp_path):
-    class Emit(Produce[Answer]):
-        reacts_to = (Question,)
+    class Emit(Step[Answer]):
+        consumes = (Question,)
 
-        async def produce(self, call):
+        async def run(self, call):
             call.effects.create(Answer(text="ok"))
 
-    class NeverRuns(Produce[Answer]):
-        reacts_to = (Answer,)  # never matches the Question event
+    class NeverRuns(Step[Answer]):
+        consumes = (Answer,)  # never matches the Question event
 
-        async def produce(self, call):
+        async def run(self, call):
             call.effects.create(Answer(text="nope"))
 
     agent = create_agent(
@@ -238,10 +237,10 @@ def test_runtime_records_a_produce_that_raised(tmp_path):
     still appear in `span.produces` (with its partial operations), on the error
     span, under `isolate_errors=True`."""
 
-    class Boom(Produce[Answer]):
-        reacts_to = (Question,)
+    class Boom(Step[Answer]):
+        consumes = (Question,)
 
-        async def produce(self, call):
+        async def run(self, call):
             call.effects.create(Answer(text="partial"))
             raise RuntimeError("boom")
 
@@ -1192,8 +1191,8 @@ def test_runtime_records_tool_runs(tmp_path):
         """Look up a term."""
         return "found"
 
-    class UsesTool(Produce[Answer]):
-        async def produce(self, call):
+    class UsesTool(Step[Answer]):
+        async def run(self, call):
             await execute_tool(lookup, {"q": "x"})
             call.effects.create(Answer(text="ok"))
 
@@ -1228,8 +1227,8 @@ def test_tool_args_are_opt_in_and_redacted(tmp_path):
         """Look up a term."""
         return "found"
 
-    class UsesTool(Produce[Answer]):
-        async def produce(self, call):
+    class UsesTool(Step[Answer]):
+        async def run(self, call):
             await execute_tool(lookup, {"q": "bob@example.com"})
             call.effects.create(Answer(text="ok"))
 

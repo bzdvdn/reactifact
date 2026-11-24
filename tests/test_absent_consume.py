@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Produce, Runtime
+from reactifact import Agent, Context, Runtime, Step
 from reactifact.consume import AbsentConsume
 
 
@@ -18,10 +18,10 @@ class Filed(BaseModel):
     thread_id: str
 
 
-class FileTicket(Produce[Filed]):
+class FileTicket(Step[Filed]):
     artifact_type = Filed
 
-    async def produce(self, call):
+    async def run(self, call):
         for i in call.inputs:
             call.effects.create(Filed(thread_id=i.data.thread_id))
 

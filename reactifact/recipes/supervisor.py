@@ -44,7 +44,7 @@ to fill them in — the recipe stamps the real values on every create.
         produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
                     Step(PendingQuestion)]  # widens allowed Create types, see verify.py
 
-Kept as an inert placeholder (not `also_creates=`, see `produce.py`) because
+Kept as an inert placeholder (not `produces=`) because
 none of the three real produces above is uniquely "the one that creates
 `PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
 own HITL machinery calls `effects.ask(...)` at runtime. `also_creates` is the

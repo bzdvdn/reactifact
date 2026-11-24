@@ -5,13 +5,12 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import PendingAction
+from reactifact import PendingAction, Step, StepCall
 from reactifact.agents import create_agent
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
 from reactifact.context import Context
-from reactifact.produce import Produce, ProduceCall
 from reactifact.session import SessionStore
 
 
@@ -23,11 +22,10 @@ class _Reply(BaseModel):
     text: str
 
 
-class _Notifier(Produce[_Reply]):
-    artifact_type = _Reply
-    also_creates = (PendingAction,)
+class _Notifier(Step[_Reply]):
+    produces = (_Reply, PendingAction)
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         msg = call.trigger
         if msg is None:
             return

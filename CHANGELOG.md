@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Removed
+
+- **The `reactifact.produce` compatibility shim.** `Produce`, `ProduceCall`
+  and `@produce` are gone (they were scheduled for removal in 0.23); use
+  `Step`, `StepCall` and `@step`.
+- **`also_creates=` / `reacts_to=` on steps.** Declare every output in
+  `produces=(Primary, Extra)` and every input/trigger in `consumes=(...)`
+  (or `Consume(..., wakes=False)`); the runtime no longer reads the old
+  class attributes or constructor keywords.
+
 ### Added
 
 - **`reactifact demo`.** A self-contained, no-API-key pipeline that makes the

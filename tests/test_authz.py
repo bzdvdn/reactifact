@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from reactifact import (
     Consume,
     Context,
-    Produce,
     Runtime,
     RuntimeResources,
+    Step,
     create_agent,
 )
 from reactifact.authz import (
@@ -27,10 +27,10 @@ class Note(BaseModel):
     text: str
 
 
-class Rewrite(Produce[Note]):
+class Rewrite(Step[Note]):
     artifact_type = Note
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Note(text=call.trigger.data.text))
 
 

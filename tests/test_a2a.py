@@ -13,9 +13,9 @@ from pydantic import BaseModel
 from reactifact import (
     Consume,
     Context,
-    Produce,
     Runtime,
     RuntimeResources,
+    Step,
     create_agent,
 )
 from reactifact.a2a import (
@@ -42,28 +42,27 @@ class Answer(BaseModel):
     text: str
 
 
-class Echo(Produce[Answer]):
+class Echo(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Answer(text=call.trigger.data.text.upper()))
 
 
-class Slow(Produce[Answer]):
+class Slow(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call):
+    async def run(self, call):
         await asyncio.sleep(30)
         call.effects.create(Answer(text="slow"))
 
 
-class AskOrAnswer(Produce[Answer]):
+class AskOrAnswer(Step[Answer]):
     """First a PendingQuestion (input-required), then an Answer once resumed."""
 
-    artifact_type = Answer
-    also_creates = (PendingQuestion,)
+    produces = (Answer, PendingQuestion)
 
-    async def produce(self, call):
+    async def run(self, call):
         data = call.trigger.data
         if isinstance(data, PendingQuestion):
             if data.answered:

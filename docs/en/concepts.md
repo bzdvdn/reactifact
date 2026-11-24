@@ -220,7 +220,6 @@ when the task actually needs it.
 | One typed transformation | `@step(produces=..., consumes=...)` | return the produced model, or use `call.effects` for updates/links |
 | Typed inputs, several effects, HITL | class `Step` with `run(..., effects: Effects)` | the full form; see [Effects](effects.md) |
 | Hand-assembled operations / imperative agent | `Patch`, `StepGroup.run(event, context)` | escape hatch, not the everyday style |
-| 0.1.x code | `Produce` / `@produce` / `ProduceCall` | migration only; not part of the top-level `__all__` |
 
 ### Scheduling
 

@@ -13,7 +13,7 @@ import asyncio
 import httpx
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Produce, create_agent
+from reactifact import Consume, Step, create_agent
 from reactifact.a2a import create_a2a_router
 from reactifact.a2a.models import UserMessage
 
@@ -27,10 +27,10 @@ class Answer(BaseModel):
     text: str
 
 
-class Echo(Produce[Answer]):
+class Echo(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Answer(text=call.trigger.data.text.upper()))
 
 

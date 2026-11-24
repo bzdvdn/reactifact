@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Event, EventType, Produce, Runtime, step
+from reactifact import Agent, Consume, Context, Event, EventType, Runtime, Step, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -23,14 +23,14 @@ class DraftAnswer(BaseModel):
     source: str
 
 
-class FinalizeWithDocuments(Produce[DraftAnswer]):
+class FinalizeWithDocuments(Step[DraftAnswer]):
     """`reacts_to` set: `call.trigger` is guaranteed to be the live,
     correctly-typed artifact — no guard at all."""
 
     artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments,)
+    consumes = (ResolvedDocuments,)
 
-    async def produce(self, call):
+    async def run(self, call):
         trigger = call.trigger
         assert trigger is not None
         call.effects.create(
@@ -38,27 +38,27 @@ class FinalizeWithDocuments(Produce[DraftAnswer]):
         )
 
 
-class TwoTypeReactor(Produce[DraftAnswer]):
+class TwoTypeReactor(Step[DraftAnswer]):
     """`reacts_to` lists two types — `call.trigger` is whichever one actually
     fired, resolved per call, not a union collapsed at declaration time."""
 
     artifact_type = DraftAnswer
-    reacts_to = (ResolvedDocuments, DecisionReply)
+    consumes = (ResolvedDocuments, DecisionReply)
 
-    async def produce(self, call):
+    async def run(self, call):
         trigger = call.trigger
         assert trigger is not None
         kind = type(trigger.data).__name__
         call.effects.create(DraftAnswer(query_id=trigger.data.query_id, source=kind))
 
 
-class BestEffortReactor(Produce[DraftAnswer]):
+class BestEffortReactor(Step[DraftAnswer]):
     """No `reacts_to` — `call.trigger` is still resolved on a best-effort
     basis, but never gates whether `produce()` runs at all."""
 
     artifact_type = DraftAnswer
 
-    async def produce(self, call):
+    async def run(self, call):
         trigger = call.trigger
         source = "none" if trigger is None else type(trigger.data).__name__
         call.effects.create(DraftAnswer(query_id="q", source=source))
@@ -117,7 +117,7 @@ def test_trigger_without_reacts_to_is_best_effort_not_gating():
     assert drafts[0].data.source == "ResolvedDocuments"
 
 
-class DeletionAware(Produce[Marker]):
+class DeletionAware(Step[Marker]):
     """A produce reacting to its own type's DELETED event: `call.trigger` is
     correctly `None` there (that *is* the event) — declared only to prove
     `_resolve_produce_call` still says "run" for it, not exercised through a
@@ -126,7 +126,7 @@ class DeletionAware(Produce[Marker]):
     artifact_type = Marker
     consumes = (Consume(Marker, event_types=[EventType.ARTIFACT_DELETED]),)
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Marker(tag="deleted" if call.trigger is None else "alive"))
 
 
@@ -181,7 +181,7 @@ def test_resolve_produce_call_deleted_event_still_runs_with_trigger_none():
     assert trigger is None
 
 
-@step(DraftAnswer, reacts_to=(ResolvedDocuments,))
+@step(DraftAnswer, consumes=(ResolvedDocuments,))
 def decorated_with_trigger(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 

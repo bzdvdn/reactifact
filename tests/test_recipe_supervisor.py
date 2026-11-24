@@ -6,9 +6,9 @@ from reactifact import (
     Consume,
     Context,
     PendingQuestion,
-    Produce,
-    ProduceCall,
     Runtime,
+    Step,
+    StepCall,
 )
 from reactifact.recipes import ApprovalGate, Router
 
@@ -51,10 +51,10 @@ class MyRouter(Router[Request, Task]):
         return "quality"
 
 
-class Specialist(Produce[SpecialistReport]):
+class Specialist(Step[SpecialistReport]):
     artifact_type = SpecialistReport
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         task = call.trigger
         if task is None or not isinstance(task.data, Task):
             return None
@@ -96,7 +96,7 @@ def make_runtime(ctx: Context) -> Runtime:
             MyRouter().produce(),
             Specialist(),
             MyGate().produce(),
-            Produce(PendingQuestion),
+            Step(PendingQuestion),
         ]
 
     return Runtime(ctx, agents=[Flow()])

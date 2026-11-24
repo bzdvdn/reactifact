@@ -12,11 +12,11 @@ from reactifact import (
     Budget,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     RunOutcome,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -46,12 +46,12 @@ class UsageLLM(LLMProvider):
         yield LLMResponseChunk(text="x")
 
 
-class Chatty(Produce[Number]):
+class Chatty(Step[Number]):
     """Calls the LLM once per run, then chains a new Number."""
 
     artifact_type = Number
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         await call.context.resources.llm.complete(  # type: ignore[union-attr]
             LLMRequest(messages=[Message.user("hi")])
         )
@@ -84,10 +84,10 @@ class StreamUsageLLM(LLMProvider):
         yield LLMResponseChunk(text="llo", usage=dict(self.usage))
 
 
-class Streaming(Produce[Number]):
+class Streaming(Step[Number]):
     artifact_type = Number
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         llm = call.context.resources.llm
         assert llm is not None
         async for _ in llm.stream(LLMRequest(messages=[Message.user("hi")])):

@@ -5,10 +5,10 @@ from reactifact import (
     Agent,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
 )
 from reactifact.agent_tool import AgentAsTool, SubTask
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
@@ -62,10 +62,10 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
     )
     ctx = Context(resources=RuntimeResources(llm=main_llm))
 
-    class BuildReport(Produce[MainReport]):
+    class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -123,10 +123,10 @@ def test_agent_as_tool_isolated_from_parent_history():
     )
     ctx = Context(resources=RuntimeResources(llm=main_llm))
 
-    class BuildReport(Produce[MainReport]):
+    class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -174,10 +174,10 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
     )
     ctx = Context(resources=RuntimeResources(llm=main_llm))
 
-    class BuildReport(Produce[MainReport]):
+    class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None

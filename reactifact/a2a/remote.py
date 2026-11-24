@@ -91,7 +91,7 @@ class A2ARemoteProduce(Step[Any]):
         self._build_output: BuildOutput = build_output or (
             lambda reply, _data: output_type(text=reply)
         )
-        super().__init__(artifact_type=output_type, also_creates=(PendingQuestion,))
+        super().__init__(produces=(output_type, PendingQuestion))
 
     async def run(
         self,

@@ -8,10 +8,10 @@ from reactifact import (
     Agent,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
 )
 from reactifact.artifacts import Artifact
 from reactifact.recipes import (
@@ -48,10 +48,10 @@ def build_pages(tmp_path) -> FileSystemSource:
 def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
     """fan_out_sources writes idempotent refs into the produce's effects slot."""
 
-    class Scout(Produce[SourceRef]):
+    class Scout(Step[SourceRef]):
         artifact_type = SourceRef
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             await fan_out_sources(
                 call.context,
                 "vitamin D nutritional supplementation",
@@ -63,7 +63,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
 
     class Engine(Agent):
         consumes = [Consume(Job)]
-        produces = [Scout(), Produce(Job)]
+        produces = [Scout(), Step(Job)]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
     runtime = Runtime(ctx, agents=[Engine()])
@@ -82,19 +82,19 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
 def test_materialize_doc_builds_doc_with_provenance(tmp_path):
     """materialize_doc creates the doc + link in effects (resolved_from, §34)."""
 
-    class Scout(Produce[SourceRef]):
+    class Scout(Step[SourceRef]):
         artifact_type = SourceRef
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             await fan_out_sources(
                 call.context, "prevents colds", owner_id="q1", limit=1
             )
             return None
 
-    class Resolver(Produce[Doc]):
+    class Resolver(Step[Doc]):
         artifact_type = Doc
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             ref_art = call.trigger
             if ref_art is None or not isinstance(ref_art.data, SourceRef):
                 return None
@@ -127,10 +127,10 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
     assert len(ctx.related(doc.id, relation="resolved_from")) == 1
 
 
-class Fill(Produce[Job]):
+class Fill(Step[Job]):
     artifact_type = Job
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         target = call.trigger
         if target is None:
             return None
@@ -179,10 +179,10 @@ class Final(BaseModel):
     text: str = ""
 
 
-class MakeScratch(Produce[Scratch]):
+class MakeScratch(Step[Scratch]):
     artifact_type = Scratch
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         question = call.trigger
         if question is None or not isinstance(question.data, Question):
             return None
@@ -192,10 +192,10 @@ class MakeScratch(Produce[Scratch]):
         )
 
 
-class MakeFinal(Produce[Final]):
+class MakeFinal(Step[Final]):
     artifact_type = Final
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         if call.event is None:
             return None
         scratch = call.trigger

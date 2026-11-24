@@ -6,9 +6,9 @@ from reactifact import (
     Consume,
     Context,
     PendingQuestion,
-    Produce,
     Runtime,
     RuntimeResources,
+    Step,
 )
 from reactifact.verify import (
     DEFAULT_THRESHOLD,
@@ -32,8 +32,8 @@ def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
         consumes = [Consume(Answer)]
         produces = [
             Verify(**verify_kwargs),
-            Produce(PendingQuestion),
-            Produce(VerificationFailed),
+            Step(PendingQuestion),
+            Step(VerificationFailed),
         ]
 
     return Runtime(ctx, agents=[VerifierGroup()])

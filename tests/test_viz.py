@@ -8,10 +8,9 @@ from reactifact import (
     Consume,
     Context,
     Patch,
-    Produce,
-    ProduceCall,
     RuntimeResources,
     Step,
+    StepCall,
 )
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
@@ -41,10 +40,10 @@ class Turn(BaseModel):
     status: str = "new"
 
 
-class Echo(Produce[Answer]):
+class Echo(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         return Patch().create(Answer(text="echo"))
 
 

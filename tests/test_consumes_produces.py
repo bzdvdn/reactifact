@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Produce, Runtime
+from reactifact import Agent, Consume, Context, Patch, Runtime, Step
 
 
 class Input(BaseModel):
@@ -16,7 +16,7 @@ class Output(BaseModel):
 # --- Imperative agent (as before, run is overridden) ---
 class SimpleAgent(Agent):
     consumes = [Consume(Input)]
-    produces = [Produce(Output)]
+    produces = [Step(Output)]
 
     async def run(self, event, context):
         data = context.get(event.artifact_id)
@@ -40,7 +40,7 @@ def test_auto_triggers_from_consumes():
     assert outputs[0].data.text == "HELLO"
 
 
-# --- Declarative agent (automatic run based on Produce) ---
+# --- Declarative agent (automatic run based on Step) ---
 async def make_upper(context, inputs):
     if not inputs:
         return []
@@ -48,36 +48,35 @@ async def make_upper(context, inputs):
 
 
 def test_produce_factory_kwarg_was_removed():
-    """`Produce(..., factory=...)` (deprecated since 0.5) is gone entirely as
-    of the 1.0 API freeze — use the `@produce` decorator instead."""
+    """`Step(..., factory=...)` (deprecated since 0.5) is gone entirely as
+    of the 1.0 API freeze — use the `@step` decorator instead."""
     with pytest.raises(TypeError):
-        Produce(Output, factory=make_upper)  # type: ignore[call-arg]
+        Step(Output, factory=make_upper)  # type: ignore[call-arg]
 
 
 class Extra(BaseModel):
     text: str
 
 
-class MultiCreateProduce(Produce[Output]):
+class MultiCreateProduce(Step[Output]):
     """A single produce whose body legitimately writes two artifact types —
     the case `also_creates` exists for."""
 
-    artifact_type = Output
-    also_creates = (Extra,)
+    produces = (Output, Extra)
 
-    async def produce(self, call):
+    async def run(self, call):
         if not call.inputs:
             return None
         call.effects.create(Output(text=call.inputs[0].data.text.upper()))
         call.effects.create(Extra(text=call.inputs[0].data.text.lower()))
 
 
-class UndeclaredMultiCreateProduce(Produce[Output]):
+class UndeclaredMultiCreateProduce(Step[Output]):
     """Same body, but `Extra` is never declared — must be rejected."""
 
     artifact_type = Output
 
-    async def produce(self, call):
+    async def run(self, call):
         if not call.inputs:
             return None
         call.effects.create(Output(text=call.inputs[0].data.text.upper()))
@@ -117,10 +116,10 @@ class Passive(BaseModel):
     text: str
 
 
-class RecordMixed(Produce[Output]):
+class RecordMixed(Step[Output]):
     artifact_type = Output
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             Output(text=",".join(sorted(i.data.text for i in call.inputs)))
         )
@@ -179,7 +178,7 @@ class MarkerChildB(MarkerBase):
 
 class BaseRecorder(Agent):
     consumes = [Consume.by_base(MarkerBase)]
-    produces = [Produce(Output)]
+    produces = [Step(Output)]
 
     async def run(self, event, context):
         artifact = context.get(event.artifact_id)
@@ -215,7 +214,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
 def test_consume_by_base_reads_all_subclass_artifacts():
     class Collector(Agent):
         consumes = [Consume.by_base(MarkerBase)]
-        produces = [Produce(Output)]
+        produces = [Step(Output)]
 
         async def run(self, event, context):
             texts = ",".join(a.data.text for a in context.list_artifacts(MarkerBase))

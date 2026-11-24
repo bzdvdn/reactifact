@@ -312,12 +312,12 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     """
     import contextlib
 
-    from reactifact import Agent, Produce
+    from reactifact import Agent, Step
 
     state = {"started": False, "cancelled": False}
 
-    class Slow(Produce[A]):
-        async def produce(self, call):
+    class Slow(Step[A]):
+        async def run(self, call):
             state["started"] = True
             try:
                 await asyncio.sleep(5)
@@ -399,10 +399,10 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
 def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     """A crashing produce must not escape as an exception from stream()."""
 
-    from reactifact import Agent, Produce
+    from reactifact import Agent, Step
 
-    class Boom(Produce[A]):
-        async def produce(self, call):
+    class Boom(Step[A]):
+        async def run(self, call):
             raise RuntimeError("boom inside the agent")
 
     class BoomAgent(Agent):

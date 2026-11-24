@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Produce, Runtime
+from reactifact import Agent, Context, Runtime, Step
 from reactifact.consume import CorrelatedConsume
 
 
@@ -22,10 +22,10 @@ class Approval(BaseModel):
     parts: list[str]
 
 
-class RecordApproval(Produce[Approval]):
+class RecordApproval(Step[Approval]):
     artifact_type = Approval
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(
             Approval(parts=sorted(type(i.data).__name__ for i in call.inputs))
         )

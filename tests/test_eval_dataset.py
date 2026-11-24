@@ -5,7 +5,7 @@ import json
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Context, Produce, RuntimeResources
+from reactifact import Context, RuntimeResources, Step
 from reactifact.eval import (
     Dataset,
     EvalFailure,
@@ -273,10 +273,10 @@ class Number(BaseModel):
     value: int
 
 
-class Bump(Produce[Number]):
+class Bump(Step[Number]):
     artifact_type = Number
 
-    async def produce(self, call):
+    async def run(self, call):
         if call.trigger is not None and call.trigger.data.value < 1:
             call.effects.create(Number(value=call.trigger.data.value + 1))
 

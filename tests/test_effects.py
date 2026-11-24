@@ -7,10 +7,10 @@ from reactifact import (
     Agent,
     Consume,
     Context,
-    Produce,
-    ProduceCall,
     Runtime,
     RuntimeResources,
+    Step,
+    StepCall,
 )
 from reactifact.effects import Effects, Handle, current_effects
 from reactifact.patches import Create, Link, Update
@@ -105,10 +105,10 @@ def test_effects_upsert_is_explicit_create_or_refresh():
 
 
 def test_upsert_refreshes_existing_artifact_via_runtime():
-    class Refresh(Produce[Note]):
+    class Refresh(Step[Note]):
         artifact_type = Note
 
-        async def produce(self, call: ProduceCall):
+        async def run(self, call: StepCall):
             call.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
@@ -207,10 +207,10 @@ def test_effects_resume_accepts_typed_answer():
     assert updated.data.answer_text() == "yes"
 
 
-class Greeting(Produce[Note]):
+class Greeting(Step[Note]):
     artifact_type = Note
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         trigger = call.trigger
         note = call.effects.create(Note(text="hi"), id="note:1")
         note.link("supported_by", trigger)  # trigger: Doc artifact

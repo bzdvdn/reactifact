@@ -3,17 +3,17 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Produce, ProduceCall, Runtime
+from reactifact import Agent, Consume, Context, Patch, Runtime, Step, StepCall
 
 
 class Trigger(BaseModel):
     pass
 
 
-class Explode(Produce[Trigger]):
+class Explode(Step[Trigger]):
     artifact_type = Trigger
 
-    async def produce(self, call: ProduceCall) -> Patch | None:
+    async def run(self, call: StepCall) -> Patch | None:
         raise RuntimeError("boom inside the agent")
 
 
@@ -55,10 +55,10 @@ class Ok(BaseModel):
     n: int = 1
 
 
-class Survive(Produce[Ok]):
+class Survive(Step[Ok]):
     artifact_type = Ok
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         if call.context.get("ok") is not None:
             return None
         call.effects.create(Ok(), id="ok")
@@ -115,10 +115,10 @@ class Done(BaseModel):
 _attempts = {"n": 0}
 
 
-class Flaky(Produce[Done]):
+class Flaky(Step[Done]):
     artifact_type = Done
 
-    async def produce(self, call: ProduceCall):
+    async def run(self, call: StepCall):
         _attempts["n"] += 1
         if _attempts["n"] == 1:
             raise RuntimeError("transient failure")

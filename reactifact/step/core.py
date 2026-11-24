@@ -28,7 +28,6 @@ from ..patches import Patch
 from ..policy import RetryPolicy
 from .annotations import Latest, Scope, Wakes, When
 from .call import (
-    StepCall,
     current_step_call,
     current_step_context,
 )
@@ -87,60 +86,17 @@ class Step(Generic[TOut]):
     as `class X(Step[Foo])` — write it explicitly only to override or when
     the class has no generic (e.g. programmatic `Step(Foo)`).
 
-    A produce whose `step()` body legitimately creates more than one
-    artifact type declares the extra ones in `also_creates` — either as a
-    class attribute (`also_creates = (Bar, Baz)`) or a constructor argument
-    (`Step(Foo, also_creates=[Bar])`). `Runtime._validate_patch_types`
-    checks every `Create` op an agent's generation produces against the union
-    of `artifact_type`/`also_creates` across that agent's `produces` list —
-    without declaring `Bar` here, an `effects.create(Bar(...))` inside
-    `artifact_type = Foo`'s own `step()` raises "not declared in produces"
-    at commit time, since nothing recorded that this produce is allowed to
-    write it. Before `also_creates` existed, the only way to widen that set
-    was an inert second `Step(Bar)` placeholder added to the agent's
-    `produces` list purely so its unused `artifact_type` got unioned in —
-    correct, but nothing at the call site said why that placeholder was
-    there; `also_creates` puts the declaration on the produce that actually
-    does the writing.
+    A step that creates more than one artifact type declares all of them in
+    `produces`: `produces = (Primary, Extra)` (or the same tuple in the
+    constructor / `@step`). `Runtime._validate_patch_types` checks every
+    `Create` against the union of `produces` across the group's steps.
 
-    The input-side mirror of that is `reacts_to`: an agent with several
-    `consumes` and several `produces` runs *every* produce on *every*
-    matching event by default (`StepGroup.execute()` has no idea which of an
-    agent's several `Consume`s a given produce actually cares about) — every
-    produce ends up guarding itself by hand, `if call.event is None or not
-    isinstance(call.trigger.data, TheOneTypeICareAbout): return None`, at
-    the top of its own body. Declaring `reacts_to = (TheType,)` (a tuple,
-    same convention as `also_creates` — more than one entry for more than
-    one type) moves that guard to where the intent already lives — the
-    class declaration — and `StepGroup.execute()` simply skips calling
-    `step()` at all for an event none of `reacts_to` matches, the same
-    way `Trigger.artifact_type` gates whether the *agent* wakes up at all.
-    Two produces sharing one `artifact_type` (the same output) but different
-    `reacts_to` (different triggers) is exactly why this can't just reuse
-    `artifact_type` for both directions — see `examples`/product code with a
-    `FinalizeWithDocuments`/`DirectFinalize`-shaped pair, both producing the
-    same result type from two different upstream events. `None` (the
-    default) means unrestricted — today's behavior, unchanged, so this is
-    purely additive.
-
-    Once `reacts_to` narrows *which* event a produce runs for, resolving
-    that event's own artifact is still work every such produce repeats —
-    `StepCall.trigger` does it once, in `StepGroup.execute()`, for every
-    produce that reads it. For a produce that also declares `reacts_to`,
-    this is a real guarantee, not best-effort: `StepGroup.execute()` also *skips
-    calling it* if `context.get(event.artifact_id)` no longer resolves for a
-    CREATED/UPDATED/STALE event (the artifact was deleted by another agent
-    earlier in the same generation — the same race `Trigger.matches()`
-    documents) — so `call.trigger` is never `None` when such a produce
-    actually runs, and the body needs no guard at all. This guarantee does
-    not apply to a DELETED event on the produce's own `reacts_to` type:
-    there, `context.get(...)` correctly returning `None` *is* the event, not
-    a race, so `call.trigger` is `None` and the produce still runs —
-    deletion-reacting code is expected to handle that itself (`call.event`
-    still carries `artifact_id`/`artifact_type` there). Without `reacts_to`,
-    `call.trigger` is still resolved on a best-effort basis whenever
-    `call.event` is not `None`, but never a reason to skip the call — there
-    is no per-type contract to enforce.
+    `consumes` does double duty: it gates which events run the step and feeds
+    its typed inputs. `Consume(..., wakes=False)` reads an input without
+    waking on it. `call.trigger` is the artifact behind the current event —
+    guaranteed live for CREATED/UPDATED/STALE events when `consumes` is
+    declared; for a DELETED event it is `None` (use `call.event`), which is
+    the event, not a race.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -165,10 +121,8 @@ class Step(Generic[TOut]):
     #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
     #: and `related()` are restricted to artifacts in the trigger's scope.
     scope: Scope | str | None = None
-    #: Deprecated aliases, kept for 0.1.x code.
+    #: Primary-output alias, kept for `Step[Foo]`/`@step(Foo)` and 0.1.x code.
     artifact_type: ArtifactType | None = None
-    also_creates: tuple[ArtifactType, ...] = ()
-    reacts_to: tuple[ArtifactType, ...] | None = None
     #: Hard per-step deadline, in seconds. The runtime cancels this step when
     #: it passes; the agent then fails (and `StepGroup.retry`, if set, may retry
     #: the whole agent). `StepGroup.timeout` remains the outer bound.
@@ -263,8 +217,6 @@ class Step(Generic[TOut]):
         | ArtifactType
         | Sequence[Consume | ArtifactType]
         | None = None,
-        also_creates: Sequence[ArtifactType] | None = None,
-        reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
         timeout: float | None = None,
         auto_link: bool | str | None = None,
         priority: int | None = None,
@@ -278,17 +230,8 @@ class Step(Generic[TOut]):
                 getattr(self.__class__, "produces", None)
             )
         legacy_type = artifact_type or self.__class__.artifact_type
-        legacy_extra = (
-            tuple(also_creates)
-            if also_creates is not None
-            else self.__class__.also_creates
-        )
         if resolved_produces is None and legacy_type is not None:
-            resolved_produces = (legacy_type, *legacy_extra)
-        elif resolved_produces is not None and legacy_extra:
-            resolved_produces = resolved_produces + tuple(
-                extra for extra in legacy_extra if extra not in resolved_produces
-            )
+            resolved_produces = (legacy_type,)
         if resolved_produces is None:
             raise ValueError(
                 "produces must be provided (a type, a sequence of types, or Step[Foo])"
@@ -301,12 +244,6 @@ class Step(Generic[TOut]):
         if resolved_consumes is None:
             resolved_consumes = self._normalize_consumes(
                 getattr(self.__class__, "consumes", None)
-            )
-        if resolved_consumes is None:
-            resolved_consumes = self._normalize_consumes(reacts_to)
-        if resolved_consumes is None:
-            resolved_consumes = self._normalize_consumes(
-                getattr(self.__class__, "reacts_to", None)
             )
         if resolved_consumes is None and type(self).run is not Step.run:
             resolved_consumes = self._derive_consumes(type(self).run)
@@ -428,22 +365,11 @@ class Step(Generic[TOut]):
     async def run(self, *args: Any, **kwargs: Any) -> Any:
         """Do this step's work. Override this in new code.
 
-        New code declares typed inputs and returns its output(s):
+        Declare typed inputs and return the output(s):
 
             async def run(self, question: Question) -> Answer: ...
 
-        The 0.1.x shape — a single `call: StepCall` — still works: the default
-        `run` delegates to `produce(call)`, which old subclasses override.
-        """
-        if args and isinstance(args[0], StepCall):
-            return await self.produce(args[0])
-        return None
-
-    async def produce(self, call: StepCall) -> None:
-        """Deprecated 0.1.x hook; override `run` instead.
-
-        Kept so existing `async def produce(self, call)` subclasses keep
-        working: the default `run` delegates here.
+        The `call: StepCall` shape still works for steps that need the raw call.
         """
         return None
 

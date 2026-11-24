@@ -37,10 +37,6 @@ from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
 from .policy import RetryPolicy
-
-# Deprecated 0.1.x aliases: importable for the compatibility window, but kept
-# out of `__all__` (the public surface) until their removal.
-from .produce import Produce, ProduceCall, produce
 from .providers import (
     EmbeddingProvider,
     FakeEmbedder,

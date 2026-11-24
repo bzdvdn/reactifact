@@ -8,7 +8,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Produce, ProduceCall, Runtime
+from reactifact import Agent, Consume, Context, Runtime, Step, StepCall
 from reactifact.agents import create_agent
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 from reactifact.resources import RuntimeResources
@@ -181,10 +181,10 @@ class Number(BaseModel):
     value: int
 
 
-class Bump(Produce[Number]):
+class Bump(Step[Number]):
     artifact_type = Number
 
-    async def produce(self, call: ProduceCall) -> None:
+    async def run(self, call: StepCall) -> None:
         trigger = call.trigger
         if trigger is not None and trigger.data.value < 2:
             call.effects.create(Number(value=trigger.data.value + 1))

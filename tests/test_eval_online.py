@@ -8,9 +8,9 @@ from reactifact import (
     Consume,
     Context,
     FakeLLM,
-    Produce,
     Runtime,
     RuntimeResources,
+    Step,
     create_agent,
 )
 from reactifact.cli import main
@@ -39,10 +39,10 @@ class Answer(BaseModel):
     sources: list[str] = []
 
 
-class Answerer(Produce[Answer]):
+class Answerer(Step[Answer]):
     artifact_type = Answer
 
-    async def produce(self, call):
+    async def run(self, call):
         call.effects.create(Answer(text=call.trigger.data.text.upper()))
 
 

@@ -160,7 +160,7 @@ Returning a `BaseModel` from `run()` is create-sugar. Anything beyond creating
 the declared output — updates, links, extra creates, HITL — goes through
 `effects`. The declarations still validate the commit: every created type must
 be listed in `produces`; put the primary output first, then any extra creates:
-`produces=(Receipt, PendingAction)` (the old `also_creates=` spelling is a
+`produces=(Receipt, PendingAction)` (the old `also_creates=` spelling was a
 deprecated alias).
 
 ## 5. Artifacts and version history
