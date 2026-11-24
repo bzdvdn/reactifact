@@ -3,7 +3,7 @@
 An ops chat that routes a free-form complaint to a specialist agent (k8s /
 GitLab / Ansible), each with its own tool and its own report builder. The
 one domain twist: when an agent is mid-investigation and needs a value the
-user never gave (a namespace, a project, a role), it asks — `effects.ask(...)`
+user never gave (a namespace, a project, a role), it asks — `human.ask(...)`
 → `PendingQuestion` — and the *next* user message resumes that question
 instead of starting a new problem (`create_message` in `web.py`/`chat.py`
 checks for a pending question first). `HITLLMAgent` + `ToolUseHITL` do the
@@ -19,8 +19,9 @@ devops/
 ├── models.py         # artifact types (UserMsg, *Problem, *Report, ChatReply)
 ├── policy.py         # demo identities + PermissionPolicy (pure)
 ├── resources.py      # per-user RuntimeResources (principal, memory, guardrails)
-├── agents.py         # thin containers: RouteGroup, K8sAgent, GitlabAgent,
+├── step_groups.py    # thin containers: RouteGroup, K8sAgent, GitlabAgent,
 │                      #   AnsibleAgent (HITLLMAgent), RenderGroup, MemoryGroup
+├── branches.py       # branch/merge prototype: 3 investigations, traces, conflict
 ├── tools.py           # fake tools (kubectl_get, gitlab_search/pipeline,
 │                      #   ansible_run) — simulated output, no real systems
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
@@ -53,6 +54,30 @@ touched, by design, so the demo is safe to run against nothing).
 Try: `pods are crashlooping in prod` — routes to the k8s agent, which asks
 for the namespace before calling `kubectl_get` (mandatory tool parameters
 are exactly what forces the clarifying question, HITL `type:"ask"`).
+
+## Branches: parallel investigations, merged like features
+
+`python -m examples.devops.branches` (offline, no API key) runs the same three
+investigations two ways:
+
+- **reactive fan-in** — one run; `Plan`, three investigation spans and
+  `Compose` all appear in a single trace;
+- **branch/merge** — `Plan` on the base, one branch per problem type, then a
+  three-way merge and `Compose`. The reports are *different* artifact types, so
+  the merge is conflict-free; a final `Compose` consumes all three and links
+  the reply `supported_by` each report.
+
+It also shows the failure mode on purpose: both branches edit the same
+`Note` id, `merge` raises `MergeConflict` and applies nothing, then an explicit
+policy (`policies={Note: ...}`) resolves it — the git-conflict shape, not a
+silent last-write-wins.
+
+Trace-wise the difference is visible: reactive fan-in is one run with five
+spans; branch/merge is a planning run plus three child runs plus the compose
+run. The prototype sets `trace_metadata={"branch": ..., "parent_run_id": ...}`;
+those are now first-class `RunTrace.branch` / `RunTrace.parent_run_id` fields,
+so `TraceStore` round-trips them and the demo prints the tree directly instead
+of guessing from free-form metadata.
 
 ## How it flows — no graph to draw
 

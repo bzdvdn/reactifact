@@ -91,6 +91,12 @@ and the latency bottleneck are visible at a glance:
 
 ![Waterfall: span, step, LLM and tool bars on a shared time axis.](../img/tracer-timeline.png)
 
+**Branches** appears when the run has a parent or children: it links to the
+parent run and lists child runs (branch, outcome, duration) fetched from
+`/api/traces/{id}/children`. The list API also accepts `branch=` and
+`parent_run_id=` filters, and child ordering is oldest-first — no client-side
+tree building needed.
+
 **Causal chain** is the readable "why did this happen" view: `Runtime → agent`
 on the triggering artifact, then each step with its LLM/tool calls, then the
 commit. Click an event to focus and outline its span in Tree/Waterfall:
