@@ -319,11 +319,13 @@ FROZEN: dict[str, frozenset[str]] = {
             "TagAssignment",
             "TraceAnnotator",
             "TraceColumn",
+            "TraceDiff",
             "TraceLimits",
             "TraceReader",
             "TraceSink",
             "TraceStore",
             "TraceStoreProtocol",
+            "diff_traces",
             "ToolRun",
             "Tracer",
         }

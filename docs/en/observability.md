@@ -103,6 +103,30 @@ commit. Click an event to focus and outline its span in Tree/Waterfall:
 
 ![Causal chain: runtime → agent → step → LLM/tool → commit, with steps named.](../img/tracer-causal.png)
 
+### Portable reports (no FastAPI)
+
+A trace is not tied to the dashboard. `RunTrace` renders itself:
+
+```python
+trace = await store.get(run_id)
+print(trace.to_text())        # terminal
+print(trace.to_markdown())    # PR comment / CI summary
+print(trace.to_html())        # one self-contained file
+```
+
+The CLI mirrors this and can compare two runs:
+
+```bash
+reactifact trace traces.db <run_id> --format text
+reactifact trace traces.db <run_id> --format html --out trace.html
+reactifact trace traces.db <run_id> --against <other_id>
+```
+
+`Pipeline(traces=True)` or `traces="traces.db"` records every run without
+building a `Tracer` by hand; `result.trace_id` and `await result.trace()` read
+it back. This is the non-FastAPI path: scripts, notebooks and CI use the same
+trace store.
+
 ### Reviewing runs: tags and notes
 
 The dashboard is also the **review surface**. After inspecting a trace you mark

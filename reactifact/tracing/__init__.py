@@ -7,6 +7,7 @@ but without `web`, so that importing the package does not pull in FastAPI.
 
 from ..tools import ToolRun
 from .columns import TraceColumn
+from .diff import TraceDiff, diff_traces
 from .langfuse import LangfuseTracer
 from .models import (
     AgentContract,
@@ -53,10 +54,12 @@ __all__ = [
     "TagAssignment",
     "TraceAnnotator",
     "TraceColumn",
+    "TraceDiff",
     "TraceLimits",
     "TraceReader",
     "TraceSink",
     "TraceStore",
+    "diff_traces",
     "TraceStoreProtocol",
     "ToolRun",
     "Tracer",

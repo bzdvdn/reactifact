@@ -6,6 +6,8 @@ import inspect
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, cast, get_args, get_origin, get_type_hints
 
+from pydantic import BaseModel
+
 from ..artifacts import Artifact
 from ..context import Context
 from ..effects import Effects
@@ -111,6 +113,12 @@ def _resolve_arg(
         return Human(call.effects)
     if annotation is Outbox or name == "outbox":
         return Outbox(call.effects)
+    if (
+        isinstance(annotation, type)
+        and not issubclass(annotation, BaseModel)
+        and (service := call.context.resources.resolve(annotation)) is not None
+    ):
+        return service
     if annotation is Event or name == "event":
         return call.event
     if annotation is StepCall:
@@ -219,6 +227,10 @@ def _resolve_arg(
     if found:
         _use(call, found[-1])
         return found[-1].data
+    for type_ in types_:
+        service = call.context.resources.resolve(type_)
+        if service is not None:
+            return service
     if optional:
         return None
     available = {type(a.data).__name__ for a in call.context.list_artifacts()}

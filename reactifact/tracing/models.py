@@ -8,6 +8,7 @@ of all run model calls.
 
 from __future__ import annotations
 
+import html
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -225,3 +226,129 @@ class RunTrace(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
+
+    def _summary(self) -> list[tuple[str, str]]:
+        calls = self.llm_calls
+        tokens = sum(call.prompt_tokens + call.completion_tokens for call in calls)
+        rows = [
+            ("run", self.id),
+            ("outcome", self.outcome or "-"),
+            ("duration", f"{self.duration_ms:.1f} ms"),
+            ("spans", str(len(self.spans))),
+            ("llm calls", str(len(calls))),
+            ("tokens", str(tokens)),
+        ]
+        for key, value in (
+            ("session", self.session_id),
+            ("scope", self.scope),
+            ("branch", self.branch),
+            ("parent", self.parent_run_id),
+        ):
+            if value:
+                rows.append((key, value))
+        return rows
+
+    def to_text(self) -> str:
+        """A plain terminal report: summary + spans + steps + LLM calls."""
+        lines = [f"trace {self.id}"]
+        for key, value in self._summary():
+            if key != "run":
+                lines.append(f"  {key:<10} {value}")
+        for span in self.spans:
+            lines.append(
+                f"  span {span.agent} on {span.event_artifact_type or '-'}"
+                f" ({span.latency_ms:.1f} ms)"
+            )
+            for step in span.produces:
+                lines.append(
+                    f"    step {step.name}  ops={step.operations}"
+                    f"  {step.latency_ms:.1f} ms"
+                )
+            for call in span.llm_calls:
+                lines.append(
+                    f"    llm  {call.model or call.provider or '-'}"
+                    f"  {call.prompt_tokens}+{call.completion_tokens} tok"
+                    f"  {call.latency_ms:.1f} ms"
+                )
+            for write in span.writes:
+                lines.append(f"    write {write.data_type} {write.artifact_id}")
+        return "\n".join(lines)
+
+    def to_markdown(self) -> str:
+        """Markdown report for a PR comment or CI summary."""
+        lines = [f"## Trace `{self.id}`", ""]
+        lines.append("| field | value |")
+        lines.append("| --- | --- |")
+        for key, value in self._summary():
+            lines.append(f"| {key} | `{value}` |")
+        if not self.spans:
+            return "\n".join(lines) + "\n\n_No spans._"
+        lines.extend(["", "### Spans", ""])
+        for span in self.spans:
+            lines.append(
+                f"- **{span.agent}** on `{span.event_artifact_type or '-'}`"
+                f" — {span.latency_ms:.1f} ms"
+            )
+            for step in span.produces:
+                lines.append(
+                    f"  - step `{step.name}` ({step.operations} ops,"
+                    f" {step.latency_ms:.1f} ms)"
+                )
+            for call in span.llm_calls:
+                lines.append(
+                    f"  - LLM `{call.model or call.provider or '-'}`"
+                    f" ({call.prompt_tokens}+{call.completion_tokens} tok,"
+                    f" {call.latency_ms:.1f} ms)"
+                )
+            for write in span.writes:
+                lines.append(f"  - write `{write.data_type}` `{write.artifact_id}`")
+        return "\n".join(lines) + "\n"
+
+    def to_html(self) -> str:
+        """A self-contained HTML report (no server, no external assets)."""
+        rows = "".join(
+            f"<tr><th>{html.escape(key)}</th><td>{html.escape(value)}</td></tr>"
+            for key, value in self._summary()
+        )
+        spans: list[str] = []
+        for span in self.spans:
+            steps = "".join(
+                f"<li><code>{html.escape(step.name)}</code>"
+                f" — {step.operations} ops, {step.latency_ms:.1f} ms</li>"
+                for step in span.produces
+            )
+            calls = "".join(
+                f"<li><code>{html.escape(call.model or call.provider or '-')}</code>"
+                f" — {call.prompt_tokens}+{call.completion_tokens} tok,"
+                f" {call.latency_ms:.1f} ms</li>"
+                for call in span.llm_calls
+            )
+            writes = "".join(
+                f"<li><code>{html.escape(write.data_type)}</code>"
+                f" <code>{html.escape(write.artifact_id)}</code></li>"
+                for write in span.writes
+            )
+            body = ""
+            if steps:
+                body += f"<h4>Steps</h4><ul>{steps}</ul>"
+            if calls:
+                body += f"<h4>LLM calls</h4><ul>{calls}</ul>"
+            if writes:
+                body += f"<h4>Writes</h4><ul>{writes}</ul>"
+            spans.append(
+                f"<details open><summary><b>{html.escape(span.agent)}</b>"
+                f" on <code>{html.escape(span.event_artifact_type or '-')}</code>"
+                f" — {span.latency_ms:.1f} ms</summary>{body}</details>"
+            )
+        return (
+            '<!doctype html><html><head><meta charset="utf-8">'
+            f"<title>Trace {html.escape(self.id)}</title>"
+            "<style>body{font:14px system-ui,sans-serif;max-width:900px;"
+            "margin:2rem auto;padding:0 1rem;color:#111}"
+            "table{border-collapse:collapse}th,td{text-align:left;padding:.25rem .75rem;"
+            "border-bottom:1px solid #ddd}code{background:#f3f3f3;padding:.1rem .25rem}"
+            "details{margin:.5rem 0;padding:.5rem;border:1px solid #ddd;border-radius:6px}"
+            "summary{cursor:pointer}h4{margin:.5rem 0 .25rem}</style></head><body>"
+            f"<h1>Trace <code>{html.escape(self.id)}</code></h1>"
+            f"<table>{rows}</table>{''.join(spans)}</body></html>"
+        )

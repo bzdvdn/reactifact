@@ -64,6 +64,39 @@ print(result.hash)
 Async variants are `arun(seed)` and `astream(seed)`; the low-level `Context`
 is still on `result.context` for branch/merge, replay and tests.
 
+Steps can also receive resources by type, and tests can override them without
+rebuilding the pipeline:
+
+```python
+@step(consumes=Question)
+def answer(question: Question, llm: LLMProvider) -> Answer: ...
+
+pipeline = Pipeline(steps=[answer], llm=default_llm)
+pipeline.override(LLMProvider, FakeLLM())
+```
+
+For long-lived resources (HTTP clients, indexes) use a lifespan, like FastAPI:
+
+```python
+@asynccontextmanager
+async def lifespan():
+    yield build_resources()
+    await close_resources()
+
+async with Pipeline(steps=[answer], lifespan=lifespan) as pipeline:
+    result = await pipeline.arun(Question(text="..."))
+```
+
+Tests get an in-memory trace store and isolated overrides:
+
+```python
+client = pipeline.test_client()
+client.override(LLMProvider, FakeLLM())
+result = client.run(Question(text="..."))
+assert asyncio.run(client.traces.query())["total"] >= 1
+client.close()
+```
+
 ## 0. The 80% on-ramp: `reactifact.quick`
 
 Most first tasks are one of four things. `reactifact.quick` wires each of them

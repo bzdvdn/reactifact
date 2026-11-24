@@ -8,6 +8,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **Portable trace reports and diff.** `RunTrace.to_text/to_markdown/to_html`,
+  `reactifact trace --format md|html|json|text --out`, and
+  `reactifact trace <run> --against <other>`; `Pipeline(traces=True|path)`
+  records every run and fills `RunResult.trace_id` / `.trace()` without
+  FastAPI.
+
+### Added
+
+- **Typed resource injection and `Pipeline.override`.** Step parameters
+  annotated with a registered type (or a built-in resource like
+  `LLMProvider`/`EmbeddingProvider`) are injected from `RuntimeResources`;
+  `pipeline.override(Type, instance)` swaps them for tests without rebuilding
+  resources. `Pipeline(llm=...)` is the one-provider shortcut; multiple
+  providers belong behind a router/fallback object, not a second DI slot.
+- **`Pipeline` lifespan and `test_client()`.** `lifespan=` + `async with` open
+  and close long-lived resources (clients, indexes) once; `pipeline.test_client()`
+  returns a copy with isolated overrides and an in-memory trace store for tests.
+
+### Added
+
 - **`Human` / `Outbox` collaborators.** HITL (`ask`/`resume`) and outbound
   intents (`act`) move off `Effects` into injected collaborators
   (`human: Human`, `outbox: Outbox`, or `call.human` / `call.outbox`).

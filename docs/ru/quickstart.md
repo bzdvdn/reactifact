@@ -63,6 +63,39 @@ print(result.hash)
 Async-варианты — `arun(seed)` и `astream(seed)`; низкоуровневый `Context`
 остаётся в `result.context` для branch/merge, replay и тестов.
 
+Шаги могут получать ресурсы по типу, а тесты — подменять их без пересборки
+пайплайна:
+
+```python
+@step(consumes=Question)
+def answer(question: Question, llm: LLMProvider) -> Answer: ...
+
+pipeline = Pipeline(steps=[answer], llm=default_llm)
+pipeline.override(LLMProvider, FakeLLM())
+```
+
+Для долгоживущих ресурсов (HTTP-клиенты, индексы) — lifespan, как в FastAPI:
+
+```python
+@asynccontextmanager
+async def lifespan():
+    yield build_resources()
+    await close_resources()
+
+async with Pipeline(steps=[answer], lifespan=lifespan) as pipeline:
+    result = await pipeline.arun(Question(text="..."))
+```
+
+Тесты получают in-memory trace store и изолированные overrides:
+
+```python
+client = pipeline.test_client()
+client.override(LLMProvider, FakeLLM())
+result = client.run(Question(text="..."))
+assert asyncio.run(client.traces.query())["total"] >= 1
+client.close()
+```
+
 ## 0. Он-рамп для 80%: `reactifact.quick`
 
 Большинство первых задач — одна из четырёх. `reactifact.quick` собирает каждую

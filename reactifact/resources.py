@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import copy
 import inspect
 import warnings
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import (
     TYPE_CHECKING,
@@ -226,6 +227,44 @@ class RuntimeResources:
         return "default"
 
     # ---- typed resources (#2) --------------------------------------------- #
+
+    def resolve(self, annotation: type[T]) -> T | None:
+        """Resolve an injected collaborator for a step parameter.
+
+        Typed registrations win, then the built-in resource attributes
+        (`llm`, `embedder`, `redactor`, …) when they match the annotation.
+        Returns `None` when nothing matches, so the caller can try artifacts
+        next or raise a useful missing-input error.
+        """
+        if annotation is RuntimeResources:
+            return cast("T", self)
+        if annotation in self._typed:
+            return cast("T", self._typed[annotation])
+        for name in (
+            "llm",
+            "embedder",
+            "context_builder",
+            "redactor",
+            "pricer",
+            "metrics",
+            "principal",
+            "authorizer",
+            "guardrails",
+            "quota",
+            "tool_recorder",
+        ):
+            value = getattr(self, name, None)
+            if value is not None and isinstance(value, annotation):
+                return value
+        return None
+
+    def with_overrides(self, overrides: Mapping[type[Any], Any]) -> RuntimeResources:
+        """A shallow copy with typed overrides (used by `Pipeline.override`)."""
+        clone: RuntimeResources = copy.copy(self)
+        clone._typed = dict(self._typed)
+        clone._typed.update(overrides)
+        clone.additional = dict(self.additional)
+        return clone
 
     def register(self, key: type[T] | ResourceKey[T], instance: T) -> T:
         """Attaches `instance` under `key` (its type, or a `ResourceKey`).

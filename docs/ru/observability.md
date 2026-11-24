@@ -104,6 +104,29 @@ LLM/tool, ошибки и токены:
 
 ![Causal chain: runtime → agent → step → LLM/tool → commit, с именами шагов.](../img/tracer-causal.png)
 
+### Переносимые отчёты (без FastAPI)
+
+Трейс не привязан к дашборду. `RunTrace` умеет рендериться сам:
+
+```python
+trace = await store.get(run_id)
+print(trace.to_text())        # терминал
+print(trace.to_markdown())    # PR-комментарий / CI summary
+print(trace.to_html())        # один self-contained файл
+```
+
+CLI делает то же и умеет сравнивать запуски:
+
+```bash
+reactifact trace traces.db <run_id> --format text
+reactifact trace traces.db <run_id> --format html --out trace.html
+reactifact trace traces.db <run_id> --against <other_id>
+```
+
+`Pipeline(traces=True)` или `traces="traces.db"` пишет каждый запуск без ручной
+сборки `Tracer`; `result.trace_id` и `await result.trace()` читают его обратно.
+Это путь без FastAPI: скрипты, ноутбуки и CI используют тот же trace store.
+
 ### Ревью запусков: теги и заметки
 
 Дашборд — ещё и **поверхность ревью**. Посмотрев трейс, вы помечаете запуск
