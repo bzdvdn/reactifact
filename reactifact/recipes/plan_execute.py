@@ -36,15 +36,18 @@ to tell several goals' final artifacts apart in one `Context`, as
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
 from ..artifacts import Artifact
+from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
-from ..step import Step
+from ..step import Step, create_step_group
 
 GoalT = TypeVar("GoalT", bound=BaseModel)
 StepT = TypeVar("StepT", bound=BaseModel)
@@ -86,8 +89,77 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     ) -> FinalT:
         """Combine every step's result (in order) into the final artifact."""
 
+    @classmethod
+    def from_funcs(
+        cls,
+        *,
+        goal_type: type[GoalT],
+        step_type: type[StepT],
+        result_type: type[ResultT],
+        final_type: type[FinalT],
+        plan: Callable[..., Any],
+        execute_step: Callable[..., Any],
+        finish: Callable[..., Any],
+        goal_field: str | None = None,
+        index_field: str | None = None,
+    ) -> PlanExecute[GoalT, StepT, ResultT, FinalT]:
+        """Builds the flow from plain functions instead of a subclass.
+
+        Hooks may be sync or async, mirroring the methods they replace:
+
+        ```python
+        flow = PlanExecute.from_funcs(
+            goal_type=Goal,
+            step_type=PlanStep,
+            result_type=StepResult,
+            final_type=FinalAnswer,
+            plan=plan,
+            execute_step=execute_step,
+            finish=finish,
+        )
+        pipeline = Pipeline(steps=flow.produces(), seed_type=Goal)
+        ```
+        """
+        return _FuncPlanExecute(
+            goal_type=goal_type,
+            step_type=step_type,
+            result_type=result_type,
+            final_type=final_type,
+            plan=plan,
+            execute_step=execute_step,
+            finish=finish,
+            goal_field=goal_field,
+            index_field=index_field,
+        )
+
     def produces(self) -> list[Step[Any]]:
         return [_Planner(self), _Executor(self), _Finisher(self)]
+
+    def consumes(self) -> list[Consume]:
+        """The artifact types the flow reads: goal, step and result."""
+        return [
+            Consume(self.goal_type),
+            Consume(self.step_type),
+            Consume(self.result_type),
+        ]
+
+    def group(self, name: str = "plan-execute", **kwargs: Any) -> Any:
+        """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
+        return create_step_group(
+            name, consumes=self.consumes(), steps=self.produces(), **kwargs
+        )
+
+    def pipeline(self, *, name: str = "plan-execute", **kwargs: Any) -> Any:
+        """A `Pipeline` with this flow already grouped and wired.
+
+        ```python
+        pipeline = PlanExecute.from_funcs(...).pipeline(seed_type=Goal)
+        result = pipeline.run(Goal(text="..."))
+        ```
+        """
+        from ..pipeline import Pipeline
+
+        return Pipeline(groups=[self.group(name)], **kwargs)
 
     def _step_id(self, goal_id: str, index: int) -> str:
         return f"step:{goal_id}:{index}"
@@ -109,6 +181,60 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     def _goal_id_of(self, artifact: Artifact[Any]) -> str | None:
         value = getattr(artifact.data, self.goal_field, None)
         return value if isinstance(value, str) else None
+
+
+class _FuncPlanExecute(PlanExecute[GoalT, StepT, ResultT, FinalT]):
+    """`PlanExecute.from_funcs` adapter: delegates each hook to a callable."""
+
+    def __init__(
+        self,
+        *,
+        goal_type: type[GoalT],
+        step_type: type[StepT],
+        result_type: type[ResultT],
+        final_type: type[FinalT],
+        plan: Callable[..., Any],
+        execute_step: Callable[..., Any],
+        finish: Callable[..., Any],
+        goal_field: str | None,
+        index_field: str | None,
+    ):
+        self.goal_type = goal_type
+        self.step_type = step_type
+        self.result_type = result_type
+        self.final_type = final_type
+        self._plan = plan
+        self._execute_step = execute_step
+        self._finish = finish
+        if goal_field is not None:
+            self.goal_field = goal_field
+        if index_field is not None:
+            self.index_field = index_field
+
+    async def plan(self, context: Context, goal: Artifact[GoalT]) -> list[StepT]:
+        result = self._plan(context, goal)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("list[StepT]", list(result))
+
+    async def execute_step(
+        self, context: Context, step: Artifact[StepT], history: list[Artifact[ResultT]]
+    ) -> ResultT:
+        result = self._execute_step(context, step, history)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("ResultT", result)
+
+    async def finish(
+        self,
+        context: Context,
+        goal: Artifact[GoalT] | None,
+        results: list[Artifact[ResultT]],
+    ) -> FinalT:
+        result = self._finish(context, goal, results)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("FinalT", result)
 
 
 class _Planner(Step[Any]):

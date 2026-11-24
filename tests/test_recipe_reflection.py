@@ -122,3 +122,32 @@ def test_reflection_supports_two_concurrent_topics():
     assert len(finals) == 2
     for f in finals.values():
         assert f.data.rounds == 1
+
+
+def test_from_funcs_builds_a_pipeline_without_subclassing():
+    loop = ReflectionLoop.from_funcs(
+        topic_type=Topic,
+        draft_type=Draft,
+        review_type=Review,
+        final_type=Final,
+        draft=lambda context, topic: Draft(text=f"v0: {topic.data.text}"),
+        critique=lambda context, draft: (
+            SCORES.get(draft.data.round, 0.9),
+            f"feedback for round {draft.data.round}",
+        ),
+        rewrite=lambda context, draft, feedback: Draft(
+            text=f"{draft.data.text} + fix({feedback})"
+        ),
+        finish=lambda context, draft: Final(
+            text=draft.data.text, rounds=draft.data.round
+        ),
+        accept_at=0.8,
+        max_rounds=2,
+    )
+    pipeline = loop.pipeline(seed_type=Topic)
+    result = pipeline.run(Topic(text="heal"))
+
+    final = result.context.latest(Final)
+    assert final is not None
+    assert final.data.rounds == 1
+    assert final.data.text.startswith("v0: heal + fix(")

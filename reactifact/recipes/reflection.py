@@ -40,15 +40,18 @@ the `Review` artifact from it and stamps `topic_field`/`round_field`.
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
 from ..artifacts import Artifact
+from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
-from ..step import Step
+from ..step import Step, create_step_group
 
 TopicT = TypeVar("TopicT", bound=BaseModel)
 DraftT = TypeVar("DraftT", bound=BaseModel)
@@ -98,8 +101,74 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     async def finish(self, context: Context, draft: Artifact[DraftT]) -> FinalT:
         """Builds the final artifact once `draft` is accepted or out of rounds."""
 
+    @classmethod
+    def from_funcs(
+        cls,
+        *,
+        topic_type: type[TopicT],
+        draft_type: type[DraftT],
+        review_type: type[ReviewT],
+        final_type: type[FinalT],
+        draft: Callable[..., Any],
+        critique: Callable[..., Any],
+        rewrite: Callable[..., Any],
+        finish: Callable[..., Any],
+        **options: Any,
+    ) -> ReflectionLoop[TopicT, DraftT, ReviewT, FinalT]:
+        """Builds the loop from plain functions instead of a subclass.
+
+        Hooks may be sync or async. `options` are the class attributes
+        (`accept_at`, `max_rounds`, `topic_field`, status fields, …):
+
+        ```python
+        loop = ReflectionLoop.from_funcs(
+            topic_type=Topic,
+            draft_type=Draft,
+            review_type=Review,
+            final_type=Final,
+            draft=draft,
+            critique=critique,
+            rewrite=rewrite,
+            finish=finish,
+            accept_at=0.85,
+        )
+        pipeline = Pipeline(steps=loop.produces(), seed_type=Topic)
+        ```
+        """
+        return _FuncReflection(
+            topic_type=topic_type,
+            draft_type=draft_type,
+            review_type=review_type,
+            final_type=final_type,
+            draft=draft,
+            critique=critique,
+            rewrite=rewrite,
+            finish=finish,
+            options=options,
+        )
+
     def produces(self) -> list[Step[Any]]:
         return [_Draft(self), _Critic(self), _Rewrite(self), _Finalize(self)]
+
+    def consumes(self) -> list[Consume]:
+        """The artifact types the loop reads: topic, draft and review."""
+        return [
+            Consume(self.topic_type),
+            Consume(self.draft_type),
+            Consume(self.review_type),
+        ]
+
+    def group(self, name: str = "reflection", **kwargs: Any) -> Any:
+        """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
+        return create_step_group(
+            name, consumes=self.consumes(), steps=self.produces(), **kwargs
+        )
+
+    def pipeline(self, *, name: str = "reflection", **kwargs: Any) -> Any:
+        """A `Pipeline` with this loop already grouped and wired."""
+        from ..pipeline import Pipeline
+
+        return Pipeline(groups=[self.group(name)], **kwargs)
 
     def _draft_id(self, topic_id: str) -> str:
         return f"draft:{topic_id}"
@@ -115,6 +184,80 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
             return artifact.id
         value = getattr(artifact.data, self.topic_field, None)
         return value if isinstance(value, str) else None
+
+
+_REFLECTION_OPTIONS = frozenset(
+    {
+        "accept_at",
+        "max_rounds",
+        "topic_field",
+        "round_field",
+        "status_field",
+        "draft_status",
+        "accepted_status",
+        "review_score_field",
+        "review_feedback_field",
+    }
+)
+
+
+class _FuncReflection(ReflectionLoop[TopicT, DraftT, ReviewT, FinalT]):
+    """`ReflectionLoop.from_funcs` adapter: delegates each hook to a callable."""
+
+    def __init__(
+        self,
+        *,
+        topic_type: type[TopicT],
+        draft_type: type[DraftT],
+        review_type: type[ReviewT],
+        final_type: type[FinalT],
+        draft: Callable[..., Any],
+        critique: Callable[..., Any],
+        rewrite: Callable[..., Any],
+        finish: Callable[..., Any],
+        options: dict[str, Any],
+    ):
+        unknown = set(options) - _REFLECTION_OPTIONS
+        if unknown:
+            raise TypeError(f"unknown ReflectionLoop option(s): {sorted(unknown)}")
+        self.topic_type = topic_type
+        self.draft_type = draft_type
+        self.review_type = review_type
+        self.final_type = final_type
+        self._draft_hook = draft
+        self._critique_hook = critique
+        self._rewrite_hook = rewrite
+        self._finish_hook = finish
+        for name, value in options.items():
+            setattr(self, name, value)
+
+    async def draft(self, context: Context, topic: Artifact[TopicT]) -> DraftT:
+        result = self._draft_hook(context, topic)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("DraftT", result)
+
+    async def critique(
+        self, context: Context, draft: Artifact[DraftT]
+    ) -> tuple[float, str]:
+        result = self._critique_hook(context, draft)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("tuple[float, str]", result)
+
+    async def rewrite(
+        self, context: Context, draft: Artifact[DraftT], feedback: str
+    ) -> DraftT:
+        result = self._rewrite_hook(context, draft, feedback)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("DraftT", result)
+
+    async def finish(self, context: Context, draft: Artifact[DraftT]) -> FinalT:
+        result = self._finish_hook(context, draft)
+        if inspect.isawaitable(result):
+            result = await result
+        return cast("FinalT", result)
 
 
 class _Draft(Step[Any]):

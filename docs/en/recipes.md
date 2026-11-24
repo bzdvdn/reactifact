@@ -492,6 +492,24 @@ class FlowAgent(StepGroup):
     steps = Flow().produces()
 ```
 
+The same flow without a subclass — and with the group/pipeline wiring inferred:
+
+```python
+from reactifact.recipes import PlanExecute
+
+flow = PlanExecute.from_funcs(
+    goal_type=Goal,
+    step_type=PlanStep,
+    result_type=StepResult,
+    final_type=FinalAnswer,
+    plan=plan,                    # sync or async
+    execute_step=execute_step,
+    finish=finish,
+)
+pipeline = flow.pipeline(seed_type=Goal)   # or flow.group() in a Runtime
+result = pipeline.run(Goal(text="ship it"))
+```
+
 - `step_type`/`result_type` need `goal_field`/`index_field` (defaults:
   `"goal"`/`"index"`) with defaults on the fields (e.g. `index: int = 0`) —
   the recipe stamps the real values on every create, your hooks don't need
@@ -585,6 +603,23 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
 class Flow(StepGroup):
     consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
     steps = MyLoop().produces()
+```
+
+Function-first is the same shape:
+
+```python
+loop = ReflectionLoop.from_funcs(
+    topic_type=Topic,
+    draft_type=Draft,
+    review_type=Review,
+    final_type=Final,
+    draft=draft,
+    critique=critique,            # (score, feedback), sync or async
+    rewrite=rewrite,
+    finish=finish,
+    accept_at=0.85,
+)
+pipeline = loop.pipeline(seed_type=Topic)
 ```
 
 - `draft_type` needs `topic_field`/`round_field`/`status_field` (defaults:

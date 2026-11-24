@@ -19,6 +19,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   (retryable `ToolError`s too); a pydantic return type fills `ToolOutput.data`;
   `execute_tool(..., resources=...)` supplies collaborators outside a step.
   `from __future__ import annotations` signatures now resolve their types.
+- **Function-first recipes.** `PlanExecute.from_funcs(...)` and
+  `ReflectionLoop.from_funcs(...)` build the flow from plain (sync or async)
+  hooks; `flow.group()` / `flow.pipeline(seed_type=...)` wire the consumes and
+  return a ready `StepGroup`/`Pipeline`.
 
 ### Added
 

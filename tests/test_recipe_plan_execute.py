@@ -104,3 +104,29 @@ def test_plan_execute_supports_two_concurrent_goals():
     assert set(finals) == {goal_a.id, goal_b.id}
     assert finals[goal_a.id].data.text.startswith("A:")
     assert finals[goal_b.id].data.text.startswith("B:")
+
+
+def test_from_funcs_builds_a_pipeline_without_subclassing():
+    flow = PlanExecute.from_funcs(
+        goal_type=Goal,
+        step_type=PlanStep,
+        result_type=StepResult,
+        final_type=FinalAnswer,
+        plan=lambda context, goal: [
+            PlanStep(instruction=f"step for: {goal.data.text}"),
+            PlanStep(instruction="second step"),
+        ],
+        execute_step=lambda context, step, history: StepResult(
+            output=f"did: {step.data.instruction}"
+        ),
+        finish=lambda context, goal, results: FinalAnswer(
+            text=f"{goal.data.text if goal else '?'}: "
+            + " | ".join(r.data.output for r in results)
+        ),
+    )
+    pipeline = flow.pipeline(seed_type=Goal)
+    result = pipeline.run(Goal(text="hello"))
+
+    final = result.context.latest(FinalAnswer)
+    assert final is not None
+    assert final.data.text == "hello: did: step for: hello | did: second step"
