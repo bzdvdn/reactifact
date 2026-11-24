@@ -1,10 +1,10 @@
 # Why reactifact — the idea in one page
 
 This is the *design argument*, not a feature list. If you already know what
-reactifact does, this page explains the *why*: why effects, why the dependency
-graph is derived rather than drawn, why versioned state, why determinism is a
-philosophy rather than an option.
-The invariants behind every claim live in [constitution.md](../constitution.md).
+reactifact does, this page explains the *why*: why state instead of execution,
+why typed artifacts instead of message strings, why versioned history, and why
+determinism is a philosophy rather than an option. The invariants behind every
+claim live in [constitution.md](../constitution.md).
 
 ## If you know Celery, you already know the model
 
@@ -41,41 +41,20 @@ question is asking them to predict the future.
 runtime derives what can run next **from state changes**. Agents react. There is
 no graph to draw.
 
-## Why effects instead of "return a patch"
+## What you get instead
 
-In many frameworks a unit of work *returns* its change (a tool call, a message,
-a dict) and some orchestrator applies it. reactifact inverts authoring (§24):
-
-```python
-from reactifact import Effects
-
-async def run(self, effects: Effects) -> None:
-    evidence = effects.create(Evidence(...), id="evidence:q1")
-    answer = effects.create(Answer(...), id="answer:q1")
-    evidence.link("extracted_from", doc)
-    answer.link("supported_by", evidence)
-    effects.update(turn, status="answered")
-    return None
-```
-
-Why this shape?
-
-- **The author writes intent, not wiring.** `effects` reads like a
-  sentence: *create this, link that, bump the status*. You never assemble the
-  `Patch` — the runtime does.
-- **You work with artifacts, not ids.** `evidence` is created here and linked a
-  line below — the same object, no "look it up by number" step. The code speaks
-  about artifacts, not identifiers.
-- **One atomic commit.** Nothing applies until the step returns (§41). No
-  "half applied" states, no manual rollback ladder. Events, validation against
-  `produces`, and the trace are all derived from the same compiled ops.
-- **Parallel-safe by construction.** Each step gets its own slot; concurrent
-  steps never see each other's half-built state (§42).
-- **HITL falls out.** `human.ask(...)` is just another effect (§60); the
-  human is not a special case bolted on the side.
-
-If you find yourself writing `Patch()` inside a step — stop. That is the
-runtime's job.
+| Property | What it means in practice |
+| --- | --- |
+| **Typed state** | A turn is not a chat string; it is `Claim`, `Evidence`, `Answer`, `Calculation` — versioned objects with a schema. |
+| **Provenance by construction** | Every derived artifact links back to what produced it, so an answer can be audited without reading the prompt. |
+| **Rewindable history** | Every run is a commit: `diff`, `rollback`, `branch()`, `merge()`, deterministic replay. |
+| **Reactive scheduling** | The next step is chosen from state changes; adding a new capability does not mean redrawing a graph. |
+| **Determinism where it pays** | Calculations stay in code; the LLM is used for language and judgement, not arithmetic or lookup. |
+| **Production controls** | Budgets, retries, guardrails, authorization, human approval and quotas are part of the runtime, not per-app glue. |
+| **Observability** | Traces, spans, tool calls, token/cost stats, metrics and online evaluation are available for every run. |
+| **Testability** | `ScenarioLab`, `FakeLLM`, record/replay and `test_client()` make a run deterministic and inspectable. |
+| **A thin app layer** | `Pipeline` for one request, `Chat` for a conversation, `@tool` for capabilities — with no framework app to adopt. |
+| **No lock-in** | Core is dependency-light; FastAPI, Postgres, MCP and vector stores are optional extras, and low-level primitives remain public. |
 
 ## Why artifacts, not messages
 
@@ -92,17 +71,30 @@ Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→
 That is not a nice-to-have; it is the entire point of an agent that will be
 held accountable (§15, §34).
 
-## Why versioned context
+The authoring shape follows from that. A step declares what it reads and writes,
+and returns a typed artifact or writes one through the runtime:
 
-Every run is a commit. You get `diff`, `rollback`, `branch()` and `merge()`
-for the state of a conversation (§39–§40) and deterministic replay (§55). This
-is the difference between *a transcript you can look at* and *a history you can
+```python
+@step(consumes=Question, produces=Answer)
+def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
+```
+
+The runtime validates the result against `produces`, commits it with its
+provenance, and wakes the next step. There is no hand-built patch and no
+half-applied state.
+
+## Why versioned state
+
+Every run is a commit. You get `diff`, `rollback`, `branch()` and `merge()` for
+the state of a conversation (§39–§40) and deterministic replay (§55). This is
+the difference between *a transcript you can look at* and *a history you can
 rewind, fork and safely merge*.
 
 ## Why determinism is a philosophy, not a default
 
-The dominant pattern is "let the LLM do everything". reactifact takes the opposite
-stance (§67):
+The dominant pattern is "let the LLM do everything". reactifact takes the
+opposite stance (§67):
 
 - **Calculations are calculated.** `Spreadsheet → Calculation` over CSV is
   deterministic code, not a hallucinated number.
@@ -120,10 +112,10 @@ requires language and judgement.*
 
 In a traditional framework the app passes messages between components by hand.
 Here the app declares what agents **consume** and **produce**; the runtime
-matches events to consumers, collects inputs, runs produces, compiles the
-effects into one atomic patch, records reads/writes/relations, and wakes the
-next generation. Orchestration "falls out of the state" — you spend your time
-on the domain, not on plumbing.
+matches events to consumers, collects inputs, runs steps, commits changes
+atomically, records reads/writes/relations, and wakes the next generation.
+Orchestration "falls out of the state" — you spend your time on the domain, not
+on plumbing.
 
 ## The event loop — how "reaction" actually happens
 
@@ -131,7 +123,7 @@ The reactive engine is a **single, ordinary loop**; there is no node scheduler
 to configure. What agents *react to* is not a graph edge — it is an event, and
 the loop is this:
 
-1. Applying a patch emits **`Event`s** — `artifact_created`,
+1. Applying a commit emits **`Event`s** — `artifact_created`,
    `artifact_updated`, `artifact_deleted` — each referencing an artifact by
    type and id (CONSTITUTION Phase 4, "Reactive Runtime").
 2. The runtime **drains** those events (`arun_once` → `drain_events()`) and,
@@ -140,15 +132,15 @@ the loop is this:
    optional `condition` (e.g. `Consume.by_status(...)`). No central registry,
    no wiring table: the reaction set *is* the declaration.
 4. Matching agents run (respecting budget, concurrency, priority); their
-   effects compile into the **next** atomic patch; the loop turns again — until
-   a generation produces nothing and the run settles.
+   changes become the **next** atomic commit; the loop turns again — until a
+   generation produces nothing and the run settles.
 
 Two details make this useful rather than merely clever:
 
 - **Events are derived, not handwritten.** You never emit an event yourself;
-   creating/updating/deleting an artifact *is* the event, and the commit yields
-   them mechanically (§41). The causal chain can never drift from the actual
-   state, because it *is* the state's changelog.
+  creating/updating/deleting an artifact *is* the event, and the commit yields
+  them mechanically (§41). The causal chain can never drift from the actual
+  state, because it *is* the state's changelog.
 - **The trigger reaches the step.** A class step can take a typed
   `Artifact[T]` (or the compatibility `trigger` parameter) and react to *which*
   artifact changed; `inputs`/`list[Artifact[T]]` gives the full consumed set.
@@ -157,22 +149,51 @@ This is why "reactive" is not marketing: the *only* way control flows in
 reactifact is through changes to state, and events are precisely the change that
 agents see. No `if x: call y` plumbing — the state decides, the loop follows.
 
-## The three-layer mental model
+## The mental model
 
 | Layer | What it is | Who writes it |
 | --- | --- | --- |
-| **Step** | the reaction: guard → LLM/calc → `effects.*` or a return value | you |
-| **Effects** | the stated change-set, scoped to the turn | you, through the injected `effects` |
-| **Patch** | the *compiled* operations applied as one commit | the runtime |
+| **Step** | the reaction: guard → LLM/calculation → a typed result | you |
+| **Artifact** | typed, versioned state with provenance | you, through the step's result |
+| **Runtime** | matching, atomic commit, events, traces, retries | the framework |
 
-## Why even the app-facing layer is thin
+## A FastAPI-shaped developer experience
 
-`ChatAssistant` (sessions + turns + history) and `create_chat_router`
-(SSE contract on your FastAPI) cover the canonical chat without forcing you
-into a framework-app. You keep your session store, your resources, your
-artifacts; the framework provides the loop. If your loop differs — parallel
-forks, a steering second endpoint — the building blocks (`run_message`,
-`create_step_group`, effects) compose under it.
+The same model does not require framework ceremony. `Pipeline` is the facade for
+one run, `Chat` for a conversation:
+
+```python
+from reactifact import Chat, Pipeline
+
+pipeline = Pipeline(
+    steps=[search, answer],
+    seed_type=Question,
+    answer_type=Answer,
+    traces=True,
+)
+result = pipeline.run(Question(text="why did costs grow in Q2?"))
+
+chat = Chat(
+    steps=[search, answer],
+    store="sessions.db",
+    seed_type=Question,
+    answer_type=Answer,
+)
+reply = await chat.invoke("and last month?", session_id="u1")
+```
+
+Tools follow the same typed, injected style — the model sees the operation, the
+app supplies the client:
+
+```python
+@tool(retry=RetryPolicy(max_attempts=3), timeout=10)
+async def get_pod(name: str, k8s: K8sClient) -> Pod:
+    return await k8s.get(name)
+```
+
+`Pipeline.test_client()`, `Chat.test_client()`, `ScenarioLab` and `FakeLLM`
+let you test the same code without a network. `Chat.router()` mounts the SSE
+contract on FastAPI when you need HTTP; the core does not depend on it.
 
 ## Does this mean "no graphs ever"?
 
