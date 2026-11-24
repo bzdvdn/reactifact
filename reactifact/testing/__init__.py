@@ -18,7 +18,7 @@ from .assertions import (
     RelationAssertions,
     ToolAssertions,
 )
-from .client import TestPipeline
+from .client import TestChat, TestPipeline
 from .exceptions import AssertionFailure, ScenarioError, ScenarioSkip
 from .fault import ToolCallRecord, ToolCallRecorder, ToolFault
 from .golden import (
@@ -51,6 +51,7 @@ __all__ = [
     "ScenarioReport",
     "ScenarioResult",
     "ScenarioSkip",
+    "TestChat",
     "TestPipeline",
     "ToolAssertions",
     "ToolCallRecord",

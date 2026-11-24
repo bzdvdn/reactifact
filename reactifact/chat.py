@@ -835,6 +835,22 @@ class Chat:
     async def history(self, session_id: str = "") -> dict[str, Any]:
         return await self.assistant.history(session_id=session_id)
 
+    def router(self, **kwargs: Any) -> Any:
+        """A FastAPI `APIRouter` for this chat (SSE, history, delete, health).
+
+        Equivalent to `create_chat_router(chat, **kwargs)`; FastAPI is imported
+        lazily, so the core package does not depend on it.
+        """
+        from .web import create_chat_router
+
+        return create_chat_router(self, **kwargs)
+
+    def test_client(self, *, traces: bool = True) -> Any:
+        """A copy with an isolated in-memory session store and traces."""
+        from .testing.client import TestChat
+
+        return TestChat(self, traces=traces)
+
     @property
     def store(self) -> SessionStore:
         """The underlying session store (used by `create_chat_router`)."""

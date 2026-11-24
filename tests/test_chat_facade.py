@@ -69,3 +69,29 @@ def test_chat_history_delegates_to_the_assistant():
     asyncio.run(chat.invoke("hi", session_id="s3"))
     history = asyncio.run(chat.history("s3"))
     assert history["messages"]
+
+
+def test_chat_test_client_isolates_sessions_and_traces(tmp_path):
+    chat = Chat(
+        steps=[answer],
+        seed_type=Question,
+        answer_type=Answer,
+        store=str(tmp_path / "prod"),
+    )
+    with chat.test_client() as client:
+        reply = asyncio.run(client.invoke("hi", session_id="s1"))
+        assert reply["reply"] == "HI"
+        assert asyncio.run(client.history("s1"))["messages"]
+        assert asyncio.run(chat.history("s1"))["messages"] == []
+        assert client.traces is not None
+        assert asyncio.run(client.traces.query(limit=10))["items"]
+
+
+def test_chat_router_builds_a_fastapi_router():
+    chat = Chat(steps=[answer], seed_type=Question, answer_type=Answer)
+    router = chat.router(prefix="/chat")
+
+    paths = {route.path for route in router.routes}
+    assert "/chat/chat/stream" in paths
+    assert "/chat/runs/{session_id}" in paths
+    assert "/chat/health" in paths

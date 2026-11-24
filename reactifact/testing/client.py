@@ -1,12 +1,16 @@
-"""An in-memory `Pipeline` for tests (FastAPI's `TestClient` analogue)."""
+"""In-memory clients for tests (FastAPI's `TestClient` analogue)."""
 
 from __future__ import annotations
 
 import copy
-from typing import Any
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from ..pipeline import Pipeline
 from ..runtime import RunResult
+
+if TYPE_CHECKING:
+    from ..chat import Chat, ChatEvent
 
 
 class TestPipeline:
@@ -61,4 +65,55 @@ class TestPipeline:
         self.close()
 
 
-__all__ = ["TestPipeline"]
+class TestChat:
+    """A copy of a `Chat` with a fresh in-memory store and trace store.
+
+    `chat = Chat(...); client = chat.test_client()` — turns in the client never
+    touch the production sessions or traces. Pass a fake LLM when building the
+    `Chat` (`llm=FakeLLM(...)`) or make `resources` a callable.
+    """
+
+    def __init__(self, chat: Chat, *, traces: bool = True):
+        from ..checkpoints import InMemoryKVBackend
+        from ..session import SessionStore
+
+        self.chat = copy.copy(chat)
+        self.chat.assistant = copy.copy(chat.assistant)
+        self.chat.assistant.store = SessionStore(InMemoryKVBackend())
+        self.traces: Any = None
+        if traces:
+            from ..tracing import Tracer, TraceStore
+
+            self.traces = TraceStore(":memory:")
+            self.chat.assistant._tracer = Tracer(store=self.traces)
+
+    async def invoke(
+        self, text: str, session_id: str = "", **kwargs: Any
+    ) -> dict[str, Any]:
+        return await self.chat.invoke(text, session_id=session_id, **kwargs)
+
+    async def stream(
+        self, text: str, session_id: str = "", **kwargs: Any
+    ) -> AsyncIterator[ChatEvent]:
+        async for event in self.chat.stream(text, session_id=session_id, **kwargs):
+            yield event
+
+    async def history(self, session_id: str = "") -> dict[str, Any]:
+        return await self.chat.history(session_id)
+
+    @property
+    def store(self) -> Any:
+        return self.chat.store
+
+    def close(self) -> None:
+        if self.traces is not None:
+            self.traces.close()
+
+    def __enter__(self) -> TestChat:
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+
+__all__ = ["TestChat", "TestPipeline"]

@@ -11,7 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`Chat` facade.** `Chat(steps=..., seed_type=..., answer_type=...)` derives
   the user-message and reply hooks from types, accepts a `seed_factory` (request
   metadata) and a `per_turn` async context manager; `invoke/stream/history`
-  delegate to `ChatAssistant`.
+  delegate to `ChatAssistant`; `chat.router()` returns the FastAPI router and
+  `chat.test_client()` an isolated in-memory copy (`TestChat`).
 - **Tool DI and policies.** A `@tool` parameter annotated with a plain class is
   resolved from `RuntimeResources` (and omitted from the JSON schema);
   `@tool(retry=RetryPolicy(...), timeout=...)` retries transient failures

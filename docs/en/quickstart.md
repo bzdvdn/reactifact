@@ -67,7 +67,9 @@ async for event in chat.stream("and now?", session_id="u1"):
 
 `seed_factory(text, session_id, request)` supplies app metadata (a category,
 tenant, user); `per_turn(text, session_id, request)` is an async context manager
-for turn-scoped context vars or resource cleanup.
+for turn-scoped context vars or resource cleanup. `chat.router()` returns a
+ready FastAPI `APIRouter` (SSE + history), and `chat.test_client()` is a copy
+with an in-memory store and traces.
 
 ## One object: `Pipeline`
 

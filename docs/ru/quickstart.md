@@ -44,6 +44,32 @@ traces, бюджеты/LLM из settings). Сгенерированный про
 settings, трейсы, graceful shutdown и `APP_RUN_ONCE=true` для одноразового
 smoke-запуска.
 
+## Чат в несколько строк
+
+`Chat` — типизированный фасад над `ChatAssistant`: seed и ответ выводятся из
+моделей, сессии сохраняются, стриминг и history готовы.
+
+```python
+from reactifact import Chat
+
+chat = Chat(
+    steps=[search, answer],
+    store="sessions.db",
+    seed_type=Question,
+    answer_type=Answer,
+)
+
+reply = await chat.invoke("почему checkout недоступен?", session_id="u1")
+async for event in chat.stream("а теперь?", session_id="u1"):
+    ...
+```
+
+`seed_factory(text, session_id, request)` добавляет метаданные приложения
+(категорию, тенанта, пользователя); `per_turn(text, session_id, request)` —
+async context manager для turn-scoped contextvars или очистки ресурсов.
+`chat.router()` возвращает готовый FastAPI `APIRouter` (SSE + history), а
+`chat.test_client()` — копию с in-memory store и traces.
+
 ## Один объект: `Pipeline`
 
 `Pipeline` — короткий путь, когда шаги уже есть: он держит шаги, ресурсы и
