@@ -16,14 +16,13 @@ reactive ask/resume loop; routing itself is a separate structured LLM step
 devops/
 ├── chat.py           # CLI entry (build_resources, terminal loop)
 ├── web.py            # FastAPI/SSE app + trace dashboard (create_trace_router)
-├── models.py         # artifact types (UserMsg, *Problem, *Report, ChatReply)
+├── models.py         # artifact types (UserMsg, *Problem, *Report) + tool results
 ├── policy.py         # demo identities + PermissionPolicy (pure)
-├── resources.py      # per-user RuntimeResources (principal, memory, guardrails)
+├── resources.py      # per-user RuntimeResources (principal, memory, guardrails, clients)
 ├── step_groups.py    # thin containers: RouteGroup, K8sAgent, GitlabAgent,
 │                      #   AnsibleAgent (HITLLMAgent), RenderGroup, MemoryGroup
 ├── branches.py       # branch/merge prototype: 3 investigations, traces, conflict
-├── tools.py           # fake tools (kubectl_get, gitlab_search/pipeline,
-│                      #   ansible_run) — simulated output, no real systems
+├── tools.py           # typed @tool + fake K8s/GitLab/Ansible clients (DI, retry)
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
 ├── safety.py          # runnable guardrail demo (no LLM/network)
 ├── online_eval.py     # online-eval: score served runs + the ops evaluators
@@ -54,6 +53,37 @@ touched, by design, so the demo is safe to run against nothing).
 Try: `pods are crashlooping in prod` — routes to the k8s agent, which asks
 for the namespace before calling `kubectl_get` (mandatory tool parameters
 are exactly what forces the clarifying question, HITL `type:"ask"`).
+
+## Tools: typed, injected, retried
+
+`tools.py` is the smallest real-shaped tool layer in the repo. Each `@tool`
+describes only the operation the model chooses; the API client is an injected
+collaborator from `RuntimeResources`, so it never appears in the JSON schema:
+
+```python
+class K8sClient:
+    async def get(self, resource: str, namespace: str) -> K8sSnapshot: ...
+
+
+@tool(retry=RetryPolicy(max_attempts=2, backoff=0.1), timeout=10)
+async def kubectl_get(
+    resource: str, namespace: str, k8s: K8sClient
+) -> K8sSnapshot:
+    """Get the state of a k8s resource (pods, deployments, logs) in a namespace."""
+    return await k8s.get(resource, namespace)
+
+
+resources = register_clients(RuntimeResources(llm=llm))
+```
+
+- the model sees `resource`/`namespace`; `k8s` is resolved from resources;
+- the tool returns a pydantic model → `ToolOutput.data` is structured JSON
+  (the LLM still sees JSON text, the app can read fields without parsing);
+- `retry=`/`timeout=` are the policy for a flaky real API;
+- swapping the fake client for a real one is a one-line change in
+  `register_clients` (the tool does not change);
+- outside a runtime (`tests`, a script) call
+  `execute_tool(kubectl_get, {...}, resources=resources)`.
 
 ## Branches: parallel investigations, merged like features
 

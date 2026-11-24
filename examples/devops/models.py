@@ -28,6 +28,55 @@ class AnsibleProblem(BaseModel):
     query_id: str = ""
 
 
+# Typed tool results. The LLM sees these as JSON; the app can read
+# `ToolOutput.data` without parsing a log line.
+class PodState(BaseModel):
+    name: str
+    namespace: str
+    status: str
+    restarts: int = 0
+    last_state: str = ""
+    reason: str = ""
+    events: list[str] = []
+
+
+class K8sSnapshot(BaseModel):
+    namespace: str
+    resource: str
+    summary: str
+    pods: list[PodState] = []
+
+
+class MergeRequest(BaseModel):
+    iid: str
+    title: str
+    state: str
+
+
+class MergeRequests(BaseModel):
+    project: str
+    query: str
+    items: list[MergeRequest] = []
+
+
+class PipelineState(BaseModel):
+    project: str
+    pipeline_id: str
+    status: str
+    stage: str
+    job: str
+
+
+class PlayRecap(BaseModel):
+    playbook: str
+    role: str
+    hosts: str
+    ok: int
+    changed: int
+    failed: int
+    unreachable: int = 0
+
+
 # Reports that each LLM agent builds its own way
 class K8sReport(BaseModel):
     query_id: str = ""

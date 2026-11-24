@@ -21,7 +21,7 @@ from examples.devops.step_groups import (
     RenderGroup,
     RouteGroup,
 )
-from examples.devops.tools import CALLS
+from examples.devops.tools import CALLS, register_clients
 from reactifact import (
     Budget,
     Context,
@@ -48,7 +48,7 @@ class ScriptedLLM(LLMProvider):
 
 
 def build_runtime(llm):
-    resources = RuntimeResources(llm=llm)
+    resources = register_clients(RuntimeResources(llm=llm))
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
@@ -248,11 +248,35 @@ def test_flag_policy_allows_and_does_not_raise():
     assert ctx.list_artifacts(K8sProblem)
 
 
+def test_tools_inject_clients_and_return_typed_results():
+    from examples.devops.tools import API_RETRY, gitlab_pipeline, kubectl_get
+    from reactifact.tools import execute_tool
+
+    assert "k8s" not in kubectl_get.schema["properties"]
+    assert "gitlab" not in gitlab_pipeline.schema["properties"]
+    assert kubectl_get.retry is API_RETRY
+    assert gitlab_pipeline.retry is API_RETRY
+
+    resources = register_clients(RuntimeResources())
+    out = asyncio.run(
+        execute_tool(gitlab_pipeline, {"project": "payments"}, resources=resources)
+    )
+    assert out.data["pipeline_id"] == "#4821"
+    assert out.data["stage"] == "deploy"
+
+
 def test_kubectl_get_returns_logs_for_a_specific_pod():
     from examples.devops.tools import kubectl_get
+    from reactifact.tools import execute_tool
 
+    resources = register_clients(RuntimeResources())
     out = asyncio.run(
-        kubectl_get.execute({"resource": "pods/worker-2f1", "namespace": "nikard"})
+        execute_tool(
+            kubectl_get,
+            {"resource": "pods/worker-2f1", "namespace": "nikard"},
+            resources=resources,
+        )
     )
-    assert "OOMKilled" in out.text
-    assert "worker-2f1" in out.text
+    pod = out.data["pods"][0]
+    assert pod["name"] == "worker-2f1"
+    assert pod["last_state"] == "Terminated (OOMKilled)"

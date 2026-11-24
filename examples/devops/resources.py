@@ -12,6 +12,7 @@ from typing import Any
 
 from examples.devops.guardrails import devops_guardrail_policy
 from examples.devops.policy import POLICY, principal_for
+from examples.devops.tools import register_clients
 from reactifact import RuntimeResources
 from reactifact.checkpoints import FileKVBackend
 from reactifact.recipes import MemoryStore
@@ -36,7 +37,7 @@ def build_resources(
         authorizer=POLICY,
     )
     resources.register(MemoryStore, memory)
-    return resources
+    return register_clients(resources)
 
 
 __all__ = ["build_resources"]
