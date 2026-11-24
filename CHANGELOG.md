@@ -13,6 +13,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `reactifact trace <run> --against <other>`; `Pipeline(traces=True|path)`
   records every run and fills `RunResult.trace_id` / `.trace()` without
   FastAPI.
+- **Tail trace sampling.** `Tracer(sample=...)` / `SamplingPolicy(rate=,
+  always_on_error=, always_if=)` keeps every failed run, a configurable
+  predicate set, and a deterministic slice of successes.
+- **Trace retention policy.** `RetentionPolicy(max_runs=, max_age_days=,
+  keep_failed=, keep_tags=)` on `TraceStore`/`PostgresStore`, plus
+  `reactifact traces prune <db> [--keep] [--days] [--keep-failed]
+  [--keep-tag] [--dry-run]`.
 
 ### Added
 

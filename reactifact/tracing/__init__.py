@@ -25,6 +25,8 @@ from .models import (
 )
 from .otlp import OTLPTracer
 from .postgres import PostgresStore
+from .retention import RetentionPolicy
+from .sampling import SamplingPolicy, keep_trace
 from .store import (
     TraceAnnotator,
     TraceReader,
@@ -54,12 +56,15 @@ __all__ = [
     "TagAssignment",
     "TraceAnnotator",
     "TraceColumn",
+    "RetentionPolicy",
+    "SamplingPolicy",
     "TraceDiff",
     "TraceLimits",
     "TraceReader",
     "TraceSink",
     "TraceStore",
     "diff_traces",
+    "keep_trace",
     "TraceStoreProtocol",
     "ToolRun",
     "Tracer",

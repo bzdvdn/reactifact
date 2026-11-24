@@ -309,6 +309,8 @@ FROZEN: dict[str, frozenset[str]] = {
             "OTLPTracer",
             "PostgresStore",
             "ProduceRun",
+            "RetentionPolicy",
+            "SamplingPolicy",
             "StepGroupSpan",
             "StepRun",
             "RecordingLLM",
@@ -326,6 +328,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "TraceStore",
             "TraceStoreProtocol",
             "diff_traces",
+            "keep_trace",
             "ToolRun",
             "Tracer",
         }

@@ -36,6 +36,7 @@ from .models import (
     StepRun,
     TraceLimits,
 )
+from .sampling import Sample, keep_trace
 from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
@@ -133,8 +134,11 @@ class Tracer:
         store: TraceStore | None = None,
         sinks: Iterable[TraceSink] | None = None,
         limits: TraceLimits | None = None,
+        sample: Sample = None,
     ):
         self.limits = limits or TraceLimits()
+        #: Tail sampling: applied in `on_turn_end` before any sink sees the run.
+        self.sample = sample
         self.sinks: list[TraceSink] = []
         if sink is not None:
             self.sinks.append(sink)
@@ -199,6 +203,8 @@ class Tracer:
         pass
 
     async def on_turn_end(self, trace: RunTrace) -> None:
+        if not keep_trace(trace, self.sample):
+            return
         for sink in self.sinks:
             try:
                 await sink.export(trace)

@@ -127,6 +127,55 @@ reactifact trace traces.db <run_id> --against <other_id>
 сборки `Tracer`; `result.trace_id` и `await result.trace()` читают его обратно.
 Это путь без FastAPI: скрипты, ноутбуки и CI используют тот же trace store.
 
+### Retention (диск и аудит)
+
+`RetentionPolicy` управляет тем, что store удаляет:
+
+```python
+from reactifact.tracing import RetentionPolicy
+
+store = TraceStore(
+    "traces.db",
+    retention=RetentionPolicy(
+        max_runs=5000,            # последние незащищённые запуски
+        max_age_days=30,          # TTL, даже внутри max_runs
+        keep_failed=True,         # не удалять failed/stopped
+        keep_tags=frozenset({"incident", "bad-prompt"}),
+    ),
+)
+```
+
+Политика применяется после каждого export (и по требованию). CLI — ops-путь:
+
+```bash
+reactifact traces prune traces.db --keep 5000 --days 30 --dry-run
+reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag incident
+```
+
+Защищённые запуски (failed, с тегом) не входят в счёт `max_runs`; store может
+быть больше лимита — это осознанно.
+
+### Сэмплирование (объём в проде)
+
+`Tracer(sample=...)` применяет tail-sampling до того, как run увидит sink:
+
+```python
+from reactifact.tracing import SamplingPolicy, Tracer
+
+tracer = Tracer(
+    store=store,
+    sample=SamplingPolicy(
+        rate=0.01,                       # 1% успешных запусков
+        always_on_error=True,            # все failed/stopped — всегда
+        always_if=lambda t: t.duration_ms > 3000,
+    ),
+)
+```
+
+Сэмплирование детерминировано по run id: один и тот же запуск стабильно
+попадает или не попадает в выборку. `rate=1.0` — dev/test, низкий rate +
+`always_on_error` — прод.
+
 ### Ревью запусков: теги и заметки
 
 Дашборд — ещё и **поверхность ревью**. Посмотрев трейс, вы помечаете запуск

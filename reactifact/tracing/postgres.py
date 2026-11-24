@@ -36,6 +36,7 @@ from .models import (
     ArtifactRef,
     RunTrace,
 )
+from .retention import RetentionPolicy
 
 
 class PostgresStore:
@@ -48,12 +49,14 @@ class PostgresStore:
         max_runs: int | None = 200,
         column_scan_limit: int | None = 1000,
         max_session_runs: int = 50,
+        retention: RetentionPolicy | None = None,
     ):
         from .._extras import require_extra
 
         self._psycopg = require_extra("PostgresStore", "psycopg", "pg")
         self.dsn = dsn
-        self.max_runs = max_runs
+        self.retention = retention or RetentionPolicy(max_runs=max_runs)
+        self.max_runs = self.retention.max_runs
         self.column_scan_limit = column_scan_limit
         self.max_session_runs = max_session_runs
         self._schema_ready = False
@@ -227,20 +230,55 @@ class PostgresStore:
                             jsonify=lambda value: psycopg.types.json.Jsonb(value),
                         ),
                     )
-                if self.max_runs is not None:
-                    await self._prune_cur(cur, self.max_runs)
+                await self._prune_cur(cur)
             await conn.commit()
         finally:
             await conn.close()
 
-    async def _prune_cur(self, cur: Any, keep: int) -> int:
-        await cur.execute(
-            "SELECT id FROM runs ORDER BY started_at DESC, id DESC OFFSET %s",
-            (keep,),
-        )
-        ids = [r[0] for r in await cur.fetchall()]
-        if not ids:
+    async def _prune_cur(
+        self,
+        cur: Any,
+        keep: int | None = None,
+        *,
+        dry_run: bool = False,
+    ) -> int:
+        policy = self.retention
+        if keep is not None:
+            policy = RetentionPolicy(
+                max_runs=keep,
+                max_age_days=policy.max_age_days,
+                keep_failed=policy.keep_failed,
+                keep_tags=policy.keep_tags,
+            )
+        if policy.max_runs is None and policy.max_age_days is None:
             return 0
+        await cur.execute(
+            "SELECT id, outcome, started_at FROM runs ORDER BY started_at DESC, id DESC"
+        )
+        rows = await cur.fetchall()
+        await cur.execute("SELECT run_id, tag FROM run_tags")
+        tags: dict[str, set[str]] = {}
+        for run_id, tag in await cur.fetchall():
+            tags.setdefault(run_id, set()).add(tag)
+        cutoff = policy.cutoff()
+        unprotected = [
+            (run_id, outcome, started)
+            for run_id, outcome, started in rows
+            if not policy.protects(outcome=outcome, tags=tags.get(run_id, set()))
+        ]
+        keep_ids = (
+            {run_id for run_id, _, _ in unprotected[: policy.max_runs]}
+            if policy.max_runs is not None
+            else set()
+        )
+        ids = [
+            run_id
+            for run_id, _outcome, started in unprotected
+            if (policy.max_runs is not None and run_id not in keep_ids)
+            or (cutoff is not None and started < cutoff)
+        ]
+        if dry_run or not ids:
+            return len(ids)
         placeholders = ",".join("%s" for _ in ids)
         await cur.execute(
             f"DELETE FROM spans WHERE run_id IN ({placeholders})", tuple(ids)
@@ -251,15 +289,12 @@ class PostgresStore:
         await cur.execute(f"DELETE FROM runs WHERE id IN ({placeholders})", tuple(ids))
         return len(ids)
 
-    async def prune(self, keep: int | None = None) -> int:
-        keep = self.max_runs if keep is None else keep
-        if keep is None:
-            return 0
+    async def prune(self, keep: int | None = None, *, dry_run: bool = False) -> int:
         await self._ensure_schema()
         conn = await self._psycopg.AsyncConnection.connect(self.dsn)
         try:
             async with conn.cursor() as cur:
-                removed = await self._prune_cur(cur, keep)
+                removed = await self._prune_cur(cur, keep, dry_run=dry_run)
             await conn.commit()
         finally:
             await conn.close()

@@ -127,6 +127,55 @@ building a `Tracer` by hand; `result.trace_id` and `await result.trace()` read
 it back. This is the non-FastAPI path: scripts, notebooks and CI use the same
 trace store.
 
+### Retention (disk and audit)
+
+`RetentionPolicy` controls what the store deletes:
+
+```python
+from reactifact.tracing import RetentionPolicy
+
+store = TraceStore(
+    "traces.db",
+    retention=RetentionPolicy(
+        max_runs=5000,            # newest unprotected runs
+        max_age_days=30,          # TTL, even inside max_runs
+        keep_failed=True,         # never delete failed/stopped
+        keep_tags=frozenset({"incident", "bad-prompt"}),
+    ),
+)
+```
+
+The policy runs after every export (and on demand). The CLI is the ops path:
+
+```bash
+reactifact traces prune traces.db --keep 5000 --days 30 --dry-run
+reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag incident
+```
+
+Protected runs (failed, tagged) do not count against `max_runs`; they can make
+the store larger, by design.
+
+### Sampling (production volume)
+
+`Tracer(sample=...)` applies tail sampling before any sink sees the run:
+
+```python
+from reactifact.tracing import SamplingPolicy, Tracer
+
+tracer = Tracer(
+    store=store,
+    sample=SamplingPolicy(
+        rate=0.01,                       # 1% of successful runs
+        always_on_error=True,            # keep all failed/stopped runs
+        always_if=lambda t: t.duration_ms > 3000,
+    ),
+)
+```
+
+Sampling is deterministic by run id, so a given run is consistently in or out
+of the sample. Use `rate=1.0` for dev/test and a low rate plus
+`always_on_error` in production.
+
 ### Reviewing runs: tags and notes
 
 The dashboard is also the **review surface**. After inspecting a trace you mark

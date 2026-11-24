@@ -50,6 +50,7 @@ from . import (
     scenario,
     skills,
     trace,
+    traces,
     validate,
 )
 
@@ -76,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
         branch,
         scenario,
         skills,
+        traces,
         validate,
         eval,
         new,

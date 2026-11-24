@@ -55,6 +55,7 @@ class Pipeline:
         lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]]
         | None = None,
         traces: bool | str | Path | Any | None = None,
+        trace_sample: Any = None,
     ):
         if steps is None and groups is None:
             raise TypeError("Pipeline requires steps= and/or groups=")
@@ -80,7 +81,7 @@ class Pipeline:
             if tracer is None:
                 from .tracing import Tracer
 
-                tracer = Tracer(store=self.trace_store)
+                tracer = Tracer(store=self.trace_store, sample=trace_sample)
         self.tracer = tracer
         self.max_concurrency = max_concurrency
         self.isolate_errors = isolate_errors

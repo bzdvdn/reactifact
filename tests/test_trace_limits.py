@@ -134,7 +134,7 @@ def test_trace_truncate_is_deprecated():
 def test_sqlite_export_rolls_back_when_prune_fails(tmp_path, monkeypatch):
     store = TraceStore(str(tmp_path / "atomic.db"), max_runs=100)
 
-    def boom(keep: int, *, commit: bool = True) -> int:
+    def boom(keep: int | None = None, *, commit: bool = True, dry_run: bool = False) -> int:
         raise RuntimeError("prune failed")
 
     monkeypatch.setattr(store, "_prune_sync", boom)

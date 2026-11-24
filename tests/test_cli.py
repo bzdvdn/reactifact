@@ -44,6 +44,7 @@ def test_build_parser_registers_every_subcommand():
         "graph",
         "context",
         "trace",
+        "traces",
         "replay",
         "branch",
         "scenario",

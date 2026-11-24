@@ -39,6 +39,7 @@ from .models import (
     ArtifactRef,
     RunTrace,
 )
+from .retention import RetentionPolicy
 
 
 class TraceSink(Protocol):
@@ -138,9 +139,11 @@ class TraceStore:
         max_runs: int | None = 200,
         column_scan_limit: int | None = 1000,
         max_session_runs: int = 50,
+        retention: RetentionPolicy | None = None,
     ):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.max_runs = max_runs
+        self.retention = retention or RetentionPolicy(max_runs=max_runs)
+        self.max_runs = self.retention.max_runs
         self.column_scan_limit = column_scan_limit
         self.max_session_runs = max_session_runs
         self._conn = sqlite3.connect(path, check_same_thread=False, timeout=timeout)
@@ -277,8 +280,9 @@ class TraceStore:
     async def export(self, trace: RunTrace) -> None:
         await asyncio.to_thread(self._export_sync, trace)
 
-    async def prune(self, keep: int) -> int:
-        return await asyncio.to_thread(self._prune_sync, keep)
+    async def prune(self, keep: int | None = None, *, dry_run: bool = False) -> int:
+        """Apply the retention policy (or override `max_runs` with `keep`)."""
+        return await asyncio.to_thread(self._prune_sync, keep, dry_run=dry_run)
 
     async def query(
         self,
@@ -412,8 +416,7 @@ class TraceStore:
                 )
             # Insert and retention commit together: a prune failure rolls the
             # run back instead of leaving it stored with retention unapplied.
-            if self.max_runs is not None:
-                self._prune_sync(self.max_runs, commit=False)
+            self._prune_sync(commit=False)
             self._conn.commit()
         except Exception:
             self._conn.rollback()
@@ -449,19 +452,56 @@ class TraceStore:
         self._conn.commit()
         return len(ids)
 
-    def _prune_sync(self, keep: int, *, commit: bool = True) -> int:
-        """Keeps the last `keep` traces, deletes older ones (retention)."""
-        cur = self._conn.execute(
-            "DELETE FROM runs WHERE id NOT IN "
-            "(SELECT id FROM runs ORDER BY started_at DESC LIMIT ?)",
-            (keep,),
+    def _prune_sync(
+        self,
+        keep: int | None = None,
+        *,
+        commit: bool = True,
+        dry_run: bool = False,
+    ) -> int:
+        """Applies `RetentionPolicy` (or `keep` as a `max_runs` override)."""
+        policy = self.retention
+        if keep is not None:
+            policy = type(policy)(
+                max_runs=keep,
+                max_age_days=policy.max_age_days,
+                keep_failed=policy.keep_failed,
+                keep_tags=policy.keep_tags,
+            )
+        if policy.max_runs is None and policy.max_age_days is None:
+            return 0
+        rows = self._conn.execute(
+            "SELECT id, outcome, started_at FROM runs ORDER BY started_at DESC"
+        ).fetchall()
+        tags: dict[str, set[str]] = {}
+        for run_id, tag in self._conn.execute("SELECT run_id, tag FROM run_tags"):
+            tags.setdefault(run_id, set()).add(tag)
+        cutoff = policy.cutoff()
+        unprotected = [
+            (run_id, outcome, started)
+            for run_id, outcome, started in rows
+            if not policy.protects(outcome=outcome, tags=tags.get(run_id, set()))
+        ]
+        keep_ids = (
+            {run_id for run_id, _, _ in unprotected[: policy.max_runs]}
+            if policy.max_runs is not None
+            else set()
         )
+        delete_ids = [
+            run_id
+            for run_id, _outcome, started in unprotected
+            if (policy.max_runs is not None and run_id not in keep_ids)
+            or (cutoff is not None and started < cutoff.timestamp())
+        ]
+        if dry_run or not delete_ids:
+            return len(delete_ids)
+        placeholders = ",".join("?" for _ in delete_ids)
+        args = tuple(delete_ids)
+        self._conn.execute(f"DELETE FROM spans WHERE run_id IN ({placeholders})", args)
         self._conn.execute(
-            "DELETE FROM spans WHERE run_id NOT IN (SELECT id FROM runs)"
+            f"DELETE FROM run_tags WHERE run_id IN ({placeholders})", args
         )
-        self._conn.execute(
-            "DELETE FROM run_tags WHERE run_id NOT IN (SELECT id FROM runs)"
-        )
+        cur = self._conn.execute(f"DELETE FROM runs WHERE id IN ({placeholders})", args)
         if commit:
             self._conn.commit()
         return cur.rowcount
