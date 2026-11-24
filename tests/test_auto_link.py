@@ -6,6 +6,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    SUPPORTED_BY,
     Artifact,
     Budget,
     Context,
@@ -34,7 +35,7 @@ def manual(input: Input) -> Output:
     return Output(value=input.value + 1)
 
 
-@step(produces=Output, consumes=Input, auto_link="computed_from")
+@step(produces=Output, consumes=Input, provenance=SUPPORTED_BY)
 def named_relation(input: Input) -> Output:
     return Output(value=input.value + 1)
 
@@ -75,9 +76,9 @@ def test_auto_link_off_by_default():
     assert edges(context, Output) == []
 
 
-def test_auto_link_accepts_a_relation_name():
+def test_provenance_accepts_a_relation_constant():
     context = run([create_agent("a", steps=[named_relation])], [("in", 1)])
-    assert edges(context, Output) == [("computed_from", "in")]
+    assert edges(context, Output) == [("supported_by", "in")]
 
 
 def test_auto_link_uses_the_latest_match_not_every_input():

@@ -45,6 +45,25 @@ traces, settings-driven budgets/LLM). The generated project owns its
 LLM/budget, traces, graceful shutdown, and `APP_RUN_ONCE=true` for a one-shot
 smoke run.
 
+## One object: `Pipeline`
+
+`Pipeline` is the short path when you already have steps: it owns the steps,
+resources and defaults, and builds a fresh `Context` + `Runtime` per run.
+
+```python
+from reactifact import Pipeline
+
+pipeline = Pipeline(steps=[compute_spend, compute_variance, answer])
+result = pipeline.run(Question(text="what is the Q2 variance?"))
+
+print(result.latest(Answer).data.text)
+print(result.sources(result.latest(Answer)))
+print(result.hash)
+```
+
+Async variants are `arun(seed)` and `astream(seed)`; the low-level `Context`
+is still on `result.context` for branch/merge, replay and tests.
+
 ## 0. The 80% on-ramp: `reactifact.quick`
 
 Most first tasks are one of four things. `reactifact.quick` wires each of them

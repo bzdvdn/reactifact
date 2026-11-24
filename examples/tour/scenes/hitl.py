@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from reactifact import (
     Consume,
     Context,
-    Effects,
+    Human,
     PendingQuestion,
     Runtime,
     Step,
@@ -34,8 +34,8 @@ class AskApproval(Step):
     consumes = (RefundRequest,)
     produces = (PendingQuestion,)
 
-    async def run(self, request: RefundRequest, effects: Effects) -> None:
-        effects.ask(
+    async def run(self, request: RefundRequest, human: Human) -> None:
+        human.ask(
             f"Approve refund of {request.amount} for {request.order_id}?",
             kind="approve",
             schema=Approval,

@@ -190,7 +190,7 @@ compiles it into one atomic patch. `Patch` is now the runtime's *transport*
 type, not something users assemble:
 
 - Demos, `recipes` (`fan_out_sources`, `materialize_doc`), `StatusMachine`,
-  the tool loop (`ToolUse`/`ToolUseHITL`) and HITL (`effects.ask`) all use
+  the tool loop (`ToolUse`/`ToolUseHITL`) and HITL (`human.ask`) all use
   effects; `Patch`-returns remain only as an internal/advanced escape hatch.
 - The `merge_existing_patch` / responder-glue boiler in the examples is gone —
   produces are linear: guard → compute → `effects.*` → `None`.

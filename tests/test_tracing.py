@@ -140,6 +140,44 @@ def test_trace_store_roundtrip(tmp_path):
     assert run(store.query(outcome="failed"))["items"] == []
 
 
+def test_trace_records_branch_and_parent_from_metadata(tmp_path):
+    store = TraceStore(str(tmp_path / "traces.db"))
+    ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
+    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(store=store))
+    ctx.create(Question(text="hi"))
+    runtime.run(
+        request={"trace_metadata": {"branch": "k8s", "parent_run_id": "root-run"}}
+    )
+
+    item = run(store.query())["items"][0]
+    assert item["branch"] == "k8s"
+    assert item["parent_run_id"] == "root-run"
+    trace = run(store.get(item["id"]))
+    assert trace is not None
+    assert trace.branch == "k8s"
+    assert trace.parent_run_id == "root-run"
+
+
+def test_query_filters_branch_and_parent_and_children(tmp_path):
+    store = TraceStore(str(tmp_path / "tree.db"))
+    for trace in (
+        RunTrace(id="root", branch="plan"),
+        RunTrace(id="k8s", parent_run_id="root", branch="k8s"),
+        RunTrace(id="gitlab", parent_run_id="root", branch="gitlab"),
+    ):
+        run(store.export(trace))
+
+    by_branch = run(store.query(branch="k8s"))["items"]
+    assert [item["id"] for item in by_branch] == ["k8s"]
+
+    by_parent = run(store.query(parent_run_id="root"))["items"]
+    assert {item["id"] for item in by_parent} == {"k8s", "gitlab"}
+
+    children = run(store.children("root"))
+    assert [item["id"] for item in children] == ["k8s", "gitlab"]
+    assert children[0]["branch"] == "k8s"
+
+
 def test_trace_store_roundtrips_nested_start_times(tmp_path):
     started = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
     store = TraceStore(str(tmp_path / "nested.db"))
@@ -737,6 +775,28 @@ def _basic(user: str, password: str) -> str:
     import base64
 
     return "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+
+
+def test_children_endpoint_and_branch_filters(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "tree.db"))
+    for trace in (
+        RunTrace(id="root", branch="plan"),
+        RunTrace(id="k8s", parent_run_id="root", branch="k8s"),
+    ):
+        run(store.export(trace))
+    app = FastAPI()
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+
+    filtered = client.get("/api/traces", params={"branch": "k8s"}).json()
+    assert [item["id"] for item in filtered["items"]] == ["k8s"]
+
+    children = client.get("/api/traces/root/children").json()
+    assert [item["id"] for item in children["items"]] == ["k8s"]
 
 
 def test_trace_router_basic_auth(tmp_path):

@@ -68,7 +68,7 @@ class AskOrAnswer(Step[Answer]):
             if data.answered:
                 call.effects.create(Answer(text=f"resolved: {data.resolution}"))
             return
-        call.effects.ask("What value?", kind="clarify")
+        call.human.ask("What value?", kind="clarify")
 
 
 def _echo_group():

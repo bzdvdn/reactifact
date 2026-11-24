@@ -8,20 +8,21 @@
 > рантайма.**
 
 ```python
-from reactifact import Artifact, Effects
+from reactifact import Artifact, Effects, Human
 
 async def run(
     self,
     doc: Artifact[Document],
     turn: Artifact[Turn],
     effects: Effects,
+    human: Human,
 ) -> None:
     evidence = effects.create(Evidence(...), id="evidence:q1")
     answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
     effects.update(turn, status="answered")
-    effects.ask("Утвердить смету?", kind="approval")   # HITL (§60)
+    human.ask("Утвердить смету?", kind="approval")   # HITL (§60)
 ```
 
 Класс-шаг, который пишет эффекты, объявляет `effects: Effects` в `run()` —
@@ -84,7 +85,7 @@ effects.upsert(Summary(...), id=f"summary:{doc_id}")
 runtime выполнит его после коммита:
 
 ```python
-effects.act(
+outbox.act(
     "notify", key=f"notify:{order_id}:email", payload={"to": email}
 )
 ```
@@ -119,7 +120,7 @@ effects.act(
 - **`StepGroup.run`** — escape hatch для кастомных агентов, собирающих change-set
   вручную.
 - **Рецепты** (`fan_out_sources`, `materialize_doc`) и `StatusMachine` пишут в
-  слот; tool loop (`ToolUse`/`ToolUseHITL`) и HITL (`effects.ask`) — тоже
+  слот; tool loop (`ToolUse`/`ToolUseHITL`) и HITL (`human.ask`) — это взаимодействие, не запись данных
   эффекты.
 - **Тесты и продвинутая сборка** могут строить `Patch`; обычным шагам он не
   нужен.
@@ -158,14 +159,18 @@ async def answer_turn(call: StepCall) -> None:
 рёбра:
 
 ```python
-@step(produces=Variance, consumes=Spend, auto_link="calculated_from")
+from reactifact import CALCULATED_FROM
+
+@step(produces=Variance, consumes=Spend, provenance=CALCULATED_FROM)
 def compute_variance(spend: Spend) -> Variance:
     return Variance(actual=spend.total, ...)
 ```
 
-`auto_link=True` связывает каждый артефакт, который шаг **реально разрешил**
-(а не весь рабочий набор `consumes`), с каждым созданным артефактом — по
-умолчанию relation `derived_from`; строка задаёт имя. Явный `link` между той же
+`provenance=` связывает каждый артефакт, который шаг **реально разрешил**
+(а не весь рабочий набор `consumes`), с каждым созданным артефактом. Имена
+импортируйте из `reactifact` (`DERIVED_FROM`, `SUPPORTED_BY`, `CALCULATED_FROM`,
+…), а не пишите строками; шаг, у которого `produces` выведен из аннотации
+возврата, получает `DERIVED_FROM` по умолчанию. Явный `link` между той же
 парой побеждает, так что сокращение не перетирает осознанный провенанс.
 
 Чтение провенанса — тоже запрос:
@@ -178,7 +183,8 @@ for link in context.why(answer):   # обход в ширину по исход�
 
 `why()` идёт по рёбрам `supported_by` / `calculated_from` / … в ширину;
 `relations=(...)` ограничивает обход, `max_depth=` его останавливает.
-`auto_link` пока opt-in; явные ссылки остаются дефолтом до 1.0.
+`auto_link=` остаётся deprecated-алиасом. `SUPPORTED_BY` — только для
+ответов/утверждений; вычисления — `CALCULATED_FROM` или `DERIVED_FROM`.
 
 ## Какой стиль выбрать
 

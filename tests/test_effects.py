@@ -7,6 +7,7 @@ from reactifact import (
     Agent,
     Consume,
     Context,
+    Human,
     Runtime,
     RuntimeResources,
     Step,
@@ -141,7 +142,7 @@ def test_effects_resume_answers_pending_question():
 
         async def run(self, event, context):
             question = context.list_artifacts(PendingQuestion)[0]
-            current_effects().resume(question, "да")
+            Human(current_effects()).resume(question, "да")
             return None
 
     ctx = Context(resources=RuntimeResources())
@@ -163,7 +164,7 @@ def test_effects_ask_stores_typed_schema():
         note: str = ""
 
     effects = Effects(Context(resources=RuntimeResources()))
-    effects.ask("Approve?", schema=Approval)
+    Human(effects).ask("Approve?", schema=Approval)
 
     op = effects.operations[0]
     assert isinstance(op, Create)
@@ -183,7 +184,7 @@ def test_effects_resume_accepts_typed_answer():
 
         async def run(self, event, context):
             question = context.list_artifacts(PendingQuestion)[0]
-            current_effects().resume(
+            Human(current_effects()).resume(
                 question, Approval(approved=True, note="looks good")
             )
             return None

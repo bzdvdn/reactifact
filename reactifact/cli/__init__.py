@@ -46,6 +46,7 @@ from . import (
     graph,
     new,
     replay,
+    run,
     scenario,
     skills,
     trace,
@@ -78,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
         validate,
         eval,
         new,
+        run,
         doctor,
     ):
         module.add_parser(sub)
@@ -99,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("Start here:")
         print("  reactifact demo                30-second auditable answer, no key")
+        print('  reactifact run <module:pipeline> "text"   run a Pipeline')
         print("  reactifact new app <dir>       FastAPI chat template")
         print("  reactifact new daemon <dir>    scheduled agent loop")
         print("  reactifact doctor              check an app's settings")

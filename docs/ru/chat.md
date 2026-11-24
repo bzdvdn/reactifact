@@ -13,7 +13,7 @@
 | `thread_id` + checkpointer | `session_id` + `SessionStore` (`FileKVBackend` / `SQLiteKVBackend` / `PostgreSQLKVBackend`) |
 | `MessagesState` + reducer `add_messages` | `Conversation` / `ConversationMessage` (`recipes.conversation`); состояние — типизированные артефакты, версионируемые на каждое изменение |
 | `graph.invoke(input, config)` | `ChatAssistant.stream()/invoke()` или `run_message()` для своего цикла |
-| `interrupt()` / `Command(resume=…)` | `effects.ask(...)` → `PendingQuestion` → `effects.resume(...)` |
+| `interrupt()` / `Command(resume=…)` | `human.ask(...)` → `PendingQuestion` → `human.resume(...)` |
 | `get_state_history` / resume с checkpoint | `context.history()` / `context.checkout(v)` / `context.branch()` / `reactifact replay` |
 | ограничить транскрипт / суммаризовать | `ChatMemory` → `WindowPruner` / `RollingDigestSummarizer`; `Context.compact` для истории |
 | `store` (долговременная память между потоками) | рецепт `MemoryStore` (namespaced-факты, TTL, `forget_source`); `SessionStore` остаётся историей разговора — см. [Рецепты](recipes.md#memorystore-namespaced-long-term-memory-27) |
@@ -90,7 +90,7 @@ resources=lambda session_id, request: build_resources(request.get("user"))
 `RuntimeResources` по-прежнему прикрепляется для кастомного `session_state`.
 
 **Внешние side effects.** Если агент в чате записывает намерение через
-`effects.act(...)`, передайте `dispatcher=` (и, при желании,
+`outbox.act(...)`, передайте `dispatcher=` (и, при желании,
 `on_dispatch_error=`) — они уходят прямо в `Runtime`, который ассистент собирает
 на каждый ход, так что закоммиченные действия доставляются один раз, после
 коммита генерации, ровно как в обычном прогоне:
@@ -206,7 +206,7 @@ assistant = ChatAssistant(
 
 ```python
 # внутри produce
-effects.ask("Approve this estimate?", kind="approval")
+human.ask("Approve this estimate?", kind="approval")
 # позже, из вашего API, когда человек отвечает:
 ctx.resume(question_id, "approved")   # эмитит update → агенты реагируют
 ```

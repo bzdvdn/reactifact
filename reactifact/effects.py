@@ -207,10 +207,10 @@ class Effects:
         return self
 
     def link(self, source: Any, relation: str, target: Any) -> Effects:
-        self.operations.append(Link(_id_of(source), relation, _id_of(target)))
+        self.operations.append(Link(_id_of(source), str(relation), _id_of(target)))
         return self
 
-    def ask(
+    def _ask(
         self,
         question: str,
         *,
@@ -222,7 +222,7 @@ class Effects:
         """Poses a question to a human (HITL, §60): creates a `PendingQuestion`.
 
         Returns a handle you can link later; the human answer is recorded via
-        `effects.resume(question_art, answer)` (§60). Pass `schema=` (a Pydantic
+        `human.resume(question_art, answer)` (§60). Pass `schema=` (a Pydantic
         model class or JSON-schema mapping) to let a UI render a typed form;
         resume with a model/mapping to fill `PendingQuestion.resolution_data`.
         Pass `id` for a stable, re-derivable question (e.g.
@@ -242,7 +242,7 @@ class Effects:
             id=id,
         )
 
-    def act(
+    def _act(
         self,
         kind: str,
         *,
@@ -269,7 +269,7 @@ class Effects:
         )
         return self.create_once(data, id=id or f"action:{key}")
 
-    def resume(self, question: Any, answer: Any) -> Effects:
+    def _resume(self, question: Any, answer: Any) -> Effects:
         """Records the human answer on a `PendingQuestion` (HITL, §60).
 
         `answer` may stay a plain string (legacy) or be a Pydantic model /

@@ -55,6 +55,26 @@ the hash of the exact state that produced them. Models, steps and the printer
 all live in [`reactifact/demo.py`](reactifact/demo.py) — copy the pipeline,
 then change the data.
 
+## Five lines to a run
+
+```python
+from reactifact import Pipeline
+
+pipeline = Pipeline(steps=[...], seed_type=Question, answer_type=Answer)
+result = pipeline.run(Question(text="why did cloud spend jump in Q2?"))
+
+print(result.latest(Answer).data.text)
+print(result.sources(result.latest(Answer)))   # citations, as a query
+```
+
+`Pipeline` is a thin facade over `Context` + `Runtime`: it owns steps,
+resources and defaults, and builds a fresh context per run. `seed_type` /
+`answer_type` are the request/response models used by `reactifact run`:
+
+```bash
+reactifact run app:pipeline "why did cloud spend jump in Q2?"
+```
+
 ## Who this is for
 
 - **Knowledge assistants over mixed sources.** One question spans Confluence, a

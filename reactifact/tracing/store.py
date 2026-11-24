@@ -56,6 +56,8 @@ class TraceReader(Protocol):
         session_id: str | None = None,
         scope: str | None = None,
         outcome: str | None = None,
+        branch: str | None = None,
+        parent_run_id: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
         q: str | None = None,
@@ -65,6 +67,10 @@ class TraceReader(Protocol):
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]: ...
+
+    async def children(
+        self, run_id: str, *, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]: ...
 
     async def get(
         self,
@@ -151,6 +157,8 @@ class TraceStore:
                 id TEXT PRIMARY KEY,
                 session_id TEXT NOT NULL DEFAULT '',
                 scope TEXT NOT NULL DEFAULT '',
+                parent_run_id TEXT NOT NULL DEFAULT '',
+                branch TEXT NOT NULL DEFAULT '',
                 metadata TEXT NOT NULL DEFAULT '{}',
                 started_at REAL NOT NULL,
                 duration_ms REAL NOT NULL,
@@ -242,6 +250,14 @@ class TraceStore:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'"
             )
+        if "parent_run_id" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "branch" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN branch TEXT NOT NULL DEFAULT ''"
+            )
         if "prompt_tokens" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0"
@@ -270,6 +286,8 @@ class TraceStore:
         session_id: str | None = None,
         scope: str | None = None,
         outcome: str | None = None,
+        branch: str | None = None,
+        parent_run_id: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
         q: str | None = None,
@@ -284,6 +302,8 @@ class TraceStore:
             session_id,
             scope,
             outcome,
+            branch,
+            parent_run_id,
             tags,
             tag_mode,
             q,
@@ -293,6 +313,19 @@ class TraceStore:
             limit,
             offset,
         )
+
+    async def children(
+        self, run_id: str, *, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Child runs of `run_id` (subflow/branches), oldest first."""
+        result = await self.query(
+            parent_run_id=run_id,
+            sort="started_at",
+            order="asc",
+            limit=limit,
+            offset=offset,
+        )
+        return list(result["items"])
 
     async def get(
         self,
@@ -358,9 +391,10 @@ class TraceStore:
     def _export_sync(self, trace: RunTrace) -> None:
         try:
             self._conn.execute(
-                "INSERT INTO runs (id, session_id, scope, metadata, started_at, "
-                "duration_ms, outcome, prompt_tokens, completion_tokens, truncated) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO runs (id, session_id, scope, parent_run_id, branch, "
+                "metadata, started_at, duration_ms, outcome, prompt_tokens, "
+                "completion_tokens, truncated) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 run_insert_values(trace, timestamp=lambda moment: moment.timestamp()),
             )
             for span in trace.spans:
@@ -437,6 +471,8 @@ class TraceStore:
         session_id: str | None,
         scope: str | None,
         outcome: str | None,
+        branch: str | None,
+        parent_run_id: str | None,
         tags: list[str] | None,
         tag_mode: str,
         q: str | None,
@@ -452,6 +488,12 @@ class TraceStore:
         if outcome is not None:
             where.append("outcome = ?")
             args.append(outcome)
+        if branch is not None:
+            where.append("branch = ?")
+            args.append(branch)
+        if parent_run_id is not None:
+            where.append("parent_run_id = ?")
+            args.append(parent_run_id)
         if tags:
             placeholders = ",".join("?" for _ in tags)
             if tag_mode == "all":
@@ -501,6 +543,8 @@ class TraceStore:
         session_id: str | None,
         scope: str | None,
         outcome: str | None,
+        branch: str | None,
+        parent_run_id: str | None,
         tags: list[str] | None,
         tag_mode: str,
         q: str | None,
@@ -514,7 +558,9 @@ class TraceStore:
 
         Returns ``{"items": [...], "total": n}``, where total is before pagination.
         """
-        where_sql, args = self._where(session_id, scope, outcome, tags, tag_mode, q)
+        where_sql, args = self._where(
+            session_id, scope, outcome, branch, parent_run_id, tags, tag_mode, q
+        )
         sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
@@ -532,8 +578,8 @@ class TraceStore:
             "completion_tokens": totals[3],
         }
         rows = self._conn.execute(
-            f"SELECT id, session_id, scope, metadata, started_at, duration_ms, outcome, "
-            f"prompt_tokens, completion_tokens, "
+            f"SELECT id, session_id, scope, parent_run_id, branch, metadata, "
+            f"started_at, duration_ms, outcome, prompt_tokens, completion_tokens, "
             f"(SELECT COUNT(*) FROM spans WHERE run_id = runs.id) AS spans_count "
             f"FROM runs{where_sql} ORDER BY {sort_col} {direction} LIMIT ? OFFSET ?",
             (*args, limit, offset),
@@ -550,19 +596,21 @@ class TraceStore:
                 "id": row[0],
                 "session_id": row[1],
                 "scope": row[2],
-                "metadata": json.loads(row[3] or "{}"),
-                "started_at": row[4],
-                "duration_ms": round(row[5], 1),
-                "outcome": row[6],
-                "prompt_tokens": row[7],
-                "completion_tokens": row[8],
-                "spans": row[9],
+                "parent_run_id": row[3],
+                "branch": row[4],
+                "metadata": json.loads(row[5] or "{}"),
+                "started_at": row[6],
+                "duration_ms": round(row[7], 1),
+                "outcome": row[8],
+                "prompt_tokens": row[9],
+                "completion_tokens": row[10],
+                "spans": row[11],
                 "tags": tags_by_run.get(row[0], []),
                 "fields": fields_by_run.get(row[0], {}),
                 "fields_truncated": bool(
                     columns
                     and self.column_scan_limit is not None
-                    and row[9] > self.column_scan_limit
+                    and row[11] > self.column_scan_limit
                 ),
             }
             for row in rows
@@ -679,8 +727,8 @@ class TraceStore:
         span_offset: int = 0,
     ) -> RunTrace | None:
         row = self._conn.execute(
-            "SELECT id, session_id, scope, metadata, started_at, duration_ms, "
-            "outcome, truncated FROM runs WHERE id = ?",
+            "SELECT id, session_id, scope, parent_run_id, branch, metadata, "
+            "started_at, duration_ms, outcome, truncated FROM runs WHERE id = ?",
             (trace_id,),
         ).fetchone()
         if row is None:
@@ -711,15 +759,17 @@ class TraceStore:
             id=row[0],
             session_id=row[1],
             scope=row[2],
-            metadata=json.loads(row[3] or "{}"),
-            started_at=datetime.fromtimestamp(row[4], tz=UTC),
-            duration_ms=row[5],
-            outcome=row[6],
+            parent_run_id=row[3],
+            branch=row[4],
+            metadata=json.loads(row[5] or "{}"),
+            started_at=datetime.fromtimestamp(row[6], tz=UTC),
+            duration_ms=row[7],
+            outcome=row[8],
             spans=spans,
             span_total=span_total,
             span_offset=span_offset,
             has_more_spans=span_offset + len(spans) < span_total,
-            trace_truncated=bool(row[7]),
+            trace_truncated=bool(row[9]),
             annotations=annotations,
         )
 

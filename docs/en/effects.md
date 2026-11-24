@@ -9,20 +9,21 @@ step:
 > transport.**
 
 ```python
-from reactifact import Artifact, Effects
+from reactifact import Artifact, Effects, Human
 
 async def run(
     self,
     doc: Artifact[Document],
     turn: Artifact[Turn],
     effects: Effects,
+    human: Human,
 ) -> None:
     evidence = effects.create(Evidence(...), id="evidence:q1")
     answer = effects.create(Answer(...), id="answer:q1")
     evidence.link("extracted_from", doc)
     answer.link("supported_by", evidence)
     effects.update(turn, status="answered")
-    effects.ask("Approve the estimate?", kind="approval")   # HITL (§60)
+    human.ask("Approve the estimate?", kind="approval")   # HITL (§60)
 ```
 
 A class step that writes effects declares an `effects: Effects` parameter in
@@ -70,8 +71,18 @@ return Emit(
 )
 ```
 
-Use `effects` when the step needs update/delete, HITL, or several heterogeneous
-creates. Returning `None` means "no changes" (a guard or a branch that did not
+For mutations, return `Edit`, `Drop` or `Relate` instead of calling effects:
+
+```python
+from reactifact import Drop, Edit, Relate
+
+return Edit(ticket, status="closed")          # effects.update
+return Drop(ticket)                            # effects.delete
+return Relate(answer, "supported_by", evidence)
+```
+
+Use `effects` for batch/conditional writes, or when the target id is computed at
+runtime. Returning `None` means "no changes" (a guard or a branch that did not
 apply).
 
 ## Idempotency sugar: `create_once` and `upsert`
@@ -92,24 +103,26 @@ logical entity, §42/§43); `upsert` is the explicit name for that:
 effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
-## Outbound side effects: `act` (the outbox)
+## Human and outbox are not effects
 
-`create`/`update`/`link`/`ask` change *state*. An email, a webhook or a deploy
-changes the *world* and must not be repeated by a replay or retry. Record the
-intent and let the runtime perform it after the commit:
+`Effects` is the data-write surface. Two non-data collaborators are injected
+next to it:
+
+- `Human.ask(...)` / `Human.resume(...)` — HITL, backed by `PendingQuestion`;
+- `Outbox.act(...)` — outbound side-effect intent, backed by `PendingAction`.
 
 ```python
-effects.act(
-    "notify", key=f"notify:{order_id}:email", payload={"to": email}
-)
+@step(produces=PendingAction, consumes=Ticket)
+def notify(ticket: Ticket, outbox: Outbox) -> None:
+    outbox.act("notify", key=f"notify:{ticket.id}", payload={"to": ticket.email})
 ```
 
-`act` creates a `PendingAction` under the stable id `action:{key}` (a retry or a
-branch that reaches the same action produces no second one). The step must
-**not** do the I/O; pass `Runtime(dispatcher=...)` and the runtime calls it once
-per committed intent, recording `dispatched`/`failed`. See
+`Outbox.act` creates a `PendingAction` under the stable id `action:{key}` (a
+retry or a branch that reaches the same action produces no second one). The step
+must **not** do the I/O; pass `Runtime(dispatcher=...)` and the runtime calls it
+once per committed intent, recording `dispatched`/`failed`. See
 [patterns — Outbox](patterns.md#outbox-external-side-effects) and
-[durability](durability.md).
+[durability](durability.md). `Effects.ask/resume/act` were removed; use `Human`/`Outbox`.
 
 ## The three-layer picture
 
@@ -138,7 +151,7 @@ not "about ids".
   change-set by hand.
 - **Recipes** (`fan_out_sources`, `materialize_doc`) and `StatusMachine` write
   into the slot; the tool loop (`ToolUse`/`ToolUseHITL`) and HITL
-  (`effects.ask`) are effects too.
+  (`human.ask`) are interaction, not data writes.
 - **Tests and advanced assembly** may still build a `Patch`; ordinary steps
   should not need it.
 
@@ -177,14 +190,18 @@ Hand-written `link` calls are the explicit form. Two shortcuts keep the common
 case short without hiding the edges:
 
 ```python
-@step(produces=Variance, consumes=Spend, auto_link="calculated_from")
+from reactifact import CALCULATED_FROM
+
+@step(produces=Variance, consumes=Spend, provenance=CALCULATED_FROM)
 def compute_variance(spend: Spend) -> Variance:
     return Variance(actual=spend.total, ...)
 ```
 
-`auto_link=True` links every artifact the step **actually resolved** (not the
-whole `consumes` working set) to each artifact it creates, `derived_from` by
-default; a string picks the relation name. An explicit `link` between the same
+`provenance=` links every artifact the step **actually resolved** (not the
+whole `consumes` working set) to each artifact it creates. Import the names
+from `reactifact` (`DERIVED_FROM`, `SUPPORTED_BY`, `CALCULATED_FROM`, …) instead
+of spelling strings; a step whose `produces` is inferred from its return
+annotation gets `DERIVED_FROM` by default. An explicit `link` between the same
 pair wins, so the shortcut never overrides deliberate provenance.
 
 Reading provenance is a query too:
@@ -197,7 +214,8 @@ for link in context.why(answer):   # breadth-first over outgoing edges
 
 `why()` follows `supported_by` / `calculated_from` / … edges breadth-first;
 pass `relations=(...)` to restrict the walk and `max_depth=` to stop it.
-`auto_link` is opt-in today; explicit links remain the default until 1.0.
+`auto_link=` remains as a deprecated alias. Use `SUPPORTED_BY` only for
+answers/claims; compute steps are `CALCULATED_FROM` or `DERIVED_FROM`.
 
 ## Which style to reach for
 

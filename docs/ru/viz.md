@@ -17,7 +17,8 @@ runtime выводит исполнение из изменений состоя
 ## CLI
 
 ```bash
-python -m reactifact graph examples.knowledge.step_groups        # все агенты модуля
+python -m reactifact run app:pipeline "почему checkout недоступен?"
+reactifact graph examples.knowledge.step_groups        # все агенты модуля
 python -m reactifact graph examples.knowledge.step_groups:Planner # один агент
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3

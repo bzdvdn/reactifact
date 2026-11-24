@@ -84,7 +84,7 @@ async def summarize(call):
 
 - **Внешние side effects внутри produce.** Письмо, запись файла или вызов
   стороннего API, сделанные *напрямую* в produce, могут повториться при retry.
-  Так делать не нужно — пишите намерение: `effects.act(kind=..., key=...,
+  Так делать не нужно — пишите намерение: `outbox.act(kind=..., key=...,
   payload=...)` создаёт `PendingAction`, а `Runtime(dispatcher=...)` выполняет
   его один раз после коммита намерения (см. паттерн outbox в
   [паттернах](patterns.md#outbox-side-effects)). Сам I/O фреймворк

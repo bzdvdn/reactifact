@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from ..artifacts import Artifact
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
 from ..commit import Commit, Read
 from ..context import Context
@@ -54,7 +53,6 @@ from .outbox import (
     Outbox,
 )
 from .patch import PatchApplicator
-from .result import RunResult
 
 logger = get_logger("reactifact.runtime")
 
@@ -318,15 +316,18 @@ class Runtime:
         self._turn_started = True
         request = current_request()
         raw_metadata = request.get("trace_metadata")
+        metadata = (
+            {str(key): str(value) for key, value in raw_metadata.items()}
+            if isinstance(raw_metadata, Mapping)
+            else {}
+        )
         scope = self.trace_scope or str(request.get("workspace_id", "") or "")
         self._trace.begin_turn(
             session_id=self.session.session_id if self.session is not None else "",
             scope=scope,
-            metadata=(
-                {str(key): str(value) for key, value in raw_metadata.items()}
-                if isinstance(raw_metadata, Mapping)
-                else {}
-            ),
+            metadata=metadata,
+            parent_run_id=metadata.get("parent_run_id", ""),
+            branch=metadata.get("branch", ""),
         )
         self._generation = 0
         # A per-turn id for logs/registry. Tracing mints its own only when a
@@ -930,48 +931,6 @@ class Runtime:
         request: Mapping[str, Any] | None = None,
     ) -> int:
         return asyncio.run(self.arun(max_iterations, budget, request=request))
-
-    def ask(
-        self,
-        seed: Artifact[Any] | Any,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        *,
-        request: Mapping[str, Any] | None = None,
-    ) -> RunResult:
-        """Seeds one artifact, runs the pipeline and returns a `RunResult`.
-
-        The friendly one-liner: `Runtime(ctx, steps=[...]).ask(Question(...))`.
-        Use `aask` inside an async caller.
-        """
-
-        def _seed() -> None:
-            if isinstance(seed, Artifact):
-                if self.context.get(seed.id) is None:
-                    self.context.create(seed.data, id=seed.id)
-            else:
-                self.context.create(seed)
-
-        _seed()
-        runs = self.run(max_iterations, budget, request=request)
-        return RunResult(self.context, runs, self.outcome)
-
-    async def aask(
-        self,
-        seed: Artifact[Any] | Any,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        *,
-        request: Mapping[str, Any] | None = None,
-    ) -> RunResult:
-        """Async form of `ask()`."""
-        if isinstance(seed, Artifact):
-            if self.context.get(seed.id) is None:
-                self.context.create(seed.data, id=seed.id)
-        else:
-            self.context.create(seed)
-        runs = await self.arun(max_iterations, budget, request=request)
-        return RunResult(self.context, runs, self.outcome)
 
     async def replay_run(
         self,

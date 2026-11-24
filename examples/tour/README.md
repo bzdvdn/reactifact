@@ -17,7 +17,7 @@ Scenes:
 | `durable` | `SQLiteKVBackend` + `SessionStore`, restart, pending-event resume, `replay_context` |
 | `model` | an optional LLM step through `llm_reply`, with an offline fallback |
 | `resilience` | `Agent.retry` with `RetryPolicy`, `Step.timeout` |
-| `hitl` | `effects.ask(..., schema=Model)` + typed `context.resume(...)` |
+| `hitl` | `human.ask(..., schema=Model)` + typed `context.resume(...)` |
 | `time_travel` | `context.checkpoints()`, `context.at(checkpoint)`, `SessionStore.fork` |
 | `events` | `Runtime.astream_events` with all `stream_mode`s |
 | `conflicts` | `effects.update(expected_version=...)`, `ArtifactConflict`, merge policy |

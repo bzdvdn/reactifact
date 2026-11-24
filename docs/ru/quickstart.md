@@ -44,6 +44,25 @@ traces, бюджеты/LLM из settings). Сгенерированный про
 settings, трейсы, graceful shutdown и `APP_RUN_ONCE=true` для одноразового
 smoke-запуска.
 
+## Один объект: `Pipeline`
+
+`Pipeline` — короткий путь, когда шаги уже есть: он держит шаги, ресурсы и
+дефолты, а на каждый запуск создаёт свежие `Context` + `Runtime`.
+
+```python
+from reactifact import Pipeline
+
+pipeline = Pipeline(steps=[compute_spend, compute_variance, answer])
+result = pipeline.run(Question(text="какая дисперсия за Q2?"))
+
+print(result.latest(Answer).data.text)
+print(result.sources(result.latest(Answer)))
+print(result.hash)
+```
+
+Async-варианты — `arun(seed)` и `astream(seed)`; низкоуровневый `Context`
+остаётся в `result.context` для branch/merge, replay и тестов.
+
 ## 0. Он-рамп для 80%: `reactifact.quick`
 
 Большинство первых задач — одна из четырёх. `reactifact.quick` собирает каждую

@@ -219,7 +219,7 @@ uv run python -m examples.fintech_audit.main
 ## `outbox` — внешние эффекты как закоммиченное состояние
 
 **Что показывает:** контракт outbox в семи детерминированных кейсах: шаг
-записывает `effects.act(...)` вместо I/O; `Runtime(dispatcher=...)` отправляет
+записывает `outbox.act(...)` вместо I/O; `Runtime(dispatcher=...)` отправляет
 после коммита; повторная деривация, дубли в одном поколении, слитые ветки,
 replay, failure→retry и app-owned retry-wrapper сохраняют одну доставку.
 Без LLM и сети; фейковый dispatcher делает счётчик видимым.

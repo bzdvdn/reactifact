@@ -51,3 +51,11 @@ def test_work_ui_has_contract_flow_and_chip_filters():
     assert "data-cx-span" in html
     assert "data-span" in html
     assert "focusSpan" in html
+
+
+def test_run_page_has_a_branch_tree_card():
+    html = _ui_run_html()
+    assert 'id="tree-card"' in html
+    assert "async function loadTree" in html
+    assert "/children?limit=" in html
+    assert "parent_run_id" in html

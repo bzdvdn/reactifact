@@ -1,4 +1,4 @@
-"""The friendly result object returned by `Runtime.ask()`."""
+"""The friendly result object returned by `Pipeline.run()`."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ TArtifact = TypeVar("TArtifact")
 
 @dataclass
 class RunResult:
-    """What `Runtime.ask()` returns: the context, the count, and helpers.
+    """What `Pipeline.run()` returns: the context, the count, and helpers.
 
     `latest(Type)` is the common way to read the answer; `sources(artifact)`
     is the citation query; `hash` is the reproducible context fingerprint.

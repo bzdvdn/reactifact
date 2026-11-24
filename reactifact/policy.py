@@ -11,7 +11,7 @@ runtime applies it in `Runtime._execute`:
 
 Retries re-run the agent from a fresh `Effects` slot, so a failed attempt's
 effects are discarded and only the successful patch commits. External side
-effects still belong in the outbox (`effects.act`) — a retry must not send
+effects still belong in the outbox (`outbox.act`) — a retry must not send
 twice.
 """
 

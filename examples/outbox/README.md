@@ -53,7 +53,7 @@ are the proof.
 ```python
 @step(produces=(Receipt, PendingAction), consumes=Order)
 async def process_order(order: Artifact[Order], effects: Effects) -> None:
-    effects.act(
+    outbox.act(
         "notify",
         key=f"notify:{order.data.id}",
         payload={"to": order.data.customer, "order": order.data.id},
@@ -112,7 +112,7 @@ policy** — case 7 wraps the dispatcher with `with_retries(...)`;
 ```text
 outbox/
 ├── models.py       # Order (input) + Receipt (committed state)
-├── steps.py        # records the intent via effects.act — never does the I/O
+├── steps.py        # records the intent via outbox.act — never does the I/O
 ├── agents.py       # order_group · mirror_group (same-generation duplicate)
 ├── dispatcher.py   # the fake external world: SentLog + idempotent dispatcher
 └── main.py         # seven cases

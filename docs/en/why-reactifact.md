@@ -71,7 +71,7 @@ Why this shape?
   `produces`, and the trace are all derived from the same compiled ops.
 - **Parallel-safe by construction.** Each step gets its own slot; concurrent
   steps never see each other's half-built state (§42).
-- **HITL falls out.** `effects.ask(...)` is just another effect (§60); the
+- **HITL falls out.** `human.ask(...)` is just another effect (§60); the
   human is not a special case bolted on the side.
 
 If you find yourself writing `Patch()` inside a step — stop. That is the

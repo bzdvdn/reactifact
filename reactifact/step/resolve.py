@@ -10,6 +10,7 @@ from ..artifacts import Artifact
 from ..context import Context
 from ..effects import Effects
 from ..events import Event
+from ..interaction import Human, Outbox
 from .annotations import Latest, Scope
 from .call import StepCall
 from .core import Step, _annotation_types, _scope_matches, _scope_value
@@ -83,7 +84,7 @@ class MissingInputError(TypeError):
 
 
 def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
-    """Records artifacts actually resolved for this call (for `auto_link`)."""
+    """Records artifacts actually resolved for this call (for `provenance=`)."""
     seen = {artifact.id for artifact in call.used}
     for artifact in artifacts:
         if artifact.id not in seen:
@@ -106,6 +107,10 @@ def _resolve_arg(
         return call.context
     if annotation is Effects or name == "effects":
         return call.effects
+    if annotation is Human or name == "human":
+        return Human(call.effects)
+    if annotation is Outbox or name == "outbox":
+        return Outbox(call.effects)
     if annotation is Event or name == "event":
         return call.event
     if annotation is StepCall:

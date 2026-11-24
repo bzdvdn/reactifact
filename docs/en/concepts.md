@@ -96,8 +96,8 @@ The **compiled operations** (`reactifact.operations`):
 hatch; effects compose *within* one produce, so nothing is applied until the
 runtime compiles — atomicity is structural (§41).
 
-HITL is an `effects.ask(...)` → `PendingQuestion`, answered via
-`effects.resume(...)` (see [patterns](patterns.md)).
+HITL is an `human.ask(...)` → `PendingQuestion`, answered via
+`human.resume(...)` (see [patterns](patterns.md)).
 
 ## 4. StepGroup (optional; formerly Agent)
 

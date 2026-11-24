@@ -33,6 +33,7 @@ from .artifacts import Artifact
 from .context import Context
 from .effects import Effects
 from .eval import MetricFn, core_metrics
+from .interaction import Human
 from .step import Step
 
 #: Used when neither the agent nor `RuntimeResources.verification_threshold` sets one.
@@ -152,7 +153,7 @@ class Verify(Step[VerificationResult]):
         reason = f"score={overall:.2f}, порог={threshold:.2f}"
         if required_failed:
             reason += f", провалены обязательные метрики: {', '.join(required_failed)}"
-        effects.ask(
+        Human(effects).ask(
             f"Ответ не прошёл верификацию ({reason}). Принять как есть?",
             kind="approve",
             notes={"answer_id": answer.id, "overall": overall},

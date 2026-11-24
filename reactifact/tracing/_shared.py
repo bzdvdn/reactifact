@@ -71,6 +71,8 @@ def run_insert_values(
         trace.id,
         trace.session_id,
         trace.scope,
+        trace.parent_run_id,
+        trace.branch,
         jsonify(trace.metadata),
         timestamp(started),
         trace.duration_ms,

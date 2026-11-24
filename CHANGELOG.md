@@ -6,17 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-### Removed
-
-- **The `reactifact.produce` compatibility shim.** `Produce`, `ProduceCall`
-  and `@produce` are gone (they were scheduled for removal in 0.23); use
-  `Step`, `StepCall` and `@step`.
-- **`also_creates=` / `reacts_to=` on steps.** Declare every output in
-  `produces=(Primary, Extra)` and every input/trigger in `consumes=(...)`
-  (or `Consume(..., wakes=False)`); the runtime no longer reads the old
-  class attributes or constructor keywords.
-
 ### Added
+
+- **`Human` / `Outbox` collaborators.** HITL (`ask`/`resume`) and outbound
+  intents (`act`) move off `Effects` into injected collaborators
+  (`human: Human`, `outbox: Outbox`, or `call.human` / `call.outbox`).
+  `Effects.ask/resume/act` are removed, so `Effects` is again a pure
+  data-write surface.
+- **`Edit` / `Drop` / `Relate` return instructions.** Simple mutations no longer
+  need an `Effects` parameter: `return Edit(ticket, status="closed")`,
+  `Drop(artifact)`, `Relate(answer, "supported_by", evidence)` compile into the
+  same atomic patch. `Emit` stays the create-with-id/links form.
+- **Provenance vocabulary.** `reactifact.provenance` exports `RelationName`
+  (`SUPPORTED_BY`, `DERIVED_FROM`, `CALCULATED_FROM`, …) and the same names
+  at top level. `@step(provenance=...)` replaces the stringly
+  `auto_link=` (kept as a deprecated alias); a step whose `produces` is
+  inferred from its return annotation links its resolved inputs with
+  `DERIVED_FROM` by default.
+
+- **First-class branch/parent tracing.** `RunTrace.parent_run_id` and
+  `RunTrace.branch` are populated from `trace_metadata` (subflows and branch
+  runs), stored in SQLite/Postgres with migrations, and returned by
+  `query()`/`get()`. `TraceStore.query(branch=..., parent_run_id=...)` filters
+  runs, and `TraceStore.children(run_id)` returns a run's children oldest-first,
+  so a dashboard can render the tree without scanning every trace in memory.
+  `create_trace_router` exposes `/api/traces/{id}/children` and passes the new
+  filters through; the run page has a **Branches** card (parent link + child
+  runs) that uses them.
 
 - **`reactifact demo`.** A self-contained, no-API-key pipeline that makes the
   framework's claim observable in one command: four pydantic models, three
@@ -28,10 +44,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Provenance as a query.** `context.why(artifact)` walks outgoing provenance
   edges breadth-first (`relations=` to filter, `max_depth=` to stop) and
   `context.sources(artifact)` returns the deduplicated source locators behind
-  an artifact — the hand-written BFS in the demo is gone. `@step(auto_link=...)`
-  (opt-in for now) links each created artifact to the inputs the step actually
-  resolved, `derived_from` by default; an explicit `link` for the same pair
-  wins, so deliberate provenance is never overridden.
+  an artifact — the hand-written BFS in the demo is gone. `@step(provenance=...)`
+  links each created artifact to the inputs the step actually resolved; an
+  explicit `link` for the same pair wins, so deliberate provenance is never
+  overridden.
 - **`StepGroup` is the public name; `Agent` is a deprecated alias.** Steps stay
   the model; a `StepGroup` is the optional unit that shares a trigger, retry
   policy, timeout, priority, concurrency limit or commit. `create_step_group`
@@ -57,9 +73,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`Emit(model, id=..., links=...)` for return-style steps.** Sets an explicit
   artifact id and provenance in the same expression, so the simple return form
   no longer forces a drop to `effects.create`/`link` just to pin an id.
-- **`Runtime.ask(seed)` / `aask(seed)`.** Seeds one artifact, runs, and returns
-  a `RunResult` with `.latest(Type)`, `.sources(artifact)` and `.hash` — the
-  three-line on-ramp instead of `context.create` + `run` + `latest`.
+- **`Pipeline.run(seed)` / `arun` / `astream`.** A reusable facade over
+  `Context` + `Runtime`; each run seeds one artifact and returns a `RunResult`
+  with `.latest(Type)`, `.sources(artifact)` and `.hash` — the three-line
+  on-ramp instead of `context.create` + `run` + `latest`. `seed_type=` /
+  `answer_type=` name the request/response models, and `reactifact run
+  module:pipeline "text"` runs one from the CLI.
 - **`reactifact validate <module>`.** Static contract checking is now a CLI
   command, not only `graph --check`; same `--seed`/`--terminal` flags.
 - **Friendlier missing-input errors.** A typed parameter with no matching
@@ -69,6 +88,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`Step.retry` and `steps=` for chat.** `retry=` is copied into the implicit
   group like `priority`/`concurrency_limit`; `ChatAssistant`/`chat_agent`
   accept raw `steps=` and wrap them.
+
+### Removed
+
+- **The `reactifact.produce` compatibility shim.** `Produce`, `ProduceCall`
+  and `@produce` are gone (they were scheduled for removal in 0.23); use
+  `Step`, `StepCall` and `@step`.
+- **`also_creates=` / `reacts_to=` on steps.** Declare every output in
+  `produces=(Primary, Extra)` and every input/trigger in `consumes=(...)`
+  (or `Consume(..., wakes=False)`); the runtime no longer reads the old
+  class attributes or constructor keywords.
+
+- **`Effects.ask` / `Effects.resume` / `Effects.act`.** HITL and outbound
+  intents moved to the injected `Human`/`Outbox` collaborators; `Effects` is
+  now only `create/update/delete/link/upsert/unlink`.
 
 ## [0.22.0] — 2026-11-21
 

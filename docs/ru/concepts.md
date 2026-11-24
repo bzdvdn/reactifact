@@ -96,8 +96,8 @@ async def run(self, effects: Effects) -> None:
 сочетаются *внутри* одного produce, поэтому ничего не применяется до компиляции
 рантаймом — атомарность структурная (§41).
 
-HITL — это `effects.ask(...)` → `PendingQuestion`, ответ через
-`effects.resume(...)` (см. [patterns](patterns.md)).
+HITL — это `human.ask(...)` → `PendingQuestion`, ответ через
+`human.resume(...)` (см. [patterns](patterns.md)).
 
 ## 4. StepGroup (опционально; бывший Agent)
 

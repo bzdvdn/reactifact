@@ -87,7 +87,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers. `Agent` is the deprecated alias |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=`. `create_agent` is the deprecated alias |
-| `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords. `.ask(seed)` seeds one artifact, runs, and returns a `RunResult` (sync; `aask` for async) |
+| `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords. |
+| `Pipeline(steps=..., groups=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash` |
 | `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
@@ -98,6 +99,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
 | `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit group. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit. |
+| `Human` / `Outbox` | injected non-data collaborators: `human.ask/resume` (HITL, `PendingQuestion`) and `outbox.act` (outbound intent, `PendingAction`); `Effects.ask/resume/act` are deprecated aliases |
+| `Emit` / `Edit` / `Drop` / `Relate` | return-style change instructions: create with explicit id/links, update fields, delete, link — compiled into the same atomic patch |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -106,7 +109,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `Tool.execute` is instrumented once (trace `ToolRun` + hooks + record/replay) for both direct calls and `execute_tool`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
-| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `effects.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
+| `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `human.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL authoring: `ask(question, kind=, notes=, schema=, id=)` creates the question; `resume(question, answer)` accepts a legacy string or a Pydantic model/mapping (stored in `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox primitive: records a `PendingAction` intent (stable id `action:{key}`) instead of doing I/O in the step; `None` if it already exists |
 | `Effects.update(artifact, *, expected_version=…, **fields)` | field-bump of an existing artifact; `expected_version=` opts into optimistic concurrency (`ArtifactConflict` instead of last-write-wins) |

@@ -29,7 +29,7 @@ reactifact с 0.1.x, используйте отдельный
 | общий `TypedDict`/dict state, мутируемый узлами | типизированные версионируемые `Artifact`'ы в `Context` |
 | reducer (`Annotated[list, add]`) | `effects.create/update/link(...)`, компилируемые в один атомарный `Patch` |
 | checkpointer / thread state | `Context` (git-подобный), `Session`/`SessionStore`, `context.branch()`/`merge()` |
-| `interrupt()` / `Command(resume=...)` | `effects.ask(...)` → `PendingQuestion`, ответ через `effects.resume(...)` |
+| `interrupt()` / `Command(resume=...)` | `human.ask(...)` → `PendingQuestion`, ответ через `human.resume(...)` |
 | subgraph / вложенный агент | `AgentAsTool` (изолированный вложенный рантайм) или `context.branch()` |
 | conditional router / supervisor | `Consume.condition` / `Consume.by_field`, или `recipes.Router` |
 | RAG-цепочка (retriever → prompt → LLM) | `Source` + `fan_out_sources` + `materialize_doc` + produces (`quick.rag` для простого случая) |
@@ -136,7 +136,7 @@ fact.link("extracted_from", doc)
 
 ```python
 # спросить
-effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
+human.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
 # ответить (из HTTP-хендлера / CLI)
 context.resume(question.id, "yes")
 ```
@@ -206,7 +206,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 - [ ] Вызовы модели идут через `structured_llm`/`llm_reply` и возвращают `None`
       при сбое — вызывающий показывает честный фолбэк, не фейковый ответ.
 - [ ] Для продакшн-прогонов задан `Budget`.
-- [ ] Человеческие шаги — `effects.ask`/`resume`, не особый случай.
+- [ ] Человеческие шаги — `human.ask`/`resume`, не особый случай.
 - [ ] Сессии — через `SessionStore`; ресурсы собираются на loop
       (`RuntimeResources.scope`).
 - [ ] Трейсинг подключён (`Tracer(store=...)`), и `redactor=` задан, если данные

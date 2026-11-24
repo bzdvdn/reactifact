@@ -13,7 +13,7 @@
 | Возвращай `None` при отсутствии модели / неудачном парсинге, показывай честный fallback | Подставляй «уверенно звучащий» канонический ответ при сбое LLM-вызова | Детерминированная работа остаётся детерминированной; сбой генерации должен быть виден, а не замаскирован |
 | Держи `next_status`/скоринг чистыми функциями `(state) -> ...` | Подмешивай LLM-вызовы или побочные эффекты в `StatusMachine.next_status` | Чистые функции тестируются без runtime |
 | Используй `Runtime(isolate_errors=True, on_agent_error=...)` только когда осознанно решил, что частичный прогресс приемлем | Ставь `isolate_errors` по умолчанию, чтобы заглушить исключения | По умолчанию — fail-loud (§69); изоляция ошибок — явное продуктовое решение, а не страховка |
-| Записывай внешний side effect через `effects.act(...)`, а I/O делай в `Runtime(dispatcher=...)` | Отправляй письмо / дёргай webhook прямо в `produce()` | Намерение — закоммиченное состояние: replay, retry и merge не могут пере-отправить его (§42) |
+| Записывай внешний side effect через `outbox.act(...)`, а I/O делай в `Runtime(dispatcher=...)` | Отправляй письмо / дёргай webhook прямо в `produce()` | Намерение — закоммиченное состояние: replay, retry и merge не могут пере-отправить его (§42) |
 
 Каждая строка ссылается на полный паттерн ниже.
 
@@ -30,14 +30,14 @@ class PendingQuestion(BaseModel):
     resolution_schema: dict | None = None   # опциональная JSON Schema для формы
 ```
 
-Шаг создаёт его через `effects.ask(...)`, а ответ человека приходит
-через `effects.resume(...)` (эффект, помечающий `PendingQuestion` отвеченным,
+Шаг создаёт его через `human.ask(...)`, а ответ человека приходит
+через `human.resume(...)` (эффект, помечающий `PendingQuestion` отвеченным,
 §60):
 
 ```python
-effects.ask("Утвердить смету?", kind="approval")
+human.ask("Утвердить смету?", kind="approval")
 # ... web/UI видит ожидающий вопрос и показывает состояние «ожидание» ...
-effects.resume(question_artifact, "да")
+human.resume(question_artifact, "да")
 return None
 ```
 
@@ -50,10 +50,10 @@ class RefundApproval(BaseModel):
     approved: bool
     note: str = ""
 
-effects.ask("Утвердить возврат?", kind="approve", schema=RefundApproval)
+human.ask("Утвердить возврат?", kind="approve", schema=RefundApproval)
 # ...
-effects.resume(question_artifact, RefundApproval(approved=True, note="ok"))
-# или: effects.resume(question_artifact, {"approved": True})
+human.resume(question_artifact, RefundApproval(approved=True, note="ok"))
+# или: human.resume(question_artifact, {"approved": True})
 ```
 
 Читать обратно: `question.data.approved()` / `question.data.answer_text()`
@@ -68,7 +68,7 @@ effects.resume(question_artifact, RefundApproval(approved=True, note="ok"))
 нового сообщения), затем **реагировать на ответ** следующим событием.
 
 Для пересобираемого вопроса (`f"steer:{qid}:{round}"`, как в steering-вопросе
-`medic-lab`) передайте `id=` в `effects.ask(...)`, чтобы гард
+`medic-lab`) передайте `id=` в `human.ask(...)`, чтобы гард
 (`if context.get(id) is not None: return None`) не давал produce спрашивать
 снова, пока вопрос ещё не отвечен — тот же идиом идемпотентности, что и у
 `effects.create_once`.
@@ -91,7 +91,7 @@ class Notify(Step):
 
     async def run(self, order: Artifact[Order], effects: Effects) -> None:
         # стабильный ключ из содержания -> идемпотентные перезапуски и merge
-        effects.act(
+        outbox.act(
             "notify",
             key=f"notify:{order.data.id}:email",
             payload={"to": order.data.email, "order": order.data.id},
@@ -118,7 +118,7 @@ Runtime дренирует каждый закоммиченный, но ещё 
 - **Replay** реконструирует состояние, не запуская runtime, поэтому никогда не
   пере-отправляет; CLI `replay` печатает счётчики `dispatched / pending /
   failed`.
-- **Retry** пересобирает тот же id, поэтому `effects.act` возвращает `None` —
+- **Retry** пересобирает тот же id, поэтому `outbox.act` возвращает `None` —
   второго намерения нет. Два produce в одной генерации (snapshot isolation)
   оба не видят намерения, но outbox дедуплицирует на drain.
 - **Ветки**, независимо пришедшие к одному действию, делят id и merge'атся в

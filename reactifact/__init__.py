@@ -33,10 +33,23 @@ from .consume import Consume, consume
 from .context import Context, ProvenanceLink, View
 from .effects import Effects, Handle
 from .events import Event, EventType
+from .interaction import Human, Outbox
 from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
+from .pipeline import Pipeline
 from .policy import RetryPolicy
+from .provenance import (
+    CALCULATED_FROM,
+    CONTRADICTED_BY,
+    DERIVED_FROM,
+    EXTRACTED_FROM,
+    MATERIALIZED_FROM,
+    REFUTED_BY,
+    RESOLVED_FROM,
+    SUPPORTED_BY,
+    RelationName,
+)
 from .providers import (
     EmbeddingProvider,
     FakeEmbedder,
@@ -52,8 +65,11 @@ from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import RunResult, Runtime
 from .session import Session, SessionStore
 from .step import (
+    Drop,
+    Edit,
     Emit,
     Latest,
+    Relate,
     Scope,
     Step,
     StepCall,
@@ -96,26 +112,41 @@ __all__ = [
     "EmbeddingProvider",
     "Effects",
     "Emit",
+    "Relate",
+    "Edit",
+    "Drop",
     "Event",
     "EventType",
     "FakeEmbedder",
     "FakeLLM",
     "FunctionTool",
     "Handle",
+    "Human",
     "Latest",
     "Link",
     "Message",
     "MergeConflict",
+    "Outbox",
     "Patch",
+    "Pipeline",
     "PendingAction",
     "PendingQuestion",
     "Step",
     "StepCall",
     "SubflowResult",
     "Relation",
+    "RelationName",
     "ResourceKey",
     "ResourceScope",
     "RetryPolicy",
+    "SUPPORTED_BY",
+    "RESOLVED_FROM",
+    "REFUTED_BY",
+    "MATERIALIZED_FROM",
+    "EXTRACTED_FROM",
+    "DERIVED_FROM",
+    "CONTRADICTED_BY",
+    "CALCULATED_FROM",
     "RunOutcome",
     "RunResult",
     "RunStats",

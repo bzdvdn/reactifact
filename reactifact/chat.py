@@ -360,7 +360,7 @@ class ChatAssistant:
     `Runtime.__init__`'s own docstring for the trade-off).
 
     `dispatcher=` (and `on_dispatch_error=`) also passes straight through to
-    `Runtime`: give an agent that uses `effects.act(...)` a way to actually send
+    `Runtime`: give an agent that uses `outbox.act(...)` a way to actually send
     its outbound side effects from a chat turn, with the same once-per-stable-id
     delivery `Runtime(dispatcher=...)` provides. Without it, a chat turn that
     records a `PendingAction` leaves it `pending` (the runtime warns) for someone

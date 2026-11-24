@@ -91,7 +91,8 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | --- | --- |
 | `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `Agent` — deprecated-алиас |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
-| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. `.ask(seed)` сеет артефакт, запускает пайплайн и возвращает `RunResult` (sync; `aask` для async) |
+| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. |
+| `Pipeline(steps=..., groups=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
@@ -102,6 +103,8 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
 | `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными |
+| `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); `Effects.ask/resume/act` — deprecated-алиасы |
+| `Emit` / `Edit` / `Drop` / `Relate` | return-style инструкции изменений: create с явным id/links, update полей, delete, link — компилируются в тот же атомарный патч |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
@@ -110,7 +113,7 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
-| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `effects.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
+| `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `human.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
 | `Effects.ask(...)` / `Effects.resume(...)` | HITL-авторинг: `ask(question, kind=, notes=, schema=, id=)` создаёт вопрос; `resume(question, answer)` принимает legacy-строку или Pydantic-модель/mapping (пишется в `resolution_data`) |
 | `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
 | `Effects.update(artifact, *, expected_version=…, **fields)` | обновление полей существующего артефакта; `expected_version=` включает optimistic concurrency (`ArtifactConflict` вместо last-write-wins) |

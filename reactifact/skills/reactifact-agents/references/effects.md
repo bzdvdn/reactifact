@@ -38,13 +38,13 @@ call.effects.delete(scratch)                     # remove an artifact
 
 ```python
 # not-run: illustrative
-call.effects.ask("Approve this report?", kind="approve")
+call.human.ask("Approve this report?", kind="approve")
 # later, when the answer arrives:
-call.effects.resume(question, resolution="approved")
+call.human.resume(question, "approved")
 ```
 
-`ask` emits a `PendingQuestion` and pauses the flow; an agent consumes the
-resolved question and calls `resume`. `reactifact.recipes.ApprovalGate` wraps
+`human.ask` emits a `PendingQuestion` and pauses the flow; an agent consumes the
+resolved question and calls `human.resume`. `reactifact.recipes.ApprovalGate` wraps
 the common "sign off before finalizing" shape.
 
 ## Outbound side effects (outbox)
@@ -54,7 +54,7 @@ the intent; a `Runtime(dispatcher=...)` performs it once after the commit:
 
 ```python
 # not-run: illustrative
-call.effects.act("notify", key=f"notify:{order_id}:email", payload={"to": email})
+call.outbox.act("notify", key=f"notify:{order_id}:email", payload={"to": email})
 ```
 
 `act` writes a `PendingAction` under the stable id `action:{key}` (so retries and

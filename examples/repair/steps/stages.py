@@ -239,14 +239,14 @@ class ApprovalStage(Step):
         if not pending:
             # entering the stage: ask the question immediately, without waiting for a new message
             if msg is not None and msg.id != project.handled_msg:
-                call.effects.ask(_approval_text(project), kind="approval")
+                call.human.ask(_approval_text(project), kind="approval")
                 call.effects.create(
                     _reply(context, msg.id, _approval_text(project), kind="approval"),
                     id=f"reply:{msg.id}",
                 )
                 call.effects.update(project_art, handled_msg=msg.id)
                 return None
-            call.effects.ask(_approval_text(project), kind="approval")
+            call.human.ask(_approval_text(project), kind="approval")
             return None
 
         # the user answered the approval question
@@ -255,7 +255,7 @@ class ApprovalStage(Step):
         question_art = pending[0]
         answer = msg.data.text.strip()
         context.announce("Думаю…", kind="status")
-        call.effects.resume(question_art, answer)
+        call.human.resume(question_art, answer)
         if _APPROVE_RE.match(answer):
             call.effects.update(
                 project_art, approved=True, stage="assistant", handled_msg=msg.id

@@ -28,7 +28,7 @@ itself from 0.1.x, use the dedicated
 | a shared `TypedDict`/dict state, mutated by nodes | typed, versioned `Artifact`s in the `Context` |
 | reducer (`Annotated[list, add]`) | `effects.create/update/link(...)` compiled into one atomic `Patch` |
 | checkpointer / thread state | `Context` (git-like), `Session`/`SessionStore`, `context.branch()`/`merge()` |
-| `interrupt()` / `Command(resume=...)` | `effects.ask(...)` → `PendingQuestion`, answered with `effects.resume(...)` |
+| `interrupt()` / `Command(resume=...)` | `human.ask(...)` → `PendingQuestion`, answered with `human.resume(...)` |
 | subgraph / nested agent | `AgentAsTool` (isolated nested runtime) or `context.branch()` |
 | conditional router / supervisor | `Consume.condition` / `Consume.by_field`, or `recipes.Router` |
 | RAG chain (retriever → prompt → LLM) | `Source` + `fan_out_sources` + `materialize_doc` + produces (`quick.rag` for the simple case) |
@@ -133,7 +133,7 @@ made concrete.
 
 ```python
 # ask
-effects.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
+human.ask("Approve the refund?", kind="approve", id=f"approve:{qid}")
 # resume (from your HTTP handler / CLI)
 context.resume(question.id, "yes")
 ```
@@ -202,7 +202,7 @@ the agents.
 - [ ] Model calls go through `structured_llm`/`llm_reply` and return `None` on
       failure — the caller shows an honest fallback, never a fake answer.
 - [ ] A `Budget` is set for production runs.
-- [ ] Human steps are `effects.ask`/`resume`, not a special case.
+- [ ] Human steps are `human.ask`/`resume`, not a special case.
 - [ ] Sessions use `SessionStore`; resources are built per loop
       (`RuntimeResources.scope`).
 - [ ] Tracing is wired (`Tracer(store=...)`), and `redactor=` is set if data is

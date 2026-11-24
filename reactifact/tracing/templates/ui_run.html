@@ -51,6 +51,10 @@
     </header>
     <main>
       <div class="card"><div class="card-head"><h2>Run</h2></div><div class="card-body"><div class="stats" id="meta"></div></div></div>
+      <div class="card" id="tree-card" style="display:none">
+        <div class="card-head"><h2>Branches</h2><span class="hint">subflow/branch runs linked by <code>parent_run_id</code></span></div>
+        <div class="card-body"><div id="tree"></div></div>
+      </div>
       <div class="card" id="fields-card" style="display:none"><div class="card-head"><h2>Fields</h2><span class="hint">configured artifact columns (see <code>create_trace_router(columns=…)</code>)</span></div><div class="card-body"><div class="field-list" id="fields"></div></div></div>
       <div class="card"><div class="card-head"><h2>Review</h2><span class="hint">tag this run so you can find it later and fix the prompt/behaviour it exposes</span></div><div class="card-body"><div id="annot"></div></div></div>
       <div class="card">
@@ -118,6 +122,7 @@ async function load(){
     if(res.status===404){document.getElementById('cid').textContent='#'+RUN_ID+' — not found';return;}
     if(!res.ok)throw new Error('HTTP '+res.status);
     render(await res.json());
+    await loadTree();
   }catch(err){
     document.getElementById('cid').textContent='#'+RUN_ID;
     document.getElementById('meta').innerHTML='<div class="annot-empty">Could not load trace — '+escapeHtml(err&&err.message?err.message:String(err))+'</div>';
@@ -253,6 +258,8 @@ function render(t){
     tile('errors',String(errors))+
     tile('tokens',String(tokens))+
     tile('session',escapeHtml(t.session_id||'—'))+
+    (t.branch?tile('branch',escapeHtml(t.branch)):'')+
+    (t.parent_run_id?tile('parent','<a href="__BASE__/traces/'+encodeURIComponent(t.parent_run_id)+'">#'+escapeHtml(String(t.parent_run_id).slice(0,8))+'</a>'):'')+
     tile('created',fmtTime(t.started_at));
   renderFields(t.fields||{});
   renderAnnot(t.annotations||[]);
@@ -260,6 +267,35 @@ function render(t){
   renderWork();
   updateWorkNote();
   renderCausal(t.spans||[]);
+}
+async function loadTree(){
+  if(!TRACE)return;
+  const card=document.getElementById('tree-card');
+  let html='';
+  if(TRACE.parent_run_id){
+    html+='<div class="hint" style="margin-bottom:8px">parent: <a href="__BASE__/traces/'+encodeURIComponent(TRACE.parent_run_id)+'">#'+escapeHtml(String(TRACE.parent_run_id).slice(0,8))+'</a></div>';
+  }
+  try{
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/children?limit=50');
+    if(res.ok){
+      const items=(await res.json()).items||[];
+      if(items.length){
+        html+='<table><thead><tr><th>branch</th><th>run</th><th>outcome</th><th style="text-align:right">duration</th><th>started</th></tr></thead><tbody>';
+        html+=items.map(function(c){
+          return '<tr onclick="location.href=\'__BASE__/traces/'+encodeURIComponent(c.id)+'\'" style="cursor:pointer">'+
+            '<td>'+escapeHtml(c.branch||'—')+'</td>'+
+            '<td class="run-id">#'+escapeHtml(String(c.id).slice(0,8))+'</td>'+
+            '<td>'+escapeHtml(c.outcome||'—')+'</td>'+
+            '<td class="num" style="text-align:right">'+(Number(c.duration_ms)||0).toFixed(1)+' ms</td>'+
+            '<td>'+fmtTime(c.started_at)+'</td></tr>';
+        }).join('');
+        html+='</tbody></table>';
+      }
+    }
+  }catch(_){}
+  if(!html){card.style.display='none';return;}
+  card.style.display='block';
+  document.getElementById('tree').innerHTML=html;
 }
 function renderFields(fields){
   const card=document.getElementById('fields-card');

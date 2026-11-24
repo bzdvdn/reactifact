@@ -6,7 +6,7 @@ import re
 from typing import Annotated, Any
 
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Effects, Scope, Step, When
+from reactifact import Artifact, Consume, Context, Effects, Human, Scope, Step, When
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -93,7 +93,7 @@ class Steer(Step):
         steer_id = f"steer:{question_id}:{question.data.depth}"
         if context.get(steer_id) is not None:
             return None  # same round already steering (idempotent, §42)
-        effects.ask(
+        Human(effects).ask(
             "All hypotheses have been evaluated. Deepen one, "
             "or stop for the final report?\n\n"
             f"{_ranking_block(context, question_id)}\n\n"

@@ -1796,12 +1796,12 @@ Artifacts should have stable identities. In core, this is unconditional: `Source
 
 Idempotency covers the *state*, not the environment: a repeated step
 would still re-send an email. The shipped split is an **outbox**. A step
-records an intent artifact — `effects.act(kind=..., key=..., payload=...)`
+records an intent artifact — `outbox.act(kind=..., key=..., payload=...)`
 creates a `PendingAction` under the stable id `action:{key}` — and the runtime
 performs it *after the commit*, once per id, through `Runtime(dispatcher=...)`.
 The step never does the I/O itself. Replay reconstructs the record without
 running the runtime (so it never re-sends); a retried step re-derives the
-same id and `effects.act` returns `None`; two branches that independently reach
+same id and `outbox.act` returns `None`; two branches that independently reach
 the same action share the id and merge to one intent (§40) — the `dispatched`
 side wins, so a merge never re-sends an already-sent action — while divergent
 payloads under one id are an explicit `MergeConflict`. The dispatcher receives
@@ -3180,7 +3180,7 @@ Verification: 1120 tests (+6 skipped, env-dependent); mypy (strict), pyright and
 | Structured-data calculation | §29, §33, §67 | implemented (`CSVSource → Spreadsheet → Calculation`) |
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
 | Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
-| Outbound side effects (outbox) | §42, §55, §60 | implemented — `effects.act(kind=..., key=..., payload=...)` records a `PendingAction` intent under a stable id; `Runtime(dispatcher=...)` performs it after the commit, once per id, and records `dispatched`/`failed` as state; `runtime.flush_pending_actions()` drains after a `merge()`; replay reconstructs the record without re-sending; `replay` CLI reports dispatched/pending/failed |
+| Outbound side effects (outbox) | §42, §55, §60 | implemented — `outbox.act(kind=..., key=..., payload=...)` records a `PendingAction` intent under a stable id; `Runtime(dispatcher=...)` performs it after the commit, once per id, and records `dispatched`/`failed` as state; `runtime.flush_pending_actions()` drains after a `merge()`; replay reconstructs the record without re-sending; `replay` CLI reports dispatched/pending/failed |
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent steps); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented for updates (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`). `delete()` currently emits `ARTIFACT_DELETED` only; dependents are not auto-staled — use an explicit deletion-reactive step until delete→stale lands |

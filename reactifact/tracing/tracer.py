@@ -507,6 +507,9 @@ class RunTracer:
         #: Workspace/scope of this run (copied onto `RunTrace.scope`), so a
         #: self-hosted dashboard can filter traces per workspace.
         self.scope = ""
+        #: Parent run (subflow/branch) and branch label, copied onto `RunTrace`.
+        self.parent_run_id = ""
+        self.branch = ""
         #: App-provided run metadata (copied onto `RunTrace.metadata`).
         self.metadata: dict[str, str] = {}
         #: Wall-clock start of the current turn, used as the trace's `started_at`
@@ -683,6 +686,8 @@ class RunTracer:
         session_id: str,
         scope: str = "",
         metadata: dict[str, str] | None = None,
+        parent_run_id: str = "",
+        branch: str = "",
     ) -> None:
         if self.tracer is None:
             return
@@ -705,6 +710,8 @@ class RunTracer:
         self.spans = []
         self.truncated = False
         self.scope = scope
+        self.parent_run_id = parent_run_id
+        self.branch = branch
         self.metadata = dict(metadata or {})
         self._trace_data_cache = {}
         self.started_at = datetime.now(UTC)
@@ -871,6 +878,8 @@ class RunTracer:
             duration_ms=duration_ms,
             outcome=outcome,
             scope=self.scope,
+            parent_run_id=self.parent_run_id,
+            branch=self.branch,
             metadata=self.metadata,
             spans=self.spans,
             trace_truncated=self.truncated,

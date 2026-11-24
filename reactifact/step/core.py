@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 import types
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -26,13 +28,27 @@ from ..context import Context
 from ..effects import Effects
 from ..patches import Patch
 from ..policy import RetryPolicy
+from ..provenance import DERIVED_FROM, RelationName
 from .annotations import Latest, Scope, Wakes, When
 from .call import (
+    StepCall,
     current_step_call,
     current_step_context,
 )
 
 TOut = TypeVar("TOut", bound=BaseModel, default=BaseModel)
+
+
+def _normalize_provenance(
+    value: RelationName | str | bool | None,
+) -> RelationName | str | None:
+    if value is None or value is False:
+        return None
+    if value is True:
+        return DERIVED_FROM
+    if isinstance(value, (RelationName, str)):
+        return value
+    raise TypeError("Step.provenance must be a RelationName/str, bool or None")
 
 
 def _scope_value(scope: Scope | str | None, trigger: Artifact[Any] | None) -> Any:
@@ -77,6 +93,47 @@ class Emit:
     data: Any
     id: str | None = None
     links: tuple[tuple[str, Any], ...] = ()
+
+
+class Edit:
+    """A return-style update: change fields of an existing artifact.
+
+    `Edit(ticket, status="closed")` compiles to `effects.update(...)`, so a
+    chain of `effects.update` calls is not needed for the common case.
+    """
+
+    __slots__ = ("artifact", "fields", "expected_version")
+
+    def __init__(
+        self,
+        artifact: Artifact[Any] | str,
+        *,
+        expected_version: int | None = None,
+        **fields: Any,
+    ):
+        self.artifact = artifact
+        self.expected_version = expected_version
+        self.fields = fields
+
+
+class Drop:
+    """A return-style delete: remove an artifact."""
+
+    __slots__ = ("artifact",)
+
+    def __init__(self, artifact: Artifact[Any] | str):
+        self.artifact = artifact
+
+
+class Relate:
+    """A return-style link: `source —relation→ target`."""
+
+    __slots__ = ("source", "relation", "target")
+
+    def __init__(self, source: Any, relation: str, target: Any):
+        self.source = source
+        self.relation = relation
+        self.target = target
 
 
 class Step(Generic[TOut]):
@@ -132,14 +189,20 @@ class Step(Generic[TOut]):
     priority: int = 0
     #: Parallel executions of this step, copied to the implicit group.
     concurrency_limit: int | None = None
-    #: Opt-in provenance default: when truthy, every artifact this step creates
-    #: is linked to the inputs it actually resolved, `created —relation→ input`.
-    #: `True` uses ``derived_from``; a string overrides the relation name.
-    #: `False` (the default for now) preserves the explicit-`link` style.
-    auto_link: bool | str = False
+    #: Declarative provenance: when set, every artifact this step creates is
+    #: linked to the inputs it actually resolved, `created —relation→ input`.
+    #: Use `reactifact.provenance` constants (`DERIVED_FROM`, `SUPPORTED_BY`,
+    #: …); `True` means `derived_from`, `None`/`False` disables. Custom strings
+    #: are allowed. `auto_link` remains a deprecated alias.
+    provenance: RelationName | str | bool | None = None
     #: Retry policy for this step, copied to the implicit group created by
     #: `Runtime(steps=...)`. `StepGroup` remains for shared retry across steps.
     retry: RetryPolicy | None = None
+    #: Stable id for return-style creates: when true, a created model gets
+    #: `type:trigger:content-hash` instead of a random id, so a re-trigger
+    #: refreshes the same artifact instead of duplicating it. The decorator
+    #: turns this on when `produces` is inferred from the return annotation.
+    once: bool = False
 
     @staticmethod
     def _normalize_types(
@@ -218,11 +281,13 @@ class Step(Generic[TOut]):
         | Sequence[Consume | ArtifactType]
         | None = None,
         timeout: float | None = None,
+        provenance: RelationName | str | bool | None = None,
         auto_link: bool | str | None = None,
         priority: int | None = None,
         concurrency_limit: int | None = None,
         name: str | None = None,
         retry: RetryPolicy | None = None,
+        once: bool | None = None,
     ):
         resolved_produces = self._normalize_types(produces)
         if resolved_produces is None:
@@ -266,13 +331,14 @@ class Step(Generic[TOut]):
                 raise TypeError("Step.timeout must be a number or None")
             if self.timeout <= 0:
                 raise ValueError("Step.timeout must be > 0")
-        self.auto_link = (
-            auto_link
-            if auto_link is not None
-            else getattr(self.__class__, "auto_link", False)
-        )
-        if not isinstance(self.auto_link, (bool, str)):
-            raise TypeError("Step.auto_link must be a bool or a relation name")
+        if provenance is not None and auto_link is not None:
+            raise ValueError(
+                "Pass either provenance= or the deprecated auto_link=, not both"
+            )
+        raw_provenance = provenance if provenance is not None else auto_link
+        if raw_provenance is None:
+            raw_provenance = getattr(self.__class__, "provenance", None)
+        self.provenance = _normalize_provenance(raw_provenance)
         self.priority = (
             priority if priority is not None else getattr(self.__class__, "priority", 0)
         )
@@ -292,6 +358,9 @@ class Step(Generic[TOut]):
         )
         if self.retry is not None and not isinstance(self.retry, RetryPolicy):
             raise TypeError("Step.retry must be a RetryPolicy or None")
+        self.once = once if once is not None else getattr(self.__class__, "once", False)
+        if not isinstance(self.once, bool):
+            raise TypeError("Step.once must be a bool")
 
     def consume_specs(self) -> tuple[Consume, ...] | None:
         """The normalized (always-`Consume`) form of `consumes`."""
@@ -404,12 +473,36 @@ class Step(Generic[TOut]):
     def name(self, value: str) -> None:
         self._name = value
 
-    def _apply_result(self, result: Any, effects: Effects) -> None:
+    @property
+    def auto_link(self) -> bool | str:
+        """Deprecated alias for `provenance` (`False` when disabled)."""
+        return self.provenance if self.provenance is not None else False
+
+    @auto_link.setter
+    def auto_link(self, value: RelationName | str | bool | None) -> None:
+        self.provenance = _normalize_provenance(value)
+
+    def _return_id(self, data: Any, call: StepCall | None) -> str | None:
+        """A stable id for a return-style create, when `once` is on."""
+        if not self.once or call is None or call.trigger is None:
+            return None
+        payload = json.dumps(
+            data.model_dump(mode="json"), sort_keys=True, default=str
+        ).encode("utf-8")
+        digest = hashlib.sha256(payload).hexdigest()[:12]
+        return f"{type(data).__name__.lower()}:{call.trigger.id}:{digest}"
+
+    def _apply_result(
+        self,
+        result: Any,
+        effects: Effects,
+        call: StepCall | None = None,
+    ) -> None:
         """Writes a `@step`-decorated function's return-style result into
         the effect slot (§24).
 
-        `None` — nothing; a model or a list of models — creates; a Patch — a
-        legacy escape (its operations are appended to the effects).
+        `None` — nothing; a model, a list or a tuple of models — creates;
+        a Patch — a legacy escape (its operations are appended to the effects).
         """
         if result is None:
             return
@@ -418,15 +511,35 @@ class Step(Generic[TOut]):
             for relation, target in result.links:
                 handle.link(relation, target)
             return
+        if isinstance(result, Edit):
+            target = (
+                result.artifact
+                if isinstance(result.artifact, Artifact)
+                else effects.context.get(result.artifact)
+            )
+            if target is None:
+                raise ValueError(f"Edit target {result.artifact!r} does not exist")
+            effects.update(
+                target,
+                expected_version=result.expected_version,
+                **result.fields,
+            )
+            return
+        if isinstance(result, Drop):
+            effects.delete(result.artifact)
+            return
+        if isinstance(result, Relate):
+            effects.link(result.source, result.relation, result.target)
+            return
         if isinstance(result, Patch):
             for op in result.operations:
                 effects.add(op)
             return
-        if isinstance(result, list):
+        if isinstance(result, (list, tuple)):
             for item in result:
-                self._apply_result(item, effects)
+                self._apply_result(item, effects, call)
         else:
-            effects.create(result)
+            effects.create(result, id=self._return_id(result, call))
 
 
 def _as_consume(item: Any) -> Consume:

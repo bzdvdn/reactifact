@@ -117,7 +117,7 @@ async def run(self, doc: Document, turn: Turn, effects: Effects) -> Answer:
 Because handles are objects, not ids, one statement can reference the artifact
 created by another — and because the runtime owns the compilation, you never
 assemble a `Patch` by hand. Human-in-the-loop is just another effect
-(`effects.ask(...)`). See [Why reactifact](why-reactifact.md) for the full argument,
+(`human.ask(...)`). See [Why reactifact](why-reactifact.md) for the full argument,
 and [The produce contract](effects.md) for details.
 
 ## Why artifacts instead of messages?

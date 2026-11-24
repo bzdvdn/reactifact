@@ -87,7 +87,7 @@ async def summarize(call):
 
 - **External side effects inside a produce.** An email, a file write, or a
   third-party API call made *directly* in a produce can be repeated by a retry.
-  Do not do that — record an intent instead: `effects.act(kind=..., key=...,
+  Do not do that — record an intent instead: `outbox.act(kind=..., key=...,
   payload=...)` writes a `PendingAction` and `Runtime(dispatcher=...)` performs
   it once after the intent commits (see the outbox pattern in
   [Patterns](patterns.md#outbox-external-side-effects)). The framework still

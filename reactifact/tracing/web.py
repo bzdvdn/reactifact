@@ -180,6 +180,8 @@ def create_trace_router(
         session_id: str | None = Query(default=None),
         scope: str | None = Query(default=None),
         outcome: str | None = Query(default=None),
+        branch: str | None = Query(default=None),
+        parent_run_id: str | None = Query(default=None),
         tag: list[str] | None = Query(default=None),  # noqa: B008
         tag_mode: str = Query(default="any", pattern="^(any|all)$"),
         q: str | None = Query(default=None),
@@ -193,6 +195,8 @@ def create_trace_router(
                 session_id=session_id,
                 scope=scope,
                 outcome=outcome,
+                branch=branch,
+                parent_run_id=parent_run_id,
                 tags=tag,
                 tag_mode=tag_mode,
                 q=q,
@@ -213,6 +217,8 @@ def create_trace_router(
         session_id: str | None = Query(default=None),
         scope: str | None = Query(default=None),
         outcome: str | None = Query(default=None),
+        branch: str | None = Query(default=None),
+        parent_run_id: str | None = Query(default=None),
         tag: list[str] | None = Query(default=None),  # noqa: B008
         tag_mode: str = Query(default="any", pattern="^(any|all)$"),
         q: str | None = Query(default=None),
@@ -226,6 +232,8 @@ def create_trace_router(
                 session_id=session_id,
                 scope=scope,
                 outcome=outcome,
+                branch=branch,
+                parent_run_id=parent_run_id,
                 tags=tag,
                 tag_mode=tag_mode,
                 q=q,
@@ -288,6 +296,15 @@ def create_trace_router(
         if columns:
             data["fields"] = await _read(store.field_values(trace_id, columns))
         return data
+
+    @router.get("/api/traces/{trace_id}/children")
+    async def list_trace_children(
+        trace_id: str,
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ) -> dict[str, Any]:
+        items = await _read(store.children(trace_id, limit=limit, offset=offset))
+        return {"items": items, "total": len(items)}
 
     @router.get("/api/traces/{trace_id}/tags")
     async def get_trace_tags(trace_id: str) -> dict[str, Any]:

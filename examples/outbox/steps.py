@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Effects, PendingAction, step
+from reactifact import Artifact, Effects, Outbox, PendingAction, step
 
 from .models import Order, Receipt
 
 
 @step(produces=(Receipt, PendingAction), consumes=Order)
 async def process_order(order: Artifact[Order], effects: Effects) -> None:
-    effects.act(
+    Outbox(effects).act(
         "notify",
         key=f"notify:{order.data.id}",
         payload={

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..artifacts import Artifact
 from ..context import Context
@@ -44,6 +44,10 @@ def set_step_call(call: StepCall | None) -> Token[Any]:
 
 def reset_step_call(token: Token[Any]) -> None:
     _ACTIVE_CALL.reset(token)
+
+
+if TYPE_CHECKING:
+    from ..interaction import Human, Outbox
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +89,7 @@ class StepCall:
     #: This is the step's watermark (what it has already consumed).
     cursor: dict[type, dict[str, int]] = field(default_factory=dict)
     #: Artifacts actually resolved for this call's typed parameters (not the
-    #: whole `inputs` working set). `auto_link` uses this so provenance points
+    #: whole `inputs` working set). `provenance=` uses this so provenance points
     #: at what the step read, not at everything the agent could read.
     used: list[Artifact[Any]] = field(default_factory=list)
 
@@ -102,6 +106,20 @@ class StepCall:
                 "not before it."
             )
         return slot
+
+    @property
+    def human(self) -> Human:
+        """HITL collaborator bound to this call's effect slot."""
+        from ..interaction import Human
+
+        return Human(self.effects)
+
+    @property
+    def outbox(self) -> Outbox:
+        """Outbound side-effect collaborator bound to this call's effect slot."""
+        from ..interaction import Outbox
+
+        return Outbox(self.effects)
 
     @property
     def request(self) -> Mapping[str, Any]:

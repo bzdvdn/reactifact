@@ -35,16 +35,7 @@ from .artifacts import Artifact
 from .context import Context
 
 #: Relations followed by default when walking an answer's provenance chain.
-DEFAULT_RELATIONS: tuple[str, ...] = (
-    "supported_by",
-    "derived_from",
-    "extracted_from",
-    "materialized_from",
-    "resolved_from",
-    "calculated_from",
-    "refuted_by",
-    "contradicted_by",
-)
+from .provenance import DEFAULT_RELATIONS as DEFAULT_RELATIONS
 
 
 def _transient_fields(model: type[BaseModel]) -> set[str]:

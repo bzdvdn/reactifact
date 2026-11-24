@@ -87,5 +87,5 @@ tag-routes hypotheses via `hypothesis_id`; it could be rewritten on top of
 surviving findings (§39).
 
 See also `examples/outbox`: the same branch/merge, but the thing that merges is
-an outbound side effect that must fire exactly once (`effects.act(...)` a
+an outbound side effect that must fire exactly once (`outbox.act(...)` a
 `PendingAction`, then `Runtime(dispatcher=...)`, §42).

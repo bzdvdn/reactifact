@@ -29,7 +29,7 @@ class _Notifier(Step[_Reply]):
         msg = call.trigger
         if msg is None:
             return
-        call.effects.act(
+        call.outbox.act(
             "notify", key=f"notify:{msg.data.text}", payload={"text": msg.data.text}
         )
         call.effects.create(_Reply(text=f"noted: {msg.data.text}"), id="reply:1")

@@ -47,7 +47,7 @@ to fill them in — the recipe stamps the real values on every create.
 Kept as an inert placeholder (not `produces=`) because
 none of the three real produces above is uniquely "the one that creates
 `PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
-own HITL machinery calls `effects.ask(...)` at runtime. `also_creates` is the
+own HITL machinery calls `Human(effects).ask(...)` at runtime. `also_creates` is the
 better fit when a *single* produce's own body is the one writing the extra
 type (`effects.create(Bar(...))` inside an `artifact_type = Foo`
 produce) — declare it there directly instead of adding a placeholder here.
@@ -63,6 +63,7 @@ from pydantic import BaseModel
 from ..artifacts import Artifact
 from ..context import Context
 from ..effects import Effects
+from ..interaction import Human
 from ..interrupt import PendingQuestion
 from ..step import Step
 
@@ -210,7 +211,7 @@ class _ApprovalStep(Step[Any]):
             if q.data.kind == "approve" and q.data.notes.get("thread") == thread_id
         ]
         if not thread_questions:
-            effects.ask(
+            Human(effects).ask(
                 owner.approval_question(context, report),
                 kind="approve",
                 notes={"thread": thread_id},

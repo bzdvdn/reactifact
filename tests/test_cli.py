@@ -53,6 +53,7 @@ def test_build_parser_registers_every_subcommand():
         "new",
         "doctor",
         "demo",
+        "run",
     }
 
 
@@ -211,3 +212,24 @@ def test_validate_command_checks_a_module(capsys):
         == 0
     )
     assert "reactifact validate: ok" in capsys.readouterr().out
+
+
+def test_run_command_uses_pipeline_seed_type(capsys):
+    assert main(["run", "tests.cli_pipeline_fixture:pipeline", "hello"]) == 0
+    out = capsys.readouterr().out
+    assert '"text": "HELLO"' in out
+
+
+def test_run_command_accepts_json_seed(capsys):
+    assert (
+        main(
+            [
+                "run",
+                "tests.cli_pipeline_fixture:pipeline",
+                "--json",
+                '{"text": "yo"}',
+            ]
+        )
+        == 0
+    )
+    assert '"text": "YO"' in capsys.readouterr().out

@@ -30,7 +30,7 @@ for what's already shipped, release by release.
   has three stability tiers:
   - **Core** (frozen hardest): `Context`/`Artifact` (frozen handle + version
     store)/`Effects`/`Patch`/`Step`/`Agent`/`Source`/`Provenance`/HITL
-    (`PendingQuestion`, `effects.ask`/`resume`), plus `RuntimeResources`'s own
+    (`PendingQuestion`, `human.ask`/`resume`), plus `RuntimeResources`'s own
     extension points — `context_builder` (`reactifact.context_builder`) and
     `verification_threshold` (`reactifact.verify`) count as core because
     they're config surface _on_ a core object, not a separable add-on.

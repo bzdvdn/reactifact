@@ -190,6 +190,10 @@ class RunTrace(BaseModel):
     #: Stored and filterable, so a self-hosted dashboard can show one
     #: workspace's traces without leaking another's.
     scope: str = ""
+    #: Run that spawned this one (subflow/branch). Empty for a root run.
+    parent_run_id: str = ""
+    #: Logical branch/lane label (e.g. "k8s", "depth", "merge").
+    branch: str = ""
     #: Free-form, app-provided run metadata (e.g. user, agent version). Kept
     #: small and string-valued so it serializes identically in SQLite/Postgres.
     metadata: dict[str, str] = Field(default_factory=dict)

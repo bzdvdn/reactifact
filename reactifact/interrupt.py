@@ -14,7 +14,7 @@ def schema_json(schema: Mapping[str, Any] | type | None) -> dict[str, Any] | Non
     Accepts a Pydantic model class (its `model_json_schema()`) or an already
     built mapping. The schema is stored on the question for a UI to render;
     it is not enforced by core at resume time (a typed `BaseModel` answer is
-    validated by its own class before it reaches `effects.resume`).
+    validated by its own class before it reaches `human.resume`).
     """
     if schema is None:
         return None
@@ -47,7 +47,7 @@ class PendingQuestion(BaseModel):
     """Artifact awaiting a human response (HITL, constitution §60).
 
     Created by an agent (or directly) to block a step until user input.
-    A human answer is recorded via `effects.resume(question, answer)` (§60),
+    A human answer is recorded via `human.resume(question, answer)` (§60),
     after which agents subscribed to `PendingQuestion(answered=True)` continue.
 
     `resolution` stays the legacy textual answer. When the question declares a
@@ -110,14 +110,14 @@ class PendingAction(BaseModel):
 
     A produce must not perform external I/O itself — send a notification, call
     a webhook, deploy. It records the *intent* here via
-    `effects.act(kind=..., payload=..., key=...)`; the runtime dispatches
+    `outbox.act(kind=..., payload=..., key=...)`; the runtime dispatches
     it (through `Runtime(dispatcher=...)`) once the intent is **committed**.
     That split is what makes the environment effect safe under replay/retry:
 
     - replay reconstructs the record without running produces, so it never
       re-sends;
     - a retried produce re-derives the same stable id (`action:{key}`), so
-      `effects.act` returns `None` and no second intent is created;
+      `outbox.act` returns `None` and no second intent is created;
     - two branches that independently reach the same action share one id and
       merge to a single intent (equal data is a no-op, §40).
 

@@ -17,7 +17,8 @@ GitHub, Notion, or [mermaid.live](https://mermaid.live).
 ## CLI
 
 ```bash
-python -m reactifact graph examples.knowledge.step_groups        # all agents of a module
+python -m reactifact run app:pipeline "why is checkout down?"
+reactifact graph examples.knowledge.step_groups        # all agents of a module
 python -m reactifact graph examples.knowledge.step_groups:Planner # one agent
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3

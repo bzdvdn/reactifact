@@ -217,7 +217,7 @@ shipping such a run to a sink with `redactor=`.
 ## `outbox` — external effects as committed state
 
 **What it shows:** the outbox contract in seven deterministic cases — a step
-records `effects.act(...)` instead of doing I/O; `Runtime(dispatcher=...)` sends
+records `outbox.act(...)` instead of doing I/O; `Runtime(dispatcher=...)` sends
 after the commit; re-derivation, same-generation duplicates, merged branches,
 replay, failure→retry and an app-owned retry wrapper all keep one delivery.
 No LLM, no network; the fake dispatcher makes the count visible.

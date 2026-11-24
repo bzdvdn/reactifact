@@ -8,6 +8,7 @@ from ...artifacts import Artifact
 from ...context import Context
 from ...effects import Effects
 from ...events import Event
+from ...interaction import Human
 from ...interrupt import PendingQuestion
 from ...structured import structured_llm
 from ..base import Tool
@@ -201,7 +202,7 @@ class ToolUseHITL(_ToolLoopBase):
                     )
                 )
                 return None
-            effects.ask(
+            Human(effects).ask(
                 decision.text,
                 kind="clarify",
                 notes={"query_id": qid, "agent": self.name},
@@ -266,7 +267,7 @@ class ToolUseHITL(_ToolLoopBase):
                     )
                 )
                 return None
-            effects.ask(
+            Human(effects).ask(
                 f"Approve running destructive tool '{decision.tool}' with args "
                 f"{json.dumps(decision.args, ensure_ascii=False)}? (yes/no)",
                 kind="approve",

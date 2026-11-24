@@ -15,6 +15,7 @@ from ..effects import Effects, current_effects
 from ..events import Event, EventType
 from ..patches import Create, Link, Patch
 from ..policy import RetryPolicy
+from ..provenance import DERIVED_FROM
 from ..tools import reset_current_produce, set_current_produce
 from ..triggers import Trigger
 from .call import (
@@ -50,7 +51,7 @@ def end_produce_runs(token: Token[Any]) -> None:
     _produce_runs.reset(token)
 
 
-def _auto_link(
+def _apply_provenance(
     step: Step[Any],
     call: StepCall,
     slot: Effects,
@@ -58,15 +59,17 @@ def _auto_link(
 ) -> None:
     """Links artifacts this step created to the inputs it actually resolved.
 
-    Opt-in via ``@step(auto_link=True)`` (or ``auto_link="relation"``). The
-    relation defaults to ``derived_from`` and points from the new artifact to
-    each input, matching the direction of ``calculated_from``/``supported_by``.
-    An explicit link between the same pair is left alone, so hand-written
-    provenance always wins.
+    Declared via ``@step(provenance=...)``; the relation points from the new
+    artifact to each input, matching the direction of
+    ``calculated_from``/``supported_by``. An explicit link between the same
+    pair is left alone, so hand-written provenance always wins. `auto_link`
+    remains a deprecated alias.
     """
-    if not call.used:
+    if not call.used or not step.provenance:
         return
-    relation = step.auto_link if isinstance(step.auto_link, str) else "derived_from"
+    relation = (
+        str(step.provenance) if isinstance(step.provenance, str) else DERIVED_FROM
+    )
     operations = slot.operations[start:]
     created = [
         op for op in operations if isinstance(op, Create) and (op.id or op.artifact_id)
@@ -370,9 +373,9 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
                         result = await invoke_step(p, call)
                 else:
                     result = await invoke_step(p, call)
-                p._apply_result(result, call.effects)
-                if p.auto_link and slot is not None:
-                    _auto_link(p, call, slot, before)
+                p._apply_result(result, call.effects, call)
+                if p.provenance and slot is not None:
+                    _apply_provenance(p, call, slot, before)
                 if trigger_cursor:
                     context._step_cursors[cursor_key] = trigger_cursor
             finally:

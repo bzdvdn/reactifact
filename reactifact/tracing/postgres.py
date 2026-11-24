@@ -70,6 +70,8 @@ class PostgresStore:
                         id TEXT PRIMARY KEY,
                         session_id TEXT NOT NULL DEFAULT '',
                         scope TEXT NOT NULL DEFAULT '',
+                        parent_run_id TEXT NOT NULL DEFAULT '',
+                        branch TEXT NOT NULL DEFAULT '',
                         metadata JSONB NOT NULL DEFAULT '{}',
                         started_at TIMESTAMPTZ NOT NULL,
                         duration_ms REAL NOT NULL,
@@ -78,6 +80,16 @@ class PostgresStore:
                         completion_tokens INTEGER NOT NULL DEFAULT 0,
                         truncated INTEGER NOT NULL DEFAULT 0
                     )
+                    """
+                )
+                await cur.execute(
+                    """
+                    ALTER TABLE runs ADD COLUMN IF NOT EXISTS parent_run_id TEXT NOT NULL DEFAULT ''
+                    """
+                )
+                await cur.execute(
+                    """
+                    ALTER TABLE runs ADD COLUMN IF NOT EXISTS branch TEXT NOT NULL DEFAULT ''
                     """
                 )
                 await cur.execute(
@@ -190,9 +202,10 @@ class PostgresStore:
         try:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO runs (id, session_id, scope, metadata, started_at, "
-                    "duration_ms, outcome, prompt_tokens, completion_tokens, truncated) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO runs (id, session_id, scope, parent_run_id, branch, "
+                    "metadata, started_at, duration_ms, outcome, prompt_tokens, "
+                    "completion_tokens, truncated) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     run_insert_values(
                         trace,
                         timestamp=lambda moment: moment,
@@ -299,6 +312,8 @@ class PostgresStore:
         session_id: str | None,
         scope: str | None,
         outcome: str | None,
+        branch: str | None,
+        parent_run_id: str | None,
         tags: list[str] | None,
         tag_mode: str,
         q: str | None,
@@ -314,6 +329,12 @@ class PostgresStore:
         if outcome is not None:
             where.append("outcome = %s")
             args.append(outcome)
+        if branch is not None:
+            where.append("branch = %s")
+            args.append(branch)
+        if parent_run_id is not None:
+            where.append("parent_run_id = %s")
+            args.append(parent_run_id)
         if tags:
             placeholders = ",".join("%s" for _ in tags)
             if tag_mode == "all":
@@ -347,6 +368,8 @@ class PostgresStore:
         session_id: str | None = None,
         scope: str | None = None,
         outcome: str | None = None,
+        branch: str | None = None,
+        parent_run_id: str | None = None,
         tags: list[str] | None = None,
         tag_mode: str = "any",
         q: str | None = None,
@@ -357,7 +380,9 @@ class PostgresStore:
         offset: int = 0,
     ) -> dict[str, Any]:
         await self._ensure_schema()
-        where_sql, args = self._where(session_id, scope, outcome, tags, tag_mode, q)
+        where_sql, args = self._where(
+            session_id, scope, outcome, branch, parent_run_id, tags, tag_mode, q
+        )
         sort_col = SORT_COLUMNS.get(sort, "started_at")
         direction = "ASC" if order.lower() == "asc" else "DESC"
 
@@ -380,8 +405,9 @@ class PostgresStore:
                     "completion_tokens": totals[3],
                 }
                 await cur.execute(
-                    f"SELECT id, session_id, scope, metadata, started_at, "
-                    f"duration_ms, outcome, prompt_tokens, completion_tokens, "
+                    f"SELECT id, session_id, scope, parent_run_id, branch, "
+                    f"metadata, started_at, duration_ms, outcome, prompt_tokens, "
+                    f"completion_tokens, "
                     f"(SELECT COUNT(*) FROM spans WHERE run_id = runs.id) AS spans_count "
                     f"FROM runs{where_sql} ORDER BY {sort_col} {direction} "
                     f"LIMIT %s OFFSET %s",
@@ -473,24 +499,39 @@ class PostgresStore:
                 "id": r[0],
                 "session_id": r[1],
                 "scope": r[2],
-                "metadata": r[3] or {},
-                "started_at": r[4],
-                "duration_ms": round(r[5], 1),
-                "outcome": r[6],
-                "prompt_tokens": r[7],
-                "completion_tokens": r[8],
-                "spans": r[9],
+                "parent_run_id": r[3],
+                "branch": r[4],
+                "metadata": r[5] or {},
+                "started_at": r[6],
+                "duration_ms": round(r[7], 1),
+                "outcome": r[8],
+                "prompt_tokens": r[9],
+                "completion_tokens": r[10],
+                "spans": r[11],
                 "tags": tags_by_run.get(r[0], []),
                 "fields": fields_by_run.get(r[0], {}),
                 "fields_truncated": bool(
                     columns
                     and self.column_scan_limit is not None
-                    and r[9] > self.column_scan_limit
+                    and r[11] > self.column_scan_limit
                 ),
             }
             for r in rows
         ]
         return {"items": items, "total": total, "stats": stats}
+
+    async def children(
+        self, run_id: str, *, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Child runs of `run_id` (subflow/branches), oldest first."""
+        result = await self.query(
+            parent_run_id=run_id,
+            sort="started_at",
+            order="asc",
+            limit=limit,
+            offset=offset,
+        )
+        return list(result["items"])
 
     async def get(
         self,
@@ -504,8 +545,8 @@ class PostgresStore:
         try:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT id, session_id, scope, metadata, started_at, "
-                    "duration_ms, outcome, truncated "
+                    "SELECT id, session_id, scope, parent_run_id, branch, metadata, "
+                    "started_at, duration_ms, outcome, truncated "
                     "FROM runs WHERE id = %s",
                     (trace_id,),
                 )
@@ -545,15 +586,17 @@ class PostgresStore:
             id=row[0],
             session_id=row[1],
             scope=row[2],
-            metadata=row[3] or {},
-            started_at=as_datetime(row[4]) or datetime.now(UTC),
-            duration_ms=row[5],
-            outcome=row[6],
+            parent_run_id=row[3],
+            branch=row[4],
+            metadata=row[5] or {},
+            started_at=as_datetime(row[6]) or datetime.now(UTC),
+            duration_ms=row[7],
+            outcome=row[8],
             spans=spans,
             span_total=span_total,
             span_offset=span_offset,
             has_more_spans=span_offset + len(spans) < span_total,
-            trace_truncated=bool(row[7]),
+            trace_truncated=bool(row[9]),
             annotations=annotations,
         )
 

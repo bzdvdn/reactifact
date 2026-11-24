@@ -12,7 +12,7 @@ page maps the multi-turn pieces (and the LangGraph equivalents) to reactifact.
 | `thread_id` + checkpointer | `session_id` + `SessionStore` (`FileKVBackend` / `SQLiteKVBackend` / `PostgreSQLKVBackend`) |
 | `MessagesState` + `add_messages` reducer | `Conversation` / `ConversationMessage` (`recipes.conversation`); state is typed artifacts, versioned per change |
 | `graph.invoke(input, config)` | `ChatAssistant.stream()/invoke()`, or `run_message()` for a custom loop |
-| `interrupt()` / `Command(resume=…)` | `effects.ask(...)` → `PendingQuestion` → `effects.resume(...)` |
+| `interrupt()` / `Command(resume=…)` | `human.ask(...)` → `PendingQuestion` → `human.resume(...)` |
 | `get_state_history` / resume a checkpoint | `context.history()` / `context.checkout(v)` / `context.branch()` / `reactifact replay` |
 | bound the transcript / summarize | `ChatMemory` → `WindowPruner` / `RollingDigestSummarizer`; `Context.compact` for history |
 | `store` (long-term, cross-thread memory) | `MemoryStore` recipe (namespaced facts, TTL, `forget_source`); `SessionStore` remains conversation history — see [Recipes](recipes.md#memorystore-namespaced-long-term-memory-27) |
@@ -88,7 +88,7 @@ from the user artifact the chat layer creates (it carries `session_id`).
 `RuntimeResources` instance is still attached for a custom `session_state`.
 
 **Outbound side effects.** If an agent in the chat records an intent with
-`effects.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
+`outbox.act(...)`, pass `dispatcher=` (and optionally `on_dispatch_error=`) —
 they go straight to the `Runtime` the assistant builds per turn, so committed
 actions are delivered once, after each generation's commit, exactly as in a
 non-chat run:
@@ -201,7 +201,7 @@ effect, and the answer is just another patch:
 
 ```python
 # inside a produce
-effects.ask("Approve this estimate?", kind="approval")
+human.ask("Approve this estimate?", kind="approval")
 # later, from your API, when the human answers:
 ctx.resume(question_id, "approved")   # emits an update → agents react
 ```

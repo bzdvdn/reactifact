@@ -13,6 +13,7 @@ from reactifact import (
     Consume,
     Context,
     MergeConflict,
+    Outbox,
     PendingAction,
     Runtime,
     RuntimeResources,
@@ -29,7 +30,7 @@ class Notifier(Agent):
     consumes = [Consume(Doc)]
 
     async def run(self, event, context):
-        current_effects().act(
+        Outbox(current_effects()).act(
             "notify", key="order:1", payload={"to": "ops@example.com"}
         )
         return None
@@ -39,7 +40,7 @@ class TwinNotifier(Agent):
     consumes = [Consume(Doc)]
 
     async def run(self, event, context):
-        current_effects().act(
+        Outbox(current_effects()).act(
             "notify", key="order:1", payload={"to": "ops@example.com"}
         )
         return None
@@ -55,14 +56,14 @@ def _recording_dispatcher(calls: list[str]):
 def test_act_records_a_pending_action_and_is_idempotent():
     ctx = Context(resources=RuntimeResources())
     effects = Effects(ctx)
-    handle = effects.act("notify", key="order:1", payload={"to": "x"})
+    handle = Outbox(effects).act("notify", key="order:1", payload={"to": "x"})
     assert handle is not None
     assert handle.id == "action:order:1"
 
     ctx.create(
         PendingAction(kind="notify", idempotency_key="order:1"), id="action:order:1"
     )
-    assert effects.act("notify", key="order:1") is None
+    assert Outbox(effects).act("notify", key="order:1") is None
 
 
 def test_dispatcher_runs_once_and_marks_dispatched():

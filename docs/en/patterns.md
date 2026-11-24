@@ -13,7 +13,7 @@ each is concretely instantiated in `examples/`.
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
 | Keep `next_status`/scoring functions pure `(state) -> ...` | Mix LLM calls or side effects into a `StatusMachine.next_status` | Pure functions are unit-testable without a runtime |
 | Use `Runtime(isolate_errors=True, on_agent_error=...)` only when you've decided partial progress is acceptable | Reach for `isolate_errors` as a default to silence exceptions | Default is fail-loud (§69) — isolating errors is an explicit product decision, not a safety net |
-| Record an outbound side effect with `effects.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `run()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
+| Record an outbound side effect with `outbox.act(...)`, do the I/O in `Runtime(dispatcher=...)` | Send an email / call a webhook directly inside `run()` | The intent is committed state — replay, retries and merges cannot re-send it (§42) |
 
 Each row links to the fuller pattern below.
 
@@ -30,14 +30,14 @@ class PendingQuestion(BaseModel):
     resolution_schema: dict | None = None   # optional JSON Schema for a form
 ```
 
-A step creates one with `effects.ask(...)`, and the human's answer
-comes back through `effects.resume(...)` (an effect that marks the
+A step creates one with `human.ask(...)`, and the human's answer
+comes back through `human.resume(...)` (an effect that marks the
 `PendingQuestion` answered, §60):
 
 ```python
-effects.ask("Approve the estimate?", kind="approval")
+human.ask("Approve the estimate?", kind="approval")
 # ... the web/UI sees a pending question and shows a waiting state ...
-effects.resume(question_artifact, "да")
+human.resume(question_artifact, "да")
 return None
 ```
 
@@ -50,10 +50,10 @@ class RefundApproval(BaseModel):
     approved: bool
     note: str = ""
 
-effects.ask("Approve the refund?", kind="approve", schema=RefundApproval)
+human.ask("Approve the refund?", kind="approve", schema=RefundApproval)
 # ...
-effects.resume(question_artifact, RefundApproval(approved=True, note="ok"))
-# or: effects.resume(question_artifact, {"approved": True})
+human.resume(question_artifact, RefundApproval(approved=True, note="ok"))
+# or: human.resume(question_artifact, {"approved": True})
 ```
 
 Read it back with `question.data.approved()` / `question.data.answer_text()`
@@ -68,7 +68,7 @@ creates the approval `PendingQuestion` the moment it becomes eligible, without
 waiting for a user message), then **react to the answer** on the next event.
 
 For a re-derivable question (`f"steer:{qid}:{round}"`, `medic-lab`'s steering
-ask), pass `id=` to `effects.ask(...)` so a guard
+ask), pass `id=` to `human.ask(...)` so a guard
 (`if context.get(id) is not None: return None`) can stop the produce from
 asking again while the question is still unanswered — the same idempotency
 idiom as `effects.create_once`.
@@ -91,7 +91,7 @@ class Notify(Step):
 
     async def run(self, order: Artifact[Order], effects: Effects) -> None:
         # stable, content-derived key -> idempotent re-runs and merges
-        effects.act(
+        outbox.act(
             "notify",
             key=f"notify:{order.data.id}:email",
             payload={"to": order.data.email, "order": order.data.id},
@@ -117,7 +117,7 @@ Why it holds up:
 
 - **Replay** reconstructs state without running the runtime, so it never
   re-sends; the `replay` CLI reports `dispatched / pending / failed` counts.
-- **Retries** re-derive the same id, so `effects.act` returns `None` — no second
+- **Retries** re-derive the same id, so `outbox.act` returns `None` — no second
   intent. Two produces in one generation (snapshot isolation) both see nothing,
   but the outbox dedupes at drain.
 - **Branches** that independently reach the same action share the id and merge

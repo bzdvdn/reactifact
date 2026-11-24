@@ -30,6 +30,7 @@ from urllib.parse import quote
 from pydantic import BaseModel, Field
 
 from ..checkpoints import KVBackend
+from ..interaction import Outbox
 from .text import keyword_score
 
 if TYPE_CHECKING:
@@ -357,7 +358,7 @@ class MemoryStore:
             "source_version": artifact.version,
             "data_type": artifact.data_type,
         }
-        return effects.act(MEMORY_ACTION, key=f"memory:{key}", payload=payload)
+        return Outbox(effects).act(MEMORY_ACTION, key=f"memory:{key}", payload=payload)
 
     @classmethod
     async def dispatch(cls, context: Context, action: Artifact[PendingAction]) -> None:

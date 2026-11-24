@@ -118,7 +118,7 @@ async def run(self, doc: Document, turn: Turn, effects: Effects) -> Answer:
 Поскольку handle — это объекты, а не id, одно выражение может ссылаться на
 артефакт, созданный другим. А так как компиляцией владеет runtime, ручной
 сборки `Patch` не бывает. Участие человека — просто ещё один эффект
-(`effects.ask(...)`). Подробнее — в [Почему reactifact](why-reactifact.md) и в
+(`human.ask(...)`). Подробнее — в [Почему reactifact](why-reactifact.md) и в
 [контракте шага](effects.md).
 
 ## Почему артефакты вместо сообщений?

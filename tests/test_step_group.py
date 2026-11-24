@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from pydantic import BaseModel
 from reactifact import (
@@ -11,6 +13,7 @@ from reactifact import (
     Consume,
     Context,
     Emit,
+    Pipeline,
     RetryPolicy,
     Runtime,
     StepGroup,
@@ -146,8 +149,8 @@ def test_step_retry_is_copied_to_the_implicit_group() -> None:
     assert isinstance(runtime.groups[0].retry, RetryPolicy)
 
 
-def test_runtime_ask_returns_a_friendly_result() -> None:
-    result = Runtime(Context(), steps=[answer]).ask(Question(text="hi"))
+def test_pipeline_run_returns_a_friendly_result() -> None:
+    result = Pipeline(steps=[answer]).run(Question(text="hi"))
     assert result.latest(Answer).data.text == "hi"
     assert result.runs >= 1
     assert len(result.hash) == 64
@@ -155,3 +158,18 @@ def test_runtime_ask_returns_a_friendly_result() -> None:
 
 def test_chat_agent_accepts_raw_steps() -> None:
     assert chat_agent(steps=[answer]) is not None
+
+
+def test_pipeline_arun_and_astream() -> None:
+    pipeline = Pipeline(steps=[answer])
+    result = asyncio.run(pipeline.arun(Question(text="async")))
+    assert result.latest(Answer).data.text == "async"
+
+    async def consume() -> int:
+        count = 0
+        async for _event in pipeline.astream(Question(text="stream")):
+            count += 1
+        return count
+
+    assert asyncio.run(consume()) >= 1
+    assert pipeline.last_result is not None

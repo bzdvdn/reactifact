@@ -10,7 +10,7 @@ from .call import (
     set_step_call,
     set_step_context,
 )
-from .core import Emit, Step
+from .core import Drop, Edit, Emit, Relate, Step
 from .core import _scope_matches as _scope_matches
 from .core import _scope_value as _scope_value
 from .decorator import step
@@ -18,8 +18,11 @@ from .group import StepGroup, create_step_group
 from .resolve import invoke_step as invoke_step
 
 __all__ = [
+    "Drop",
+    "Edit",
     "Emit",
     "Latest",
+    "Relate",
     "Scope",
     "Step",
     "StepCall",

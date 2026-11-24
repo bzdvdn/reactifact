@@ -380,7 +380,7 @@ class Context:
 
     def link(self, source_id: str, relation: str, target_id: str) -> Relation:
         """Establishes a link `source_id —relation→ target_id` (idempotently, §42)."""
-        return self._relations.link(source_id, relation, target_id)
+        return self._relations.link(source_id, str(relation), target_id)
 
     def unlink(
         self,

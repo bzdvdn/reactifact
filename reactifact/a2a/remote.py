@@ -17,7 +17,7 @@ agent.
     )
 
 When the remote task comes back `input-required`, the produce raises a
-`PendingQuestion` (`effects.ask`); a later `context.resume(...)` continues the
+`PendingQuestion` (`human.ask`); a later `context.resume(...)` continues the
 same remote task (the task id is carried in the question's `notes`) and lands
 the final artifact.
 """
@@ -31,6 +31,7 @@ from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
+from ..interaction import Human
 from ..interrupt import PendingQuestion
 from ..step import Step, StepGroup, create_step_group
 from .client import A2AClient
@@ -129,7 +130,7 @@ class A2ARemoteProduce(Step[Any]):
                 else "The remote agent needs more input."
             )
             input_id = data.notes.get("a2a_input_id", "") if resuming else trigger.id
-            effects.ask(
+            Human(effects).ask(
                 question,
                 kind="clarify",
                 notes={
