@@ -75,7 +75,7 @@ class Pipeline(StepGroup):
 
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, agents=[Pipeline()]).arun())
+asyncio.run(Runtime(ctx, groups=[Pipeline()]).arun())
 
 answer = ctx.latest(Answer)
 assert answer is not None

@@ -166,7 +166,7 @@ uv run python ./examples/repair/chat.py
 сообщения (`ConversationMessage`), которую пишут обе стороны. `Conversation`
 записывает ходы (`create_turn`) и рендерит поток (`transcript`/`state`);
 `ChatMemory` с `keep=` ограничивает его (`WindowPruner`) — всё через
-`ChatAssistant`. Без LLM и API-ключа (отвечает детерминированный echo-агент).
+`Chat`. Без LLM и API-ключа (отвечает детерминированный echo-агент).
 Гетерогенная форма (разные типы на вопрос/ответ) — в примерах
 `repair`/`devops`/`knowledge`, через `Transcript`/`MessageSpec` — см.
 [Multi-turn и чат](chat.md).

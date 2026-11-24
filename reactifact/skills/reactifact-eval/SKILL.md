@@ -52,7 +52,7 @@ def target(inputs):
     # A target may return a Context, a ScenarioResult, an outputs dict, or RunResult.
     ctx = Context(resources=RuntimeResources())
     ctx.create(Question(text=inputs["text"]))
-    asyncio.run(Runtime(ctx, agents=[agent]).arun())
+    asyncio.run(Runtime(ctx, groups=[agent]).arun())
     return ctx
 
 

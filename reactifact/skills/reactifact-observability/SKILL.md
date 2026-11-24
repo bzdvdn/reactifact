@@ -19,7 +19,7 @@ from reactifact.tracing import TraceStore
 from reactifact import Runtime
 
 store = TraceStore("traces.db", max_runs=200)
-runtime = Runtime(ctx, agents=agents, tracer=store)
+runtime = Runtime(ctx, groups=agents, tracer=store)
 await runtime.arun()
 ```
 
@@ -70,7 +70,7 @@ agent = AnswerAgent()
 metrics = Metrics()
 ctx = Context(resources=RuntimeResources(metrics=metrics))
 ctx.create(Question(text="hi"))
-asyncio.run(Runtime(ctx, agents=[agent], tracer=MetricsTracer(metrics)).arun())
+asyncio.run(Runtime(ctx, groups=[agent], tracer=MetricsTracer(metrics)).arun())
 
 assert 'reactifact_runs_total{outcome="completed"} 1' in metrics.render()
 ```
@@ -95,7 +95,7 @@ from reactifact.checkpoints import FileKVBackend
 
 store = SessionStore(FileKVBackend("./sessions"))
 session = await store.open("user-42", resources=resources)
-runtime = Runtime(session.context, agents=agents, session=session)
+runtime = Runtime(session.context, groups=agents, session=session)
 await runtime.arun()          # saves per commit (session_save_policy="per_commit")
 # later, in a new process:
 session = await store.open("user-42", resources=resources)

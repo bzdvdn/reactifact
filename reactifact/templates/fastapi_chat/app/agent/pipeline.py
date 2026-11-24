@@ -1,12 +1,12 @@
-"""ChatAssistant assembly: hooks, agents and settings-driven wiring."""
+"""Chat assembly: typed facade hooks and settings-driven wiring."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from reactifact import StepGroup, Budget, SessionStore
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Budget, Chat, SessionStore, StepGroup
+from reactifact.chat import ChatMemory
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import Tracer, TraceStore
 
@@ -26,10 +26,6 @@ _TRANSCRIPT = Transcript(
 class AnswerAgent(StepGroup):
     name = "answer"
     steps = [AnswerStep()]
-
-
-def create_message(ctx: Any, text: str, session_id: str) -> str:
-    return str(ctx.create(UserQuery(text=text, session_id=session_id)).id)
 
 
 def session_state(ctx: Any) -> dict[str, Any]:
@@ -53,15 +49,15 @@ def build_assistant(
     settings: Settings,
     store: SessionStore,
     trace_store: TraceStore,
-    agents: Sequence[StepGroup],
+    groups: Sequence[StepGroup],
     budget: Budget,
     memory: ChatMemory | None,
-) -> ChatAssistant:
-    return ChatAssistant(
+) -> Chat:
+    return Chat(
         store=store,
-        agents=agents,
-        user_message=UserQuery,
-        create_message=create_message,
+        groups=groups,
+        seed_type=UserQuery,
+        answer_type=Answer,
         reply=make_reply(settings.fallback_reply),
         session_state=session_state,
         resources=lambda session_id, request: build_resources(settings, request),
@@ -77,7 +73,6 @@ def build_assistant(
 __all__ = [
     "AnswerAgent",
     "build_assistant",
-    "create_message",
     "make_reply",
     "session_state",
 ]

@@ -65,7 +65,7 @@ class AnswerAgent(StepGroup):
 
 ctx = Context()
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, agents=[AnswerAgent()]).arun())
+asyncio.run(Runtime(ctx, groups=[AnswerAgent()]).arun())
 
 assert ctx.latest(Answer).data.text == "HELLO"
 ```
@@ -73,6 +73,29 @@ assert ctx.latest(Answer).data.text == "HELLO"
 `arun()` runs to a fixpoint: it re-schedules steps whose consumed artifacts
 exist until nothing new is produced. `run()` and `run_once()` are the sync /
 single-pass variants.
+
+## Choose the entry point
+
+| Need | Use | Why |
+| --- | --- | --- |
+| one run of a pipeline (script, job, service) | `Pipeline(steps=[...])` | owns resources/defaults, `run/arun`, `seed_type`/`answer_type`, optional `traces=` |
+| a persisted multi-turn chat | `Chat(steps=[...], seed_type=..., answer_type=...)` | sessions, `invoke/stream/history`, `router()`, `test_client()` |
+| a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| groups=...)` | full control; `RunResult.trace()`/`traces` stay available |
+
+For example, the same `Answerer` as a one-shot pipeline:
+
+```python
+# not-run: illustrative — Answerer/Question/Answer from the example above
+from reactifact import Pipeline
+
+pipeline = Pipeline(steps=[Answerer()], seed_type=Question)
+result = pipeline.run(Question(text="hello"))
+assert result.context.latest(Answer).data.text == "HELLO"
+```
+
+`Chat` is the FastAPI-shaped facade for conversations; `Pipeline` is the
+FastAPI-shaped facade for one request. Reach for `Runtime` only when you need
+the session, a scheduler, or a long-lived context.
 
 ## The working loop
 
@@ -88,7 +111,7 @@ do not skip ahead, because a wrong artifact model is expensive to unwind.
    Python, the LLM only for reasoning. Exit when no step mutates and every
    answer links its evidence. → `reactifact-agents`, `reactifact-llm`
 4. **Wire and run.** Group steps into an `StepGroup`, build
-   `Runtime(ctx, agents=[...])`, seed inputs, `arun()`. Exit when the run
+   `Runtime(ctx, groups=[...])`, seed inputs, `arun()`. Exit when the run
    reaches a fixpoint and produces the target artifact.
 5. **Test, then evaluate.** Assert on the produced graph with `ScenarioLab`
    (deterministic, no network), then measure quality over a dataset.

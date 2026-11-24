@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from reactifact import StepGroup, Budget, SessionStore
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Budget, Chat, SessionStore, StepGroup
+from reactifact.chat import ChatMemory
 from reactifact.checkpoints import (
     FileKVBackend,
     InMemoryKVBackend,
@@ -67,12 +67,12 @@ def build_assistant_from_settings(
     settings: Settings,
     store: SessionStore,
     trace_store: TraceStore,
-) -> ChatAssistant:
+) -> Chat:
     return build_assistant(
         settings=settings,
         store=store,
         trace_store=trace_store,
-        agents=build_agents(settings),
+        groups=build_agents(settings),
         budget=build_budget(settings),
         memory=build_chat_memory(settings),
     )

@@ -87,7 +87,7 @@ ctx = Context(
 )
 ctx.create(Question(text="gpu costs"))
 agent = create_step_group("scout", steps=[Scout()])
-asyncio.run(Runtime(ctx, agents=[agent]).arun())
+asyncio.run(Runtime(ctx, groups=[agent]).arun())
 
 assert ctx.list_artifacts(Note)              # ranked hits became artifacts
 assert ctx.list_artifacts(SourceRef)         # the refs were created too

@@ -122,7 +122,7 @@ made concrete.
 ## 4. Checkpointing, threads, time-travel
 
 - Persist conversations with `SessionStore(FileKVBackend(...))` +
-  `ChatAssistant` (`examples/knowledge`).
+  `Chat` (`examples/knowledge`).
 - Fork an exploration with `context.branch()`, run different agents on each
   fork, and `merge()` them back — with a real `MergeConflict` when both forks
   touch the same artifact (`examples/forklab`).

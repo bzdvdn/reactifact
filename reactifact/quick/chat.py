@@ -1,4 +1,4 @@
-"""The `quick.chat_agent` entry point: a configured `ChatAssistant`."""
+"""The `quick.chat_agent` entry point: a configured `Chat` facade."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ..budget import Budget
-from ..chat import ChatAssistant
+from ..chat import Chat
 from ..checkpoints import FileKVBackend, InMemoryKVBackend
 from ..context import Context
 from ..providers import LLMProvider, from_env
@@ -59,8 +59,8 @@ def chat_agent(
     tracer: Any = None,
     dispatcher: Dispatcher | None = None,
     on_dispatch_error: DispatchErrorHandler | None = None,
-) -> ChatAssistant:
-    """A configured `ChatAssistant` — sessions, turns, history, out of the box.
+) -> Chat:
+    """A configured `Chat` — sessions, turns, history, out of the box.
 
     `groups=` is the StepGroup sequence (the 0.x `agents=` keyword is a
     deprecated alias; pass one, not both).
@@ -85,11 +85,11 @@ def chat_agent(
         raise TypeError("chat_agent requires steps= or groups=")
     if resources is None:
         resources = RuntimeResources(llm=llm if llm is not None else from_env())
-    return ChatAssistant(
+    return Chat(
         store=_as_store(store),
         steps=list(steps) if steps is not None else None,
         groups=list(resolved) if resolved is not None else None,
-        user_message=user_message,
+        seed_type=user_message,
         reply=reply if reply is not None else _default_reply(user_message),
         resources=resources,
         budget=budget,

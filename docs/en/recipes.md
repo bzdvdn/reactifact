@@ -374,7 +374,7 @@ call.effects.create(Answer(text=result.text))
   the text as the answer.
 - `on_event` receives `round_start`, `tool_call`, `tool_result`, `final`; the
   same progress is published through `Context.announce(kind="agent")`, so a
-  `ChatAssistant(status_kinds=("status", "agent"))` streams it without a
+  `Chat(status_kinds=("status", "agent"))` streams it without a
   custom loop.
 - `ToolLoopResult.stop_reason` is `completed`, `max_rounds`, `budget`,
   `provider_error` or `fallback`; `error` carries the provider failure detail.

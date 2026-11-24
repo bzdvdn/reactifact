@@ -196,7 +196,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-The one exception is `ChatAssistant` with a **callable** `resources=` (e.g.
+The one exception is `Chat` with a **callable** `resources=` (e.g.
 `resources=lambda: build_resources()`): a fresh `RuntimeResources` — and
 typically a fresh provider + HTTP client — is built on every turn, so
 `stream()` closes it after that turn itself; nothing else will ever

@@ -22,7 +22,7 @@ and the graph grows.
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
 | `messages: list[...]` as memory | artifacts (`Question`/`Answer`/…) across turns, or `ChatMemory` |
 | conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates |
-| `app.invoke(...)` | `Runtime(ctx, agents=[...]).arun()` |
+| `app.invoke(...)` | `Runtime(ctx, groups=[...]).arun()` |
 | LangSmith traces | `reactifact.tracing.TraceStore` (`tracing=[...]`) |
 | `langchain.evaluation` / LangSmith evals | `reactifact.eval` (`docs/en/eval.md`) |
 
@@ -85,7 +85,7 @@ class AnswerAgent(StepGroup):
 agent = AnswerAgent()
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, agents=[agent]).arun())
+asyncio.run(Runtime(ctx, groups=[agent]).arun())
 assert ctx.latest(Answer) is not None
 ```
 

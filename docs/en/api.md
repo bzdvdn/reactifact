@@ -54,7 +54,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `agent(system, schema)` | one structured LLM call → one typed artifact |
 | `rag(sources)` | retrieval → materialize → answer, with `supported_by` provenance |
 | `tools_agent(system, tools, human=False)` | LLM + tools (`human=True` → HITL asks) |
-| `chat_agent(agents)` | a configured `ChatAssistant` (in-memory store by default) |
+| `chat_agent(groups)` | a configured `Chat` (in-memory store by default) |
 | `Question` / `Doc` / `Answer` | the generic artifact models the facade uses |
 
 ## Context & state
@@ -88,7 +88,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers. `Agent` is the deprecated alias |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=`. `create_agent` is the deprecated alias |
 | `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords. |
-| `Chat(steps=..., seed_type=..., answer_type=...)` | typed facade over `ChatAssistant`: `invoke/stream/history`, `seed_factory`, `per_turn`, `store=` |
+| `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history`, `seed_factory`, `per_turn`, `router()`, `test_client()`, `store=` |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()` |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
@@ -143,8 +143,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `ChatAssistant` | sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
-| `ChatMemory` | optional bounded memory for `ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
+| `ChatAssistant` | the low-level engine behind `Chat`: sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
+| `ChatMemory` | optional bounded memory for `Chat`/`ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |

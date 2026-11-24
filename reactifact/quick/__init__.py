@@ -24,8 +24,8 @@ Four entry points cover the recurring first tasks:
     t = tools_agent(system="You are ops.", tools=[check_status])
     text = await t.ask("is checkout-api healthy?")
 
-    # 4) a session-persisted chat assistant
-    c = chat_agent(agents=[...], llm=provider)
+    # 4) a session-persisted chat facade
+    c = chat_agent(groups=[...], llm=provider)
 
 Every entry point takes `llm=<LLMProvider>` (default `from_env()`).
 

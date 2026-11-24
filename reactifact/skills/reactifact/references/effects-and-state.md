@@ -65,7 +65,7 @@ everything earlier ones produced:
 ```python
 # not-run: illustrative
 session = Session(store=...)         # in-memory by default
-runtime = Runtime(ctx, agents=agents, session=session)
+runtime = Runtime(ctx, groups=agents, session=session)
 ctx.create(Question(text="first turn"))
 asyncio.run(runtime.arun())
 ctx.create(Question(text="second turn"))   # same ctx/session

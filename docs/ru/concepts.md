@@ -235,7 +235,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 
 | Что нужно | Что использовать |
 | --- | --- |
-| Канонический чат-UI | `ChatEvent` из `ChatAssistant.stream()` / `create_chat_router` |
+| Канонический чат-UI | `ChatEvent` из `Chat.stream()` / `create_chat_router` |
 | Живой UI / Studio / token deltas | `RunEvent` из `Runtime.astream_events(stream_mode=...)` |
 | Простой CLI/статус | `ProgressEvent` из `Runtime.astream()` (legacy status stream) |
 

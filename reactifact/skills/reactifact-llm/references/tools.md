@@ -27,13 +27,31 @@ async def send_email(to: str, body: str) -> ToolOutput:
 - The JSON schema is derived from the function signature (`str`, `int`, model
   fields, defaults); the docstring becomes the description the model sees.
 - A tool returns a `str`, a `dict`, a `ToolOutput`, or anything (stringified).
-  Failure is `ToolOutput(error=...)` or an exception — not a crash of the run.
+  A pydantic model return fills `ToolOutput.data` (and the model still sees its
+  JSON); failure is `ToolOutput(error=...)` or an exception — not a crash.
 - `destructive=True` routes the call through the human-approval gate
   (`PendingQuestion`), so a side effect waits for a human.
 
-`FunctionTool(fn, ...)` is the same without the decorator; subclass `Tool` and
-implement `async execute(args) -> ToolOutput` when you need full control, and set
-`schema` yourself.
+### Injected collaborators and policies
+
+A parameter annotated with a plain class is a collaborator from
+`RuntimeResources`, not a model argument — it is omitted from the schema:
+
+```python
+# not-run: illustrative
+@tool(retry=RetryPolicy(max_attempts=3), timeout=10)
+async def get_pod(name: str, k8s: K8sClient) -> Pod:
+    return Pod(name=await k8s.get(name))
+
+
+resources.register(K8sClient, K8sClient())
+```
+
+`retry=` retries an exception and a `ToolError(retryable=True)`; `timeout=`
+bounds one attempt. `FunctionTool(fn, ...)` is the same without the decorator;
+subclass `Tool` and implement `async execute(args) -> ToolOutput` when you need
+full control, and set `schema` yourself. Outside a step, pass the resources
+explicitly: `execute_tool(get_pod, {...}, resources=resources)`.
 
 ## ToolOutput
 

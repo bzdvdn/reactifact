@@ -58,7 +58,7 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `agent(system, schema)` | один структурированный вызов LLM → один типизированный артефакт |
 | `rag(sources)` | поиск → материализация → ответ, с провенансом `supported_by` |
 | `tools_agent(system, tools, human=False)` | LLM + тулы (`human=True` → HITL-вопросы) |
-| `chat_agent(agents)` | настроенный `ChatAssistant` (по умолчанию store в памяти) |
+| `chat_agent(groups)` | настроенный `Chat` (по умолчанию store в памяти) |
 | `Question` / `Doc` / `Answer` | обобщённые модели артефактов, которые использует фасад |
 
 ## Context и состояние
@@ -92,7 +92,7 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `Agent` — deprecated-алиас |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. |
-| `Chat(steps=..., seed_type=..., answer_type=...)` | typed facade over `ChatAssistant`: `invoke/stream/history`, `seed_factory`, `per_turn`, `store=` |
+| `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history`, `seed_factory`, `per_turn`, `router()`, `test_client()`, `store=` |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()` |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
@@ -147,8 +147,8 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `ChatAssistant` | сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
-| `ChatMemory` | необязательная ограниченная память для `ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
+| `ChatAssistant` | низкоуровневый движок под `Chat`: сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
+| `ChatMemory` | необязательная ограниченная память для `Chat`/`ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |

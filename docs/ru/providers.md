@@ -199,7 +199,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-Единственное исключение — `ChatAssistant` с **callable** `resources=`
+Единственное исключение — `Chat` с **callable** `resources=`
 (например, `resources=lambda: build_resources()`): свежий `RuntimeResources`
 — и, как правило, свежий провайдер + HTTP-клиент — собирается на каждый ход,
 поэтому `stream()` сам закрывает его после хода: больше никто на этот

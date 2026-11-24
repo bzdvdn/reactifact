@@ -49,6 +49,18 @@ assert result.errors.count() == 0           # no agent raised
 Use `run(...)`/`turn(...)` (async) in async tests, `run_sync(...)`/
 `turn_sync(...)` in plain pytest tests.
 
+For a `Chat` facade, `test_client()` is the short path — an isolated in-memory
+session store plus traces:
+
+```python
+# not-run: illustrative — `chat` is your configured Chat
+with chat.test_client() as client:
+    reply = await client.invoke("hi", session_id="u1")
+    assert reply["reply"]
+    assert await client.history("u1")          # this client's sessions only
+    assert client.traces is not None           # TraceStore(":memory:")
+```
+
 ## Assertion groups on `ScenarioResult`
 
 | Group | Answers |

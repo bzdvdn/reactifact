@@ -40,7 +40,7 @@ app/
     prompts.py         # prompts live outside steps
     steps/answer.py     # one structured answer per turn
     resources.py       # per-turn RuntimeResources + principal/authz
-    pipeline.py        # ChatAssistant hooks + AnswerAgent
+    pipeline.py        # Chat facade hooks + AnswerAgent
 tests/
   conftest.py          # TestClient, settings, auth headers
   test_chat_sse.py     # SSE + history + 401
@@ -103,7 +103,7 @@ by reusing its client id. The template's tests cover exactly that case.
 ## Resource ownership
 
 `build_resources` creates per-turn `RuntimeResources` (a fresh LLM per turn).
-`ChatAssistant` closes `llm`/`embedder` after the turn. Everything else
+`Chat` closes `llm`/`embedder` after the turn. Everything else
 (DB/Qdrant/custom clients) is app-owned and belongs in `lifespan`, not in
 `build_resources`.
 

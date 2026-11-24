@@ -234,7 +234,7 @@ when the task actually needs it.
 
 | Need | Use |
 | --- | --- |
-| Canonical chat UI | `ChatEvent` from `ChatAssistant.stream()` / `create_chat_router` |
+| Canonical chat UI | `ChatEvent` from `Chat.stream()` / `create_chat_router` |
 | Live UI / Studio / token deltas | `RunEvent` from `Runtime.astream_events(stream_mode=...)` |
 | Simple CLI/status | `ProgressEvent` from `Runtime.astream()` (legacy status stream) |
 

@@ -12,7 +12,7 @@
 | --- | --- |
 | `thread_id` + checkpointer | `session_id` + `SessionStore` (`FileKVBackend` / `SQLiteKVBackend` / `PostgreSQLKVBackend`) |
 | `MessagesState` + reducer `add_messages` | `Conversation` / `ConversationMessage` (`recipes.conversation`); состояние — типизированные артефакты, версионируемые на каждое изменение |
-| `graph.invoke(input, config)` | `ChatAssistant.stream()/invoke()` или `run_message()` для своего цикла |
+| `graph.invoke(input, config)` | `Chat.stream()/invoke()` или `run_message()` для своего цикла |
 | `interrupt()` / `Command(resume=…)` | `human.ask(...)` → `PendingQuestion` → `human.resume(...)` |
 | `get_state_history` / resume с checkpoint | `context.history()` / `context.checkout(v)` / `context.branch()` / `reactifact replay` |
 | ограничить транскрипт / суммаризовать | `ChatMemory` → `WindowPruner` / `RollingDigestSummarizer`; `Context.compact` для истории |
@@ -24,22 +24,21 @@
 
 ## Канонический чат
 
-`ChatAssistant` владеет сессиями, циклом хода и историей; `create_chat_router`
+`Chat` владеет сессиями, циклом хода и историей; `create_chat_router`
 монтирует его как SSE на вашем FastAPI-приложении. Настройка через хуки:
 
 ```python
-from reactifact import Consume, RuntimeResources, create_step_group
-from reactifact.chat import ChatAssistant
+from reactifact import Chat, Consume, RuntimeResources, create_step_group
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.recipes.conversation import (
     ConversationMessage, conversation_state, create_turn,
 )
 from reactifact.session import SessionStore
 
-assistant = ChatAssistant(
+assistant = Chat(
     store=SessionStore(SQLiteKVBackend("./sessions.db")),
-    agents=[create_step_group("answer", steps=[ANSWER])],
-    user_message=ConversationMessage,
+    groups=[create_step_group("answer", steps=[ANSWER])],
+    seed_type=ConversationMessage,
     create_message=create_turn,          # записать сообщение пользователя как ConversationMessage
     reply=my_reply,                      # (ctx, msg_id) -> {"reply": ...}
     session_state=conversation_state,    # как history() восстанавливает поток
@@ -50,7 +49,7 @@ await assistant.invoke("what's the refund policy?", session_id="user-1")
 await assistant.history(session_id="user-1")   # поток на данный момент
 ```
 
-Готовый `quick.chat_agent(agents, store=…)` делает то же с дефолтами.
+Готовый `quick.chat_agent(groups, store=…)` делает то же с дефолтами.
 
 **Per-request метаданные в `create_message`.** Хук может принимать
 `(ctx, text)`, `(ctx, text, session_id)` или `(ctx, text, session_id,
@@ -99,7 +98,7 @@ resources=lambda session_id, request: build_resources(request.get("user"))
 async def dispatch(context, action):
     await send_notification(action.data.payload)
 
-ChatAssistant(..., dispatcher=dispatch)
+Chat(..., dispatcher=dispatch)
 ```
 
 Без него записанный `PendingAction` остаётся `pending` (runtime предупреждает),
@@ -144,18 +143,19 @@ view = Transcript([
     MessageSpec(FinalResponse, "assistant", render=render_answer),  # contract JSON → проза
 ])
 history = view.messages(ctx, window=20)      # list[providers.Message]
-# ChatAssistant(..., session_state=view.state)
+# Chat(..., session_state=view.state)
 ```
 
 ## Ограниченная память
 
-Разговор растёт вечно, если его не ограничить. `ChatMemory` на `ChatAssistant`
+Разговор растёт вечно, если его не ограничить. `ChatMemory` на `Chat`
 подключает [рецепты памяти](recipes.md) за вас:
 
 ```python
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Chat
+from reactifact.chat import ChatMemory
 
-assistant = ChatAssistant(
+assistant = Chat(
     ...,
     memory=ChatMemory(
         message_type=ConversationMessage,

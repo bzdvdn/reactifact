@@ -116,6 +116,37 @@ Mark a tool `destructive=True` to route it through the human-approval gate.
 `HITLLMAgent` lets the model ask clarifying questions (`PendingQuestion`)
 instead of guessing. Details and the full tool contract: `references/tools.md`.
 
+Tools are typed and dependency-injected, like steps:
+
+```python
+# not-run: illustrative — Pod, K8sClient are your app types
+from pydantic import BaseModel
+from reactifact import RetryPolicy, RuntimeResources, tool
+
+
+class Pod(BaseModel):
+    name: str
+
+
+@tool(retry=RetryPolicy(max_attempts=3, backoff=0.5), timeout=10)
+async def get_pod(name: str, k8s: K8sClient) -> Pod:
+    """Read one pod; `k8s` comes from RuntimeResources."""
+    return Pod(name=await k8s.get(name))
+
+
+resources = RuntimeResources(llm=from_env())
+resources.register(K8sClient, K8sClient())
+```
+
+- a parameter annotated with a plain class (`K8sClient`) is **injected**, not
+  part of the model's JSON schema; register it with
+  `resources.register(Type, instance)` or `Pipeline.override(...)`;
+- a pydantic return value lands in `ToolOutput.data` (the model still sees JSON);
+- `retry=` retries exceptions and `ToolError(retryable=True)`, `timeout=`
+  bounds one attempt;
+- outside a step, call
+  `execute_tool(get_pod, {"name": "web"}, resources=resources)`.
+
 ## Prompts
 
 `PromptTemplate("{question.text} — {k}")` renders declared `{var}` placeholders
@@ -132,7 +163,7 @@ Wrap a turn in a `Budget`:
 # not-run: illustrative
 from reactifact import Budget, Runtime
 
-runtime = Runtime(ctx, agents=agents, budget=Budget(max_tokens=20_000, max_cost=0.50))
+runtime = Runtime(ctx, groups=agents, budget=Budget(max_tokens=20_000, max_cost=0.50))
 ```
 
 Budgets bound **runs, iterations, seconds, tool calls, tokens and cost**; a

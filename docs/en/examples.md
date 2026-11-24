@@ -164,7 +164,7 @@ uv run python ./examples/repair/chat.py
 **What it shows:** the simple multi-turn shape in ~80 lines — one message model
 (`ConversationMessage`) both sides write. `Conversation` records turns
 (`create_turn`) and renders the thread (`transcript`/`state`); `ChatMemory` with
-`keep=` bounds it (`WindowPruner`) — wired through `ChatAssistant`. No LLM, no
+`keep=` bounds it (`WindowPruner`) — wired through `Chat`. No LLM, no
 API key (a deterministic echo agent answers). The heterogeneous shape (separate
 question/answer types) is in the `repair`/`devops`/`knowledge` examples, via
 `Transcript`/`MessageSpec` — see [Multi-turn & chat](chat.md).

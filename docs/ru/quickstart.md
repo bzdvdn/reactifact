@@ -150,7 +150,7 @@ t = tools_agent("You are ops. Use the tools.", [check_status])  # @tool (§1)
 text = await t.ask("is checkout-api healthy?")
 
 # 4) чат-ассистент с сессиями (provider через llm=; store=None → в памяти)
-assistant = chat_agent(agents=[...], llm=provider)
+assistant = chat_agent(groups=[...], llm=provider)
 ```
 
 Каждая точка входа принимает `llm=` — любой `LLMProvider` (`from_env()`,
@@ -377,18 +377,17 @@ keyword-триггерный skill. Запуск: `.venv/bin/python examples/kno
 
 ## 3. Чат-бот с сохраняемыми сессиями
 
-`ChatAssistant` сам владеет сессиями, циклом хода и восстановлением
-истории — ваше приложение поставляет только доменные хуки. Тот же объект
-работает и как обычный async-вызов (`invoke`), и, будучи смонтированным через
+`Chat` сам владеет сессиями, циклом хода и восстановлением истории — ваше
+приложение поставляет только доменные модели и reply. Тот же объект работает
+и как обычный async-вызов (`invoke`), и, будучи смонтированным через
 `reactifact.web.create_chat_router`, как SSE-эндпоинт на вашем FastAPI:
 
 ```python
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Consume, RuntimeResources, SessionStore, create_step_group
+from reactifact import Chat, RuntimeResources, SessionStore, create_step_group
 from reactifact.checkpoints import FileKVBackend
-from reactifact.chat import ChatAssistant
 from reactifact import step
 
 
@@ -418,10 +417,10 @@ def reply(ctx, msg_id):
 
 async def main():
     store = SessionStore(FileKVBackend("./sessions"))
-    assistant = ChatAssistant(
+    assistant = Chat(
         store=store,
         groups=[echo_group],
-        user_message=UserMsg,
+        seed_type=UserMsg,
         reply=reply,
         resources=RuntimeResources,  # свежий RuntimeResources на каждый ход
     )
@@ -450,7 +449,7 @@ app.include_router(create_chat_router(assistant))
 **Полная версия**: `web.py` у `examples/devops` или `examples/knowledge` —
 настоящие агенты за теми же двумя вызовами, плюс трейс-дашборд. `resources=`
 там — вызываемый объект (`lambda: build_resources()`), точно как в этом
-сниппете, и по той же причине: `ChatAssistant` сам закрывает построенный
+сниппете, и по той же причине: `Chat` сам закрывает построенный
 через callable `RuntimeResources` после каждого хода, так что HTTP-клиент
 настоящего провайдера никогда не течёт.
 

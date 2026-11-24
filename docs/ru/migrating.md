@@ -123,7 +123,7 @@ fact.link("extracted_from", doc)
 
 ## 4. Checkpointing, потоки, time-travel
 
-- Диалоги сохраняйте через `SessionStore(FileKVBackend(...))` + `ChatAssistant`
+- Диалоги сохраняйте через `SessionStore(FileKVBackend(...))` + `Chat`
   (`examples/knowledge`).
 - Форкайте разведку через `context.branch()`, гоняйте агентов на каждой ветке и
   `merge()` обратно — с настоящим `MergeConflict`, когда обе ветки трогают один

@@ -378,7 +378,7 @@ call.effects.create(Answer(text=result.text))
   чтобы принять текст как ответ.
 - `on_event` получает `round_start`, `tool_call`, `tool_result`, `final`; тот
   же прогресс публикуется через `Context.announce(kind="agent")`, поэтому
-  `ChatAssistant(status_kinds=("status", "agent"))` стримит его без своего цикла.
+  `Chat(status_kinds=("status", "agent"))` стримит его без своего цикла.
 - `ToolLoopResult.stop_reason` — `completed`, `max_rounds`, `budget`,
   `provider_error` или `fallback`; `error` содержит детали отказа провайдера.
   Ошибки тулов тоже типизированы: `ToolOutput.failed(ToolError(code=, message=,

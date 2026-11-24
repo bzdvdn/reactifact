@@ -15,9 +15,9 @@ class Question(BaseModel):
     """The default input artifact for `quick` agents: one question/instruction.
 
     `session_id` is unused by `agent`/`rag`/`tools_agent` (it stays empty) but
-    is what lets the same model be the default `user_message=` of
-    `chat_agent(...)` — `ChatAssistant` stamps the current session onto the
-    artifact it creates each turn.
+    is what lets the same model be the default `seed_type=` of
+    `chat_agent(...)` — `Chat` stamps the current session onto the artifact it
+    creates each turn.
     """
 
     text: str

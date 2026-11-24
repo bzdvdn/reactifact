@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from reactifact.chat import ChatAssistant
+from reactifact import Chat
 from reactifact.web import sse
 
 from app.api.deps import get_assistant, get_current_user, scope_session
@@ -22,7 +22,7 @@ class ChatRequest(BaseModel):
 
 
 async def _frames(
-    assistant: ChatAssistant,
+    assistant: Chat,
     *,
     message: str,
     client_id: str,
@@ -45,7 +45,7 @@ async def _frames(
 @router.post("/stream")
 async def chat_stream(
     body: ChatRequest,
-    assistant: ChatAssistant = Depends(get_assistant),
+    assistant: Chat = Depends(get_assistant),
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     ref = scope_session(user, body.session_id)
@@ -65,7 +65,7 @@ async def chat_stream(
 @router.get("/history")
 async def chat_history(
     session_id: str = Query(default=""),
-    assistant: ChatAssistant = Depends(get_assistant),
+    assistant: Chat = Depends(get_assistant),
     user: User = Depends(get_current_user),
 ) -> dict[str, object]:
     ref = scope_session(user, session_id)
@@ -75,7 +75,7 @@ async def chat_history(
 @router.delete("/session")
 async def clear_session(
     session_id: str = Query(default=""),
-    assistant: ChatAssistant = Depends(get_assistant),
+    assistant: Chat = Depends(get_assistant),
     user: User = Depends(get_current_user),
 ) -> dict[str, bool]:
     ref = scope_session(user, session_id)

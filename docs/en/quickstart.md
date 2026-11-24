@@ -150,7 +150,7 @@ t = tools_agent("You are ops. Use the tools.", [check_status])  # a @tool (§1)
 text = await t.ask("is checkout-api healthy?")
 
 # 4) a session-persisted chat assistant (store=None → in-memory)
-assistant = chat_agent(agents=[...], llm=provider)
+assistant = chat_agent(groups=[...], llm=provider)
 ```
 
 Every entry point takes `llm=` — any `LLMProvider` (`from_env()`,
@@ -377,8 +377,8 @@ skill. Run it: `.venv/bin/python examples/knowledge/chat.py`.
 
 ## 3. A session-persisted chat bot
 
-`ChatAssistant` owns sessions, the turn loop, and history reconstruction —
-your app supplies only the domain hooks. The same object works as a plain
+`Chat` owns sessions, the turn loop, and history reconstruction — your app
+supplies only the domain models and reply. The same object works as a plain
 async call (`invoke`) or, mounted via `reactifact.web.create_chat_router`, as an
 SSE endpoint on your own FastAPI app:
 
@@ -386,9 +386,8 @@ SSE endpoint on your own FastAPI app:
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Consume, RuntimeResources, SessionStore, create_step_group
+from reactifact import Chat, RuntimeResources, SessionStore, create_step_group
 from reactifact.checkpoints import FileKVBackend
-from reactifact.chat import ChatAssistant
 from reactifact import step
 
 
@@ -418,10 +417,10 @@ def reply(ctx, msg_id):
 
 async def main():
     store = SessionStore(FileKVBackend("./sessions"))
-    assistant = ChatAssistant(
+    assistant = Chat(
         store=store,
         groups=[echo_group],
-        user_message=UserMsg,
+        seed_type=UserMsg,
         reply=reply,
         resources=RuntimeResources,  # a fresh RuntimeResources per turn
     )
@@ -450,7 +449,7 @@ app.include_router(create_chat_router(assistant))
 **Full version**: `examples/devops` or `examples/knowledge`'s `web.py` — real
 agents behind the same two calls, plus a trace dashboard. `resources=` there
 is a callable (`lambda: build_resources()`) exactly like this snippet, for
-the same reason: `ChatAssistant` closes a callable-built `RuntimeResources`
+the same reason: `Chat` closes a callable-built `RuntimeResources`
 after every turn automatically, so a real provider's HTTP client never leaks.
 
 ## Production shape: the FastAPI template
