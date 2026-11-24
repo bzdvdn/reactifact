@@ -6,8 +6,9 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
-from reactifact import Chat, step
+from reactifact import Chat, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -95,3 +96,82 @@ def test_chat_router_builds_a_fastapi_router():
     assert "/chat/chat/stream" in paths
     assert "/chat/runs/{session_id}" in paths
     assert "/chat/health" in paths
+
+
+class Svc:
+    def __init__(self, prefix: str) -> None:
+        self.prefix = prefix
+
+
+@step(consumes=Question)
+def via_service(question: Question, svc: Svc) -> Answer:
+    return Answer(text=f"{svc.prefix}:{question.text}")
+
+
+def test_chat_answer_returns_the_typed_model():
+    chat = Chat(steps=[answer], seed_type=Question, answer_type=Answer)
+    result = asyncio.run(chat.answer("hello", session_id="typed"))
+    assert isinstance(result, Answer)
+    assert result.text == "HELLO"
+
+
+def test_chat_answer_falls_back_to_the_session_for_a_custom_reply():
+    chat = Chat(
+        steps=[answer],
+        seed_type=Question,
+        answer_type=Answer,
+        reply=lambda ctx, msg_id: {"reply": "custom", "waiting": False},
+    )
+    result = asyncio.run(chat.answer("hello", session_id="custom-reply"))
+    assert isinstance(result, Answer)
+    assert result.text == "HELLO"
+
+
+def test_chat_traces_shortcut_records_runs():
+    chat = Chat(
+        steps=[answer],
+        seed_type=Question,
+        answer_type=Answer,
+        traces=True,
+    )
+    try:
+        asyncio.run(chat.invoke("hello", session_id="traced"))
+        assert chat.trace_store is not None
+        assert asyncio.run(chat.trace_store.query(limit=10))["items"]
+    finally:
+        chat.close()
+
+
+def test_chat_lifespan_supplies_resources_once():
+    @asynccontextmanager
+    async def lifespan():
+        resources = RuntimeResources()
+        resources.register(Svc, Svc("live"))
+        yield resources
+
+    chat = Chat(
+        steps=[via_service],
+        seed_type=Question,
+        answer_type=Answer,
+        lifespan=lifespan,
+    )
+    with pytest.raises(RuntimeError, match="lifespan"):
+        asyncio.run(chat.invoke("outside", session_id="no-enter"))
+
+    async def run():
+        async with chat:
+            return await chat.answer("inside", session_id="entered")
+
+    assert asyncio.run(run()).text == "live:inside"
+
+
+def test_test_chat_overrides_a_typed_resource():
+    chat = Chat(
+        steps=[via_service],
+        seed_type=Question,
+        answer_type=Answer,
+        resources=RuntimeResources(),
+    )
+    with chat.test_client() as client:
+        client.override(Svc, Svc("fake"))
+        assert asyncio.run(client.answer("x", session_id="override")).text == "fake:x"

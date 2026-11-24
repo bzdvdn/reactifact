@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from typing import Annotated
 
 import pytest
 from pydantic import BaseModel
@@ -10,6 +12,8 @@ from reactifact import (
     Agent,
     Consume,
     Context,
+    Depends,
+    Inject,
     RetryPolicy,
     Runtime,
     RuntimeResources,
@@ -211,3 +215,66 @@ def test_tool_use_passes_resources_to_injected_tools():
     answer = ctx.list_artifacts(ToolAnswer)[0].data.text
     assert answer == "web is up"
     assert client.calls == ["web"]
+
+
+@dataclass
+class Settings:
+    prefix: str
+
+
+@tool
+async def annotated_client(name: str, settings: Annotated[Settings, Inject()]) -> str:
+    return f"{settings.prefix}:{name}"
+
+
+def test_inject_marks_an_otherwise_ambiguous_collaborator():
+    resources = RuntimeResources()
+    resources.register(Settings, Settings("prod"))
+
+    assert "settings" not in annotated_client.schema["properties"]
+    output = asyncio.run(
+        execute_tool(annotated_client, {"name": "web"}, resources=resources)
+    )
+    assert output.text == "prod:web"
+
+
+_DEPENDS = Depends()
+
+
+@tool
+async def default_depends(name: str, settings: Settings = _DEPENDS) -> str:
+    return f"{settings.prefix}:{name}"
+
+
+def test_depends_can_be_used_as_a_default_marker():
+    resources = RuntimeResources()
+    resources.register(Settings, Settings("dev"))
+
+    assert "settings" not in default_depends.schema["properties"]
+    output = asyncio.run(
+        execute_tool(default_depends, {"name": "api"}, resources=resources)
+    )
+    assert output.text == "dev:api"
+
+
+def test_tool_use_surfaces_structured_tool_errors_to_the_model():
+    loop = ToolUse(system="", tools=[])
+    tool = ToolOutput.failed(
+        ToolError(code="E_BAD", message="no access", retryable=False)
+    )
+
+    from reactifact.tools.base import Tool as BaseTool
+
+    class Broken(BaseTool):
+        name = "broken"
+
+        async def execute(self, args):  # noqa: ANN001, ANN201 - test double
+            return tool
+
+    text = asyncio.run(
+        loop._run_tool(
+            {"broken": Broken()}, "broken", {}, context=Context(RuntimeResources())
+        )
+    )
+    assert "[E_BAD]" in text
+    assert "no access" in text

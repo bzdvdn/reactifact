@@ -12,13 +12,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   the user-message and reply hooks from types, accepts a `seed_factory` (request
   metadata) and a `per_turn` async context manager; `invoke/stream/history`
   delegate to `ChatAssistant`; `chat.router()` returns the FastAPI router and
-  `chat.test_client()` an isolated in-memory copy (`TestChat`).
+  `chat.test_client()` an isolated in-memory copy (`TestChat`). `Chat` also
+  takes `traces=`/`trace_sample=`/`lifespan=` (parity with `Pipeline`),
+  `await chat.answer(...)` returns the typed `answer_type`, and
+  `TestChat.override(Type, instance)` replaces a typed resource.
 - **Tool DI and policies.** A `@tool` parameter annotated with a plain class is
   resolved from `RuntimeResources` (and omitted from the JSON schema);
   `@tool(retry=RetryPolicy(...), timeout=...)` retries transient failures
   (retryable `ToolError`s too); a pydantic return type fills `ToolOutput.data`;
   `execute_tool(..., resources=...)` supplies collaborators outside a step.
-  `from __future__ import annotations` signatures now resolve their types.
+  `Annotated[T, Inject()]` marks an otherwise ambiguous collaborator
+  explicitly (`Depends` is a FastAPI-style alias); `ToolUse` now returns a structured tool error (code/retryable)
+  to the model. `from __future__ import annotations` signatures resolve their
+  types.
 - **Function-first recipes.** `PlanExecute.from_funcs(...)` and
   `ReflectionLoop.from_funcs(...)` build the flow from plain (sync or async)
   hooks; `flow.group()` / `flow.pipeline(seed_type=...)` wire the consumes and

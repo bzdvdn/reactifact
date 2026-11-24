@@ -41,6 +41,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, create_model
 
+from ..di import Inject
 from ..policy import RetryPolicy
 from ..redaction import Redactor
 
@@ -467,6 +468,10 @@ def _is_injected(annotation: Any) -> bool:
     Plain classes (clients, protocols, services) are injected; pydantic models,
     dataclasses, enums and scalars/containers stay in the JSON schema.
     """
+    if get_origin(annotation) is Annotated and any(
+        isinstance(meta, Inject) for meta in get_args(annotation)[1:]
+    ):
+        return True
     annotation = _annotation_kind(annotation)
     if annotation is Any or annotation is inspect.Parameter.empty:
         return False
@@ -498,7 +503,7 @@ def _args_model(
         annotation = hints.get(name, param.annotation)
         if annotation is inspect.Parameter.empty:
             annotation = Any
-        if _is_injected(annotation):
+        if _is_injected(annotation) or isinstance(param.default, Inject):
             if injected is not None:
                 injected[name] = _annotation_kind(annotation)
             continue

@@ -120,7 +120,12 @@ class _ToolLoopBase(Step[ToolAnswer]):
         except Exception as exc:  # noqa: BLE001 — tool failure is returned to the LLM
             return f"Tool '{tool_id}' failed: {exc}"
         if output.error:
-            return output.error
+            info = output.error_info
+            if info is None:
+                return output.error
+            code = f" [{info.code}]" if info.code else ""
+            retryable = " (retryable)" if info.retryable else ""
+            return f"Tool '{tool_id}' failed{code}{retryable}: {output.error}"
         return (
             output.text if output.text else json.dumps(output.data, ensure_ascii=False)
         )

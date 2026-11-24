@@ -32,6 +32,7 @@ from .chat import Chat
 from .commit import ContextCheckpoint
 from .consume import Consume, consume
 from .context import Context, ProvenanceLink, View
+from .di import Depends, Inject
 from .effects import Effects, Handle
 from .events import Event, EventType
 from .interaction import Human, Outbox
@@ -111,6 +112,7 @@ __all__ = [
     "ContextCheckpoint",
     "Create",
     "Delete",
+    "Depends",
     "EmbeddingProvider",
     "Effects",
     "Emit",
@@ -129,6 +131,7 @@ __all__ = [
     "Message",
     "MergeConflict",
     "Outbox",
+    "Inject",
     "Patch",
     "Pipeline",
     "PendingAction",

@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from ..pipeline import Pipeline
+from ..resources import RuntimeResources
 from ..runtime import RunResult
 
 if TYPE_CHECKING:
@@ -77,6 +78,11 @@ class TestChat:
         from ..checkpoints import InMemoryKVBackend
         from ..session import SessionStore
 
+        if chat.lifespan is not None:
+            raise RuntimeError(
+                "test_client does not run a Chat lifespan; enter the chat with "
+                "`async with chat:` instead"
+            )
         self.chat = copy.copy(chat)
         self.chat.assistant = copy.copy(chat.assistant)
         self.chat.assistant.store = SessionStore(InMemoryKVBackend())
@@ -85,12 +91,35 @@ class TestChat:
             from ..tracing import Tracer, TraceStore
 
             self.traces = TraceStore(":memory:")
-            self.chat.assistant._tracer = Tracer(store=self.traces)
+            self.chat.assistant._tracer = Tracer(
+                store=self.traces, sample=chat.trace_sample
+            )
+
+    def override(self, kind: type[Any], instance: Any) -> TestChat:
+        """Replace a typed resource in this client, like FastAPI's overrides."""
+        resources = self.chat.assistant._resources
+        if isinstance(resources, RuntimeResources):
+            resolved: Any = resources.with_overrides({kind: instance})
+        elif callable(resources):
+            original = resources
+
+            def resolve(*args: Any, **kwargs: Any) -> RuntimeResources:
+                return original(*args, **kwargs).with_overrides({kind: instance})
+
+            resolved = resolve
+        else:
+            resolved = RuntimeResources().with_overrides({kind: instance})
+        self.chat.assistant._resources = resolved
+        self.chat.resources = resolved
+        return self
 
     async def invoke(
         self, text: str, session_id: str = "", **kwargs: Any
     ) -> dict[str, Any]:
         return await self.chat.invoke(text, session_id=session_id, **kwargs)
+
+    async def answer(self, text: str, session_id: str = "", **kwargs: Any) -> Any:
+        return await self.chat.answer(text, session_id=session_id, **kwargs)
 
     async def stream(
         self, text: str, session_id: str = "", **kwargs: Any

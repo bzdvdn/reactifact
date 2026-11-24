@@ -693,6 +693,8 @@ class Chat:
     `Chat(steps=[...], seed_type=Question, answer_type=Answer)` derives the
     user-message hook and the reply payload from the types; `seed_factory` and
     `per_turn` cover app-specific hooks (a request category, a secret vault).
+    `traces=`/`trace_sample=`/`lifespan=` mirror `Pipeline`; `answer()` returns
+    the typed `answer_type` instead of the transport payload.
     """
 
     def __init__(
@@ -712,6 +714,10 @@ class Chat:
         budget: Budget | None = None,
         max_concurrency: int | None = None,
         tracer: Any = None,
+        traces: bool | str | Path | Any | None = None,
+        trace_sample: Any = None,
+        lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]]
+        | None = None,
         memory: ChatMemory | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         status_kinds: Sequence[str] = ("status",),
@@ -735,6 +741,26 @@ class Chat:
         self.answer_type = answer_type
         self.per_turn = per_turn
         self._seed_factory = seed_factory
+        self.resources = resources
+        self.trace_sample = trace_sample
+        self.trace_store: Any = None
+        if traces:
+            from .tracing import TraceStore
+
+            self.trace_store = (
+                TraceStore(str(traces))
+                if isinstance(traces, (str, Path))
+                else traces
+                if not isinstance(traces, bool)
+                else TraceStore(":memory:")
+            )
+            if tracer is None:
+                from .tracing import Tracer
+
+                tracer = Tracer(store=self.trace_store, sample=trace_sample)
+        self.tracer = tracer
+        self.lifespan = lifespan
+        self._lifespan_cm: AbstractAsyncContextManager[RuntimeResources] | None = None
         create = create_message or self._create_message
         self.assistant = ChatAssistant(
             steps=steps,
@@ -800,6 +826,30 @@ class Chat:
         payload["answer"] = data.model_dump(mode="json")
         return payload
 
+    async def __aenter__(self) -> Chat:
+        if self.lifespan is not None:
+            self._lifespan_cm = self.lifespan()
+            self.resources = await self._lifespan_cm.__aenter__()
+            self.assistant._resources = self.resources
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        if self._lifespan_cm is not None:
+            await self._lifespan_cm.__aexit__(exc_type, exc, tb)
+            self._lifespan_cm = None
+
+    def _check_lifespan(self) -> None:
+        if self.lifespan is not None and self._lifespan_cm is None:
+            raise RuntimeError(
+                "this Chat has a lifespan; use `async with chat:` and "
+                "`await chat.invoke(...)`"
+            )
+
+    def close(self) -> None:
+        """Close the trace store opened by `traces=` (no-op otherwise)."""
+        if self.trace_store is not None and hasattr(self.trace_store, "close"):
+            self.trace_store.close()
+
     async def stream(
         self,
         text: str,
@@ -807,6 +857,7 @@ class Chat:
         *,
         request: Mapping[str, Any] | None = None,
     ) -> AsyncIterator[ChatEvent]:
+        self._check_lifespan()
         if self.per_turn is None:
             async for event in self.assistant.stream(
                 text, session_id=session_id, request=request
@@ -832,7 +883,35 @@ class Chat:
                 payload = dict(event.payload)
         return payload
 
+    async def answer(
+        self,
+        text: str,
+        session_id: str = "",
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> BaseModel:
+        """Run one turn and return the `answer_type` artifact's model.
+
+        `invoke()` stays the transport-shaped dict; `answer()` is the typed
+        version for application code. It requires `answer_type=...` on the
+        `Chat`.
+        """
+        if self.answer_type is None:
+            raise TypeError("Chat.answer requires answer_type=...")
+        payload = await self.invoke(text, session_id=session_id, request=request)
+        raw = payload.get("answer")
+        if isinstance(raw, Mapping):
+            return self.answer_type.model_validate(raw)
+        session = await self.assistant._open(session_id)
+        artifact = session.context.latest(self.answer_type)
+        if artifact is None:
+            raise LookupError(
+                f"Chat.answer: no {self.answer_type.__name__} in session {session_id!r}"
+            )
+        return artifact.data
+
     async def history(self, session_id: str = "") -> dict[str, Any]:
+        self._check_lifespan()
         return await self.assistant.history(session_id=session_id)
 
     def router(self, **kwargs: Any) -> Any:
