@@ -55,21 +55,32 @@ the hash of the exact state that produced them. Models, steps and the printer
 all live in [`reactifact/demo.py`](reactifact/demo.py) — copy the pipeline,
 then change the data.
 
-## Five lines to a run
+## Define a step, run it
 
 ```python
-from reactifact import Pipeline
+from pydantic import BaseModel
+from reactifact import Pipeline, step
 
-pipeline = Pipeline(steps=[...], seed_type=Question, answer_type=Answer)
+class Question(BaseModel):
+    text: str
+
+class Answer(BaseModel):
+    text: str
+
+@step(consumes=Question)                 # produces=Answer inferred from ->
+def answer(question: Question) -> Answer:
+    return Answer(text=f"you asked: {question.text}")
+
+pipeline = Pipeline(steps=[answer], seed_type=Question, answer_type=Answer)
 result = pipeline.run(Question(text="why did cloud spend jump in Q2?"))
 
 print(result.latest(Answer).data.text)
 print(result.sources(result.latest(Answer)))   # citations, as a query
+print(result.hash)                              # reproducible fingerprint
 ```
 
-`Pipeline` is a thin facade over `Context` + `Runtime`: it owns steps,
-resources and defaults, and builds a fresh context per run. `seed_type` /
-`answer_type` are the request/response models used by `reactifact run`:
+`Pipeline` owns steps, resources and defaults, and builds a fresh `Context` +
+`Runtime` per run. Use `reactifact run` for the same thing from the CLI:
 
 ```bash
 reactifact run app:pipeline "why did cloud spend jump in Q2?"
@@ -167,22 +178,21 @@ is never the source of truth (trimmed from
 [`examples/fintech_audit/steps.py`](examples/fintech_audit/steps.py)):
 
 ```python
-@step(produces=Variance, consumes=Spend)         # wakes when a Spend artifact exists
-async def compute_variance(call: StepCall) -> None:
-    spend = call.trigger                         # the artifact that triggered this run
-    budget = cloud_budget(call.context)          # read from budget.csv
-    pct = (spend.data.total - budget) / budget   # deterministic — never the model
-    variance = call.effects.create_once_from(
-        spend,                                   # stable id → idempotent re-runs (§42)
-        Variance(actual=spend.data.total, budget=budget, pct=pct,
-                 threshold=0.10, within_policy=abs(pct) <= 0.10),
-    )
-    variance.link("calculated_from", spend)      # provenance edge, queryable
+from reactifact import CALCULATED_FROM, Context, step
+
+@step(consumes=Spend, provenance=CALCULATED_FROM)  # wakes when Spend exists
+def compute_variance(spend: Spend, context: Context) -> Variance:
+    budget = cloud_budget(context)                 # read from budget.csv
+    pct = (spend.total - budget) / budget          # deterministic — never the model
+    return Variance(actual=spend.total, budget=budget, pct=pct,
+                    threshold=0.10, within_policy=abs(pct) <= 0.10)
+    # creates the artifact and links it calculated_from→ Spend
 
 
-answer = ctx.latest(AuditAnswer)
-print(report_to_markdown(build_report(ctx, answer)))  # hash per artifact + edges
-print(context_hash(ctx))                              # reproducible fingerprint
+result = Pipeline(steps=[compute_spend, compute_variance, answer]) \
+    .run(Question(text="what is the Q2 cloud spend variance?"))
+print(report_to_markdown(build_report(result.context, result.latest(AuditAnswer))))
+print(result.hash)                                 # reproducible fingerprint
 ```
 
 ## Knowledge assistants, live
@@ -275,7 +285,7 @@ derives what runs next from state.
 
 | Celery | reactifact |
 | --- | --- |
-| a task | `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact |
+| a task | `@step(consumes=Input) -> Model` — a unit of work that returns a typed artifact |
 | `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
 | routing key / queue | `Consume(Type)` — which artifact type wakes the task |
 | chain / group / chord | several step `Consume`s / `produces`; the runtime derives the order |
@@ -294,14 +304,14 @@ pip install reactifact
 ```
 
 Runs offline, no API key needed — paste this straight into a `.py` file. Two
-agents, no graph edge declared between them — the second reacts because the
+steps, no graph edge declared between them — the second reacts because the
 first one's output exists, and the answer carries *proof* of where it came
 from:
 
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Context, Runtime, RuntimeResources, step
+from reactifact import Pipeline, SUPPORTED_BY, step
 
 
 class Question(BaseModel):
@@ -322,28 +332,25 @@ DOCS = {
 }
 
 
-@step(produces=Evidence, consumes=Question)
-async def find_evidence(call):
-    question = call.trigger
-    hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
-    if hit is not None:
-        call.effects.create(Evidence(text=hit))
+@step(consumes=Question)
+def find_evidence(question: Question) -> list[Evidence]:
+    hit = next((v for k, v in DOCS.items() if k in question.text.lower()), None)
+    return [Evidence(text=hit)] if hit is not None else []
 
 
-@step(produces=Answer, consumes=Evidence)
-async def answer_from_evidence(call):
-    evidence = call.trigger
-    call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
+@step(consumes=Evidence, provenance=SUPPORTED_BY)
+def answer_from_evidence(evidence: Evidence) -> Answer:
+    return Answer(text=evidence.text)
 
 
-ctx = Context(resources=RuntimeResources())
-runtime = Runtime(ctx, steps=[find_evidence, answer_from_evidence], budget=Budget(max_runs=10))
+result = Pipeline(
+    steps=[find_evidence, answer_from_evidence],
+    seed_type=Question,
+    answer_type=Answer,
+).run(Question(text="what's your refund policy?"))
 
-ctx.create(Question(text="what's your refund policy?"))
-runtime.run()  # search and answer both react — nobody wired them together
-
-answer = ctx.latest(Answer)
-evidence = ctx.related(answer.id, "supported_by")[0]
+answer = result.latest(Answer)
+evidence = result.context.related(answer.id, SUPPORTED_BY)[0]
 print(answer.data.text)                     # "Refunds are available within 14 days of purchase."
 print("supported_by:", evidence.data.text)  # provenance you can trace, not just a string in a log
 ```
@@ -360,11 +367,12 @@ ARTIFACT CREATED / UPDATED
                                                         Context v+1
 ```
 
-A step writes what should change (`effects.create/update/link/ask`) and
-returns `None`; the runtime compiles the effect set into one **atomic** `Patch`
-and moves the context to the next version. The `event` that wakes an agent is
-*derived* from that same change — the causal chain can never drift from the
-actual state.
+A step returns typed outputs (`-> Answer`, `tuple[...]`, `list[...]`) or a
+change instruction (`Emit`, `Edit`, `Drop`, `Relate`); the runtime compiles
+them into one **atomic** `Patch` and moves the context to the next version.
+`effects` remains available for advanced/batch writes. The event that wakes a
+step is *derived* from that same change — the causal chain can never drift from
+the actual state.
 
 ## What makes it different
 
@@ -373,7 +381,7 @@ actual state.
 | A program follows a graph / plan | Agents **react** to state changes |
 | Messages are strings | **Typed, versioned artifacts** (`Claim`, `Evidence`, `Answer`) |
 | Orchestration is explicit wiring | Orchestration **falls out of the state** |
-| A unit of work *returns* a change | An agent **writes effects**; the runtime compiles them |
+| A unit of work returns a change object | A step **returns typed artifacts**; the runtime compiles them |
 | Retries/rollback are manual | Context is **git-like versioned** (diff, rollback, branch, merge) |
 | "Who produced this?" is lost | **Provenance** links every derived artifact to its inputs |
 | The model guesses the numbers | **Calculations are calculated** — the LLM is a reasoning component, not the source of truth |
@@ -390,15 +398,15 @@ Full breakdown, including where reactifact is *not* the right choice:
 
 - **Context** — versioned working state, git-like commits, `diff`/`rollback`/`merge`.
 - **Artifact** — a first-class typed object (`Claim`, `Evidence`, `Answer`), not a string blob.
-- **Effects** — an agent states its change via `effects.create/update/link/ask`; the runtime compiles it.
+- **Effects** — the low-level write surface (`create/update/delete/link`); most steps return artifacts or `Edit`/`Drop`/`Relate` instead.
 - **Patch** — the compiled, validated change-set applied as one atomic commit.
-- **Step** — the unit of work: declares `consumes`/`produces`, returns its output or writes effects.
-- **Agent** — a thin container of `steps`; the runtime derives triggers from their `consume` contracts.
+- **Step** — the unit of work: `@step(consumes=Question) -> Answer`; `produces` is inferred from the return type.
+- **StepGroup** — an optional container when several steps share a trigger, retry, timeout or commit.
 - **Source** — retrieval is a capability: vector search is *one* strategy, not the only one; filesystem, CSV, and the web are equally first-class today (direct API, keyword, and SQL sources are on the [roadmap](docs/roadmap.md#next), not yet shipped). For corpus ingestion, the optional `knowledge` layer adds connectors, chunking, embeddings and SQLite/Qdrant indexes.
 - **Provenance** — every derived artifact links to what produced it
   (`Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→ Doc`).
-- **HITL** — humans as `effects.ask(...)` → `PendingQuestion`, answered via `effects.resume(...)` like any agent.
-- **Outbox** — outbound side effects as `effects.act(...)` → `PendingAction`, performed once *after* the commit by `Runtime(dispatcher=...)`; safe across replay, retries and merged branches.
+- **HITL** — `human.ask(...)` → `PendingQuestion`, answered via `human.resume(...)`.
+- **Outbox** — `outbox.act(...)` → `PendingAction`, performed once *after* the commit by `Runtime(dispatcher=...)`; safe across replay, retries and merged branches.
 
 ## In the box
 
