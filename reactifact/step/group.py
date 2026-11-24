@@ -62,8 +62,7 @@ def _apply_provenance(
     Declared via ``@step(provenance=...)``; the relation points from the new
     artifact to each input, matching the direction of
     ``calculated_from``/``supported_by``. An explicit link between the same
-    pair is left alone, so hand-written provenance always wins. `auto_link`
-    remains a deprecated alias.
+    pair is left alone, so hand-written provenance always wins.
     """
     if not call.used or not step.provenance:
         return

@@ -214,7 +214,7 @@ for link in context.why(answer):   # breadth-first over outgoing edges
 
 `why()` follows `supported_by` / `calculated_from` / … edges breadth-first;
 pass `relations=(...)` to restrict the walk and `max_depth=` to stop it.
-`auto_link=` remains as a deprecated alias. Use `SUPPORTED_BY` only for
+Use `SUPPORTED_BY` only for
 answers/claims; compute steps are `CALCULATED_FROM` or `DERIVED_FROM`.
 
 ## Which style to reach for

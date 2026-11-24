@@ -1,4 +1,4 @@
-"""`@step(auto_link=True)` — provenance from what the step actually read."""
+"""`@step(provenance=...)` — edges from what the step actually read."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class Output(BaseModel):
     value: int
 
 
-@step(produces=Output, consumes=Input, auto_link=True)
+@step(produces=Output, consumes=Input, provenance=True)
 def auto(input: Input) -> Output:
     return Output(value=input.value + 1)
 
@@ -40,7 +40,7 @@ def named_relation(input: Input) -> Output:
     return Output(value=input.value + 1)
 
 
-@step(produces=Output, consumes=Input, auto_link=True)
+@step(produces=Output, consumes=Input, provenance=True)
 def explicit(input: Artifact[Input], effects: Effects) -> None:
     handle = effects.create(Output(value=input.data.value))
     assert handle is not None
@@ -66,12 +66,12 @@ def edges(context: Context, artifact_type: type[BaseModel]) -> list[tuple[str, s
     ]
 
 
-def test_auto_link_points_at_the_input_the_step_resolved():
+def test_provenance_points_at_the_input_the_step_resolved():
     context = run([create_agent("a", steps=[auto])], [("in", 1)])
     assert edges(context, Output) == [("derived_from", "in")]
 
 
-def test_auto_link_off_by_default():
+def test_provenance_off_by_default():
     context = run([create_agent("a", steps=[manual])], [("in", 1)])
     assert edges(context, Output) == []
 
@@ -81,7 +81,7 @@ def test_provenance_accepts_a_relation_constant():
     assert edges(context, Output) == [("supported_by", "in")]
 
 
-def test_auto_link_uses_the_latest_match_not_every_input():
+def test_provenance_uses_the_latest_match_not_every_input():
     context = run(
         [create_agent("a", steps=[auto])],
         [("old", 1), ("new", 2)],
@@ -89,6 +89,6 @@ def test_auto_link_uses_the_latest_match_not_every_input():
     assert edges(context, Output) == [("derived_from", "new")]
 
 
-def test_explicit_link_wins_over_auto_link():
+def test_explicit_link_wins_over_provenance():
     context = run([create_agent("a", steps=[explicit])], [("in", 1)])
     assert edges(context, Output) == [("custom", "in")]

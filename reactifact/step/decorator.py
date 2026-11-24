@@ -62,7 +62,6 @@ def step(
     consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
-    auto_link: bool | str | None = None,
     priority: int | None = None,
     concurrency_limit: int | None = None,
     name: str | None = None,
@@ -103,11 +102,7 @@ def step(
     def decorator(func: Callable[..., Any]) -> Step[Any]:
         inferred_produces = _infer_produces(func) if inferred else None
         final_produces = resolved_produces or inferred_produces
-        if provenance is not None and auto_link is not None:
-            raise ValueError(
-                "Pass either provenance= or the deprecated auto_link=, not both"
-            )
-        chosen_provenance = provenance if provenance is not None else auto_link
+        chosen_provenance = provenance
         if chosen_provenance is None and inferred_produces is not None:
             chosen_provenance = DERIVED_FROM
         if final_produces is None:

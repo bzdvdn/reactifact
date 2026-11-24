@@ -19,10 +19,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   same atomic patch. `Emit` stays the create-with-id/links form.
 - **Provenance vocabulary.** `reactifact.provenance` exports `RelationName`
   (`SUPPORTED_BY`, `DERIVED_FROM`, `CALCULATED_FROM`, …) and the same names
-  at top level. `@step(provenance=...)` replaces the stringly
-  `auto_link=` (kept as a deprecated alias); a step whose `produces` is
-  inferred from its return annotation links its resolved inputs with
-  `DERIVED_FROM` by default.
+  at top level. `@step(provenance=...)` replaces the never-released stringly
+  `auto_link=` name; a step whose `produces` is inferred from its return
+  annotation links its resolved inputs with `DERIVED_FROM` by default.
 
 - **First-class branch/parent tracing.** `RunTrace.parent_run_id` and
   `RunTrace.branch` are populated from `trace_metadata` (subflows and branch

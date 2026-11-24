@@ -183,7 +183,7 @@ for link in context.why(answer):   # обход в ширину по исход�
 
 `why()` идёт по рёбрам `supported_by` / `calculated_from` / … в ширину;
 `relations=(...)` ограничивает обход, `max_depth=` его останавливает.
-`auto_link=` остаётся deprecated-алиасом. `SUPPORTED_BY` — только для
+`SUPPORTED_BY` — только для
 ответов/утверждений; вычисления — `CALCULATED_FROM` или `DERIVED_FROM`.
 
 ## Какой стиль выбрать

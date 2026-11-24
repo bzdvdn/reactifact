@@ -193,7 +193,7 @@ class Step(Generic[TOut]):
     #: linked to the inputs it actually resolved, `created —relation→ input`.
     #: Use `reactifact.provenance` constants (`DERIVED_FROM`, `SUPPORTED_BY`,
     #: …); `True` means `derived_from`, `None`/`False` disables. Custom strings
-    #: are allowed. `auto_link` remains a deprecated alias.
+    #: are allowed.
     provenance: RelationName | str | bool | None = None
     #: Retry policy for this step, copied to the implicit group created by
     #: `Runtime(steps=...)`. `StepGroup` remains for shared retry across steps.
@@ -282,7 +282,6 @@ class Step(Generic[TOut]):
         | None = None,
         timeout: float | None = None,
         provenance: RelationName | str | bool | None = None,
-        auto_link: bool | str | None = None,
         priority: int | None = None,
         concurrency_limit: int | None = None,
         name: str | None = None,
@@ -331,11 +330,7 @@ class Step(Generic[TOut]):
                 raise TypeError("Step.timeout must be a number or None")
             if self.timeout <= 0:
                 raise ValueError("Step.timeout must be > 0")
-        if provenance is not None and auto_link is not None:
-            raise ValueError(
-                "Pass either provenance= or the deprecated auto_link=, not both"
-            )
-        raw_provenance = provenance if provenance is not None else auto_link
+        raw_provenance = provenance
         if raw_provenance is None:
             raw_provenance = getattr(self.__class__, "provenance", None)
         self.provenance = _normalize_provenance(raw_provenance)
@@ -472,15 +467,6 @@ class Step(Generic[TOut]):
     @name.setter
     def name(self, value: str) -> None:
         self._name = value
-
-    @property
-    def auto_link(self) -> bool | str:
-        """Deprecated alias for `provenance` (`False` when disabled)."""
-        return self.provenance if self.provenance is not None else False
-
-    @auto_link.setter
-    def auto_link(self, value: RelationName | str | bool | None) -> None:
-        self.provenance = _normalize_provenance(value)
 
     def _return_id(self, data: Any, call: StepCall | None) -> str | None:
         """A stable id for a return-style create, when `once` is on."""
