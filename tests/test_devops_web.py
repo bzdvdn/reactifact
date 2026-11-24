@@ -63,6 +63,43 @@ def test_sse_clarify_asks_and_resumes(tmp_path):
     assert "В production всё ок" in body2
 
 
+def test_sse_destructive_tool_approval_asks_and_resumes(tmp_path):
+    """A destructive tool pauses with `waiting:true`; "yes" runs it."""
+    from examples.devops.tools import CALLS
+
+    CALLS.clear()
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"tool_call","tool":"kubectl_restart","args":'
+            '{"deployment":"api","namespace":"production"}}',
+            '{"type":"answer","text":"Restart requested for api."}',
+        ]
+    )
+    app = create_app(llm=llm, store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "restart api in production", "session_id": "s6"},
+    ) as response:
+        body1 = "".join(response.iter_text())
+    assert '"waiting": true' in body1
+    assert "kubectl_restart" in body1
+    assert "kubectl_restart" not in CALLS
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "yes", "session_id": "s6"},
+    ) as response:
+        body2 = "".join(response.iter_text())
+    assert '"waiting": false' in body2
+    assert "Restart requested for api." in body2
+    assert CALLS["kubectl_restart"] == 1
+
+
 def test_sse_help_for_no_match(tmp_path):
     app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
     client = TestClient(app)

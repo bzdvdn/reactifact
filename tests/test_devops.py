@@ -248,6 +248,37 @@ def test_flag_policy_allows_and_does_not_raise():
     assert ctx.list_artifacts(K8sProblem)
 
 
+def test_destructive_restart_is_approval_gated_and_then_runs():
+    CALLS.clear()
+    llm = ScriptedLLM(
+        [
+            '{"target":"k8s"}',
+            '{"type":"tool_call","tool":"kubectl_restart","args":'
+            '{"deployment":"api","namespace":"default"}}',
+            '{"type":"answer","text":"Restart requested for api in default."}',
+        ]
+    )
+    ctx, runtime = build_runtime(llm)
+    msg = ctx.create(UserMsg(text="restart api in default"))
+
+    asyncio.run(runtime.arun())
+
+    approvals = [
+        q for q in ctx.list_artifacts(PendingQuestion) if q.data.kind == "approve"
+    ]
+    assert len(approvals) == 1
+    assert "kubectl_restart" in approvals[0].data.question
+    assert "kubectl_restart" not in CALLS  # nothing ran before the approval
+
+    ctx.resume(approvals[0].id, "yes")
+    asyncio.run(runtime.arun())
+
+    assert CALLS["kubectl_restart"] == 1
+    assert ctx.list_artifacts(K8sReport)
+    replies = replies_for(ctx, msg.id)
+    assert replies and "Restart requested" in replies[0].data.text
+
+
 def test_tools_inject_clients_and_return_typed_results():
     from examples.devops.tools import API_RETRY, gitlab_pipeline, kubectl_get
     from reactifact.tools import execute_tool

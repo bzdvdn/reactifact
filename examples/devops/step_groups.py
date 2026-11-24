@@ -22,7 +22,13 @@ from .steps import (
     RenderReply,
     RouteProblem,
 )
-from .tools import ansible_run, gitlab_pipeline, gitlab_search, kubectl_get
+from .tools import (
+    ansible_run,
+    gitlab_pipeline,
+    gitlab_search,
+    kubectl_get,
+    kubectl_restart,
+)
 
 
 def _announce_answer(answer: str) -> str:
@@ -37,11 +43,11 @@ class RouteGroup(StepGroup):
 
 
 class K8sAgent(HITLLMAgent):
-    """k8s diagnostics: its own tool and its own report."""
+    """k8s diagnostics: read-only tools + an approval-gated restart."""
 
     name = "k8s"
     system = K8S_SYSTEM
-    tools = [kubectl_get]
+    tools = [kubectl_get, kubectl_restart]
     consumes = [Consume(K8sProblem)]
     steps = [K8sReportBuilder()]
     max_steps = 4

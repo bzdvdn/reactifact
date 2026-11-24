@@ -77,6 +77,13 @@ class PlayRecap(BaseModel):
     unreachable: int = 0
 
 
+class RestartResult(BaseModel):
+    deployment: str
+    namespace: str
+    status: str
+    message: str
+
+
 # Reports that each LLM agent builds its own way
 class K8sReport(BaseModel):
     query_id: str = ""

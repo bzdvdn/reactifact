@@ -96,13 +96,15 @@ def _request_user(request: Request) -> dict[str, str]:
 
 
 def create_message(ctx: Any, text: str, session_id: str) -> str:
-    """HITL enter hook: a pending clarify question → resume, else a new message.
+    """HITL enter hook: a pending question → resume, else a new message.
 
-    Takes the 3-arg shape so the session id is stamped on the `UserMsg`; the
-    memory intent (`RememberReport` → `PendingAction`) reads it from there
-    instead of guessing from runtime state.
+    Both kinds resume the same way: `clarify` (the agent needs a value) and
+    `approve` (the agent wants to run a destructive tool). Takes the 3-arg
+    shape so the session id is stamped on the `UserMsg`; the memory intent
+    (`RememberReport` → `PendingAction`) reads it from there instead of
+    guessing from runtime state.
     """
-    pending = [q for q in ctx.pending_questions() if q.data.kind == "clarify"]
+    pending = ctx.pending_questions()
     if pending:
         question = pending[0]
         ctx.resume(question.id, text)
@@ -133,8 +135,8 @@ def create_message(ctx: Any, text: str, session_id: str) -> str:
 
 
 def terminal_reply(ctx: Any, msg_id: str) -> dict[str, Any]:
-    """Terminal reply: a pending question → waiting:true, else the ChatReply."""
-    waiting = [q for q in ctx.pending_questions() if q.data.kind == "clarify"]
+    """Terminal reply: any pending question → waiting:true, else the ChatReply."""
+    waiting = ctx.pending_questions()
     if waiting:
         return {"reply": waiting[0].data.question, "waiting": True}
     replies = [r for r in ctx.list_artifacts(ChatReply) if r.data.query_id == msg_id]

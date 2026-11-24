@@ -85,6 +85,26 @@ resources = register_clients(RuntimeResources(llm=llm))
 - outside a runtime (`tests`, a script) call
   `execute_tool(kubectl_get, {...}, resources=resources)`.
 
+One tool is deliberately destructive:
+
+```python
+@tool(destructive=True, timeout=10)
+async def kubectl_restart(
+    deployment: str, namespace: str, k8s: K8sClient
+) -> RestartResult:
+    """Restart a deployment (destructive: the human is asked to approve it)."""
+    return await k8s.restart(deployment, namespace)
+```
+
+`HITLLMAgent` still offers it to the LLM, but a call pauses with a
+`PendingQuestion(kind="approve")`; nothing is executed until the user answers
+`yes`. Both entry points resume it (the web `create_message` and the CLI loop
+handle `clarify` and `approve` alike). Try:
+
+> restart api in production
+
+The assistant asks for approval, then runs the tool and reports the result.
+
 ## Branches: parallel investigations, merged like features
 
 `python -m examples.devops.branches` (offline, no API key) runs the same three

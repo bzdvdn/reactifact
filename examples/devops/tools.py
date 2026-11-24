@@ -26,6 +26,7 @@ from .models import (
     PipelineState,
     PlayRecap,
     PodState,
+    RestartResult,
 )
 
 #: Tool call counter — for tests and observing the framework.
@@ -85,6 +86,18 @@ class K8sClient:
             summary=f"{resource} is ready: 3 replicas, stable",
         )
 
+    async def restart(self, deployment: str, namespace: str) -> RestartResult:
+        CALLS["kubectl_restart"] = CALLS.get("kubectl_restart", 0) + 1
+        return RestartResult(
+            deployment=deployment,
+            namespace=namespace,
+            status="requested",
+            message=(
+                f"rollout restart requested for {deployment}/{namespace}; "
+                "a new ReplicaSet will roll out"
+            ),
+        )
+
 
 class GitLabClient:
     """A fake GitLab API client."""
@@ -140,6 +153,14 @@ async def kubectl_get(resource: str, namespace: str, k8s: K8sClient) -> K8sSnaps
     return await k8s.get(resource, namespace)
 
 
+@tool(destructive=True, timeout=10)
+async def kubectl_restart(
+    deployment: str, namespace: str, k8s: K8sClient
+) -> RestartResult:
+    """Restart a deployment (destructive: the human is asked to approve it)."""
+    return await k8s.restart(deployment, namespace)
+
+
 @tool(retry=API_RETRY, timeout=10)
 async def gitlab_search(
     query: str, project: str, gitlab: GitLabClient
@@ -172,5 +193,6 @@ __all__ = [
     "gitlab_pipeline",
     "gitlab_search",
     "kubectl_get",
+    "kubectl_restart",
     "register_clients",
 ]

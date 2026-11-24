@@ -96,7 +96,19 @@ async def main() -> None:
         if not text:
             continue
 
-        msg = session.context.create(UserMsg(text=text, session_id=session_id))
+        # HITL: clarify and destructive-tool approval both resume a pending
+        # question instead of starting a new problem.
+        pending = session.context.pending_questions()
+        if pending:
+            question = pending[0]
+            session.context.resume(question.id, text)
+            qid = question.data.notes.get("query_id") or ""
+            problem = session.context.get(qid)
+            reply_id = getattr(problem.data, "query_id", "") if problem else ""
+            print(f"   resumed {question.data.kind}: {question.data.question}")
+        else:
+            msg = session.context.create(UserMsg(text=text, session_id=session_id))
+            reply_id = msg.id
 
         try:
             async for event in runtime.astream():
@@ -109,7 +121,7 @@ async def main() -> None:
         replies = [
             r
             for r in session.context.list_artifacts(ChatReply)
-            if r.data.query_id == msg.id
+            if r.data.query_id == reply_id
         ]
         if replies:
             latest = max(replies, key=lambda r: r.created_at)
