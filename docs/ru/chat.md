@@ -51,6 +51,12 @@ await assistant.history(session_id="user-1")   # поток на данный м
 
 Готовый `quick.chat_agent(groups, store=…)` делает то же с дефолтами.
 
+Фасад повторяет `Pipeline` там, где это важно: `Chat(traces=True|path)`
+открывает `TraceStore`, `trace_sample=` применяет ту же политику сэмплинга,
+`lifespan=` + `async with chat:` владеет долгоживущими ресурсами, а
+`await chat.answer(...)` возвращает типизированный `answer_type`, а не
+транспортный payload.
+
 **Per-request метаданные в `create_message`.** Хук может принимать
 `(ctx, text)`, `(ctx, text, session_id)` или `(ctx, text, session_id,
 request)` (определяется по арности). Во время его вызова `ctx.request` — тот

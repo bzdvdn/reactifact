@@ -48,14 +48,14 @@ from reactifact.checkpoints import SQLiteKVBackend
 
 store = SessionStore(SQLiteKVBackend("sessions.sqlite3"))
 session = await store.open("user-1")            # loads, or creates if absent
-runtime = Runtime(session.context, agents=[...], session=session)
+runtime = Runtime(session.context, groups=[...], session=session)
 await runtime.arun()
 ```
 
 ```text
 # after a crash / restart — a brand-new process, nothing in memory
 session = await store.open("user-1")
-runtime = Runtime(session.context, agents=[...], session=session)
+runtime = Runtime(session.context, groups=[...], session=session)
 await runtime.arun()   # continues: pending triggers are still there
 ```
 

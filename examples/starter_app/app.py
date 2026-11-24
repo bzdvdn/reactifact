@@ -6,7 +6,7 @@ with:
 - **agent**  — `POST /api/ask {mode:"agent"}` one structured LLM call
 - **rag**    — `POST /api/ask {mode:"rag"}` retrieval over `knowledge/`, with citations
 - **tools**  — `POST /api/ask {mode:"tools"}` an LLM that can call a tool (`add`)
-- **chat**   — `POST /api/chat` a session-persisted assistant (`ChatAssistant`)
+- **chat**   — `POST /api/chat` a session-persisted chat (`Chat`)
 - plus a **trace dashboard** at `/traces` for every run above.
 
 **Provider selection** is `reactifact.providers.from_env()`, so the same code

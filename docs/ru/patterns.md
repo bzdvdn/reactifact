@@ -104,7 +104,7 @@ async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
         await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
 
 
-runtime = Runtime(ctx, agents=[Notifier()], dispatcher=dispatch)
+runtime = Runtime(ctx, groups=[Notifier()], dispatcher=dispatch)
 ```
 
 Runtime дренирует каждый закоммиченный, но ещё не отправленный `PendingAction`
@@ -455,7 +455,7 @@ updates |= {"stage": target, "info": new_info, "handled_msg": ""}
 `Budget` ограничивает запуск:
 
 ```python
-runtime = Runtime(ctx, agents=[...], budget=Budget(max_runs=200), max_concurrency=2)
+runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrency=2)
 ```
 
 - `max_runs`, `max_iterations`, `max_time_s`, лимиты вызовов инструментов — runtime

@@ -49,7 +49,7 @@ translator = remote_agent(
     consumes=[Consume(Question)],
     output_type=Answer,          # строится как Answer(text=reply)
 )
-Runtime(ctx, agents=[translator, …]).arun()
+Runtime(ctx, groups=[translator, …]).arun()
 ```
 
 Удалённый таск в состоянии `input-required` становится локальным

@@ -428,7 +428,7 @@ Full breakdown, including where reactifact is *not* the right choice:
   `ReplayLLM`, all for audit and safe alternative states.
 - **Sessions** — `SessionStore` over `FileKVBackend`/`SQLiteKVBackend`
   (and `PostgreSQLKVBackend`) for durable chat memory.
-- **Web layer** — `ChatAssistant` + `create_chat_router` mount a canonical SSE
+- **Web layer** — `Chat` + `create_chat_router` mount a canonical SSE
   chat on *your* FastAPI app; errors degrade to a logged fallback, never a 500.
 - **Recipes** — `find`/`find_all` (typed lookup in `inputs`), `fan_out_sources`,
   `materialize_doc`, `StatusMachine`, `WindowSummarizer`/`WindowPruner`

@@ -234,7 +234,7 @@ Sessions are per-user by convention (`admin1:<uuid>`, stored under that key in
 resources = build_resources(llm, "admin1")   # MemoryStore(namespace="user:admin1")
 ctx = Context(resources=resources)
 ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
-await Runtime(ctx, agents=GROUPS, dispatcher=MemoryStore.dispatch).arun()
+await Runtime(ctx, groups=GROUPS, dispatcher=MemoryStore.dispatch).arun()
 ```
 
 `MemoryStore` is **not** a copy of the chat. `RememberReport` calls

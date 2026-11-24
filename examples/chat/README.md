@@ -4,7 +4,7 @@ Shows the *simple* multi-turn shape: one message model
 (`recipes.conversation.ConversationMessage`) that both sides write.
 `Conversation` owns appending turns (`create_turn`) and rendering the thread
 (`transcript` / `state`); `ChatMemory(keep=…)` bounds the raw thread with
-`WindowPruner` — all wired into `ChatAssistant`, no LLM and no API key.
+`WindowPruner` — all wired into `Chat`, no LLM and no API key.
 
 For the *other* shape — separate question/answer artifact types, which the
 `repair`/`devops`/`knowledge` examples have — see `Transcript` +
@@ -32,7 +32,7 @@ transcript (the window that survives):
 
 ## What to look at
 
-- `build()` — `Conversation()`, then `ChatAssistant(create_message=conv.create_turn,
+- `build()` — `Conversation()`, then `Chat(create_message=conv.create_turn,
   session_state=conv.state, memory=ChatMemory(message_type=ConversationMessage,
   keep=KEEP))`. That is the whole wiring: turns are recorded and rendered by
   the recipe, and the thread stays bounded.

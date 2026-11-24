@@ -48,7 +48,9 @@ resources.register(K8sClient, K8sClient())
 ```
 
 `retry=` retries an exception and a `ToolError(retryable=True)`; `timeout=`
-bounds one attempt. `FunctionTool(fn, ...)` is the same without the decorator;
+bounds one attempt. `Annotated[T, Inject()]` marks an ambiguous collaborator
+explicitly (a dataclass/protocol service), and `ToolUse` reports
+`ToolError.code`/`retryable` back to the model instead of a bare message. `FunctionTool(fn, ...)` is the same without the decorator;
 subclass `Tool` and implement `async execute(args) -> ToolOutput` when you need
 full control, and set `schema` yourself. Outside a step, pass the resources
 explicitly: `execute_tool(get_pod, {...}, resources=resources)`.

@@ -48,7 +48,7 @@ translator = remote_agent(
     consumes=[Consume(Question)],
     output_type=Answer,          # built as Answer(text=reply)
 )
-Runtime(ctx, agents=[translator, …]).arun()
+Runtime(ctx, groups=[translator, …]).arun()
 ```
 
 A remote task in `input-required` becomes a local `PendingQuestion`; a later

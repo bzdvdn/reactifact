@@ -44,14 +44,14 @@ from reactifact.checkpoints import SQLiteKVBackend
 
 store = SessionStore(SQLiteKVBackend("sessions.sqlite3"))
 session = await store.open("user-1")            # загружает или создаёт
-runtime = Runtime(session.context, agents=[...], session=session)
+runtime = Runtime(session.context, groups=[...], session=session)
 await runtime.arun()
 ```
 
 ```text
 # после краха / рестарта — новый процесс, в памяти ничего нет
 session = await store.open("user-1")
-runtime = Runtime(session.context, agents=[...], session=session)
+runtime = Runtime(session.context, groups=[...], session=session)
 await runtime.arun()   # продолжает: отложенные триггеры на месте
 ```
 

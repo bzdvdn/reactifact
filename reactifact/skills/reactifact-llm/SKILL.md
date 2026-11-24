@@ -141,6 +141,9 @@ resources.register(K8sClient, K8sClient())
 - a parameter annotated with a plain class (`K8sClient`) is **injected**, not
   part of the model's JSON schema; register it with
   `resources.register(Type, instance)` or `Pipeline.override(...)`;
+- use `Annotated[T, Inject()]` when the type would be ambiguous (a dataclass,
+  a protocol, a scalar-looking service); `Inject` is exported from
+  `reactifact` (`Depends` is a FastAPI-style alias);
 - a pydantic return value lands in `ToolOutput.data` (the model still sees JSON);
 - `retry=` retries exceptions and `ToolError(retryable=True)`, `timeout=`
   bounds one attempt;

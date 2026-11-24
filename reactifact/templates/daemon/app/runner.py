@@ -31,7 +31,7 @@ async def run_once(settings: Settings, sequence: int) -> Report | None:
     tracer = Tracer(store=TraceStore(settings.trace_path)) if settings.tracing_enabled else None
     runtime = Runtime(
         context,
-        agents=[MonitorAgent(timeout=settings.agent_timeout_seconds)],
+        groups=[MonitorAgent(timeout=settings.agent_timeout_seconds)],
         budget=build_budget(settings),
         tracer=tracer,
     )

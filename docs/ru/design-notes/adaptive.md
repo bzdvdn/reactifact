@@ -55,7 +55,7 @@ from reactifact.scheduler import uncertainty_policy
 
 runtime = Runtime(
     ctx,
-    agents=[...],
+    groups=[...],
     scheduler=uncertainty_policy(
         rules=[not_refuted],        # Rule = (context, agent, event) -> bool
         metric=support_split,       # Metric = (context, agent, event) -> float

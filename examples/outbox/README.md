@@ -69,7 +69,7 @@ extra create after it. The runtime performs the intent after the commit,
 exactly once per id:
 
 ```python
-await Runtime(context, agents=GROUPS, dispatcher=dispatch).arun()
+await Runtime(context, groups=GROUPS, dispatcher=dispatch).arun()
 ```
 
 The step never touches the network. That is the whole trick: `key` is derived
