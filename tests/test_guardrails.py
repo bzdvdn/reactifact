@@ -39,14 +39,14 @@ class Rewrite(Produce[Note]):
         call.effects.create(Note(text=call.trigger.data.text))
 
 
-def _agent():
+def _group():
     return create_agent("rewrite", consumes=[Consume(Question)], produces=[Rewrite()])
 
 
 def _run(resources, text: str):
     ctx = Context(resources=resources)
     ctx.create(Question(text=text))
-    asyncio.run(Runtime(ctx, agents=[_agent()]).arun())
+    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
     return ctx
 
 

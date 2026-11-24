@@ -12,7 +12,7 @@ from reactifact import (
     PendingQuestion,
     Runtime,
     Step,
-    create_agent,
+    create_step_group,
 )
 
 
@@ -61,7 +61,7 @@ async def run_hitl() -> dict[str, Any]:
     context.create(RefundRequest(order_id="A-17", amount=4200), id="refund:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("refunds", steps=[AskApproval(), Publish()])],
+        groups=[create_step_group("refunds", steps=[AskApproval(), Publish()])],
     )
 
     await runtime.arun()

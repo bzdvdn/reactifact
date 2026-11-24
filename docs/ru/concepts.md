@@ -92,21 +92,26 @@ async def run(self, effects: Effects) -> None:
 | `Link` | соединить `source →rel→ target` (провенанс) |
 | `Unlink` | убрать связь |
 
-`Patch` (контейнер) собирает рантайm и escape-хук `Agent.run`; эффекты
+`Patch` (контейнер) собирает рантайm и escape-хук `StepGroup.run`; эффекты
 сочетаются *внутри* одного produce, поэтому ничего не применяется до компиляции
 рантаймом — атомарность структурная (§41).
 
 HITL — это `effects.ask(...)` → `PendingQuestion`, ответ через
 `effects.resume(...)` (см. [patterns](patterns.md)).
 
-## 4. Agent
+## 4. StepGroup (опционально; бывший Agent)
 
-`Agent` — **тонкий контейнер**: он группирует `Step`-ы. Каждый шаг объявляет,
-что потребляет и производит; runtime выводит триггеры агента из этих
-контрактов.
+Модель — это шаги. **`Runtime(ctx, steps=[...])`** оборачивает каждый шаг в
+неявную группу из одного, так что в обычном случае контейнер не нужен вовсе.
+**`StepGroup`** — необязательный контейнер для шагов, которым нужно что-то
+общее: один триггер, retry-политика, timeout, priority, лимит параллельности
+или один атомарный коммит. `Runtime` принимает `steps=` и `groups=` вместе
+(сначала шаги), а `agents=` остаётся deprecated-алиасом для `groups=`.
 
 ```python
-class RepairFlow(Agent):
+from reactifact import StepGroup
+
+class RepairFlow(StepGroup):
     name = "repair_flow"
     steps = [
         CollectStage(), PickStage(), PlanStage(),
@@ -119,16 +124,18 @@ class RepairFlow(Agent):
   Create-типов. Основной output идёт первым, дополнительные create-only типы —
   в том же tuple: `produces = (Primary, Extra)`; `also_creates` — deprecated
   алиас.
-- `Agent.consumes` остаётся для imperative escape hatch (агент переопределяет
-  `run(event, context)`), но декларативные агенты держат контракты на шагах.
+- `StepGroup.consumes` остаётся для imperative escape hatch (группа
+  переопределяет `run(event, context)`), но декларативный код держит контракты
+  на шагах.
 - `Consume(..., wakes=False)` читает вход, не будя на нём; `debounce=True`
   схлопывает несколько событий одного поколения в один запуск;
   `Consume.by_base(Base)` будит и на наследниках. `JoinConsume`/
   `AbsentConsume` коррелируют типы — см. [patterns](patterns.md).
-- Runtime будит агентов по событиям, соблюдая бюджет и параллельность.
+- Runtime будит группы по событиям, соблюдая бюджет и параллельность.
 
-`Agent.run(event, context) -> Patch | None` остаётся низкоуровневым escape
+`StepGroup.run(event, context) -> Patch | None` остаётся низкоуровневым escape
 hatch для ручной сборки `Patch`; это не третий повседневный стиль.
+`StepGroup` и `create_agent` — deprecated-алиасы для кода на 0.x.
 
 ## 5. Step
 
@@ -213,7 +220,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | --- | --- | --- |
 | Одно типизированное преобразование | `@step(produces=..., consumes=...)` | верните модель или используйте `call.effects` для update/link |
 | Типизированные входы, несколько эффектов, HITL | класс `Step` с `run(..., effects: Effects)` | полная форма; см. [Effects](effects.md) |
-| Ручная сборка операций / императивный агент | `Patch`, `Agent.run(event, context)` | escape hatch, не повседневный стиль |
+| Ручная сборка операций / императивный агент | `Patch`, `StepGroup.run(event, context)` | escape hatch, не повседневный стиль |
 | Код 0.1.x | `Produce` / `@produce` / `ProduceCall` | только миграция; не входит в top-level `__all__` |
 
 ### Планирование

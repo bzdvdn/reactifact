@@ -20,7 +20,7 @@ rather than an unbounded process-lifetime dict.
 
     identity_var: ContextVar[RequestIdentity | None] = ContextVar("request", default=None)
 
-    class UserAgent(Agent):
+    class UserAgent(StepGroup):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(UserContext, identity_var, identity_id="user_context",

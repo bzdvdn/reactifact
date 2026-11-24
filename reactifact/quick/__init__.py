@@ -3,7 +3,7 @@
 `reactifact.quick` is *sugar*, not a second framework. Every object it returns
 is built from the same primitives the rest of reactifact uses
 (`Context`/`Artifact`/`Effects`/`Patch`/`Produce`/`Consume`), and exposes the
-real `Agent` (`.agent`/`.agents`) plus the `Context` a run produced
+real `StepGroup` (`.agent`/`.agents`) plus the `Context` a run produced
 (`.context`) — so the moment you need more than the facade offers, you graduate
 to hand-written produces without rewriting anything (see `docs/en/quickstart.md`
 for the ladder).

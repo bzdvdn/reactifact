@@ -15,7 +15,7 @@ window; this page shows the replacements and what to plan for 0.23.0.
 | --- | --- |
 | `Produce` / `@produce` / `ProduceCall` | `Step` / `@step` / `StepCall` |
 | `Agent.produces=[...]` | `Agent.steps=[...]` |
-| contracts split between `Agent.consumes` and `Produce.reacts_to` | each step owns `consumes` / `produces` |
+| contracts split between `StepGroup.consumes` and `Produce.reacts_to` | each step owns `consumes` / `produces` |
 | `call.trigger` + manual `isinstance` guards | typed `T` / `Artifact[T]` inputs, or `Consume(T)` |
 | manual `context.get(stage_id(...))` | `scope=` / `Scope(...)` + typed inputs, or `Latest[T]` |
 | `self.effects.*` | `effects: Effects` in a class `run()`, or `call.effects` in a function step |
@@ -226,7 +226,7 @@ API.
 1. Replace `Produce` with `Step`, `ProduceCall` with `StepCall`, and
    `@produce` with `@step`.
 2. Replace `Agent(produces=[...])` with `Agent(steps=[...])`; move
-   `Agent.consumes` contracts onto the relevant steps.
+   `StepGroup.consumes` contracts onto the relevant steps.
 3. Replace `self.effects.*` with the injected `effects` argument, or
    `call.effects` in function steps.
 4. Replace `call.trigger.data` guards with typed parameters, `Consume(...)`,

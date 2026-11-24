@@ -7,13 +7,13 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING
 
-from ..agents import Agent
+from ..step import StepGroup
 
 if TYPE_CHECKING:
     from ..checkpoints import FileKVBackend, SQLiteKVBackend
 
 
-def load_agents(spec: str) -> list[Agent]:
+def load_agents(spec: str) -> list[StepGroup]:
     module_name, has_attr, attr = spec.partition(":")
     try:
         module = importlib.import_module(module_name)
@@ -25,35 +25,35 @@ def load_agents(spec: str) -> list[Agent]:
         ) from exc
     if has_attr:
         obj = getattr(module, attr)
-        if isinstance(obj, Agent):
+        if isinstance(obj, StepGroup):
             return [obj]
         if isinstance(obj, (list, tuple)):
             if not obj:
                 raise SystemExit(f"{spec!r} resolved to an empty list")
-            agents = [o for o in obj if isinstance(o, Agent)]
+            agents = [o for o in obj if isinstance(o, StepGroup)]
             if len(agents) != len(obj):
                 raise SystemExit(
-                    f"{spec!r} must resolve to an Agent or a list of Agents"
+                    f"{spec!r} must resolve to an StepGroup or a list of Agents"
                 )
             return agents
-        raise SystemExit(f"expected an Agent or list[Agent] at {spec!r}")
+        raise SystemExit(f"expected an StepGroup or list[StepGroup] at {spec!r}")
 
-    agents = [value for value in vars(module).values() if isinstance(value, Agent)]
+    agents = [value for value in vars(module).values() if isinstance(value, StepGroup)]
     if not agents:
         # The demos instantiate their agents inline — synthesize the blueprint
-        # from every Agent subclass defined in the module (stateless containers).
+        # from every StepGroup subclass defined in the module (stateless containers).
         classes = [
             value
             for _name, value in sorted(vars(module).items())
             if isinstance(value, type)
-            and issubclass(value, Agent)
-            and value is not Agent
+            and issubclass(value, StepGroup)
+            and value is not StepGroup
             and value.__module__ == module_name
         ]
         agents = [cls() for cls in classes]
     if not agents:
         raise SystemExit(
-            f"no Agent instances or subclasses found in {module_name!r}; "
+            f"no StepGroup instances or subclasses found in {module_name!r}; "
             'use the "module:Attr" form'
         )
     return agents

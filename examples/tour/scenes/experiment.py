@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Step
+from reactifact import Consume, Context, Step, StepGroup
 from reactifact.eval.dataset import Dataset
 from reactifact.experiments import Experiment
 
@@ -35,14 +35,14 @@ class LowerStep(Step):
         return Answer(text=question.text.lower())
 
 
-class UpperAgent(Agent):
+class UpperAgent(StepGroup):
     consumes = [Consume(Question)]
 
     def __init__(self) -> None:
         super().__init__(name="upper", steps=[UpperStep()])
 
 
-class LowerAgent(Agent):
+class LowerAgent(StepGroup):
     consumes = [Consume(Question)]
 
     def __init__(self) -> None:

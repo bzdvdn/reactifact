@@ -6,13 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     ArtifactConflict,
     Consume,
     Context,
     Event,
     MergeConflict,
     Runtime,
+    StepGroup,
 )
 from reactifact.effects import current_effects
 
@@ -25,7 +25,7 @@ class Trigger(BaseModel):
     text: str
 
 
-class Writer(Agent):
+class Writer(StepGroup):
     consumes = [Consume(Trigger)]
 
     def __init__(self, text: str):
@@ -51,7 +51,7 @@ async def run_conflicts() -> dict[str, Any]:
     context.create(Trigger(text="go"), id="trigger:1")
     runtime = Runtime(
         context,
-        agents=[Writer("a"), Writer("b")],
+        groups=[Writer("a"), Writer("b")],
         max_concurrency=2,
     )
 

@@ -72,7 +72,7 @@ class AskOrAnswer(Produce[Answer]):
         call.effects.ask("What value?", kind="clarify")
 
 
-def _echo_agent():
+def _echo_group():
     return create_agent("echo", consumes=[Consume(UserMessage)], produces=[Echo()])
 
 
@@ -120,7 +120,7 @@ def _rpc(client: TestClient, method: str, params: dict) -> dict:
 
 
 def test_agent_card_is_served_on_both_paths():
-    client = TestClient(_app([_echo_agent()]))
+    client = TestClient(_app([_echo_group()]))
     for path in ("/.well-known/agent-card.json", "/.well-known/agent.json"):
         card = client.get(path).json()
         assert card["name"] == "echo-app"
@@ -129,7 +129,7 @@ def test_agent_card_is_served_on_both_paths():
 
 
 def test_message_send_completes():
-    client = TestClient(_app([_echo_agent()]))
+    client = TestClient(_app([_echo_group()]))
     body = _rpc(
         client,
         "message/send",
@@ -141,7 +141,7 @@ def test_message_send_completes():
 
 
 def test_tasks_get_and_cancel():
-    client = TestClient(_app([_echo_agent()]))
+    client = TestClient(_app([_echo_group()]))
     task_id = _rpc(
         client, "message/send", {"message": Message.user("hi").model_dump(mode="json")}
     )["result"]["id"]
@@ -158,7 +158,7 @@ def test_tasks_get_and_cancel():
 
 
 def test_unknown_method_errors():
-    client = TestClient(_app([_echo_agent()]))
+    client = TestClient(_app([_echo_group()]))
     body = _rpc(client, "does/not/exist", {})
     assert body["error"]["code"] == -32601
 
@@ -174,7 +174,7 @@ def test_server_task_store_is_bounded():
     )
 
     server = _A2AServer(
-        [_echo_agent()],
+        [_echo_group()],
         context_factory=Context,
         create_message=default_create_message,
         reply=default_reply,
@@ -250,7 +250,7 @@ def test_hitl_input_required_then_resume():
 
 
 def test_message_stream_emits_sse():
-    client = TestClient(_app([_echo_agent()]))
+    client = TestClient(_app([_echo_group()]))
     response = client.post(
         "/",
         json=JSONRPCRequest(
@@ -279,7 +279,7 @@ def _client_for(app: FastAPI) -> tuple[A2AClient, httpx.AsyncClient]:
 
 
 def test_client_fetches_card_and_sends():
-    app = _app([_echo_agent()])
+    app = _app([_echo_group()])
     a2a, http = _client_for(app)
 
     async def run():
@@ -298,7 +298,7 @@ def test_client_fetches_card_and_sends():
 
 
 def test_client_streams_updates():
-    app = _app([_echo_agent()])
+    app = _app([_echo_group()])
     a2a, http = _client_for(app)
 
     async def run():
@@ -313,8 +313,8 @@ def test_client_streams_updates():
     asyncio.run(run())
 
 
-def test_agent_tool_delegates_to_remote_agent():
-    app = _app([_echo_agent()])
+def test_agent_tool_delegates_to_remote_group():
+    app = _app([_echo_group()])
     a2a, http = _client_for(app)
     tool = A2AAgentTool(a2a)
 
@@ -330,7 +330,7 @@ def test_agent_tool_delegates_to_remote_agent():
 
 
 def test_client_raises_on_jsonrpc_error():
-    app = _app([_echo_agent()])
+    app = _app([_echo_group()])
     a2a, http = _client_for(app)
 
     async def run():
@@ -356,7 +356,7 @@ def test_a2a_tool_factory():
 
 
 def test_remote_agent_runs_as_a_local_node():
-    app = _app([_echo_agent()])
+    app = _app([_echo_group()])
     a2a, http = _client_for(app)
     node = remote_agent("remote", a2a, consumes=[Consume(Question)], output_type=Answer)
 

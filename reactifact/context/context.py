@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
@@ -45,6 +45,15 @@ if TYPE_CHECKING:
 
 TData = TypeVar("TData", bound=BaseModel)
 TArtifact = TypeVar("TArtifact", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class ProvenanceLink:
+    """One edge of a provenance walk: `artifact` reached via `relation`."""
+
+    relation: str
+    artifact: Artifact[Any]
+    depth: int
 
 
 @dataclass
@@ -407,6 +416,73 @@ class Context:
                 targets.append(artifact)
                 seen.add(rel.target_id)
         return targets
+
+    def why(
+        self,
+        artifact: Artifact[Any] | str,
+        *,
+        relations: Iterable[str] | None = None,
+        max_depth: int | None = None,
+    ) -> list[ProvenanceLink]:
+        """Walk the provenance edges behind `artifact`, breadth-first.
+
+        Answers "why does this answer say that?" without a hand-written BFS:
+
+            for link in context.why(answer):
+                print("  " * link.depth, link.relation, link.artifact.id)
+
+        `relations` restricts the walk (e.g. ``("supported_by", "derived_from")``);
+        `max_depth` stops it. Traversal follows outgoing edges (artifact → what
+        it was derived from), the same direction as `context.related()`.
+        """
+        root_id = artifact if isinstance(artifact, str) else artifact.id
+        allowed = set(relations) if relations is not None else None
+        links: list[ProvenanceLink] = []
+        seen = {root_id}
+        queue: list[tuple[str, int]] = [(root_id, 0)]
+        while queue:
+            current, depth = queue.pop(0)
+            if max_depth is not None and depth >= max_depth:
+                continue
+            for rel in self.relations(source_id=current):
+                if allowed is not None and rel.relation not in allowed:
+                    continue
+                target = self._artifacts.get(rel.target_id)
+                if target is None:
+                    continue
+                links.append(ProvenanceLink(rel.relation, target, depth + 1))
+                if rel.target_id not in seen:
+                    seen.add(rel.target_id)
+                    queue.append((rel.target_id, depth + 1))
+        return links
+
+    def sources(
+        self,
+        artifact: Artifact[Any] | str,
+        *,
+        relations: Iterable[str] | None = None,
+        max_depth: int | None = None,
+    ) -> list[str]:
+        """Source locators behind `artifact` (the citation list, as a query).
+
+        Walks `why()` and collects every reachable artifact's ``locator``
+        attribute (``Table``/``Policy``/``SourceRef``-style models), including
+        the artifact itself when it has one. Deduplicated, traversal order.
+        """
+        found: list[str] = []
+        root = self._artifacts.get(artifact) if isinstance(artifact, str) else artifact
+        roots = [root] if root is not None else []
+        for item in [
+            *roots,
+            *(
+                link.artifact
+                for link in self.why(artifact, relations=relations, max_depth=max_depth)
+            ),
+        ]:
+            locator = getattr(item.data, "locator", "")
+            if isinstance(locator, str) and locator and locator not in found:
+                found.append(locator)
+        return found
 
     def dangling_relations(self) -> list[Relation]:
         """Links with a non-existent source or target (§69): the state is visible,

@@ -21,14 +21,14 @@ pip install "reactifact[mcp]"
 `@tool` взаимозаменяемы:
 
 ```python
-from reactifact import Consume, create_agent
+from reactifact import Consume, create_step_group
 from reactifact.mcp import mcp_stdio_tools
 from reactifact.tools.use import ToolUse
 
 async with mcp_stdio_tools(
     "npx", ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ) as tools:
-    fs_agent = create_agent(
+    fs_agent = create_step_group(
         "fs",
         consumes=[Consume(Question)],
         steps=[ToolUse("Отвечай на вопросы о файлах в /tmp.", tools)],

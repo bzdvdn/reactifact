@@ -39,12 +39,12 @@ from .models import (
 from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
-    from ..agents import Agent
     from ..commit import Commit, Read, Write
     from ..context import Context
     from ..events import Event
     from ..patches import Patch
     from ..redaction import Redactor
+    from ..step import StepGroup
 
 logger = logging.getLogger(__name__)
 
@@ -173,11 +173,13 @@ class Tracer:
         """Whether this tracer needs `on_llm_delta` (opt-in; default `False`)."""
         return False
 
-    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def on_agent_start(self, agent: StepGroup, event: Event, reads: list[Read]) -> None:
         """Called before an agent's `run()` (after authorization)."""
         pass
 
-    def on_agent_retry(self, agent: Agent, attempt: int, error: BaseException) -> None:
+    def on_agent_retry(
+        self, agent: StepGroup, attempt: int, error: BaseException
+    ) -> None:
         """Called after a failed attempt when the agent will be retried."""
         pass
 
@@ -421,14 +423,16 @@ class CompositeTracer:
             getattr(tracer, "wants_llm_deltas", False) for tracer in self.tracers
         )
 
-    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def on_agent_start(self, agent: StepGroup, event: Event, reads: list[Read]) -> None:
         for tracer in self.tracers:
             try:
                 tracer.on_agent_start(agent, event, reads)
             except Exception as exc:  # noqa: BLE001 — isolate one bad tracer
                 _swallow_tracing_error(f"{type(tracer).__name__}.on_agent_start", exc)
 
-    def on_agent_retry(self, agent: Agent, attempt: int, error: BaseException) -> None:
+    def on_agent_retry(
+        self, agent: StepGroup, attempt: int, error: BaseException
+    ) -> None:
         for tracer in self.tracers:
             try:
                 tracer.on_agent_retry(agent, attempt, error)
@@ -719,7 +723,7 @@ class RunTracer:
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_generation_start", exc)
 
-    def agent_started(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def agent_started(self, agent: StepGroup, event: Event, reads: list[Read]) -> None:
         if self.tracer is None:
             return
         try:
@@ -727,7 +731,9 @@ class RunTracer:
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_agent_start", exc)
 
-    def agent_retried(self, agent: Agent, attempt: int, error: BaseException) -> None:
+    def agent_retried(
+        self, agent: StepGroup, attempt: int, error: BaseException
+    ) -> None:
         if self.tracer is None:
             return
         try:
@@ -761,7 +767,7 @@ class RunTracer:
 
     def record_span(
         self,
-        agent: Agent,
+        agent: StepGroup,
         event: Event,
         reads: list[Read],
         latency_ms: float,

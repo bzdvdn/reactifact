@@ -33,22 +33,22 @@ from typing import TYPE_CHECKING, Any
 from .interrupt import PendingQuestion
 
 if TYPE_CHECKING:
-    from .agents import Agent
     from .context import Context
     from .events import Event
+    from .step import StepGroup
 
 #: One scheduled candidate: (agent, event, reads).
-WorkItem = tuple["Agent", "Event", list[Any]]
+WorkItem = tuple["StepGroup", "Event", list[Any]]
 
-Rule = Callable[["Context", "Agent", "Event"], bool]
-Metric = Callable[["Context", "Agent", "Event"], float]
+Rule = Callable[["Context", "StepGroup", "Event"], bool]
+Metric = Callable[["Context", "StepGroup", "Event"], float]
 
 
-def _stable_metric(context: Context, agent: Agent, event: Event) -> float:
+def _stable_metric(context: Context, agent: StepGroup, event: Event) -> float:
     return 0.0
 
 
-def _is_resume(context: Context, agent: Agent, event: Event) -> bool:
+def _is_resume(context: Context, agent: StepGroup, event: Event) -> bool:
     artifact = context.get(event.artifact_id)
     return isinstance(getattr(artifact, "data", None), PendingQuestion) and bool(
         artifact.data.answered  # type: ignore[union-attr]
@@ -179,7 +179,7 @@ def relation_balance_metric(
     on top of this if you also want a model to break close ties.
     """
 
-    def metric(context: Context, agent: Agent, event: Event) -> float:
+    def metric(context: Context, agent: StepGroup, event: Event) -> float:
         artifact_id = event.artifact_id
         if artifact_id is None:
             return 0.0

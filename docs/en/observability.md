@@ -292,7 +292,7 @@ beyond the core: an in-process collector plus a `Tracer` that fills it, and a
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 
 metrics = Metrics()
-runtime = Runtime(ctx, agents=AGENTS, tracer=MetricsTracer(metrics))
+runtime = Runtime(ctx, agents=GROUPS, tracer=MetricsTracer(metrics))
 app.include_router(create_metrics_router(metrics))   # GET /metrics
 ```
 
@@ -321,7 +321,7 @@ there is no `None` to check:
 metrics = Metrics()
 runtime = Runtime(
     Context(resources=RuntimeResources(metrics=metrics)),
-    agents=AGENTS,
+    agents=GROUPS,
     tracer=MetricsTracer(metrics),
 )
 

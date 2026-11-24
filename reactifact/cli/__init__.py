@@ -2,6 +2,7 @@
 
 Subcommands:
 
+    demo     run a self-contained auditable answer (no API key)
     new      create a project (FastAPI chat or scheduled daemon)
     doctor   check app settings and common boundaries
     graph    static agent blueprint from a module path ("pkg.mod:Attr")
@@ -17,6 +18,7 @@ Examples:
 
     reactifact new app my-app
     reactifact new daemon my-worker
+    reactifact demo
     reactifact doctor
     reactifact graph examples.knowledge.agents
     reactifact context examples/knowledge/sessions/traces.sqlite3
@@ -33,7 +35,19 @@ import argparse
 import sys
 
 from .. import __version__
-from . import branch, context, doctor, eval, graph, new, replay, scenario, skills, trace
+from . import (
+    branch,
+    context,
+    demo,
+    doctor,
+    eval,
+    graph,
+    new,
+    replay,
+    scenario,
+    skills,
+    trace,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     for module in (
+        demo,
         graph,
         context,
         trace,
@@ -79,12 +94,13 @@ def main(argv: list[str] | None = None) -> int:
             " traces as Mermaid.\n"
         )
         print("Start here:")
+        print("  reactifact demo                30-second auditable answer, no key")
         print("  reactifact new app <dir>       FastAPI chat template")
         print("  reactifact new daemon <dir>    scheduled agent loop")
         print("  reactifact doctor              check an app's settings")
         print("  reactifact skills install      add agent skills to your project\n")
         print("Inspect a run:")
-        print("  reactifact graph   <module:Agent>   static blueprint")
+        print("  reactifact graph   <module:StepGroup>   static blueprint")
         print("  reactifact trace   <trace.db>       run diagram\n")
         print("Advanced:")
         print("  reactifact context <sessions.sqlite3>  live provenance graph")

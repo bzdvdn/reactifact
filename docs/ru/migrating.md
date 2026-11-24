@@ -87,10 +87,10 @@ async def answer(call: StepCall) -> None:
 ```
 
 ```python
-from reactifact import Context, Runtime, create_agent
+from reactifact import Context, Runtime, create_step_group
 
-classifier = create_agent("classifier", steps=[classify])
-answerer = create_agent("answerer", steps=[answer])
+classifier = create_step_group("classifier", steps=[classify])
+answerer = create_step_group("answerer", steps=[answer])
 ```
 
 Две вещи, на которые стоит обратить внимание — это и есть реальная работа при

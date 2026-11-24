@@ -20,8 +20,8 @@ from reactifact.providers import openai_llm, openrouter_llm
 from reactifact.sources import FileSystemSource, Source, WebSource
 from reactifact.tracing import Tracer, TraceStore
 
-from examples.medic_lab.agents import medic_lab_agents, medic_lab_scheduler
 from examples.medic_lab.models import Question, ResearchReport
+from examples.medic_lab.step_groups import medic_lab_groups, medic_lab_scheduler
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
@@ -106,7 +106,7 @@ async def main() -> None:
     trace_store = TraceStore(str(ROOT / "traces.db"))
     runtime = Runtime(
         ctx,
-        agents=medic_lab_agents(),
+        groups=medic_lab_groups(),
         budget=Budget(max_runs=400),
         max_concurrency=6,
         tracer=Tracer(store=trace_store),

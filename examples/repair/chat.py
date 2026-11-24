@@ -16,9 +16,9 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.repair.agents import RepairFlow
 from examples.repair.models import ChatReply, UserMsg
 from examples.repair.services import Catalog
+from examples.repair.step_groups import RepairFlow
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import (
@@ -59,7 +59,7 @@ async def main() -> None:
 
     runtime = Runtime(
         session.context,
-        agents=[RepairFlow()],
+        groups=[RepairFlow()],
         session=session,
         budget=Budget(max_runs=200),
         max_concurrency=2,
@@ -74,7 +74,7 @@ async def main() -> None:
             session = await store.open(SESSION_ID, resources=resources)
             runtime = Runtime(
                 session.context,
-                agents=[RepairFlow()],
+                groups=[RepairFlow()],
                 session=session,
                 budget=Budget(max_runs=200),
                 max_concurrency=2,

@@ -294,7 +294,7 @@ OpenTelemetry Collector; `RuntimeResources.redactor` уже вырезает т�
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 
 metrics = Metrics()
-runtime = Runtime(ctx, agents=AGENTS, tracer=MetricsTracer(metrics))
+runtime = Runtime(ctx, agents=GROUPS, tracer=MetricsTracer(metrics))
 app.include_router(create_metrics_router(metrics))   # GET /metrics
 ```
 
@@ -323,7 +323,7 @@ agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 metrics = Metrics()
 runtime = Runtime(
     Context(resources=RuntimeResources(metrics=metrics)),
-    agents=AGENTS,
+    agents=GROUPS,
     tracer=MetricsTracer(metrics),
 )
 

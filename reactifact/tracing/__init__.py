@@ -16,6 +16,7 @@ from .models import (
     ProduceRun,
     RelationRef,
     RunTrace,
+    StepGroupSpan,
     StepRun,
     Tag,
     TagAssignment,
@@ -35,6 +36,7 @@ from .tracer import CompositeTracer, RecordingLLM, RunTracer, Tracer
 __all__ = [
     "AgentContract",
     "AgentSpan",
+    "StepGroupSpan",
     "ArtifactRef",
     "CompositeTracer",
     "LLMCall",

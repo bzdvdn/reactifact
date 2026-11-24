@@ -31,7 +31,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from reactifact.agents import Agent
+from reactifact.agents import StepGroup
 from reactifact.audit import context_hash
 from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
@@ -368,7 +368,7 @@ class ScenarioLab:
 
     def __init__(
         self,
-        agents: list[Agent],
+        agents: list[StepGroup],
         *,
         resources: RuntimeResources | Callable[[], RuntimeResources] | None = None,
         budget: Budget | None = None,
@@ -564,7 +564,7 @@ class ScenarioLab:
 
 async def _execute_turn(
     *,
-    agents: Sequence[Agent],
+    agents: Sequence[StepGroup],
     faults: list[ToolFault],
     resource_faults: list[ResourceFault],
     budget: Budget | None,
@@ -632,7 +632,7 @@ class Scenario:
     def __init__(
         self,
         *,
-        agents: Sequence[Agent],
+        agents: Sequence[StepGroup],
         budget: Budget | None,
         max_concurrency: int | None,
         isolate_errors: bool,
@@ -703,7 +703,7 @@ class Scenario:
 
     @property
     def path(self) -> PathAssertions:
-        """Agent path across every turn run so far, in order."""
+        """StepGroup path across every turn run so far, in order."""
         return PathAssertions(_combined_trace(self.all_traces))
 
     @property

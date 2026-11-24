@@ -163,18 +163,18 @@ def test_report_render_and_dict():
 
 
 def _run_knowledge_calc() -> Context:
-    from examples.knowledge.agents import (
+    from examples.knowledge.models import UserQuery
+    from examples.knowledge.step_groups import (
         AnswerBuilder,
-        CalculatorAgent,
+        CalculatorGroup,
         EvidenceBuilder,
         Planner,
         ProgressEvaluator,
-        ResolverAgent,
+        ResolverGroup,
         SearchScout,
         TableResolver,
-        VerifierAgent,
+        VerifierGroup,
     )
-    from examples.knowledge.models import UserQuery
     from reactifact import Budget, Runtime
     from reactifact.recipes import keyword_score
     from reactifact.sources import CSVSource, FileSystemSource
@@ -198,11 +198,11 @@ def _run_knowledge_calc() -> Context:
         agents=[
             Planner(),
             SearchScout(),
-            ResolverAgent(),
+            ResolverGroup(),
             TableResolver(),
             EvidenceBuilder(),
-            VerifierAgent(),
-            CalculatorAgent(),
+            VerifierGroup(),
+            CalculatorGroup(),
             ProgressEvaluator(),
             AnswerBuilder(),
         ],

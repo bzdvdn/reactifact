@@ -8,11 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .agents import Agent
 from .artifacts import Artifact
 from .budget import Budget, RunStats
 from .context import Context
 from .runtime import Runtime
+from .step import StepGroup
 
 
 @dataclass
@@ -31,7 +31,8 @@ class SubflowResult:
 async def run_subflow(
     parent: Context,
     *,
-    agents: Agent | Sequence[Agent],
+    groups: StepGroup | Sequence[StepGroup] | None = None,
+    agents: StepGroup | Sequence[StepGroup] | None = None,
     input: BaseModel | Artifact[Any],
     output_type: type[BaseModel] | None = None,
     isolate: bool = True,
@@ -43,7 +44,10 @@ async def run_subflow(
     max_iterations: int = 100,
     name: str = "subflow",
 ) -> SubflowResult:
-    """Runs `agents` on a child Context and returns its state and outputs.
+    """Runs `groups` on a child Context and returns its state and outputs.
+
+    `groups=` is one `StepGroup` or a sequence; `agents=` is the deprecated
+    0.x alias (pass one, not both).
 
     `isolate=True` starts from an empty Context (just the seeded input);
     `isolate=False` starts from a `parent.branch()` so the child sees the
@@ -56,7 +60,12 @@ async def run_subflow(
     the parent's `BudgetLLM` wrapper still counts the child's usage — do not
     add it twice).
     """
-    agent_list = [agents] if isinstance(agents, Agent) else list(agents)
+    if groups is not None and agents is not None:
+        raise ValueError("Pass either agents= (deprecated) or groups=, not both")
+    resolved = groups if groups is not None else agents
+    if resolved is None:
+        raise TypeError("run_subflow requires groups=")
+    group_list = [resolved] if isinstance(resolved, StepGroup) else list(resolved)
     parent_versions = {
         artifact.id: artifact.version for artifact in parent.list_artifacts()
     }
@@ -93,7 +102,7 @@ async def run_subflow(
     parent_tracer = parent.resources.tracer if inherit_trace else None
     child_runtime = Runtime(
         child,
-        agents=agent_list,
+        groups=group_list,
         budget=child_budget,
         tracer=parent_tracer,
         trace_scope=parent.resources.trace_scope,

@@ -40,7 +40,7 @@ from the same tracing hook, so one `Runtime` gives both traces and metrics:
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, Effects, Runtime, RuntimeResources, Step, create_agent,
+    StepGroup, Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
 )
 from reactifact.metrics import Metrics, MetricsTracer
 
@@ -61,7 +61,7 @@ class Answerer(Step):
         effects.create(Answer(text=question.text))
 
 
-class AnswerAgent(Agent):
+class AnswerAgent(StepGroup):
     steps = [Answerer()]
 
 

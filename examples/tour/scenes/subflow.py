@@ -10,7 +10,7 @@ from reactifact import (
     Context,
     Runtime,
     Step,
-    create_agent,
+    create_step_group,
     run_subflow,
 )
 from reactifact.tracing import Tracer
@@ -47,7 +47,7 @@ class ParentStep(Step):
     async def run(self, context: Context, trigger: Artifact[Question]) -> Final:
         result = await run_subflow(
             context,
-            agents=[create_agent("child", steps=[ChildStep()])],
+            groups=[create_step_group("child", steps=[ChildStep()])],
             input=trigger,
             output_type=Answer,
             link="supported_by",
@@ -68,7 +68,7 @@ async def run_subflow_scene() -> dict[str, Any]:
     context.create(Question(text="hello from subflow"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("parent", steps=[ParentStep()])],
+        groups=[create_step_group("parent", steps=[ParentStep()])],
         tracer=Tracer(),
     )
 

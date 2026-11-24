@@ -81,21 +81,22 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | op records from which patches are built |
 
-## Agents & steps
+## Groups & steps
 
 | Symbol | Role |
 | --- | --- |
-| `Agent` | thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
-| `create_agent` | constructor-style Agent builder — no subclassing needed for plain containers; accepts `retry=`/`timeout=` |
+| `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers. `StepGroup` is the deprecated alias |
+| `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=`. `create_agent` is the deprecated alias |
+| `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords |
 | `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
 | `run_subflow(parent, *, agents, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
-| `validate_agents(agents, *, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check: unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `graph --check` |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `graph --check`. `validate_agents` is the deprecated alias |
 | `Wakes(False)` / `Scope` / `Consume` / `consume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `wakes=False` reads as input without waking the agent; `debounce=True` collapses several same-generation events into one run |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`) — `also_creates=`/`reacts_to=` are deprecated aliases. `timeout=` is a hard per-step deadline: the agent fails and `Agent.retry` may retry the whole agent (no partial step commit) |
+| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`) — `also_creates=`/`reacts_to=` are deprecated aliases. `timeout=` is a hard per-step deadline: the agent fails and `StepGroup.retry` may retry the whole group (no partial step commit) |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |

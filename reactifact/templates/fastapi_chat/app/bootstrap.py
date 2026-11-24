@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Agent, Budget, SessionStore
+from reactifact import StepGroup, Budget, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import (
     FileKVBackend,
@@ -59,7 +59,7 @@ def build_chat_memory(settings: Settings) -> ChatMemory | None:
     )
 
 
-def build_agents(settings: Settings) -> list[Agent]:
+def build_agents(settings: Settings) -> list[StepGroup]:
     return [AnswerAgent(timeout=settings.agent_timeout_seconds)]
 
 

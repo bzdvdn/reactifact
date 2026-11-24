@@ -17,16 +17,16 @@ runtime выводит исполнение из изменений состоя
 ## CLI
 
 ```bash
-python -m reactifact graph examples.knowledge.agents        # все агенты модуля
-python -m reactifact graph examples.knowledge.agents:Planner # один агент
-python -m reactifact graph examples.knowledge.agents --check --seed Question --terminal Answer
+python -m reactifact graph examples.knowledge.step_groups        # все агенты модуля
+python -m reactifact graph examples.knowledge.step_groups:Planner # один агент
+python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
 ```
 
-- `graph` инстансирует каждый подкласс `Agent`, определённый в модуле (или один
+- `graph` инстансирует каждый подкласс `StepGroup`, определённый в модуле (или один
   через `module:Attr`), и печатает blueprint. С `--check` вместо отрисовки
-  запускает `validate_agents`: неизвестные входы — errors (exit 1), dead
+  запускает `validate_contracts`: неизвестные входы — errors (exit 1), dead
   outputs/unreachable/cycles — warnings; `--seed TYPE`/`--terminal TYPE` можно
   повторять.
 - `context` читает сохранённую сессию из KV-бэкенда (директория файлов или

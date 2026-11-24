@@ -2,7 +2,6 @@
 
 import asyncio
 
-from examples.devops.agents import RouteAgent
 from examples.devops.models import UserMsg
 from examples.devops.online_eval import (
     build_evaluator,
@@ -10,6 +9,7 @@ from examples.devops.online_eval import (
     routed,
     routed_to,
 )
+from examples.devops.step_groups import RouteGroup
 from reactifact import Context, Runtime, RuntimeResources
 from reactifact.eval import EvalInput, Example, online_evaluate
 from reactifact.tracing import Tracer, TraceStore
@@ -21,7 +21,7 @@ def _offline_store(tmp_path, texts):
         context = Context(resources=RuntimeResources())
         context.create(UserMsg(text=text))
         asyncio.run(
-            Runtime(context, agents=[RouteAgent()], tracer=Tracer(store=store)).arun()
+            Runtime(context, agents=[RouteGroup()], tracer=Tracer(store=store)).arun()
         )
     return store
 

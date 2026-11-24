@@ -46,6 +46,9 @@ exactly-once — the *model* is Celery-shaped, the deployment is not.
 
 | I want to… | Start with | Then |
 | --- | --- | --- |
+| See it run (no API key) | `reactifact demo` | [Quickstart](quickstart.md) |
+| Build a knowledge assistant | [Knowledge base](knowledge.md) + `reactifact.quick.rag` | [Sources](sources.md), [Patterns](patterns.md) |
+| Run experiments with agents | [Branching](branching.md) + `forklab` example | [Eval](eval.md), [Replay](replay.md) |
 | Build a web app | `reactifact new app my-app` + [Quickstart](quickstart.md) | [Chat](chat.md), [FastAPI template](../../reactifact/templates/fastapi_chat) |
 | Use it in existing code | [Quickstart](quickstart.md#0-the-80-on-ramp-reactifactquick) / `reactifact.quick` | [Concepts](concepts.md), [Effects](effects.md) |
 | Understand the model | [Why reactifact](why-reactifact.md) | [Concepts](concepts.md), [Comparison](comparison.md) |
@@ -73,7 +76,7 @@ re-running the pipeline hashes identically — or verify a saved run:
                                    EVENT (created/updated)
                                           │
                                           ▼
-CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──effects──► EFFECTS
+CONTEXT ───────► ARTIFACTS ──► STEPS REACT ──effects──► EFFECTS
    ▲                 │                                            │
    │                 │                                            │  compile
    └────── CONTEXT' ◄────────────────┘ PATCH ◄────────────────────┘
@@ -146,7 +149,7 @@ first one's output exists, and the answer carries *proof* of where it came from:
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
+from reactifact import Budget, Context, Runtime, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -181,11 +184,8 @@ async def answer_from_evidence(call):
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", steps=[find_evidence])
-answer_agent = create_agent("answer", steps=[answer_from_evidence])
-
 ctx = Context(resources=RuntimeResources())
-runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
+runtime = Runtime(ctx, steps=[find_evidence, answer_from_evidence], budget=Budget(max_runs=10))
 
 ctx.create(Question(text="what's your refund policy?"))
 runtime.run()  # search_agent and answer_agent both react — nobody wired them together

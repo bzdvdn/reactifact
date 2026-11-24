@@ -30,8 +30,16 @@ from reactifact.audit import build_report, context_hash, report_to_markdown
 from reactifact.recipes import keyword_score
 from reactifact.sources import CSVSource, FileSystemSource
 
-from examples.fintech_audit.agents import AGENTS
 from examples.fintech_audit.models import AuditAnswer, Question, Spend, Variance
+from examples.fintech_audit.steps import (
+    answer,
+    compute_spend,
+    compute_variance,
+    materialize,
+    search_sources,
+)
+
+STEPS = [search_sources, materialize, compute_spend, compute_variance, answer]
 
 DATA = Path(__file__).parent / "data"
 QUESTION = "What is the Q2 cloud spend variance, and does policy require approval?"
@@ -54,7 +62,7 @@ def build_resources() -> RuntimeResources:
 async def run_pipeline() -> Context:
     """One full run. Called twice in `main` to prove the state is reproducible."""
     context = Context(resources=build_resources())
-    runtime = Runtime(context, agents=AGENTS, budget=Budget(max_runs=50))
+    runtime = Runtime(context, steps=STEPS, budget=Budget(max_runs=50))
     context.create(Question(text=QUESTION), id="q2")
     await runtime.arun()
     return context

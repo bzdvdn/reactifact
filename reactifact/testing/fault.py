@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Any
 from reactifact.tools import Tool, ToolOutput
 
 if TYPE_CHECKING:
-    from reactifact.agents import Agent
+    from reactifact.agents import StepGroup
     from reactifact.resources import RuntimeResources
 
 
@@ -96,7 +96,7 @@ class ToolCallRecorder:
         )
 
 
-def _iter_tool_dicts(agents: Sequence[Agent]) -> Iterator[dict[str, Tool]]:
+def _iter_tool_dicts(agents: Sequence[StepGroup]) -> Iterator[dict[str, Tool]]:
     """Yields every `dict[str, Tool]`-shaped mapping found on any agent produce.
 
     Duck-typed (checks `.execute` on the values) rather than importing the
@@ -201,7 +201,7 @@ class FaultInstaller:
 
     def __init__(
         self,
-        agents: Sequence[Agent],
+        agents: Sequence[StepGroup],
         faults: list[ToolFault],
         recorder: ToolCallRecorder,
         resources: RuntimeResources | None = None,

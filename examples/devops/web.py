@@ -20,19 +20,19 @@ if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.devops.agents import (
-    AnsibleAgent,
-    GitlabAgent,
-    K8sAgent,
-    MemoryAgent,
-    RenderAgent,
-    RouteAgent,
-)
 from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
 from examples.devops.online_eval import build_evaluator
 from examples.devops.policy import PRINCIPALS, user_from_request
 from examples.devops.resources import build_resources
+from examples.devops.step_groups import (
+    AnsibleAgent,
+    GitlabAgent,
+    K8sAgent,
+    MemoryGroup,
+    RenderGroup,
+    RouteGroup,
+)
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, SessionStore
@@ -70,13 +70,13 @@ load_dotenv(ROOT / ".env")
 FALLBACK_REPLY = "Failed to assemble the answer. Try rephrasing the question."
 
 
-AGENTS = [
-    RouteAgent(),
+GROUPS = [
+    RouteGroup(),
     K8sAgent(),
     GitlabAgent(),
     AnsibleAgent(),
-    RenderAgent(),
-    MemoryAgent(),
+    RenderGroup(),
+    MemoryGroup(),
 ]
 
 #: Guardrails for the running assistant (see examples/devops/guardrails.py).
@@ -170,7 +170,7 @@ def create_app(
 
     assistant = ChatAssistant(
         store=store,
-        agents=AGENTS,
+        groups=GROUPS,
         user_message=UserMsg,
         reply=terminal_reply,
         session_state=session_state,

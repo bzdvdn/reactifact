@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
-from ..agents import RepairFlow
 from ..models import ChatReply, PlanStep, Project, UserMsg
+from ..step_groups import RepairFlow
 from ._common import ModelStub, resources
 
 

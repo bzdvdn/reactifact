@@ -4,10 +4,10 @@ No extra dependency: the client uses `httpx` (core), the server uses FastAPI
 from the existing `web` extra and imports it lazily — so importing this package
 never needs FastAPI.
 
-- Client (`reactifact.a2a.client`): `A2AClient` (Agent Card + `message/send`,
+- Client (`reactifact.a2a.client`): `A2AClient` (StepGroup Card + `message/send`,
   `message/stream`, `tasks/get`, `tasks/cancel`) and `A2AAgentTool`/`a2a_tool`,
   a reactifact `Tool` that delegates to a remote agent.
-- Server (`reactifact.a2a.server`): `create_a2a_router(agents, ...)` — an Agent
+- Server (`reactifact.a2a.server`): `create_a2a_router(agents, ...)` — an StepGroup
   Card plus a JSON-RPC endpoint where a `Task` is a conversation and a HITL
   `PendingQuestion` maps to `input-required`.
 

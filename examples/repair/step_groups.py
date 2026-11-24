@@ -1,6 +1,6 @@
 """Repair assistant agent — a container over the staged Step (§71)."""
 
-from reactifact import Agent
+from reactifact import StepGroup
 
 from .steps import (
     ApprovalStage,
@@ -12,7 +12,7 @@ from .steps import (
 )
 
 
-class RepairFlow(Agent):
+class RepairFlow(StepGroup):
     """Single dispatcher: reacts to messages and project changes.
 
     Each stage is its own Step with a deterministic guard; routing follows

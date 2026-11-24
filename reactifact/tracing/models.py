@@ -170,6 +170,16 @@ class AgentSpan(BaseModel):
     error: str | None = None
     started_at: datetime | None = None
 
+    @property
+    def group(self) -> str:
+        """The StepGroup name (alias for `agent`, kept for compatibility)."""
+        return self.agent
+
+
+#: `StepGroup`-era name for `AgentSpan`. The `agent` field keeps its name so
+#: existing trace stores, dashboards and OTLP consumers keep working.
+StepGroupSpan = AgentSpan
+
 
 class RunTrace(BaseModel):
     """Trace of a single run (turn): agent executions + outcome."""

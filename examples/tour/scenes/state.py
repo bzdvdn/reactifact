@@ -13,7 +13,7 @@ from reactifact import (
     Runtime,
     Step,
     When,
-    create_agent,
+    create_step_group,
 )
 
 
@@ -51,7 +51,7 @@ async def run_state() -> dict[str, Any]:
     context.create(Seed(text="versioned artifacts"), id="seed:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("state", steps=[StartDraft(), PolishDraft()])],
+        groups=[create_step_group("state", steps=[StartDraft(), PolishDraft()])],
         budget=Budget(max_runs=20),
     )
     await runtime.arun()

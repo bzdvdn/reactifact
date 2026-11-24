@@ -73,7 +73,7 @@ fintech_audit/
 ├── data/             # transactions.csv, budget.csv, policy.md
 ├── models.py         # Question, Table, Policy, Spend, Variance, AuditAnswer
 ├── produce.py        # search → materialize → compute_spend → compute_variance → answer
-├── agents.py         # AGENTS list
+├── agents.py         # GROUPS list
 └── main.py           # run, audit report, reproducibility check
 ```
 

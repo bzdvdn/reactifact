@@ -106,7 +106,7 @@ def test_trigger_condition():
     assert len(ws.list_artifacts(Marker)) == 1
 
 
-def test_async_agent():
+def test_async_group():
     ws = Context()
     runtime = Runtime(ws, agents=[AsyncDoubler()])
     ws.create(Number(value=7))

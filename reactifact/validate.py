@@ -14,11 +14,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
-from .agents import Agent
 from .budget import Budget
 from .consume import Consume, CorrelatedConsume
+from .step import StepGroup
+from .step.group import normalize_units
 
 Severity = Literal["error", "warning"]
 
@@ -36,8 +37,13 @@ class ValidationIssue:
     severity: Severity
     code: str
     message: str
-    agents: tuple[str, ...] = ()
+    groups: tuple[str, ...] = ()
     artifact: str = ""
+
+    @property
+    def agents(self) -> tuple[str, ...]:
+        """Deprecated 0.x alias for `groups`."""
+        return self.groups
 
 
 @dataclass
@@ -69,7 +75,7 @@ class ValidationReport:
             f"{len(self.warnings)} warning(s)"
         ]
         for issue in self.issues:
-            who = f" [{', '.join(issue.agents)}]" if issue.agents else ""
+            who = f" [{', '.join(issue.groups)}]" if issue.groups else ""
             lines.append(
                 f"{issue.severity.upper():<7} {issue.code}: {issue.message}{who}"
             )
@@ -80,7 +86,7 @@ def _name(value: type | str) -> str:
     return value if isinstance(value, str) else value.__name__
 
 
-def _consume_types(agent: Agent) -> set[str]:
+def _consume_types(agent: StepGroup) -> set[str]:
     specs: Iterable[Consume]
     if agent.consumes is not None:
         specs = agent.consumes
@@ -99,7 +105,7 @@ def _consume_types(agent: Agent) -> set[str]:
     return names
 
 
-def _produced_types(agent: Agent) -> set[str]:
+def _produced_types(agent: StepGroup) -> set[str]:
     names: set[str] = set()
     for step in agent.steps or ():
         for part in step.produces or ():
@@ -140,25 +146,33 @@ def _cycle_types(
     return cycles
 
 
-def validate_agents(
-    agents: Iterable[Agent],
+def validate_contracts(
     *,
+    steps: Iterable[Any] | None = None,
+    groups: Iterable[Any] | None = None,
     seeds: Iterable[type | str] = (),
     terminal: Iterable[type | str] = (),
     budget: Budget | None = None,
 ) -> ValidationReport:
     """Checks artifact-contract reachability without running anything.
 
+    Mirrors `Runtime`: `steps=` accepts raw `Step`s (each is wrapped in an
+    implicit group of one) and `groups=` accepts `StepGroup`s; both can be
+    passed together, steps first.
+
     - consumed type with no producer and not in `seeds` → **error**
       `unknown_input`;
     - produced type with no consumer and not in `terminal` → **warning**
       `dead_output`;
     - no triggers/consumes → **warning** `never_scheduled`;
-    - agent whose inputs are never available from seeds/producers → **warning**
+    - group whose inputs are never available from seeds/producers → **warning**
       `unreachable`;
     - artifact-type cycle with no bounding Budget → **warning** `cycle`.
     """
-    agent_list = list(agents)
+    agent_list = normalize_units(
+        steps=list(steps) if steps is not None else None,
+        groups=list(groups) if groups is not None else None,
+    )
     seed_names = {_name(type_) for type_ in seeds}
     terminal_names = {_name(type_) for type_ in terminal}
     report = ValidationReport()
@@ -172,7 +186,7 @@ def validate_agents(
                 ValidationIssue(
                     "error",
                     "duplicate_agent",
-                    f"agent name {agent.name!r} is used more than once",
+                    f"group name {agent.name!r} is used more than once",
                     (agent.name,),
                 )
             )
@@ -187,7 +201,7 @@ def validate_agents(
                 ValidationIssue(
                     "warning",
                     "never_scheduled",
-                    f"agent {agent.name!r} has no consumes/triggers",
+                    f"group {agent.name!r} has no consumes/triggers",
                     (agent.name,),
                 )
             )
@@ -265,9 +279,23 @@ def validate_agents(
     return report
 
 
+def validate_agents(
+    agents: Iterable[StepGroup],
+    *,
+    seeds: Iterable[type | str] = (),
+    terminal: Iterable[type | str] = (),
+    budget: Budget | None = None,
+) -> ValidationReport:
+    """Deprecated 0.x alias for `validate_contracts(groups=...)`."""
+    return validate_contracts(
+        groups=list(agents), seeds=seeds, terminal=terminal, budget=budget
+    )
+
+
 __all__ = [
     "ValidationError",
     "ValidationIssue",
     "ValidationReport",
     "validate_agents",
+    "validate_contracts",
 ]

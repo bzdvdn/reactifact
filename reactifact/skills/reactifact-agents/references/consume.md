@@ -2,7 +2,7 @@
 
 A `Consume` answers two questions: *does this agent run at all* (`wakes`) and
 *which artifacts become its inputs* (`collect`). All parameters can be class
-attributes (for an `Agent` subclass) or constructor arguments.
+attributes (for an `StepGroup` subclass) or constructor arguments.
 
 ## Common parameters
 

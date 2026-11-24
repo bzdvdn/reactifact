@@ -23,7 +23,6 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from .agents import Agent
 from .budget import Budget, RunStats
 from .context import Context
 from .eval.dataset import Dataset, Example
@@ -31,6 +30,7 @@ from .eval.evaluators import Evaluator
 from .eval.runner import Extractor, aevaluate, default_outputs
 from .eval.scoring import EvalReport, EvalResult
 from .runtime import Runtime
+from .step import StepGroup
 from .tracing import Tracer
 
 Seed = Callable[[Context, Mapping[str, Any]], Any]
@@ -40,7 +40,7 @@ OnResult = Callable[[str, EvalResult], None]
 @dataclass(frozen=True)
 class ExperimentVariant:
     name: str
-    agents: Sequence[Agent]
+    agents: Sequence[StepGroup]
     description: str = ""
 
 
@@ -130,7 +130,7 @@ class Experiment:
         self,
         *,
         base: Context,
-        variants: Mapping[str, Sequence[Agent] | Agent | ExperimentVariant],
+        variants: Mapping[str, Sequence[StepGroup] | StepGroup | ExperimentVariant],
         dataset: Dataset | Iterable[Example | Mapping[str, Any]],
         seed: Seed,
         evaluators: Mapping[str, Evaluator] | Sequence[Evaluator],
@@ -152,7 +152,9 @@ class Experiment:
                 self.variants.append(
                     ExperimentVariant(
                         name=name,
-                        agents=([value] if isinstance(value, Agent) else list(value)),
+                        agents=(
+                            [value] if isinstance(value, StepGroup) else list(value)
+                        ),
                     )
                 )
         if not self.variants:

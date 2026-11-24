@@ -1,14 +1,14 @@
 """reactifact.context_builder — Runtime-level policy for what goes into an
 agent's inputs (ranking/truncation), separate from the agent itself.
 
-An `Agent` only declares *which* artifact types/conditions it consumes
+An `StepGroup` only declares *which* artifact types/conditions it consumes
 (`Consume`); it says nothing about *how many* or *which* matching artifacts
 actually go into a produce call when there are more candidates than fit a
 prompt. That decision is a `Runtime`-level concern — set it once via
 `RuntimeResources(context_builder=...)` and every agent's
-`collect_inputs()` (`Agent._collect_inputs`, `agents.py`) routes through it,
+`collect_inputs()` (`StepGroup._collect_inputs`, `agents.py`) routes through it,
 so a builder set on the `Context` a `Runtime` was constructed with applies
-uniformly, without each `Agent` subclass reimplementing ranking/truncation.
+uniformly, without each `StepGroup` subclass reimplementing ranking/truncation.
 
 Two implementations ship here: `DefaultContextBuilder` (no-op — today's
 "every matching artifact, unranked" behavior) and `TokenBudgetContextBuilder`
@@ -42,8 +42,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 from .artifacts import Artifact
 
 if TYPE_CHECKING:
-    from .agents import Agent
     from .context import Context
+    from .step import StepGroup
 
 
 class TokenCounter(Protocol):
@@ -92,7 +92,7 @@ class ContextBuilder(ABC):
     def build(
         self,
         context: Context,
-        agent: Agent,
+        agent: StepGroup,
         candidates: list[Artifact[Any]],
     ) -> list[Artifact[Any]]: ...
 
@@ -101,7 +101,7 @@ class DefaultContextBuilder(ContextBuilder):
     """No-op: every consumes-matched artifact, in collection order."""
 
     def build(
-        self, context: Context, agent: Agent, candidates: list[Artifact[Any]]
+        self, context: Context, agent: StepGroup, candidates: list[Artifact[Any]]
     ) -> list[Artifact[Any]]:
         return candidates
 
@@ -156,7 +156,7 @@ class TokenBudgetContextBuilder(ContextBuilder):
         self.min_keep = dict(min_keep or {})
 
     def build(
-        self, context: Context, agent: Agent, candidates: list[Artifact[Any]]
+        self, context: Context, agent: StepGroup, candidates: list[Artifact[Any]]
     ) -> list[Artifact[Any]]:
         ranked = sorted(candidates, key=self.rank_key, reverse=True)
         if self.max_tokens is None:

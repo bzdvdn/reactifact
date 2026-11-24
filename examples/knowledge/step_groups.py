@@ -5,7 +5,7 @@ declare the steps contracts. Each step carries its own `consumes`/`produces`,
 so the agent is just the runtime entry point.
 """
 
-from reactifact import Agent
+from reactifact import StepGroup
 
 from .steps import (
     BuildAnswer,
@@ -21,56 +21,56 @@ from .steps import (
 )
 
 
-class Planner(Agent):
+class Planner(StepGroup):
     """Router: greeting/direct → ChatReply, research → ResearchTurn."""
 
     name = "planner"
     steps = [PlannerReply(), PlannerTurn()]
 
 
-class SearchScout(Agent):
+class SearchScout(StepGroup):
     """Fan-out over sources: refs → SourceRef + search-complete marker."""
 
     name = "search_scout"
     steps = [ScoutSources()]
 
 
-class ResolverAgent(Agent):
+class ResolverGroup(StepGroup):
     """Lazy materialization of a text link into a typed document."""
 
     name = "resolver"
     steps = [ResolveRef()]
 
 
-class TableResolver(Agent):
+class TableResolver(StepGroup):
     """Lazy materialization of a structured ref into a spreadsheet (§29)."""
 
     name = "table_resolver"
     steps = [ResolveTable()]
 
 
-class EvidenceBuilder(Agent):
+class EvidenceBuilder(StepGroup):
     """Extracts key facts from a document."""
 
     name = "evidence_builder"
     steps = [ExtractEvidence()]
 
 
-class VerifierAgent(Agent):
+class VerifierGroup(StepGroup):
     """Verifies facts: builds claims with confidence and finds contradictions."""
 
     name = "verifier"
     steps = [VerifyClaims()]
 
 
-class CalculatorAgent(Agent):
+class CalculatorGroup(StepGroup):
     """Computes over the spreadsheet if the question asks for an aggregate (§29, §67)."""
 
     name = "calculator"
     steps = [CalculateAggregate()]
 
 
-class ProgressEvaluator(Agent):
+class ProgressEvaluator(StepGroup):
     """Deterministic turn overseer: moves statuses forward (§24, §69)."""
 
     name = "progress_evaluator"
@@ -78,7 +78,7 @@ class ProgressEvaluator(Agent):
     priority = 100
 
 
-class AnswerBuilder(Agent):
+class AnswerBuilder(StepGroup):
     """Assembles the answer once the turn becomes answerable (§17)."""
 
     name = "answer_builder"
@@ -88,27 +88,27 @@ class AnswerBuilder(Agent):
 #: The full pipeline, in no particular order — the runtime schedules by
 #: reaction to state changes, not by this list's order. Shared by chat.py
 #: (console) and web.py (SSE) so the two transports can never drift apart.
-AGENTS: list[Agent] = [
+GROUPS: list[StepGroup] = [
     Planner(),
     SearchScout(),
-    ResolverAgent(),
+    ResolverGroup(),
     TableResolver(),
     EvidenceBuilder(),
-    VerifierAgent(),
-    CalculatorAgent(),
+    VerifierGroup(),
+    CalculatorGroup(),
     ProgressEvaluator(),
     AnswerBuilder(),
 ]
 
 __all__ = [
-    "AGENTS",
+    "GROUPS",
     "AnswerBuilder",
-    "CalculatorAgent",
+    "CalculatorGroup",
     "EvidenceBuilder",
     "Planner",
     "ProgressEvaluator",
-    "ResolverAgent",
+    "ResolverGroup",
     "SearchScout",
     "TableResolver",
-    "VerifierAgent",
+    "VerifierGroup",
 ]

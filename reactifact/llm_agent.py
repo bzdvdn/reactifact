@@ -17,13 +17,12 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .agents import Agent
 from .artifacts import Artifact
 from .consume import Consume
 from .context import Context
 from .events import Event
 from .interrupt import PendingQuestion
-from .step import Step
+from .step import Step, StepGroup
 from .structured import SYSTEM_STRUCTURED, structured_llm
 from .tools import Tool
 from .tools.use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
@@ -40,7 +39,7 @@ def _require_consumes(
         )
 
 
-class StructuredGenerateAgent(Agent):
+class StructuredGenerateAgent(StepGroup):
     """Base agent: LLM → pydantic schema → Artifact (reads/commits as provenance).
 
     Declare `schema`, override `build_prompt(inputs)`; optionally
@@ -86,7 +85,7 @@ class StructuredGenerateAgent(Agent):
         return None
 
 
-class LLMAgent(Agent):
+class LLMAgent(StepGroup):
     """Ordinary LLM agent with tools: blocking loop, no HITL.
 
     In a subclass set: `system`, `tools`, `consumes` (questions), `produces`
@@ -125,7 +124,7 @@ class LLMAgent(Agent):
         super().__init__(name=name, **kwargs)
 
 
-class HITLLMAgent(Agent):
+class HITLLMAgent(StepGroup):
     """LLM agent with HITL: reactive loop that can ask a human.
 
     Same as `LLMAgent`, plus: the LLM can return `type:"ask"` — a `PendingQuestion`

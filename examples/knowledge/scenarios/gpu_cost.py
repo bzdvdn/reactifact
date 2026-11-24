@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
-from ..agents import AGENTS
 from ..models import Answer, Calculation, UserQuery
+from ..step_groups import GROUPS
 from ._common import GPU_COST_QUESTION, resources
 
 
 @scenario("knowledge: gpu cost answer is computed, not guessed")
 async def gpu_cost_answer_is_computed_not_guessed() -> None:
-    lab = ScenarioLab(list(AGENTS), resources=resources)
+    lab = ScenarioLab(list(GROUPS), resources=resources)
 
     result = await lab.run(UserQuery(text=GPU_COST_QUESTION))
 

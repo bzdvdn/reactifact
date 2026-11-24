@@ -1,9 +1,9 @@
 import asyncio
 from pathlib import Path
 
-from examples.repair.agents import RepairFlow
 from examples.repair.models import ChatReply, Project, ProjectInfo, UserMsg
 from examples.repair.services import FAST_ABILITIES_TEXT, Catalog
+from examples.repair.step_groups import RepairFlow
 from reactifact import Budget, Context, Runtime, RuntimeResources
 from reactifact.providers import (
     ImageProvider,

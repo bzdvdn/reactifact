@@ -8,7 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..agents import Agent
 from ..budget import Budget
 from ..chat import ChatAssistant
 from ..checkpoints import FileKVBackend, InMemoryKVBackend
@@ -17,6 +16,7 @@ from ..providers import LLMProvider, from_env
 from ..resources import RuntimeResources
 from ..runtime import Dispatcher, DispatchErrorHandler
 from ..session import SessionStore
+from ..step import StepGroup
 from .models import Question
 
 
@@ -46,8 +46,9 @@ def _default_reply(
 
 
 def chat_agent(
-    agents: Sequence[Agent],
+    groups: Sequence[StepGroup] | None = None,
     *,
+    agents: Sequence[StepGroup] | None = None,
     store: SessionStore | str | Path | None = None,
     user_message: type[BaseModel] = Question,
     reply: Callable[[Context, str], dict[str, Any]] | None = None,
@@ -59,6 +60,9 @@ def chat_agent(
     on_dispatch_error: DispatchErrorHandler | None = None,
 ) -> ChatAssistant:
     """A configured `ChatAssistant` — sessions, turns, history, out of the box.
+
+    `groups=` is the StepGroup sequence (the 0.x `agents=` keyword is a
+    deprecated alias; pass one, not both).
 
     `store` may be a `SessionStore`, a directory path (`FileKVBackend`), or
     `None` for a process-local in-memory store (handy for tests/notebooks; use a
@@ -72,11 +76,16 @@ def chat_agent(
     a per-turn callable, …). The provider instance is shared across turns, not
     closed by the assistant.
     """
+    if groups is not None and agents is not None:
+        raise ValueError("Pass either agents= (deprecated) or groups=, not both")
+    resolved = groups if groups is not None else agents
+    if resolved is None:
+        raise TypeError("chat_agent requires groups=")
     if resources is None:
         resources = RuntimeResources(llm=llm if llm is not None else from_env())
     return ChatAssistant(
         store=_as_store(store),
-        agents=list(agents),
+        groups=list(resolved),
         user_message=user_message,
         reply=reply if reply is not None else _default_reply(user_message),
         resources=resources,

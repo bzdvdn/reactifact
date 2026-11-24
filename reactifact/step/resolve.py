@@ -22,6 +22,15 @@ def _resolved_hints(target: Callable[..., Any]) -> dict[str, Any]:
         return {}
 
 
+def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
+    """Records artifacts actually resolved for this call (for `auto_link`)."""
+    seen = {artifact.id for artifact in call.used}
+    for artifact in artifacts:
+        if artifact.id not in seen:
+            call.used.append(artifact)
+            seen.add(artifact.id)
+
+
 def _resolve_arg(
     name: str,
     annotation: Any,
@@ -40,6 +49,8 @@ def _resolve_arg(
     if annotation is StepCall:
         return call
     if name == "trigger":
+        if call.trigger is not None:
+            _use(call, call.trigger)
         return call.trigger
     if name == "inputs":
         return call.inputs
@@ -77,7 +88,9 @@ def _resolve_arg(
         if get_origin(inner) is Artifact:
             inner_args = get_args(inner)
             inner_types, _, _ = _annotation_types(inner_args[0] if inner_args else Any)
-            return _matches(inner_types)
+            found = _matches(inner_types)
+            _use(call, *found)
+            return found
     if origin is Latest:
         args = get_args(annotation)
         inner_types, is_list, optional = _annotation_types(args[0] if args else Any)
@@ -91,8 +104,10 @@ def _resolve_arg(
                 if _scope_matches(scope, scope_value, artifact)
             ]
         if is_list:
+            _use(call, *artifacts)
             return [artifact.data for artifact in artifacts]
         if artifacts:
+            _use(call, artifacts[-1])
             return artifacts[-1].data
         if optional:
             return None
@@ -102,11 +117,14 @@ def _resolve_arg(
         inner_types, is_list, optional = _annotation_types(args[0] if args else Any)
         found = _matches(inner_types)
         if is_list:
+            _use(call, *found)
             return found
         if _trigger_matches(inner_types):
             assert call.trigger is not None
+            _use(call, call.trigger)
             return call.trigger
         if found:
+            _use(call, found[-1])
             return found[-1]
         if optional:
             return None
@@ -122,11 +140,14 @@ def _resolve_arg(
         return call.trigger
     found = _matches(types_)
     if is_list:
+        _use(call, *found)
         return [artifact.data for artifact in found]
     if _trigger_matches(types_):
         assert call.trigger is not None
+        _use(call, call.trigger)
         return call.trigger.data
     if found:
+        _use(call, found[-1])
         return found[-1].data
     if optional:
         return None

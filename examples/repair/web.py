@@ -18,9 +18,9 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.repair.agents import RepairFlow
 from examples.repair.models import ChatReply, Project, UserMsg
 from examples.repair.services import Catalog
+from examples.repair.step_groups import RepairFlow
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Context, RuntimeResources, SessionStore
@@ -137,7 +137,7 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
 
     assistant = ChatAssistant(
         store=store,
-        agents=[RepairFlow()],
+        groups=[RepairFlow()],
         user_message=UserMsg,
         reply=terminal_reply,
         session_state=session_state,

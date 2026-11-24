@@ -8,7 +8,7 @@ feed the results back, force a final answer when the model stops calling tools,
 and nudge it when a *mandatory* tool never ran.
 
 This is that loop as an explicit, opt-in **recipe** (not a core primitive, and
-not a reactive `Agent`): call it inside a produce when the shape fits, or ignore
+not a reactive `StepGroup`): call it inside a produce when the shape fits, or ignore
 it and compose `native_tool_use` yourself. It returns a `ToolLoopResult` with the
 final text, the full OpenAI-format transcript, and every tool observation — so a
 caller can record which documents/tools were read.

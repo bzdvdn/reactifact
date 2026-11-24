@@ -249,7 +249,7 @@ def build_summary(round_no: int, text: str) -> Summary:
     return Summary(round=round_no, text=text)
 
 
-class Flow(Agent):
+class Flow(StepGroup):
     name = "chat"
     consumes = [Consume(Msg)]
     steps = [
@@ -302,7 +302,7 @@ def build_digest(text: str) -> Digest:
     return Digest(text=text)
 
 
-class Flow(Agent):
+class Flow(StepGroup):
     name = "chat"
     consumes = [Consume(Msg)]
     steps = [
@@ -345,7 +345,7 @@ class Flow(Agent):
 
 `reactifact.tools.native` deliberately ships one-turn helpers, not a loop.
 When you *do* want the loop — bounded rounds, parallel calls, a forced final
-answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `Agent`:
+answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `StepGroup`:
 
 ```python
 from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
@@ -487,7 +487,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
         ...  # combine every step's result, in order
 
 
-class FlowAgent(Agent):
+class FlowAgent(StepGroup):
     consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
     steps = Flow().produces()
 ```
@@ -544,7 +544,7 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
     async def on_reject(self, context, report, answer) -> FinalReply: ...
 
 
-class Flow(Agent):
+class Flow(StepGroup):
     consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                 Consume(PendingQuestion)]
     steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
@@ -582,7 +582,7 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
     async def finish(self, context, draft) -> Final: ...
 
 
-class Flow(Agent):
+class Flow(StepGroup):
     consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
     steps = MyLoop().produces()
 ```

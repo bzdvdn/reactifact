@@ -31,7 +31,7 @@ Register sources on `RuntimeResources(sources={...})`; an agent retrieves via
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Context, Effects, Runtime, RuntimeResources, Step, create_agent,
+    Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
 )
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import Source, SourceRef
@@ -86,7 +86,7 @@ ctx = Context(
     )
 )
 ctx.create(Question(text="gpu costs"))
-agent = create_agent("scout", steps=[Scout()])
+agent = create_step_group("scout", steps=[Scout()])
 asyncio.run(Runtime(ctx, agents=[agent]).arun())
 
 assert ctx.list_artifacts(Note)              # ranked hits became artifacts

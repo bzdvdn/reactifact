@@ -53,7 +53,7 @@ from reactifact import (
     Effects,
     LLMProvider,
     configure_logging,
-    create_agent,
+    create_step_group,
     step,
 )
 from reactifact.quick import Doc, Question, agent, chat_agent, rag, tools_agent
@@ -125,7 +125,7 @@ def create_app(
         tracer=tracer,
     )
     chat_agent_instance = chat_agent(
-        [create_agent("chat", steps=[_chat_reply])],
+        [create_step_group("chat", steps=[_chat_reply])],
         store=str(directory / "sessions"),
         llm=provider,
         tracer=tracer,

@@ -19,9 +19,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from .agents import Agent
 from .consume import Consume
 from .context import Context
+from .step import StepGroup
 
 if TYPE_CHECKING:
     from .tracing.models import RunTrace
@@ -43,14 +43,14 @@ def _artifact_node(lines: list[str], node_ids: dict[str, str], type_name: str) -
 
 
 def blueprint(
-    agents: Sequence[Agent],
+    agents: Sequence[StepGroup],
     *,
     with_stages: bool = True,
     title: str = "reactifact blueprint",
 ) -> str:
     """Static map of the system: artifact types = nodes, agents = edges.
 
-    For every `Agent` renders its `consumes` (input edge) and `produces`
+    For every `StepGroup` renders its `consumes` (input edge) and `produces`
     (create edge; a `lifecycle` edge for `StatusMachine`-style produces).
     """
     lines: list[str] = ["flowchart LR"]

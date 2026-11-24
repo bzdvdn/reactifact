@@ -24,7 +24,7 @@ task = await client.send("Summarise the incident")
 print(task.status.state, task.artifacts[0].parts[0].text)
 
 researcher = A2AAgentTool(client, name="researcher")
-# agent = create_agent("lead", steps=[...researcher...])
+# agent = create_step_group("lead", steps=[...researcher...])
 ```
 
 `A2AClient` also exposes `stream(message)` (an async iterator of task/message
@@ -67,7 +67,7 @@ from fastapi import FastAPI
 from reactifact.a2a import create_a2a_router
 
 app = FastAPI()
-app.include_router(create_a2a_router([RouteAgent(), …], name="ops-agent"))
+app.include_router(create_a2a_router([RouteGroup(), …], name="ops-agent"))
 ```
 
 It serves `GET /.well-known/agent-card.json` (and the legacy `/.well-known/agent.json`)
@@ -94,7 +94,7 @@ def reply(ctx, seed_id):
     answer = ctx.latest(Answer)
     return answer.data.text if answer else ""
 
-app.include_router(create_a2a_router(AGENTS, create_message=create_message, reply=reply))
+app.include_router(create_a2a_router(GROUPS, create_message=create_message, reply=reply))
 ```
 
 ## Interop

@@ -26,7 +26,7 @@ reactifact code look like LangChain wearing a costume.
    The runtime commits the effect set as one atomic patch.
 2. **A step declares its contract.** `consumes = (Question,)` feeds typed
    inputs and decides which events run it; `produces = (Answer,)` is the
-   allowed create set. An `Agent` groups steps; triggers derive from their
+   allowed create set. An `StepGroup` groups steps; triggers derive from their
    `consumes`.
 3. **Everything is a typed artifact with provenance.** Answers link to their
    evidence (`answer.link("supported_by", evidence)`); downstream code and
@@ -40,7 +40,7 @@ creates an `Answer`, the runtime runs to a fixpoint.
 ```python
 import asyncio
 from pydantic import BaseModel
-from reactifact import Agent, Context, Effects, Runtime, Step
+from reactifact import StepGroup, Context, Effects, Runtime, Step
 
 
 class Question(BaseModel):
@@ -59,7 +59,7 @@ class Answerer(Step):
         effects.create(Answer(text=question.text.upper()))
 
 
-class AnswerAgent(Agent):
+class AnswerAgent(StepGroup):
     steps = [Answerer()]
 
 
@@ -87,7 +87,7 @@ do not skip ahead, because a wrong artifact model is expensive to unwind.
 3. **Implement the steps.** Effects or a returned model; deterministic logic in
    Python, the LLM only for reasoning. Exit when no step mutates and every
    answer links its evidence. → `reactifact-agents`, `reactifact-llm`
-4. **Wire and run.** Group steps into an `Agent`, build
+4. **Wire and run.** Group steps into an `StepGroup`, build
    `Runtime(ctx, agents=[...])`, seed inputs, `arun()`. Exit when the run
    reaches a fixpoint and produces the target artifact.
 5. **Test, then evaluate.** Assert on the produced graph with `ScenarioLab`
@@ -138,7 +138,7 @@ Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
   `related`, `relations`, `get`, `artifact_version`).
 - **Step** — the unit of transformation: `consumes`/`produces`, `run()`;
   return a model for create-sugar or write `effects`.
-- **Agent** — a thin container of `steps`; triggers derive from their
+- **StepGroup** — a thin container of `steps`; triggers derive from their
   `consumes`.
 - **Consume** — a subscription to artifacts of a type (see `reactifact-agents`
   for the variants).

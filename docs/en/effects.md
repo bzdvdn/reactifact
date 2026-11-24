@@ -121,7 +121,7 @@ not "about ids".
 
 ## Where `Patch` still shows up
 
-- **`Agent.run`** — the escape hatch for custom agents that assemble a
+- **`StepGroup.run`** — the escape hatch for custom agents that assemble a
   change-set by hand.
 - **Recipes** (`fan_out_sources`, `materialize_doc`) and `StatusMachine` write
   into the slot; the tool loop (`ToolUse`/`ToolUseHITL`) and HITL
@@ -158,9 +158,37 @@ Returning a model / list of models / `Patch` / `None` is compiled by the
 runtime, so short steps stay one-liners:
 `def f(call): return Answer(...)`.
 
+## Provenance is a query
+
+Hand-written `link` calls are the explicit form. Two shortcuts keep the common
+case short without hiding the edges:
+
+```python
+@step(produces=Variance, consumes=Spend, auto_link="calculated_from")
+def compute_variance(spend: Spend) -> Variance:
+    return Variance(actual=spend.total, ...)
+```
+
+`auto_link=True` links every artifact the step **actually resolved** (not the
+whole `consumes` working set) to each artifact it creates, `derived_from` by
+default; a string picks the relation name. An explicit `link` between the same
+pair wins, so the shortcut never overrides deliberate provenance.
+
+Reading provenance is a query too:
+
+```python
+context.sources(answer)            # ['transactions.csv', 'budget.csv', 'policy.md']
+for link in context.why(answer):   # breadth-first over outgoing edges
+    print("  " * link.depth, link.relation, type(link.artifact.data).__name__)
+```
+
+`why()` follows `supported_by` / `calculated_from` / … edges breadth-first;
+pass `relations=(...)` to restrict the walk and `max_depth=` to stop it.
+`auto_link` is opt-in today; explicit links remain the default until 1.0.
+
 ## Which style to reach for
 
 The subclass and `@step` function are the two canonical styles — pick subclass
 when the step has logic worth naming as a class, `@step` for a short one-off.
-Overriding `Agent.run(self, event, context) -> Patch` remains a low-level
+Overriding `StepGroup.run(self, event, context) -> Patch` remains a low-level
 escape hatch, not an everyday authoring style.

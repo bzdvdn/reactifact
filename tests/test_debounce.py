@@ -81,7 +81,7 @@ def test_without_debounce_each_event_runs_separately():
     assert len(ctx.list_artifacts(Collected)) == 2
 
 
-def test_debounce_is_scoped_to_its_own_consume_not_the_whole_agent():
+def test_debounce_is_scoped_to_its_own_consume_not_the_whole_group():
     ctx = Context()
     runtime = Runtime(ctx, agents=[MixedAgent()])
 

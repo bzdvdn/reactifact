@@ -11,7 +11,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
     tool,
 )
 from reactifact.providers import (
@@ -81,7 +81,7 @@ async def run_events() -> dict[str, Any]:
     context.create(Question(text="hi"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("events", steps=[EchoStep()])],
+        groups=[create_step_group("events", steps=[EchoStep()])],
     )
 
     events = [

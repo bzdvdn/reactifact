@@ -19,7 +19,7 @@ runtime решал, что запускать?**
 `Consume.by_field`/`by_status` оказалось ложным для существующего артефакта.
 
 - `reactifact graph <module>` (например, `reactifact graph
-  examples.knowledge.agents`) печатает *статический* blueprint — заявленные
+  examples.knowledge.step_groups`) печатает *статический* blueprint — заявленные
   `consumes`/`produces` каждого агента. Проверьте, что агент реально
   подписан на нужный тип артефакта; опечатка или устаревший `Consume(WrongType)`
   — самая частая причина.

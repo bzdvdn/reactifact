@@ -38,7 +38,7 @@ to fill them in — the recipe stamps the real values on every create.
         async def on_approve(self, context, report) -> FinalReply: ...
         async def on_reject(self, context, report, answer) -> FinalReply: ...
 
-    class Flow(Agent):
+    class Flow(StepGroup):
         consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                     Consume(PendingQuestion)]
         produces = [MyRouter().produce(), Specialist(), MyGate().produce(),

@@ -86,7 +86,7 @@ def test_blueprint_renders_agents_consumes_and_produces():
     assert "lifecycle" in diagram  # StatusMachine-style edge, not "creates"
 
 
-def test_blueprint_renders_all_types_of_a_step_style_agent():
+def test_blueprint_renders_all_types_of_a_step_style_group():
     """Declarative steps: every produced type and every step consume is drawn."""
     diagram = blueprint([StepDiagramAgent()])
     assert "stepy" in diagram

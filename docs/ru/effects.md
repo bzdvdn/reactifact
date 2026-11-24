@@ -116,7 +116,7 @@ effects.act(
 
 ## Где ещё встречается `Patch`
 
-- **`Agent.run`** — escape hatch для кастомных агентов, собирающих change-set
+- **`StepGroup.run`** — escape hatch для кастомных агентов, собирающих change-set
   вручную.
 - **Рецепты** (`fan_out_sources`, `materialize_doc`) и `StatusMachine` пишут в
   слот; tool loop (`ToolUse`/`ToolUseHITL`) и HITL (`effects.ask`) — тоже
@@ -152,9 +152,37 @@ async def answer_turn(call: StepCall) -> None:
 Возврат модели / списка / `Patch` / `None` компилируется рантаймом, поэтому
 короткие шаги остаются однострочниками.
 
+## Провенанс — это запрос
+
+Ручные `link` — явная форма. Два сокращения упрощают обычный случай, не пряча
+рёбра:
+
+```python
+@step(produces=Variance, consumes=Spend, auto_link="calculated_from")
+def compute_variance(spend: Spend) -> Variance:
+    return Variance(actual=spend.total, ...)
+```
+
+`auto_link=True` связывает каждый артефакт, который шаг **реально разрешил**
+(а не весь рабочий набор `consumes`), с каждым созданным артефактом — по
+умолчанию relation `derived_from`; строка задаёт имя. Явный `link` между той же
+парой побеждает, так что сокращение не перетирает осознанный провенанс.
+
+Чтение провенанса — тоже запрос:
+
+```python
+context.sources(answer)            # ['transactions.csv', 'budget.csv', 'policy.md']
+for link in context.why(answer):   # обход в ширину по исходящим рёбрам
+    print("  " * link.depth, link.relation, type(link.artifact.data).__name__)
+```
+
+`why()` идёт по рёбрам `supported_by` / `calculated_from` / … в ширину;
+`relations=(...)` ограничивает обход, `max_depth=` его останавливает.
+`auto_link` пока opt-in; явные ссылки остаются дефолтом до 1.0.
+
 ## Какой стиль выбрать
 
 Подкласс и функция `@step` — два канонических стиля: подкласс, когда у шага
 есть логика, достойная имени, `@step` — для короткой разовой операции.
-Переопределение `Agent.run(self, event, context) -> Patch` остаётся
+Переопределение `StepGroup.run(self, event, context) -> Patch` остаётся
 низкоуровневым escape hatch, а не повседневным стилем.

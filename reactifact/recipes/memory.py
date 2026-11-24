@@ -16,7 +16,7 @@ Two shapes cover the common cases, and they are *not* interchangeable:
   without folding first, so using it in place of this recipe loses content
   instead of condensing it.
 
-All are plain `Step`s — drop them into an `Agent.produces` list next to
+All are plain `Step`s — drop them into an `StepGroup.produces` list next to
 whatever else reacts to the message type.
 
 Domain owns *how* to summarize (the `summarize` callback) and *what* the

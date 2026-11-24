@@ -17,7 +17,7 @@ provider-agnostic and need no hosted store.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, Effects, FakeLLM, Runtime, RuntimeResources, Step, create_agent,
+    StepGroup, Context, Effects, FakeLLM, Runtime, RuntimeResources, Step, create_step_group,
 )
 from reactifact.eval import (
     Dataset, answer_present, evaluate, from_metric, judge_relevance,
@@ -41,7 +41,7 @@ class Answerer(Step):
         effects.create(Answer(text=question.text.upper()))
 
 
-class AnswerAgent(Agent):
+class AnswerAgent(StepGroup):
     steps = [Answerer()]
 
 

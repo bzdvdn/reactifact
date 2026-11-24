@@ -46,14 +46,14 @@ class Answerer(Produce[Answer]):
         call.effects.create(Answer(text=call.trigger.data.text.upper()))
 
 
-def _agent():
+def _group():
     return create_agent("answerer", consumes=[Consume(Question)], produces=[Answerer()])
 
 
 def _run_once() -> Context:
     ctx = Context(resources=RuntimeResources())
     ctx.create(Question(text="hello"))
-    asyncio.run(Runtime(ctx, agents=[_agent()]).arun())
+    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
     return ctx
 
 
@@ -63,7 +63,7 @@ def _store_with_runs(tmp_path, count=3) -> TraceStore:
     for _ in range(count):
         ctx = Context(resources=RuntimeResources())
         ctx.create(Question(text="hello"))
-        asyncio.run(Runtime(ctx, agents=[_agent()], tracer=Tracer(store=store)).arun())
+        asyncio.run(Runtime(ctx, agents=[_group()], tracer=Tracer(store=store)).arun())
     return store
 
 

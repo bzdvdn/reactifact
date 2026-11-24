@@ -32,7 +32,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from .agents import Agent, create_agent
 from .budget import Budget
 from .consume import Consume
 from .context import Context
@@ -41,6 +40,7 @@ from .request import reset_request, set_request
 from .resources import RuntimeResources
 from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
+from .step import StepGroup, create_step_group
 
 logger = logging.getLogger("reactifact.chat")
 
@@ -393,7 +393,8 @@ class ChatAssistant:
         self,
         *,
         store: SessionStore,
-        agents: Sequence[Agent] | Callable[[], Sequence[Agent]],
+        agents: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
+        groups: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]],
         session_state: Callable[[Context], dict[str, Any]] | None = None,
@@ -405,14 +406,19 @@ class ChatAssistant:
         status_kinds: Sequence[str] = ("status",),
         fallback_reply: str = "No reply assembled.",
         isolate_errors: bool = False,
-        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
+        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         memory: ChatMemory | None = None,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
+        if agents is not None and groups is not None:
+            raise ValueError("Pass either agents= (deprecated) or groups=, not both")
+        resolved = groups if groups is not None else agents
+        if resolved is None:
+            raise TypeError("ChatAssistant requires groups=")
         self.store = store
-        self._agents = agents
+        self._agents = resolved
         self._user_message = user_message
         self._reply = reply
         self._session_state = session_state
@@ -489,7 +495,7 @@ class ChatAssistant:
                     await resources.aclose()
             raise
 
-    def _memory_agents(self) -> list[Agent]:
+    def _memory_agents(self) -> list[StepGroup]:
         """The bounded-memory agent implied by `memory=`, or none."""
         memory = self._memory
         if memory is None:
@@ -523,7 +529,7 @@ class ChatAssistant:
         else:
             return []  # compaction-only: no message-level memory agent
         return [
-            create_agent(
+            create_step_group(
                 "memory",
                 consumes=[Consume.by_base(t) for t in message_types],
                 steps=[produce],

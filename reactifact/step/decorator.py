@@ -20,6 +20,10 @@ def step(
     also_creates: Sequence[ArtifactType] | None = None,
     reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
     timeout: float | None = None,
+    auto_link: bool | str = False,
+    priority: int | None = None,
+    concurrency_limit: int | None = None,
+    name: str | None = None,
 ) -> Callable[[Callable[..., Any]], Step[Any]]:
     """Decorator to create a Step from a function.
 
@@ -64,6 +68,10 @@ def step(
             also_creates=also_creates,
             reacts_to=reacts_to,
             timeout=timeout,
+            auto_link=auto_link,
+            priority=priority,
+            concurrency_limit=concurrency_limit,
+            name=name,
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func

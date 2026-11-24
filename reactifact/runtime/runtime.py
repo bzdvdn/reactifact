@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from ..agents import Agent, begin_produce_runs, end_produce_runs, produce_runs
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
 from ..commit import Commit, Read
 from ..context import Context
@@ -22,6 +21,13 @@ from ..request import current_request, reset_request, set_request
 from ..resources import RuntimeResources
 from ..scheduler import Scheduler
 from ..session import Session
+from ..step import StepGroup
+from ..step.group import (
+    begin_produce_runs,
+    end_produce_runs,
+    normalize_units,
+    produce_runs,
+)
 from ..streaming import (
     RUN_EVENT_MODES,
     CustomEvent,
@@ -50,13 +56,13 @@ from .patch import PatchApplicator
 logger = get_logger("reactifact.runtime")
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
-PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
+PatchWork = tuple[Patch, StepGroup, list[Read], AgentSpan | None]
 #: One agent execution result: patch (if any), the agent/event/reads that
 #: produced it, latency, the exception if the produce raised and
 #: `isolate_errors` was set, and the produces that ran (name/ops/latency).
 AgentResult = tuple[
     Patch | None,
-    Agent,
+    StepGroup,
     Event,
     list[Read],
     float,
@@ -114,21 +120,26 @@ class Runtime:
     def __init__(
         self,
         context: Context,
-        agents: list[Agent] | None = None,
+        agents: list[Any] | None = None,
         max_concurrency: int | None = None,
         session: "Session | None" = None,
         budget: Budget | None = None,
         tracer: Tracer | list[Tracer] | None = None,
         scheduler: Scheduler | None = None,
         isolate_errors: bool = False,
-        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
+        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
         trace_scope: str = "",
+        groups: list[Any] | None = None,
+        steps: list[Any] | None = None,
     ):
         self.context = context
-        self.agents = agents or []
+        #: The merged dispatch units. `steps=` wraps each step in an implicit
+        #: group of one; `groups=` adds explicit groups; `agents=` is the
+        #: deprecated 0.x alias for `groups=`.
+        self.agents = normalize_units(steps=steps, groups=groups, agents=agents)
         self.max_concurrency = max_concurrency
         self.session = session
         self.budget = budget
@@ -228,7 +239,7 @@ class Runtime:
     def _exit_turn(self) -> None:
         self._in_turn = False
 
-    def register(self, agent: Agent) -> None:
+    def register(self, agent: StepGroup) -> None:
         self.agents.append(agent)
 
     def request_stop(self) -> None:
@@ -272,6 +283,11 @@ class Runtime:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+
+    @property
+    def groups(self) -> list[StepGroup]:
+        """The merged dispatch units (`agents` is the deprecated alias)."""
+        return self.agents
 
     def _begin_turn(self, budget: Budget | None) -> None:
         # Per-turn budget/deadline/tracker and the LLM wrappers that fill them
@@ -387,7 +403,7 @@ class Runtime:
 
         # Collect work (event, agent), accounting for priority: agents with lower
         # values run earlier, "finishers" last.
-        work: list[tuple[Agent, Event, list[Read]]] = []
+        work: list[tuple[StepGroup, Event, list[Read]]] = []
         # An agent whose *every* matching trigger for a given event asks for
         # `debounce` gets collapsed to at most one run per generation here —
         # the last matching event in this batch wins, replacing any earlier
@@ -398,7 +414,7 @@ class Runtime:
         # mix of debounced and non-debounced matching triggers for the same
         # event is treated as non-debounced for that event — debouncing only
         # kicks in when nothing about the match demands immediacy.
-        debounced: dict[Agent, tuple[Event, list[Read]]] = {}
+        debounced: dict[StepGroup, tuple[Event, list[Read]]] = {}
         ordered_agents = sorted(self.agents, key=lambda a: a.priority)
         for event in events:
             if self._budget_exhausted():
@@ -477,7 +493,7 @@ class Runtime:
         return runs
 
     async def _dispatch(
-        self, work: list[tuple[Agent, Event, list[Read]]]
+        self, work: list[tuple[StepGroup, Event, list[Read]]]
     ) -> list[AgentResult]:
         """Runs the generation's workers.
 
@@ -505,7 +521,7 @@ class Runtime:
         )
         limit_semaphores = {limit: asyncio.Semaphore(limit) for limit in limiters}
 
-        async def _worker(item: tuple[Agent, Event, list[Read]]) -> AgentResult:
+        async def _worker(item: tuple[StepGroup, Event, list[Read]]) -> AgentResult:
             agent = item[0]
             acquired: list[asyncio.Semaphore] = []
             tier = agent.concurrency_limit
@@ -640,7 +656,7 @@ class Runtime:
         finally:
             self._exit_turn()
 
-    def _collect_reads(self, agent: Agent, event: Event) -> list[Read]:
+    def _collect_reads(self, agent: StepGroup, event: Event) -> list[Read]:
         """Records consumed artifacts: the trigger event + inputs per consumes.
 
         This is the actual link of an agent to its ancestors (git-like provenance),
@@ -660,7 +676,7 @@ class Runtime:
 
     async def _execute(
         self,
-        item: tuple[Agent, Event, list[Read]],
+        item: tuple[StepGroup, Event, list[Read]],
         semaphore: asyncio.Semaphore | None = None,
     ) -> AgentResult:
         """Runs a single agent (parallel section of a generation).
@@ -779,7 +795,7 @@ class Runtime:
             if not self.isolate_errors:
                 raise error
             logger.warning(
-                "Agent %r raised %r; isolated (isolate_errors=True)",
+                "StepGroup %r raised %r; isolated (isolate_errors=True)",
                 agent.name,
                 error,
             )
@@ -838,7 +854,7 @@ class Runtime:
             # trigger batch is not consumed, so a resume re-dispatches it.
             #
             # Only *this* timeout is the turn deadline: an agent/tool timeout
-            # (`Agent.timeout`) is an ordinary error and must propagate, not be
+            # (`StepGroup.timeout`) is an ordinary error and must propagate, not be
             # misreported as `budget_time_exceeded`.
             try:
                 async with asyncio.timeout(remaining):

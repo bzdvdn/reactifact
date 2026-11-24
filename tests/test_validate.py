@@ -10,6 +10,7 @@ from reactifact import (
     ValidationError,
     create_agent,
     validate_agents,
+    validate_contracts,
 )
 from reactifact.consume import JoinConsume
 
@@ -127,4 +128,36 @@ def test_correlated_consume_requires_all_parts():
         terminal=[Final],
     )
 
+    assert report.ok is True
+
+
+def test_validate_contracts_accepts_raw_steps():
+    report = validate_contracts(
+        steps=[ProducerStep(), ConsumerStep()],
+        seeds=[Question],
+        terminal=[Final],
+    )
+    assert report.ok is True
+    assert report.warnings == []
+
+
+def test_validate_contracts_merges_steps_and_groups_in_order():
+    report = validate_contracts(
+        steps=[ProducerStep()],
+        groups=[_consumer()],
+        seeds=[Question],
+        terminal=[Final],
+    )
+    assert report.ok is True
+
+
+def test_validate_contracts_rejects_wrong_types():
+    with pytest.raises(TypeError, match="steps= accepts Step"):
+        validate_contracts(steps=[_producer()])
+    with pytest.raises(TypeError, match="groups= accepts StepGroup"):
+        validate_contracts(groups=[ProducerStep()])
+
+
+def test_validate_agents_stays_as_the_deprecated_alias():
+    report = validate_agents([_producer()], seeds=[Question], terminal=[Middle])
     assert report.ok is True

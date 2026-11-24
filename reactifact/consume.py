@@ -16,17 +16,17 @@ class Consume:
     or passed to the constructor.
 
     `wakes` (default `True`): whether this `Consume` also contributes to the
-    agent's `triggers` (`Agent.matches()` — does the agent run at all).
+    agent's `triggers` (`StepGroup.matches()` — does the agent run at all).
     `False` means "read this as input, but don't wake up on it" — e.g. an
     agent that should run when a `Question` arrives but also wants the
     existing `ConversationHistory` as input, without re-running once per
     history artifact. For the *declarative* style (`consumes`/`produces`,
     the common case), this covers the one real reason to decouple "what
-    wakes me" from "what I read" without reaching for `Agent`'s separate
+    wakes me" from "what I read" without reaching for `StepGroup`'s separate
     `triggers=` override. `triggers=` itself still exists and is not
-    deprecated — it's the only option for the *imperative* style (an `Agent`
+    deprecated — it's the only option for the *imperative* style (an `StepGroup`
     subclass that overrides `run()` directly and has no `consumes` at all to
-    attach a condition to; see `Agent.triggers`'s own docstring).
+    attach a condition to; see `StepGroup.triggers`'s own docstring).
 
     `include_subclasses` (default `False`): wake on artifacts whose type is a
     subclass of `artifact_type`, not only the exact type — the declarative
@@ -101,7 +101,7 @@ class Consume:
         """Converts into a list of triggers for automatic reaction.
 
         Empty when `wakes=False` — this `Consume` still feeds
-        `Agent._collect_inputs()`, it just never causes `Agent.matches()`
+        `StepGroup._collect_inputs()`, it just never causes `StepGroup.matches()`
         to fire on its own.
         """
         if not self.wakes:
@@ -120,7 +120,7 @@ class Consume:
     def collect(self, context: Context) -> list[Artifact[Any]]:
         """The artifacts this `Consume` contributes to an agent's inputs.
 
-        `Agent._collect_inputs()` calls this once per entry in `consumes` —
+        `StepGroup._collect_inputs()` calls this once per entry in `consumes` —
         overridden by `CorrelatedConsume` to return a correlated group across
         several types instead of one type's own matching instances.
         """
@@ -265,7 +265,7 @@ class CorrelatedConsume(Consume):
         self.forbid = tuple(forbid)
         self.forbid_conditions = dict(forbid_conditions or {})
         # Base Consume fields exist for isinstance/API compatibility
-        # (`Agent._validate_contracts`'s `isinstance(c, Consume)` check) —
+        # (`StepGroup._validate_contracts`'s `isinstance(c, Consume)` check) —
         # `artifact_type` is nominally the first required type;
         # `to_triggers()`/`collect()` below never actually consult it.
         super().__init__(

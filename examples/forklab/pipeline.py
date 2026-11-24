@@ -20,7 +20,6 @@ from reactifact import (
 )
 from reactifact.providers import LLMProvider
 
-from .agents import EvaluatorAgent, StrategyAgent
 from .models import (
     Answer,
     Evidence,
@@ -31,6 +30,7 @@ from .models import (
 from .models import (
     Budget as ArtifactBudget,
 )
+from .step_groups import EvaluatorGroup, StrategyGroup
 
 
 def _new_context(llm: LLMProvider | None) -> Context:
@@ -60,7 +60,7 @@ def make_fork(
 
 def investigate_runtime(fork: Context) -> Runtime:
     """The per-fork runtime (run or `astream` — the web app streams it)."""
-    return Runtime(fork, agents=[StrategyAgent()], budget=Budget(max_runs=5))
+    return Runtime(fork, groups=[StrategyGroup()], budget=Budget(max_runs=5))
 
 
 def merge_forks(depth: Context, breadth: Context) -> None:
@@ -71,7 +71,7 @@ def merge_forks(depth: Context, breadth: Context) -> None:
 def evaluate_runtime(merged: Context) -> Runtime:
     """The merged-state runtime: `Review` triggers the evaluator → Answer."""
     merged.create(Review(base_on="merged"))
-    return Runtime(merged, agents=[EvaluatorAgent()], budget=Budget(max_runs=5))
+    return Runtime(merged, groups=[EvaluatorGroup()], budget=Budget(max_runs=5))
 
 
 def _merge_with_policy(depth: Context, breadth: Context) -> None:

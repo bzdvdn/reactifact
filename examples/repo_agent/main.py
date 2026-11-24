@@ -119,7 +119,7 @@ class ScriptedLLM(LLMProvider):
 
 def _context(script: list[str]) -> tuple[Context, Runtime]:
     context = Context(resources=RuntimeResources(llm=ScriptedLLM(script)))
-    runtime = Runtime(context, agents=[RepoAgent()])
+    runtime = Runtime(context, groups=[RepoAgent()])
     return context, runtime
 
 

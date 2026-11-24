@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Context, Effects, Step, create_agent
+from reactifact import Context, Effects, Step, create_step_group
 from reactifact.recipes.swarm import Handoff, swarm
 
 
@@ -43,9 +43,9 @@ class BillingStep(Step):
 async def run_swarm_scene() -> dict[str, Any]:
     result = await swarm(
         Context(),
-        agents={
-            "triage": create_agent("triage", steps=[TriageStep()]),
-            "billing": create_agent("billing", steps=[BillingStep()]),
+        groups={
+            "triage": create_step_group("triage", steps=[TriageStep()]),
+            "billing": create_step_group("billing", steps=[BillingStep()]),
         },
         start="triage",
         input=Question(text="refund please"),

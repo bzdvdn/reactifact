@@ -8,7 +8,7 @@ from ..models import AnsibleReport, ChatReply, GitlabReport, K8sReport
 
 
 class RenderReply(Step):
-    """Agent report → chat reply."""
+    """StepGroup report → chat reply."""
 
     # Only these three report types should ever trigger a reply — the
     # declaration replaces the old isinstance guard in the body.

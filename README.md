@@ -2,7 +2,11 @@
   <img src="docs/img/reactifact-hero.png" alt="reactifact — typed artifacts, reactive steps, auditable state" width="800">
 </p>
 
-**Auditable agents for Python.** Build **knowledge assistants** over docs, spreadsheets and the web — where the path per question isn't a graph you can draw. Every answer is computed, versioned and reproducible — not a string you have to trust.
+**Agents that can prove their answers.** reactifact is a Python framework for
+knowledge agents over docs, spreadsheets and the web — where the path per
+question isn't a graph you can draw. The model reasons, plain Python computes
+the numbers, and every answer links to the evidence behind it — then replays to
+the same hash.
 
 [![CI](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml/badge.svg)](https://github.com/bzdvdn/reactifact/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/bzdvdn/reactifact/graph/badge.svg)](https://codecov.io/gh/bzdvdn/reactifact)
@@ -14,6 +18,66 @@
 
 > **Is:** a Python library (3 core deps) · single-process · typed, versioned artifacts with provenance · deterministic replay · optional code-first knowledge base (SQLite/Qdrant) · runs offline, no API key
 > **Isn't:** a managed platform · a distributed task queue · a pre-built agent/tool marketplace
+
+## Sixty seconds, no API key
+
+```bash
+uvx reactifact demo        # or: uv add reactifact && uv run reactifact demo
+```
+
+```text
+reactifact demo — computed, cited, reproducible
+
+question What is the Q2 cloud spend variance, and does policy require approval?
+sources  transactions.csv (6 rows) · budget.csv (2 rows) · policy.md
+
+answer   Q2 cloud spend was $45,000 against a $40,000 budget (+12.5%) — exceeds
+         the 10% policy threshold. CFO approval is required before the quarter
+         is closed.
+
+computed cloud spend $45,000 (2026-04 $12,000, 2026-05 $15,000, 2026-06 $18,000)
+policy   threshold 10% → approval required
+citations budget.csv, transactions.csv, policy.md
+
+provenance (context.related(answer.id, "supported_by"))
+  Answer    → supported_by → Variance, policy.md
+  Variance  → calculated_from → Spend, budget.csv
+  Spend     → calculated_from → transactions.csv
+
+context sha256 ffeca1bb18cbc34749d3b5bdb40d85677b1ac33d47fb1160f6c89053694b2783
+re-run         identical ✓
+```
+
+Three `@step` functions, none of which imports another by name: they declare
+what they consume and produce, and the runtime derives the order from state.
+The figures come from plain Python, and both the answer and the numbers carry
+the hash of the exact state that produced them. Models, steps and the printer
+all live in [`reactifact/demo.py`](reactifact/demo.py) — copy the pipeline,
+then change the data.
+
+## Who this is for
+
+- **Knowledge assistants over mixed sources.** One question spans Confluence, a
+  spreadsheet and a web page; the next spans a different subset. You declare
+  what artifacts exist and what agents can do with them, and the runtime derives
+  the path. Figures are computed, answers cite their sources, and a run replays
+  to the same hash.
+- **Experiment harnesses for agent strategies.** Fork a context, run two
+  strategies on their own branches, merge them back, and replay a finished run
+  by hash — see [`forklab`](examples/forklab) and
+  [Branching](docs/en/branching.md).
+
+**RAG is included, not required.** `reactifact.quick.rag` gets retrieval with
+provenance in a few lines; `reactifact.knowledge` is the code-first ingestion
+layer behind it — connectors, chunking, incremental indexing, and real indexes
+(SQLite, Chroma, Qdrant, pgvector). The core never imports either.
+
+**Not for a fixed A → B → C pipeline.** There a plain function or LangGraph is
+shorter and just as correct.
+
+**Not a connector library.** If you need dozens of managed SaaS sources with
+built-in ingestion, LlamaIndex is the better tool. reactifact's `Source` layer is
+deliberately small and code-first: filesystem, CSV, embeddings, web, MCP.
 
 ## Start here
 
@@ -51,7 +115,7 @@ Every derived artifact then links to what produced it
 that?"* is a query, not a guess — and the run is reproducible (`context_hash`)
 and verifiable (`reactifact replay --verify`).
 
-## On top: a provable answer
+## The same idea, a real pipeline
 
 [`examples/fintech_audit`](examples/fintech_audit) — a transactions CSV, a budget
 CSV and a policy doc, **no API key**. The model never produces the number; plain
@@ -217,7 +281,7 @@ from:
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
+from reactifact import Budget, Context, Runtime, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -252,14 +316,11 @@ async def answer_from_evidence(call):
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", steps=[find_evidence])
-answer_agent = create_agent("answer", steps=[answer_from_evidence])
-
 ctx = Context(resources=RuntimeResources())
-runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
+runtime = Runtime(ctx, steps=[find_evidence, answer_from_evidence], budget=Budget(max_runs=10))
 
 ctx.create(Question(text="what's your refund policy?"))
-runtime.run()  # search_agent and answer_agent both react — nobody wired them together
+runtime.run()  # search and answer both react — nobody wired them together
 
 answer = ctx.latest(Answer)
 evidence = ctx.related(answer.id, "supported_by")[0]
@@ -273,7 +334,7 @@ print("supported_by:", evidence.data.text)  # provenance you can trace, not just
 ARTIFACT CREATED / UPDATED
        │
        ▼
-     AGENTS REACT ──effects──► Effects ──compile──► Patch
+     STEPS REACT ──effects──► Effects ──compile──► Patch
        ▲                                                      │
        └──────────────────────────────────────────────────────┘
                                                         Context v+1

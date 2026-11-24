@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
-from reactifact import Agent, Effects, Step, When, create_agent
+from reactifact import Effects, Step, StepGroup, When, create_step_group
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.context import Context
@@ -45,8 +45,8 @@ class Echo(Step):
         )
 
 
-def _agent() -> Agent:
-    return create_agent("echo", steps=[Echo()])
+def _group() -> StepGroup:
+    return create_step_group("echo", steps=[Echo()])
 
 
 def _reply(ctx: Context, msg_id: str) -> dict[str, Any]:
@@ -65,7 +65,7 @@ def build() -> tuple[ChatAssistant, Conversation, SessionStore]:
     store = SessionStore(InMemoryKVBackend())
     assistant = ChatAssistant(
         store=store,
-        agents=[_agent()],
+        groups=[_group()],
         user_message=ConversationMessage,
         create_message=conv.create_turn,  # record each user turn
         reply=_reply,

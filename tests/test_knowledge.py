@@ -2,17 +2,6 @@ import asyncio
 import logging
 from pathlib import Path
 
-from examples.knowledge.agents import (
-    AnswerBuilder,
-    CalculatorAgent,
-    EvidenceBuilder,
-    Planner,
-    ProgressEvaluator,
-    ResolverAgent,
-    SearchScout,
-    TableResolver,
-    VerifierAgent,
-)
 from examples.knowledge.models import (
     Answer,
     Calculation,
@@ -22,6 +11,17 @@ from examples.knowledge.models import (
     ResearchTurn,
     Spreadsheet,
     UserQuery,
+)
+from examples.knowledge.step_groups import (
+    AnswerBuilder,
+    CalculatorGroup,
+    EvidenceBuilder,
+    Planner,
+    ProgressEvaluator,
+    ResolverGroup,
+    SearchScout,
+    TableResolver,
+    VerifierGroup,
 )
 from reactifact import (
     Budget,
@@ -56,11 +56,11 @@ def build_runtime(extra_sources=None, replace=False):
         agents=[
             Planner(),
             SearchScout(),
-            ResolverAgent(),
+            ResolverGroup(),
             TableResolver(),
             EvidenceBuilder(),
-            VerifierAgent(),
-            CalculatorAgent(),
+            VerifierGroup(),
+            CalculatorGroup(),
             ProgressEvaluator(),
             AnswerBuilder(),
         ],

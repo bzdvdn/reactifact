@@ -11,10 +11,10 @@ case — you declare the contract and implement each produce's effects.
 
 ```python
 # not-run: illustrative — Answerer/Question/Evidence are defined below
-agent = create_agent("answerer", steps=[Answerer()])
+agent = create_step_group("answerer", steps=[Answerer()])
 ```
 
-`create_agent` is the constructor-style builder; subclassing `Agent` is only
+`create_step_group` is the constructor-style builder; subclassing `StepGroup` is only
 needed for the imperative escape hatch (overriding `run()` with no `consumes`).
 
 ## A produce reads its inputs and writes effects
@@ -30,7 +30,7 @@ derive the step's `consumes`; `Annotated[T, When(...)]` conditions a type and
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Artifact, Consume, Context, Effects, Runtime, RuntimeResources, Step,
+    StepGroup, Artifact, Consume, Context, Effects, Runtime, RuntimeResources, Step,
 )
 
 
@@ -69,7 +69,7 @@ class Answerer(Step):
         answer.link("supported_by", evidence)
 
 
-class Pipeline(Agent):
+class Pipeline(StepGroup):
     steps = [Scout(), Answerer()]
 
 

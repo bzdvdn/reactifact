@@ -7,12 +7,12 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..agents import Agent
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
 from ..llm_agent import HITLLMAgent, LLMAgent
 from ..providers import LLMProvider
+from ..step import StepGroup
 from ..tool_use import ToolAnswer
 from ..tools import Tool
 from ._shared import _arun, _default_resources
@@ -91,7 +91,7 @@ class QuickToolsAgent:
     ):
         self.question_type = question_type
         if human:
-            self.agent: Agent = _QuickHITLLMAgent(
+            self.agent: StepGroup = _QuickHITLLMAgent(
                 name=name,
                 system=system,
                 tools=tools,

@@ -92,21 +92,26 @@ The **compiled operations** (`reactifact.operations`):
 | `Link` | connect `source →rel→ target` (provenance) |
 | `Unlink` | remove a relation |
 
-`Patch` (the container) is built by the runtime and by the `Agent.run` escape
+`Patch` (the container) is built by the runtime and by the `StepGroup.run` escape
 hatch; effects compose *within* one produce, so nothing is applied until the
 runtime compiles — atomicity is structural (§41).
 
 HITL is an `effects.ask(...)` → `PendingQuestion`, answered via
 `effects.resume(...)` (see [patterns](patterns.md)).
 
-## 4. Agent
+## 4. StepGroup (optional; formerly Agent)
 
-An `Agent` is a **thin container**: it groups `Step`s. Each step declares what
-it consumes and produces; the runtime derives the agent's triggers from those
-contracts.
+Steps are the model. **`Runtime(ctx, steps=[...])`** wraps each step in an
+implicit group of one, so the common case needs no container at all. A
+**`StepGroup`** is the optional container for steps that must share something
+operational: one trigger, retry policy, timeout, priority, concurrency limit, or
+one atomic commit. `Runtime` accepts `steps=` and `groups=` together (steps
+first), and `agents=` remains the deprecated alias for `groups=`.
 
 ```python
-class RepairFlow(Agent):
+from reactifact import StepGroup
+
+class RepairFlow(StepGroup):
     name = "repair_flow"
     steps = [
         CollectStage(), PickStage(), PlanStage(),
@@ -119,17 +124,18 @@ class RepairFlow(Agent):
   create set. Put the primary output first and extra create-only types in the
   same tuple: `produces = (Primary, Extra)`; `also_creates` is a deprecated
   alias.
-- `Agent.consumes` still exists for the imperative escape hatch (an `Agent`
-  subclass overriding `run(event, context)` directly), but declarative agents
+- `StepGroup.consumes` still exists for the imperative escape hatch (a group
+  subclass overriding `run(event, context)` directly), but declarative code
   should put contracts on steps.
 - `Consume(..., wakes=False)` reads an input without waking on it;
   `debounce=True` collapses several same-generation events into one run;
   `Consume.by_base(Base)` also wakes on subclasses. `JoinConsume`/
   `AbsentConsume` correlate across types — see [patterns](patterns.md).
-- The runtime wakes agents on events, respecting budget and concurrency.
+- The runtime wakes groups on events, respecting budget and concurrency.
 
-`Agent.run(event, context) -> Patch | None` remains the low-level escape hatch
-for hand-assembling a `Patch`; it is not a third everyday style.
+`StepGroup.run(event, context) -> Patch | None` remains the low-level escape
+hatch for hand-assembling a `Patch`; it is not a third everyday style.
+`StepGroup` and `create_agent` are deprecated aliases kept for 0.x code.
 
 ## 5. Step
 
@@ -213,7 +219,7 @@ when the task actually needs it.
 | --- | --- | --- |
 | One typed transformation | `@step(produces=..., consumes=...)` | return the produced model, or use `call.effects` for updates/links |
 | Typed inputs, several effects, HITL | class `Step` with `run(..., effects: Effects)` | the full form; see [Effects](effects.md) |
-| Hand-assembled operations / imperative agent | `Patch`, `Agent.run(event, context)` | escape hatch, not the everyday style |
+| Hand-assembled operations / imperative agent | `Patch`, `StepGroup.run(event, context)` | escape hatch, not the everyday style |
 | 0.1.x code | `Produce` / `@produce` / `ProduceCall` | migration only; not part of the top-level `__all__` |
 
 ### Scheduling

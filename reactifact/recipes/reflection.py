@@ -22,7 +22,7 @@ round, as an audit trail the loop itself never re-reads past the latest one.
         async def rewrite(self, context, draft, feedback) -> Draft: ...
         async def finish(self, context, draft) -> Final: ...
 
-    class Flow(Agent):
+    class Flow(StepGroup):
         consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
         produces = MyLoop().produces()
 
@@ -58,7 +58,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     """Subclass with the four domain hooks; `produces()` gives the four
-    `Step`s to wire into an `Agent` (see module docstring)."""
+    `Step`s to wire into an `StepGroup` (see module docstring)."""
 
     topic_type: type[TopicT]
     draft_type: type[DraftT]

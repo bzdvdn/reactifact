@@ -32,7 +32,6 @@ from reactifact import (
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.replay import replay_context, replay_summary
 
-from examples.outbox.agents import AGENTS, DUPLICATE_AGENTS
 from examples.outbox.dispatcher import (
     SentLog,
     make_dispatcher,
@@ -40,6 +39,7 @@ from examples.outbox.dispatcher import (
     with_retries,
 )
 from examples.outbox.models import Order
+from examples.outbox.step_groups import DUPLICATE_GROUPS, GROUPS
 
 ACTION = "action:notify:42"
 
@@ -53,7 +53,7 @@ async def happy_path() -> tuple[Context, SentLog]:
     context = Context(resources=RuntimeResources())
     context.create(_order("42"), id="order:42")
     dispatch, _ = make_dispatcher(log)
-    await Runtime(context, agents=AGENTS, dispatcher=dispatch).arun()
+    await Runtime(context, groups=GROUPS, dispatcher=dispatch).arun()
     return context, log
 
 
@@ -62,7 +62,7 @@ async def rederivation() -> tuple[int, int]:
     context.update("order:42", _order("42", total=130.0))
     second = SentLog()
     dispatch, _ = make_dispatcher(second)
-    await Runtime(context, agents=AGENTS, dispatcher=dispatch).arun()
+    await Runtime(context, groups=GROUPS, dispatcher=dispatch).arun()
     return len(first), len(second)
 
 
@@ -71,7 +71,7 @@ async def same_generation() -> tuple[Context, SentLog]:
     context = Context(resources=RuntimeResources())
     context.create(_order("7"), id="order:7")
     dispatch, _ = make_dispatcher(log)
-    await Runtime(context, agents=DUPLICATE_AGENTS, dispatcher=dispatch).arun()
+    await Runtime(context, groups=DUPLICATE_GROUPS, dispatcher=dispatch).arun()
     return context, log
 
 
@@ -83,8 +83,8 @@ async def branches() -> tuple[Context, SentLog, int]:
     right = parent.branch(name="right")
     left.create(_order("9"), id="order:9")
     right.create(_order("9"), id="order:9")
-    await Runtime(left, agents=AGENTS, dispatcher=dispatch).arun()
-    await Runtime(right, agents=AGENTS, dispatcher=dispatch).arun()
+    await Runtime(left, groups=GROUPS, dispatcher=dispatch).arun()
+    await Runtime(right, groups=GROUPS, dispatcher=dispatch).arun()
     left.merge(right)
     pending = await Runtime(left, dispatcher=dispatch).flush_pending_actions()
     return left, log, pending
@@ -97,7 +97,7 @@ async def replay() -> tuple[int, int, dict[str, object]]:
     session.context.create(_order("100"), id="order:100")
     dispatch, _ = make_dispatcher(log)
     runtime = Runtime(
-        session.context, agents=AGENTS, session=session, dispatcher=dispatch
+        session.context, groups=GROUPS, session=session, dispatcher=dispatch
     )
     await runtime.arun()
     sent_before = len(log)
@@ -110,7 +110,7 @@ async def failure_retry() -> tuple[Context, SentLog, str, str | None]:
     context = Context(resources=RuntimeResources())
     context.create(_order("55"), id="order:55")
     dispatch, _ = make_dispatcher(log, fail_first=True)
-    runtime = Runtime(context, agents=AGENTS, dispatcher=dispatch)
+    runtime = Runtime(context, groups=GROUPS, dispatcher=dispatch)
     raised = ""
     try:
         await runtime.arun()
@@ -129,7 +129,7 @@ async def app_owned_retry() -> tuple[Context, SentLog, str | None, int]:
     wrapped = with_retries(make_flaky(base, fail_times=2), attempts=3, delay=0.0)
     context = Context(resources=RuntimeResources())
     context.create(_order("77"), id="order:77")
-    await Runtime(context, agents=AGENTS, dispatcher=wrapped).arun()
+    await Runtime(context, groups=GROUPS, dispatcher=wrapped).arun()
     action = context.get("action:notify:77")
     status = action.data.status if action is not None else None
     attempts = action.data.attempts if action is not None else -1

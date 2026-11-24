@@ -28,7 +28,7 @@ class Evidence(BaseModel):
 
 
 def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
-    class VerifierAgent(Agent):
+    class VerifierGroup(Agent):
         consumes = [Consume(Answer)]
         produces = [
             Verify(**verify_kwargs),
@@ -36,7 +36,7 @@ def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
             Produce(VerificationFailed),
         ]
 
-    return Runtime(ctx, agents=[VerifierAgent()])
+    return Runtime(ctx, agents=[VerifierGroup()])
 
 
 def test_grounded_well_evidenced_answer_passes():

@@ -170,7 +170,7 @@ class RuntimeResources:
         # Runtime-level policy for what actually goes into an agent's inputs
         # (ranking/truncation) — `None` reproduces the old, unranked
         # behavior. See `context_builder.py`; applied inside
-        # `Agent._collect_inputs` (`agents.py`), so both the runtime's
+        # `StepGroup._collect_inputs` (`agents.py`), so both the runtime's
         # provenance (`Runtime._collect_reads`) and the agent's actual
         # produce inputs go through the same builder call and stay in sync.
         self.context_builder = context_builder

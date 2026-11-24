@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- **`reactifact demo`.** A self-contained, no-API-key pipeline that makes the
+  framework's claim observable in one command: four pydantic models, three
+  `@step` functions that never import each other, a figure computed in plain
+  Python, an answer linked to its evidence (`supported_by` /
+  `calculated_from`), and a second run that prints the same `context_hash`.
+  Runs in ~3 seconds; `--plain` disables ANSI colour. The source is
+  `reactifact/demo.py`, so the demo doubles as the smallest copyable example.
+- **Provenance as a query.** `context.why(artifact)` walks outgoing provenance
+  edges breadth-first (`relations=` to filter, `max_depth=` to stop) and
+  `context.sources(artifact)` returns the deduplicated source locators behind
+  an artifact — the hand-written BFS in the demo is gone. `@step(auto_link=...)`
+  (opt-in for now) links each created artifact to the inputs the step actually
+  resolved, `derived_from` by default; an explicit `link` for the same pair
+  wins, so deliberate provenance is never overridden.
+- **`StepGroup` is the public name; `Agent` is a deprecated alias.** Steps stay
+  the model; a `StepGroup` is the optional unit that shares a trigger, retry
+  policy, timeout, priority, concurrency limit or commit. `create_step_group`
+  builds one and `Runtime(..., groups=[...])` is the new keyword;
+  `Agent`, `create_agent` and `agents=` keep working as 0.x aliases. Tracing
+  still records the group name on the span (`AgentSpan.agent`, unchanged for
+  telemetry compatibility; `StepGroupSpan` is the new alias and `.group` reads
+  the same value) plus the step name in `StepRun.name`. The class now lives in
+  `reactifact.step`; `reactifact.agents` is a deprecated re-export module.
+- **`Runtime(steps=[...])`.** Raw steps are wrapped in an implicit group of one,
+  so the common pipeline needs no `create_step_group` call at all. `steps=` and
+  `groups=` can be passed together (steps first, then groups); wrong types fail
+  at construction with a message pointing at the right keyword, and `agents=`
+  cannot be combined with either new keyword.
+- **Step-level scheduling knobs and `name=`.** `Step` now carries `priority` and
+  `concurrency_limit` (copied into the implicit group created by
+  `Runtime(steps=...)`), and `@step(..., name=...)` sets the trace/error label
+  without adding a grouping concept. Grouping stays in `StepGroup` only.
+- **`validate_contracts(steps=..., groups=...)`.** Validation mirrors the
+  runtime: raw steps, explicit groups, or both (steps first). `validate_agents`
+  remains as the deprecated alias; `ValidationIssue.groups` replaces `agents`
+  with an `.agents` compatibility property.
+
 ## [0.22.0] — 2026-11-21
 
 ### Added

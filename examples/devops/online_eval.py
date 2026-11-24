@@ -26,8 +26,8 @@ from typing import Any
 if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from examples.devops.agents import RouteAgent
 from examples.devops.models import UserMsg
+from examples.devops.step_groups import RouteGroup
 from reactifact import Context, Runtime, RuntimeResources
 from reactifact.eval import (
     EvalInput,
@@ -97,7 +97,7 @@ def _run_offline(store: TraceStore, text: str) -> None:
     context = Context(resources=RuntimeResources())
     context.create(UserMsg(text=text))
     asyncio.run(
-        Runtime(context, agents=[RouteAgent()], tracer=Tracer(store=store)).arun()
+        Runtime(context, groups=[RouteGroup()], tracer=Tracer(store=store)).arun()
     )
 
 

@@ -418,7 +418,7 @@ class WebSource(Source):
         self._cache: dict[str, tuple[str, str]] = {}  # url -> (title, text)
         self._timeout = timeout
         self._transport = transport
-        self._headers = {"User-Agent": user_agent, "Accept": "text/html,*/*"}
+        self._headers = {"User-StepGroup": user_agent, "Accept": "text/html,*/*"}
         self._http = LoopBoundClient(self._build_client)
         if urls:
             for url in urls:

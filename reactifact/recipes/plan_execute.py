@@ -19,7 +19,7 @@ an LLM, that's on your hooks.
         async def execute_step(self, context, step, history) -> StepResult: ...
         async def finish(self, context, goal, results) -> FinalAnswer: ...
 
-    class FlowAgent(Agent):
+    class FlowAgent(StepGroup):
         consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
         produces = Flow().produces()
 
@@ -54,7 +54,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     """Subclass with the three domain hooks; `produces()` gives the three
-    `Step`s to wire into an `Agent` (see module docstring)."""
+    `Step`s to wire into an `StepGroup` (see module docstring)."""
 
     goal_type: type[GoalT]
     step_type: type[StepT]

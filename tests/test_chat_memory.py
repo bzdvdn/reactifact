@@ -35,7 +35,7 @@ class _Echo(Produce[ConversationMessage]):
             )
 
 
-def _echo_agent():
+def _echo_group():
     return create_agent(
         "echo",
         consumes=[Consume(ConversationMessage)],
@@ -61,7 +61,7 @@ def _assistant(**memory_kwargs) -> tuple[ChatAssistant, SessionStore]:
     )
     assistant = ChatAssistant(
         store=store,
-        agents=[_echo_agent()],
+        agents=[_echo_group()],
         user_message=ConversationMessage,
         reply=_reply,
         create_message=create_turn,
@@ -92,7 +92,7 @@ def test_chat_memory_compacts_the_commit_history():
     assert ctx.compacted_at > 0
 
 
-def test_chat_memory_compaction_only_adds_no_message_agent():
+def test_chat_memory_compaction_only_adds_no_message_group():
     assistant, _ = _assistant(compact_commits=1)
 
     assert assistant._memory_agents() == []

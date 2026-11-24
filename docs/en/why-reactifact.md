@@ -172,7 +172,7 @@ agents see. No `if x: call y` plumbing — the state decides, the loop follows.
 into a framework-app. You keep your session store, your resources, your
 artifacts; the framework provides the loop. If your loop differs — parallel
 forks, a steering second endpoint — the building blocks (`run_message`,
-`create_agent`, effects) compose under it.
+`create_step_group`, effects) compose under it.
 
 ## Does this mean "no graphs ever"?
 

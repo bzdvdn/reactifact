@@ -30,7 +30,7 @@ from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .commit import ContextCheckpoint
 from .consume import Consume, consume
-from .context import Context, View
+from .context import Context, ProvenanceLink, View
 from .effects import Effects, Handle
 from .events import Event, EventType
 from .interrupt import PendingAction, PendingQuestion
@@ -55,7 +55,17 @@ from .request import current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import Runtime
 from .session import Session, SessionStore
-from .step import Latest, Scope, Step, StepCall, Wakes, When, step
+from .step import (
+    Latest,
+    Scope,
+    Step,
+    StepCall,
+    StepGroup,
+    Wakes,
+    When,
+    create_step_group,
+    step,
+)
 from .subflow import SubflowResult, run_subflow
 from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
@@ -65,6 +75,7 @@ from .validate import (
     ValidationIssue,
     ValidationReport,
     validate_agents,
+    validate_contracts,
 )
 
 try:
@@ -74,12 +85,14 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
 
 __all__ = [
     "Agent",
+    "StepGroup",
     "Artifact",
     "ArtifactConflict",
     "Budget",
     "BudgetTracker",
     "Consume",
     "Context",
+    "ProvenanceLink",
     "ContextCheckpoint",
     "Create",
     "Delete",
@@ -132,6 +145,7 @@ __all__ = [
     "configure_logging",
     "consume",
     "create_agent",
+    "create_step_group",
     "current_request",
     "get_logger",
     "register_type",
@@ -139,4 +153,5 @@ __all__ = [
     "step",
     "tool",
     "validate_agents",
+    "validate_contracts",
 ]

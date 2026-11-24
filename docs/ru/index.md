@@ -15,6 +15,9 @@
 
 | Что нужно | Начните с | Дальше |
 | --- | --- | --- |
+| Увидеть в деле (без API-ключа) | `reactifact demo` | [Quickstart](quickstart.md) |
+| Собрать knowledge-ассистента | [База знаний](knowledge.md) + `reactifact.quick.rag` | [Sources](sources.md), [Паттерны](patterns.md) |
+| Ставить эксперименты с агентами | [Ветвление](branching.md) + пример `forklab` | [Eval](eval.md), [Replay](replay.md) |
 | Собрать web-приложение | `reactifact new app my-app` + [Quickstart](quickstart.md) | [Chat](chat.md), [FastAPI-шаблон](../../reactifact/templates/fastapi_chat) |
 | Встроить в существующий код | [Quickstart](quickstart.md) / `reactifact.quick` | [Concepts](concepts.md), [Effects](effects.md) |
 | Понять модель | [Почему reactifact](why-reactifact.md) | [Concepts](concepts.md), [Сравнение](comparison.md) |
@@ -73,7 +76,7 @@ answer sha256 5461290d…  ·  context sha256 24449f6f…
                                    EVENT (created/updated)
                                           │
                                           ▼
-CONTEXT ───────► ARTIFACTS ──► AGENTS REACT ──effects──► EFFECTS
+CONTEXT ───────► ARTIFACTS ──► STEPS REACT ──effects──► EFFECTS
    ▲                 │                                            │
    │                 │                                            │  compile
    └────── CONTEXT' ◄────────────────┘ PATCH ◄────────────────────┘
@@ -148,7 +151,7 @@ _«почему агент так сказал?»_, проходя по связ
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Context, Runtime, RuntimeResources, create_agent, step
+from reactifact import Budget, Context, Runtime, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -183,11 +186,8 @@ async def answer_from_evidence(call):
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
 
 
-search_agent = create_agent("search", steps=[find_evidence])
-answer_agent = create_agent("answer", steps=[answer_from_evidence])
-
 ctx = Context(resources=RuntimeResources())
-runtime = Runtime(ctx, agents=[search_agent, answer_agent], budget=Budget(max_runs=10))
+runtime = Runtime(ctx, steps=[find_evidence, answer_from_evidence], budget=Budget(max_runs=10))
 
 ctx.create(Question(text="какая у вас политика возврата?"))
 runtime.run()  # оба агента реагируют сами — никто их не связывал вручную

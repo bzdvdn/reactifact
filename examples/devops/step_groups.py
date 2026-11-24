@@ -5,7 +5,7 @@ tools and report builder, + render of the answer into the chat + a memory agent
 that indexes report summaries. Logic lives in `steps/`.
 """
 
-from reactifact import Agent, Consume
+from reactifact import Consume, StepGroup
 from reactifact.llm_agent import HITLLMAgent
 
 from .models import (
@@ -29,7 +29,7 @@ def _announce_answer(answer: str) -> str:
     return f"Accepted: «{answer}». Checking…"
 
 
-class RouteAgent(Agent):
+class RouteGroup(StepGroup):
     """Base chat: question → problem artifact of the relevant agent (§48)."""
 
     name = "route"
@@ -75,14 +75,14 @@ class AnsibleAgent(HITLLMAgent):
     resume_announce = staticmethod(_announce_answer)
 
 
-class RenderAgent(Agent):
-    """Agent reports → chat replies."""
+class RenderGroup(StepGroup):
+    """StepGroup reports → chat replies."""
 
     name = "render"
     steps = [RenderReply()]
 
 
-class MemoryAgent(Agent):
+class MemoryGroup(StepGroup):
     """Indexes report summaries for cross-session recall (priority: last)."""
 
     name = "memory"

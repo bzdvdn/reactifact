@@ -23,10 +23,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ..agents import Agent
 from ..artifacts import Artifact
 from ..budget import RunStats
 from ..context import Context
+from ..step import StepGroup
 from ..subflow import run_subflow
 
 
@@ -81,8 +81,9 @@ def _final_of(
 
 async def swarm(
     parent: Context,
-    agents: Mapping[str, Agent],
+    groups: Mapping[str, StepGroup] | None = None,
     *,
+    agents: Mapping[str, StepGroup] | None = None,
     start: str,
     input: BaseModel | Artifact[Any],
     final_type: type[BaseModel] | None = None,
@@ -98,7 +99,12 @@ async def swarm(
     Context, links it to the previous step, and continues. `max_hops` is a hard
     cap; `allow_repeat=False` also rejects revisiting an agent.
     """
-    if start not in agents:
+    if groups is not None and agents is not None:
+        raise ValueError("Pass either agents= (deprecated) or groups=, not both")
+    mapping = groups if groups is not None else agents
+    if mapping is None:
+        raise TypeError("swarm requires groups=")
+    if start not in mapping:
         raise SwarmError(f"unknown start agent {start!r}")
     if max_hops < 1:
         raise ValueError("max_hops must be >= 1")
@@ -117,12 +123,12 @@ async def swarm(
     visited = [start]
 
     while True:
-        if current not in agents:
+        if current not in mapping:
             raise SwarmError(f"unknown handoff target {current!r}")
 
         result = await run_subflow(
             work,
-            agents=[agents[current]],
+            groups=[mapping[current]],
             input=current_input,
             output_type=None,
             isolate=True,

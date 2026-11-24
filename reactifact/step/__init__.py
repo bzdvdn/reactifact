@@ -14,6 +14,7 @@ from .core import Step
 from .core import _scope_matches as _scope_matches
 from .core import _scope_value as _scope_value
 from .decorator import step
+from .group import StepGroup, create_step_group
 from .resolve import invoke_step as invoke_step
 
 __all__ = [
@@ -21,8 +22,10 @@ __all__ = [
     "Scope",
     "Step",
     "StepCall",
+    "StepGroup",
     "Wakes",
     "When",
+    "create_step_group",
     "current_step_call",
     "current_step_context",
     "invoke_step",

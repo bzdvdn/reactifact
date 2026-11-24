@@ -27,7 +27,7 @@ keeps **typed, versioned artifacts** — so a turn's provenance, the ability to
 mounts it as SSE on your FastAPI app. Configure it with hooks:
 
 ```python
-from reactifact import Consume, RuntimeResources, create_agent
+from reactifact import Consume, RuntimeResources, create_step_group
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.recipes.conversation import (
@@ -37,7 +37,7 @@ from reactifact.session import SessionStore
 
 assistant = ChatAssistant(
     store=SessionStore(SQLiteKVBackend("./sessions.db")),
-    agents=[create_agent("answer", steps=[ANSWER])],
+    agents=[create_step_group("answer", steps=[ANSWER])],
     user_message=ConversationMessage,
     create_message=create_turn,          # record the user message as a ConversationMessage
     reply=my_reply,                      # (ctx, msg_id) -> {"reply": ...}

@@ -14,7 +14,7 @@ and the graph grows.
 
 | LangChain / LangGraph | reactifact |
 | --- | --- |
-| `StateGraph`, `add_node`, `add_edge` | `Agent(steps=[...])` / `create_agent(name, steps=[...])` — edges are implicit in step `consumes`/`produces` |
+| `StateGraph`, `add_node`, `add_edge` | `StepGroup(steps=[...])` / `create_step_group(name, steps=[...])` — edges are implicit in step `consumes`/`produces` |
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
 | `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |
@@ -58,7 +58,7 @@ def node(state):
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, Effects, Runtime, RuntimeResources, Step, create_agent,
+    StepGroup, Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
 )
 
 
@@ -78,7 +78,7 @@ class Answerer(Step):
         effects.create(Answer(text=question.text.upper()))
 
 
-class AnswerAgent(Agent):
+class AnswerAgent(StepGroup):
     steps = [Answerer()]
 
 

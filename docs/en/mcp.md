@@ -20,14 +20,14 @@ tools as a `list[Tool]` — the same `Tool` contract `ToolUse`/`LLMAgent` alread
 take, so a remote MCP tool and a local `@tool` function are interchangeable:
 
 ```python
-from reactifact import Consume, create_agent
+from reactifact import Consume, create_step_group
 from reactifact.mcp import mcp_stdio_tools
 from reactifact.tools.use import ToolUse
 
 async with mcp_stdio_tools(
     "npx", ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ) as tools:
-    fs_agent = create_agent(
+    fs_agent = create_step_group(
         "fs",
         consumes=[Consume(Question)],
         steps=[ToolUse("Answer questions about files in /tmp.", tools)],

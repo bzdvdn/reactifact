@@ -43,7 +43,7 @@ class RefToDoc(Agent):
         return Patch().create(Doc(content=content))
 
 
-def test_resolver_agent():
+def test_resolver_group():
     ws = Context(resources=RuntimeResources(sources={"mysource": MySource()}))
     runtime = Runtime(ws, agents=[RefToDoc()])
     ws.create(SourceRef(source_id="mysource", locator="abc"))

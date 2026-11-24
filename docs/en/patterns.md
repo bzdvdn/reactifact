@@ -258,7 +258,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-class FlowAgent(Agent):
+class FlowAgent(StepGroup):
     steps = Flow().produces()
 ```
 
@@ -280,7 +280,7 @@ puts that back where it belongs — on the class declaration:
 ```python
 from reactifact.consume import AbsentConsume, JoinConsume
 
-class ApprovalGate(Agent):
+class ApprovalGate(StepGroup):
     consumes = [
         JoinConsume(
             Report, PendingQuestion,
@@ -290,7 +290,7 @@ class ApprovalGate(Agent):
     ]
     steps = [RecordApproval()]
 
-class TicketGate(Agent):
+class TicketGate(StepGroup):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
     ]
@@ -392,9 +392,9 @@ consumes = [
 ```
 
 Before `wakes`, the only way to decouple "what wakes me" from "what I read"
-was `Agent`'s separate `triggers=` override, kept in sync with `consumes` by
+was `StepGroup`'s separate `triggers=` override, kept in sync with `consumes` by
 hand. `triggers=` is still the right tool for the *imperative* style (an
-`Agent` subclass overriding `run()` directly, with no `consumes` at all) —
+`StepGroup` subclass overriding `run()` directly, with no `consumes` at all) —
 there's no `Consume` there to attach a condition to.
 
 ## Debouncing fan-out

@@ -15,7 +15,7 @@ from reactifact import (
     Runtime,
     Step,
     Wakes,
-    create_agent,
+    create_step_group,
 )
 
 
@@ -78,7 +78,7 @@ async def run_reactive() -> dict[str, Any]:
     context.create(Policy(max_facts=3), id="policy:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("reactive", steps=[FanOutFacts(), CollectFacts()])],
+        groups=[create_step_group("reactive", steps=[FanOutFacts(), CollectFacts()])],
         budget=Budget(max_runs=20),
     )
     await runtime.arun()

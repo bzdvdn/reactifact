@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Agent, Artifact, Effects, Step
+from reactifact import StepGroup, Artifact, Effects, Step
 from reactifact.structured import structured_llm
 
 from app.models import Report, ReportBody, Tick
@@ -45,7 +45,7 @@ class MonitorStep(Step):
         return None
 
 
-class MonitorAgent(Agent):
+class MonitorAgent(StepGroup):
     name = "monitor"
     steps = [MonitorStep()]
 

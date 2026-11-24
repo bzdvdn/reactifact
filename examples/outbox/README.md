@@ -69,7 +69,7 @@ extra create after it. The runtime performs the intent after the commit,
 exactly once per id:
 
 ```python
-await Runtime(context, agents=AGENTS, dispatcher=dispatch).arun()
+await Runtime(context, agents=GROUPS, dispatcher=dispatch).arun()
 ```
 
 The step never touches the network. That is the whole trick: `key` is derived
@@ -113,7 +113,7 @@ policy** — case 7 wraps the dispatcher with `with_retries(...)`;
 outbox/
 ├── models.py       # Order (input) + Receipt (committed state)
 ├── steps.py        # records the intent via effects.act — never does the I/O
-├── agents.py       # order_agent · mirror_agent (same-generation duplicate)
+├── agents.py       # order_group · mirror_group (same-generation duplicate)
 ├── dispatcher.py   # the fake external world: SentLog + idempotent dispatcher
 └── main.py         # seven cases
 ```

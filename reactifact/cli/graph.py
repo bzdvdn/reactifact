@@ -11,10 +11,10 @@ from .common import load_agents
 def cmd_graph(args: argparse.Namespace) -> int:
     agents = load_agents(args.agents)
     if args.check:
-        from ..validate import validate_agents
+        from ..validate import validate_contracts
 
-        report = validate_agents(
-            agents,
+        report = validate_contracts(
+            groups=agents,
             seeds=args.seed or (),
             terminal=args.terminal or (),
         )

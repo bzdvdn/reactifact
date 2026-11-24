@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from reactifact import Agent, Budget, SessionStore
+from reactifact import StepGroup, Budget, SessionStore
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import Tracer, TraceStore
@@ -23,7 +23,7 @@ _TRANSCRIPT = Transcript(
 )
 
 
-class AnswerAgent(Agent):
+class AnswerAgent(StepGroup):
     name = "answer"
     steps = [AnswerStep()]
 
@@ -53,7 +53,7 @@ def build_assistant(
     settings: Settings,
     store: SessionStore,
     trace_store: TraceStore,
-    agents: Sequence[Agent],
+    agents: Sequence[StepGroup],
     budget: Budget,
     memory: ChatMemory | None,
 ) -> ChatAssistant:

@@ -30,7 +30,6 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.knowledge.agents import AGENTS
 from examples.knowledge.chat import _UNSET, build_resources
 from examples.knowledge.index import KnowledgeBackend, build_backend
 from examples.knowledge.models import (
@@ -40,6 +39,7 @@ from examples.knowledge.models import (
     Claim,
     UserQuery,
 )
+from examples.knowledge.step_groups import GROUPS
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, SessionStore
@@ -131,7 +131,7 @@ def _build_assistant(
     )
     return ChatAssistant(
         store=store,
-        agents=AGENTS,
+        groups=GROUPS,
         user_message=UserQuery,
         reply=terminal_reply,
         session_state=session_state,

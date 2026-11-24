@@ -22,4 +22,4 @@ class Make(Step):
         return Out(text=item.text)
 
 
-AGENTS = [create_agent("make", steps=[Make()])]
+GROUPS = [create_agent("make", steps=[Make()])]

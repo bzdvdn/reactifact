@@ -24,7 +24,7 @@ as complexity is:
    handled message → create a ChatReply" on every turn. `_update_project` +
    `_reply` + a compose call is repeated boilerplate.
 3. **Two mental models coexist.** `Produce` classes *return a patch*; some
-   `Agent.run` bodies (and early demos) *mutate `context` directly*. Neither is
+   `StepGroup.run` bodies (and early demos) *mutate `context` directly*. Neither is
    wrong — but "which one should I write here?" is not answered by the docs.
 4. Big guard/if-else produce bodies return different composed patches, which
    compounds 1.

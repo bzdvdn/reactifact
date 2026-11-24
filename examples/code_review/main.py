@@ -16,8 +16,10 @@ from pathlib import Path
 from reactifact import Context, Runtime, RuntimeResources
 from reactifact.providers import LLMProvider
 
-from .agents import AGENTS
 from .models import ReviewReport, ReviewRequest
+from .steps import BuildReportStep, ParseDiffStep, ReviewFileStep
+
+STEPS = [ParseDiffStep(), ReviewFileStep(), BuildReportStep()]
 
 DEMO_DIFF = """\
 diff --git a/app.py b/app.py
@@ -41,7 +43,7 @@ def run_review(
     """Run the review pipeline; returns the final report (or None)."""
     context = Context(resources=RuntimeResources(llm=llm))
     context.create(ReviewRequest(diff=diff, instructions=instructions))
-    asyncio.run(Runtime(context, agents=AGENTS).arun())
+    asyncio.run(Runtime(context, steps=STEPS).arun())
     report = context.latest(ReviewReport)
     return report.data if report is not None else None
 

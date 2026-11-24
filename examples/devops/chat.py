@@ -14,16 +14,16 @@ if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.devops.agents import (
+from examples.devops.models import ChatReply, UserMsg
+from examples.devops.resources import build_resources
+from examples.devops.step_groups import (
     AnsibleAgent,
     GitlabAgent,
     K8sAgent,
-    MemoryAgent,
-    RenderAgent,
-    RouteAgent,
+    MemoryGroup,
+    RenderGroup,
+    RouteGroup,
 )
-from examples.devops.models import ChatReply, UserMsg
-from examples.devops.resources import build_resources
 from reactifact import Budget, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.guardrails import GuardrailViolation
@@ -72,13 +72,13 @@ async def main() -> None:
 
     runtime = Runtime(
         session.context,
-        agents=[
-            RouteAgent(),
+        groups=[
+            RouteGroup(),
             K8sAgent(),
             GitlabAgent(),
             AnsibleAgent(),
-            RenderAgent(),
-            MemoryAgent(),
+            RenderGroup(),
+            MemoryGroup(),
         ],
         session=session,
         dispatcher=MemoryStore.dispatch,

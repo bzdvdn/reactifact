@@ -86,14 +86,14 @@ class Step(Generic[TOut]):
 
     The input-side mirror of that is `reacts_to`: an agent with several
     `consumes` and several `produces` runs *every* produce on *every*
-    matching event by default (`Agent.execute()` has no idea which of an
+    matching event by default (`StepGroup.execute()` has no idea which of an
     agent's several `Consume`s a given produce actually cares about) — every
     produce ends up guarding itself by hand, `if call.event is None or not
     isinstance(call.trigger.data, TheOneTypeICareAbout): return None`, at
     the top of its own body. Declaring `reacts_to = (TheType,)` (a tuple,
     same convention as `also_creates` — more than one entry for more than
     one type) moves that guard to where the intent already lives — the
-    class declaration — and `Agent.execute()` simply skips calling
+    class declaration — and `StepGroup.execute()` simply skips calling
     `step()` at all for an event none of `reacts_to` matches, the same
     way `Trigger.artifact_type` gates whether the *agent* wakes up at all.
     Two produces sharing one `artifact_type` (the same output) but different
@@ -106,9 +106,9 @@ class Step(Generic[TOut]):
 
     Once `reacts_to` narrows *which* event a produce runs for, resolving
     that event's own artifact is still work every such produce repeats —
-    `StepCall.trigger` does it once, in `Agent.execute()`, for every
+    `StepCall.trigger` does it once, in `StepGroup.execute()`, for every
     produce that reads it. For a produce that also declares `reacts_to`,
-    this is a real guarantee, not best-effort: `Agent.execute()` also *skips
+    this is a real guarantee, not best-effort: `StepGroup.execute()` also *skips
     calling it* if `context.get(event.artifact_id)` no longer resolves for a
     CREATED/UPDATED/STALE event (the artifact was deleted by another agent
     earlier in the same generation — the same race `Trigger.matches()`
@@ -151,9 +151,19 @@ class Step(Generic[TOut]):
     also_creates: tuple[ArtifactType, ...] = ()
     reacts_to: tuple[ArtifactType, ...] | None = None
     #: Hard per-step deadline, in seconds. The runtime cancels this step when
-    #: it passes; the agent then fails (and `Agent.retry`, if set, may retry
-    #: the whole agent). `Agent.timeout` remains the outer bound.
+    #: it passes; the agent then fails (and `StepGroup.retry`, if set, may retry
+    #: the whole agent). `StepGroup.timeout` remains the outer bound.
     timeout: float | None = None
+    #: Scheduling priority within a generation (lower runs earlier), copied to
+    #: the implicit group that `Runtime(steps=...)` creates.
+    priority: int = 0
+    #: Parallel executions of this step, copied to the implicit group.
+    concurrency_limit: int | None = None
+    #: Opt-in provenance default: when truthy, every artifact this step creates
+    #: is linked to the inputs it actually resolved, `created —relation→ input`.
+    #: `True` uses ``derived_from``; a string overrides the relation name.
+    #: `False` (the default for now) preserves the explicit-`link` style.
+    auto_link: bool | str = False
 
     @staticmethod
     def _normalize_types(
@@ -234,6 +244,10 @@ class Step(Generic[TOut]):
         also_creates: Sequence[ArtifactType] | None = None,
         reacts_to: ArtifactType | Sequence[ArtifactType] | None = None,
         timeout: float | None = None,
+        auto_link: bool | str | None = None,
+        priority: int | None = None,
+        concurrency_limit: int | None = None,
+        name: str | None = None,
     ):
         resolved_produces = self._normalize_types(produces)
         if resolved_produces is None:
@@ -292,6 +306,27 @@ class Step(Generic[TOut]):
                 raise TypeError("Step.timeout must be a number or None")
             if self.timeout <= 0:
                 raise ValueError("Step.timeout must be > 0")
+        self.auto_link = (
+            auto_link
+            if auto_link is not None
+            else getattr(self.__class__, "auto_link", False)
+        )
+        if not isinstance(self.auto_link, (bool, str)):
+            raise TypeError("Step.auto_link must be a bool or a relation name")
+        self.priority = (
+            priority if priority is not None else getattr(self.__class__, "priority", 0)
+        )
+        if not isinstance(self.priority, int):
+            raise TypeError("Step.priority must be an int")
+        self.concurrency_limit = (
+            concurrency_limit
+            if concurrency_limit is not None
+            else getattr(self.__class__, "concurrency_limit", None)
+        )
+        if self.concurrency_limit is not None and self.concurrency_limit <= 0:
+            raise ValueError("Step.concurrency_limit must be > 0")
+        if name is not None:
+            self.name = name
 
     def consume_specs(self) -> tuple[Consume, ...] | None:
         """The normalized (always-`Consume`) form of `consumes`."""

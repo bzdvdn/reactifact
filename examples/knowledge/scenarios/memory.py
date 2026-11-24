@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
-from ..agents import AGENTS
 from ..models import Answer, Calculation, UserQuery
+from ..step_groups import GROUPS
 from ..steps.common import conversation_text
 from ._common import GPU_COST_QUESTION, resources
 
@@ -24,7 +24,7 @@ FOLLOW_UP_QUESTION = "how do I set up billing alerts for that?"
 
 @scenario("knowledge: chat memory carries over to a follow-up question (multi-turn)")
 async def follow_up_sees_prior_conversation() -> None:
-    lab = ScenarioLab(list(AGENTS), resources=resources)
+    lab = ScenarioLab(list(GROUPS), resources=resources)
     convo = lab.scenario()
 
     # turn 1: the flagship deterministic question

@@ -81,7 +81,7 @@ class Verify(Step[VerificationResult]):
     allowed `Create` types without adding real logic — same convention
     `HITLLMAgent` uses for `Observation`/`PendingQuestion`, `llm_agent.py`):
 
-        class Answerer(Agent):
+        class Answerer(StepGroup):
             consumes = [Consume(Question)]
             produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
     """

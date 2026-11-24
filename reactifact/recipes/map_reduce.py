@@ -25,14 +25,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from ..agents import create_agent
 from ..artifacts import Artifact
 from ..budget import RunStats
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
 from ..runtime import Runtime
-from ..step import Step
+from ..step import Step, create_step_group
 
 MapFn = Any  # (item, index) -> model/mapping, sync or async
 ReduceFn = Any  # (successful_payloads) -> model/mapping, sync or async
@@ -212,8 +211,10 @@ async def map_reduce(
     child_runtime = Runtime(
         child,
         agents=[
-            create_agent(f"{name}-map", steps=[MapWorker(map_fn, on_error=on_error)]),
-            create_agent(
+            create_step_group(
+                f"{name}-map", steps=[MapWorker(map_fn, on_error=on_error)]
+            ),
+            create_step_group(
                 f"{name}-reduce",
                 steps=[ReduceStep(reduce_fn, plan_id=plan.id, key=key)],
             ),

@@ -14,9 +14,9 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
-from examples.knowledge.agents import AGENTS
 from examples.knowledge.index import KnowledgeBackend, build_backend
 from examples.knowledge.models import Answer, ChatReply, ResearchTurn, UserQuery
+from examples.knowledge.step_groups import GROUPS
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.providers import openai_llm, openrouter_llm
@@ -95,7 +95,7 @@ async def main() -> None:
 
     runtime = Runtime(
         session.context,
-        agents=AGENTS,
+        groups=GROUPS,
         session=session,
         budget=Budget(max_runs=80),
         max_concurrency=4,

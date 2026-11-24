@@ -1,6 +1,6 @@
 """medic-lab agents — thin containers, example-local (§48)."""
 
-from reactifact import Agent
+from reactifact import StepGroup
 from reactifact.scheduler import Scheduler, relation_balance_metric, uncertainty_policy
 
 from .steps import (
@@ -17,76 +17,76 @@ from .steps import (
 )
 
 
-class GeneratorAgent(Agent):
+class GeneratorGroup(StepGroup):
     name = "generator"
     concurrency_limit = 2  # LLM-bound producers (§66)
     steps = [Generator()]
 
 
-class InvestigatorAgent(Agent):
+class InvestigatorGroup(StepGroup):
     name = "investigator"
     steps = [Investigator()]
 
 
-class ResolverAgent(Agent):
+class ResolverGroup(StepGroup):
     name = "resolver"
     steps = [Resolver()]
 
 
-class EvidenceAgent(Agent):
+class EvidenceGroup(StepGroup):
     name = "evidence_extractor"
     concurrency_limit = 2  # LLM-bound producers (§66)
     steps = [ExtractEvidence()]
 
 
-class ClaimsAgent(Agent):
+class ClaimsGroup(StepGroup):
     name = "claim_builder"
     steps = [ClaimBuilder()]
 
 
-class CrossCheckAgent(Agent):
+class CrossCheckGroup(StepGroup):
     name = "cross_checker"
     steps = [CrossChecker()]
     priority = 50
 
 
-class EvaluatorAgent(Agent):
+class EvaluatorGroup(StepGroup):
     name = "evaluator"
     steps = [Evaluator()]
     priority = 100
 
 
-class SteerAgent(Agent):
+class SteerGroup(StepGroup):
     name = "steer"
     steps = [Steer()]
     priority = 100
 
 
-class DeepenAgent(Agent):
+class DeepenGroup(StepGroup):
     name = "deepen"
     concurrency_limit = 2  # LLM-bound producers (§66)
     steps = [Deepen()]
 
 
-class ReporterAgent(Agent):
+class ReporterGroup(StepGroup):
     name = "reporter"
     concurrency_limit = 2  # LLM-bound producers (§66)
     steps = [Reporter()]
     priority = 100
 
 
-def medic_lab_agents() -> list[Agent]:
+def medic_lab_groups() -> list[StepGroup]:
     return [
-        GeneratorAgent(),
-        InvestigatorAgent(),
-        ResolverAgent(),
-        EvidenceAgent(),
-        ClaimsAgent(),
-        CrossCheckAgent(),
-        EvaluatorAgent(),
-        SteerAgent(),
-        DeepenAgent(),
-        ReporterAgent(),
+        GeneratorGroup(),
+        InvestigatorGroup(),
+        ResolverGroup(),
+        EvidenceGroup(),
+        ClaimsGroup(),
+        CrossCheckGroup(),
+        EvaluatorGroup(),
+        SteerGroup(),
+        DeepenGroup(),
+        ReporterGroup(),
     ]
 
 

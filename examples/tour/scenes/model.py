@@ -12,7 +12,7 @@ from reactifact import (
     Effects,
     Runtime,
     RuntimeResources,
-    create_agent,
+    create_step_group,
     step,
 )
 from reactifact.providers import LLMProvider
@@ -60,7 +60,7 @@ async def run_model(provider: LLMProvider | None) -> dict[str, Any]:
     )
     runtime = Runtime(
         context,
-        agents=[create_agent("model", steps=[write_brief])],
+        groups=[create_step_group("model", steps=[write_brief])],
         budget=Budget(max_runs=10),
     )
     await runtime.arun()

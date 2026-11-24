@@ -9,7 +9,6 @@ from typing import Any, Generic, TypeVar, overload
 
 from pydantic import BaseModel
 
-from ..agents import Agent, create_agent
 from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
@@ -19,7 +18,7 @@ from ..providers import LLMProvider
 from ..recipes import fan_out_sources, find_all, keyword_score, materialize_doc
 from ..resources import RuntimeResources
 from ..sources import CSVSource, FileSystemSource, Source, SourceRef
-from ..step import Step
+from ..step import Step, StepGroup, create_step_group
 from ..structured import llm_reply
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Answer, Doc, Question
@@ -313,18 +312,18 @@ class QuickRAG(Generic[TAnswer]):
         answer_builder = answer_factory or _default_answer_builder(
             answer_type, resolved_doc_locator
         )
-        self.agents: list[Agent] = [
-            create_agent(
+        self.agents: list[StepGroup] = [
+            create_step_group(
                 name="search",
                 consumes=[Consume(question_type)],
                 steps=[_search_produce(limit, question_type)],
             ),
-            create_agent(
+            create_step_group(
                 name="resolve",
                 consumes=[Consume(SourceRef)],
                 steps=[_resolve_produce(doc_type, doc_builder)],
             ),
-            create_agent(
+            create_step_group(
                 name="answer",
                 consumes=[Consume(doc_type), Consume(question_type, wakes=False)],
                 steps=[

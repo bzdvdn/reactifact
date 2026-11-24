@@ -16,6 +16,17 @@ uv add reactifact                 # core + CLI; FastAPI stays optional
 uv run reactifact skills install  # teach your coding agent the model
 ```
 
+The fastest way to see the claim end to end — a computed figure, its
+provenance, and a reproducible context hash, with no API key and no files —
+is the bundled demo:
+
+```bash
+uv run reactifact demo            # ~3 seconds; --plain disables colour
+```
+
+It is the same three-`@step` shape you'll write below, and the whole source is
+[`reactifact/demo.py`](https://github.com/bzdvdn/reactifact/blob/master/reactifact/demo.py).
+
 For a web app, either add the extra yourself or generate the template:
 
 ```bash
@@ -69,7 +80,7 @@ Every entry point takes `llm=` — any `LLMProvider` (`from_env()`,
 configured `.env` just works; pass it explicitly to choose a model/endpoint.
 
 This is **sugar over the same primitives**, not a second framework. Every
-object exposes the real `Agent` and the `Context` the run produced:
+object exposes the real `StepGroup` and the `Context` the run produced:
 
 ```python
 qa.agent      # the reactive Agent — mount it on your own Runtime
@@ -140,7 +151,7 @@ class OpsAgent(HITLLMAgent):
 
 async def main():
     ctx = Context(resources=RuntimeResources(llm=from_env()))
-    runtime = Runtime(ctx, agents=[OpsAgent()])
+    runtime = Runtime(ctx, groups=[OpsAgent()])
     ctx.create(Ticket(text="is checkout-api healthy?"))
     await runtime.arun()
 
@@ -177,7 +188,7 @@ citation string built by hand:
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Context, Runtime, RuntimeResources, create_agent, step
+from reactifact import Context, Runtime, RuntimeResources, create_step_group, step
 from reactifact.recipes import fan_out_sources, materialize_doc, find, keyword_score
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -215,9 +226,9 @@ async def answer(call):
     return Answer(text=d.data.text.strip(), sources=[s.data.locator for s in sources])
 
 
-search_agent = create_agent("search", steps=[search])
-resolve_agent = create_agent("resolve", steps=[resolve])
-answer_agent = create_agent("answer", steps=[answer])
+search_group = create_step_group("search", steps=[search])
+resolve_group = create_step_group("resolve", steps=[resolve])
+answer_group = create_step_group("answer", steps=[answer])
 
 
 async def main():
@@ -227,7 +238,7 @@ async def main():
         sources={"docs": FileSystemSource("./docs", source_id="docs", scorer=keyword_score)},
     )
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[search_agent, resolve_agent, answer_agent])
+    runtime = Runtime(ctx, groups=[search_group, resolve_group, answer_group])
     ctx.create(Question(text="what is your refunds policy?"))
     await runtime.arun()
     a = ctx.latest(Answer)
@@ -261,7 +272,7 @@ SSE endpoint on your own FastAPI app:
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Consume, RuntimeResources, SessionStore, create_agent
+from reactifact import Consume, RuntimeResources, SessionStore, create_step_group
 from reactifact.checkpoints import FileKVBackend
 from reactifact.chat import ChatAssistant
 from reactifact import step
@@ -283,7 +294,7 @@ async def echo(call):
     return Reply(query_id=msg.id, text=f"you said: {msg.data.text}")
 
 
-echo_agent = create_agent("echo", steps=[echo])
+echo_group = create_step_group("echo", steps=[echo])
 
 
 def reply(ctx, msg_id):
@@ -295,7 +306,7 @@ async def main():
     store = SessionStore(FileKVBackend("./sessions"))
     assistant = ChatAssistant(
         store=store,
-        agents=[echo_agent],
+        groups=[echo_group],
         user_message=UserMsg,
         reply=reply,
         resources=RuntimeResources,  # a fresh RuntimeResources per turn

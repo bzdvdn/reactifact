@@ -15,7 +15,7 @@
 | --- | --- |
 | `Produce` / `@produce` / `ProduceCall` | `Step` / `@step` / `StepCall` |
 | `Agent.produces=[...]` | `Agent.steps=[...]` |
-| контракты размазаны между `Agent.consumes` и `Produce.reacts_to` | каждый шаг владеет `consumes` / `produces` |
+| контракты размазаны между `StepGroup.consumes` и `Produce.reacts_to` | каждый шаг владеет `consumes` / `produces` |
 | `call.trigger` + ручные `isinstance`-проверки | типизированные входы `T` / `Artifact[T]` или `Consume(T)` |
 | ручной `context.get(stage_id(...))` | `scope=` / `Scope(...)` + типы или `Latest[T]` |
 | `self.effects.*` | `effects: Effects` в `run()` класса или `call.effects` в функции |
@@ -221,7 +221,7 @@ Shims импортируются в 0.21.x и запланированы к уд
 1. Замените `Produce` на `Step`, `ProduceCall` на `StepCall`, `@produce` на
    `@step`.
 2. Замените `Agent(produces=[...])` на `Agent(steps=[...])`; перенесите
-   контракты `Agent.consumes` на соответствующие шаги.
+   контракты `StepGroup.consumes` на соответствующие шаги.
 3. Замените `self.effects.*` на инжектированный `effects` или `call.effects`
    в функциях.
 4. Замените проверки `call.trigger.data` на типизированные параметры,

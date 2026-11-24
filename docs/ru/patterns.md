@@ -260,7 +260,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-class FlowAgent(Agent):
+class FlowAgent(StepGroup):
     steps = Flow().produces()
 ```
 
@@ -281,7 +281,7 @@ class FlowAgent(Agent):
 ```python
 from reactifact.consume import AbsentConsume, JoinConsume
 
-class ApprovalGate(Agent):
+class ApprovalGate(StepGroup):
     consumes = [
         JoinConsume(
             Report, PendingQuestion,
@@ -291,7 +291,7 @@ class ApprovalGate(Agent):
     ]
     steps = [RecordApproval()]
 
-class TicketGate(Agent):
+class TicketGate(StepGroup):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
     ]
@@ -394,9 +394,9 @@ consumes = [
 ```
 
 До `wakes` единственным способом отделить «что меня будит» от «что я читаю»
-был отдельный оверрайд `triggers=` у `Agent`, который приходилось вручную
+был отдельный оверрайд `triggers=` у `StepGroup`, который приходилось вручную
 синхронизировать с `consumes`. `triggers=` по-прежнему нужен для
-*императивного* стиля (подкласс `Agent`, переопределяющий `run()` напрямую,
+*императивного* стиля (подкласс `StepGroup`, переопределяющий `run()` напрямую,
 вообще без `consumes`) — там просто нет `Consume`, к которому можно было бы
 привязать условие.
 
