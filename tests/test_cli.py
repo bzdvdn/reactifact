@@ -48,6 +48,7 @@ def test_build_parser_registers_every_subcommand():
         "branch",
         "scenario",
         "skills",
+        "validate",
         "eval",
         "new",
         "doctor",
@@ -193,3 +194,20 @@ def test_trace_command_empty_store_reports_no_traces(tmp_path, capsys):
     missing = str(tmp_path / "missing.db")
     assert main(["trace", missing]) == 1
     assert "no traces found" in capsys.readouterr().out
+
+
+def test_validate_command_checks_a_module(capsys):
+    assert (
+        main(
+            [
+                "validate",
+                "tests.cli_agents_fixture:GROUPS",
+                "--seed",
+                "In",
+                "--terminal",
+                "Out",
+            ]
+        )
+        == 0
+    )
+    assert "reactifact validate: ok" in capsys.readouterr().out

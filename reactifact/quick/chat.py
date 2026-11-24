@@ -16,7 +16,7 @@ from ..providers import LLMProvider, from_env
 from ..resources import RuntimeResources
 from ..runtime import Dispatcher, DispatchErrorHandler
 from ..session import SessionStore
-from ..step import StepGroup
+from ..step import Step, StepGroup
 from .models import Question
 
 
@@ -49,6 +49,7 @@ def chat_agent(
     groups: Sequence[StepGroup] | None = None,
     *,
     agents: Sequence[StepGroup] | None = None,
+    steps: Sequence[Step] | None = None,
     store: SessionStore | str | Path | None = None,
     user_message: type[BaseModel] = Question,
     reply: Callable[[Context, str], dict[str, Any]] | None = None,
@@ -76,16 +77,18 @@ def chat_agent(
     a per-turn callable, …). The provider instance is shared across turns, not
     closed by the assistant.
     """
-    if groups is not None and agents is not None:
-        raise ValueError("Pass either agents= (deprecated) or groups=, not both")
+    provided = [value for value in (groups, agents, steps) if value is not None]
+    if len(provided) > 1:
+        raise ValueError("Pass only one of steps=, groups= or agents= (deprecated)")
     resolved = groups if groups is not None else agents
-    if resolved is None:
-        raise TypeError("chat_agent requires groups=")
+    if resolved is None and steps is None:
+        raise TypeError("chat_agent requires steps= or groups=")
     if resources is None:
         resources = RuntimeResources(llm=llm if llm is not None else from_env())
     return ChatAssistant(
         store=_as_store(store),
-        groups=list(resolved),
+        steps=list(steps) if steps is not None else None,
+        groups=list(resolved) if resolved is not None else None,
         user_message=user_message,
         reply=reply if reply is not None else _default_reply(user_message),
         resources=resources,

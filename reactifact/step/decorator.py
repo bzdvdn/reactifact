@@ -7,6 +7,7 @@ from typing import Any
 
 from ..artifacts import ArtifactType
 from ..consume import Consume
+from ..policy import RetryPolicy
 from .call import StepCall
 from .core import Step
 from .resolve import invoke_step
@@ -24,6 +25,7 @@ def step(
     priority: int | None = None,
     concurrency_limit: int | None = None,
     name: str | None = None,
+    retry: RetryPolicy | None = None,
 ) -> Callable[[Callable[..., Any]], Step[Any]]:
     """Decorator to create a Step from a function.
 
@@ -72,6 +74,7 @@ def step(
             priority=priority,
             concurrency_limit=concurrency_limit,
             name=name,
+            retry=retry,
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, cast, get_args, get_origin, get_type_hints
 
 from ..artifacts import Artifact
@@ -22,6 +22,66 @@ def _resolved_hints(target: Callable[..., Any]) -> dict[str, Any]:
         return {}
 
 
+class MissingInputError(TypeError):
+    """A typed step parameter has no matching artifact in this run.
+
+    `Runtime` enriches it with the groups that produce the missing type, so the
+    message points at the wiring instead of just naming the parameter.
+    """
+
+    def __init__(
+        self,
+        parameter: str,
+        expected: list[str],
+        available: Iterable[str],
+        *,
+        step_name: str = "",
+    ) -> None:
+        self.parameter = parameter
+        self.expected = expected
+        self.available = sorted(set(available))
+        self.step_name = step_name
+        self.producers: dict[str, set[str]] = {}
+        super().__init__(self._render())
+
+    def annotate(self, producers: Mapping[str, Iterable[str]]) -> MissingInputError:
+        """Adds producer names (called by the runtime, which knows all groups)."""
+        wanted = set(self.expected)
+        self.producers = {
+            name: set(producers.get(name, ())) for name in wanted if producers.get(name)
+        }
+        self.args = (self._render(),)
+        return self
+
+    def _render(self) -> str:
+        expected = ", ".join(self.expected)
+        step = f" in step {self.step_name!r}" if self.step_name else ""
+        message = (
+            f"Missing input{step}: parameter {self.parameter!r} expects {expected}, "
+            "but no such artifact exists yet."
+        )
+        if self.available:
+            shown = ", ".join(self.available[:12])
+            more = "…" if len(self.available) > 12 else ""
+            message += f" Available types: {shown}{more}."
+        if self.producers:
+            produced = "; ".join(
+                f"{name} by {', '.join(sorted(groups))}"
+                for name, groups in sorted(self.producers.items())
+            )
+            message += f" Produced by: {produced}."
+            message += (
+                " If this step woke on an earlier trigger, declare "
+                "Consume(<trigger type>, wakes=False) so it waits for the input."
+            )
+        else:
+            message += (
+                " No step in this runtime produces it: add a producer or seed "
+                "the artifact before running."
+            )
+        return message
+
+
 def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
     """Records artifacts actually resolved for this call (for `auto_link`)."""
     seen = {artifact.id for artifact in call.used}
@@ -37,6 +97,8 @@ def _resolve_arg(
     call: StepCall,
     scope: Scope | str | None = None,
     scope_value: Any = None,
+    *,
+    step_name: str = "",
 ) -> Any:
     if name in {"call", "step_call"} or annotation is StepCall:
         return call
@@ -128,9 +190,12 @@ def _resolve_arg(
             return found[-1]
         if optional:
             return None
-        raise TypeError(
-            f"Step parameter {name!r} expects Artifact[{inner_types}], "
-            "but none is available in this run's inputs"
+        available = {type(a.data).__name__ for a in call.context.list_artifacts()}
+        raise MissingInputError(
+            name,
+            [type_.__name__ for type_ in inner_types],
+            available,
+            step_name=step_name,
         )
 
     types_, is_list, optional = _annotation_types(annotation)
@@ -151,9 +216,9 @@ def _resolve_arg(
         return found[-1].data
     if optional:
         return None
-    raise TypeError(
-        f"Step parameter {name!r} expects {[t.__name__ for t in types_]}, "
-        "but none is available in this run's inputs"
+    available = {type(a.data).__name__ for a in call.context.list_artifacts()}
+    raise MissingInputError(
+        name, [type_.__name__ for type_ in types_], available, step_name=step_name
     )
 
 
@@ -198,6 +263,7 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
             call,
             scope,
             scope_value,
+            step_name=step.name,
         )
         for param in params
     }

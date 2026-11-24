@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from ..artifacts import Artifact
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
 from ..commit import Commit, Read
 from ..context import Context
@@ -28,6 +29,7 @@ from ..step.group import (
     normalize_units,
     produce_runs,
 )
+from ..step.resolve import MissingInputError
 from ..streaming import (
     RUN_EVENT_MODES,
     CustomEvent,
@@ -52,8 +54,20 @@ from .outbox import (
     Outbox,
 )
 from .patch import PatchApplicator
+from .result import RunResult
 
 logger = get_logger("reactifact.runtime")
+
+
+def _producer_index(groups: list[StepGroup]) -> dict[str, set[str]]:
+    """Artifact type name -> group names that produce it."""
+    index: dict[str, set[str]] = {}
+    for group in groups:
+        for step in group.steps or ():
+            for artifact_type in step.produces or ():
+                index.setdefault(artifact_type.__name__, set()).add(group.name)
+    return index
+
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
 PatchWork = tuple[Patch, StepGroup, list[Read], AgentSpan | None]
@@ -784,6 +798,8 @@ class Runtime:
 
         latency = (time.monotonic() - started) * 1000
         if error is not None:
+            if isinstance(error, MissingInputError):
+                error.annotate(_producer_index(self.agents))
             logger.warning(
                 "agent failed",
                 extra={
@@ -914,6 +930,48 @@ class Runtime:
         request: Mapping[str, Any] | None = None,
     ) -> int:
         return asyncio.run(self.arun(max_iterations, budget, request=request))
+
+    def ask(
+        self,
+        seed: Artifact[Any] | Any,
+        max_iterations: int = 100,
+        budget: Budget | None = None,
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> RunResult:
+        """Seeds one artifact, runs the pipeline and returns a `RunResult`.
+
+        The friendly one-liner: `Runtime(ctx, steps=[...]).ask(Question(...))`.
+        Use `aask` inside an async caller.
+        """
+
+        def _seed() -> None:
+            if isinstance(seed, Artifact):
+                if self.context.get(seed.id) is None:
+                    self.context.create(seed.data, id=seed.id)
+            else:
+                self.context.create(seed)
+
+        _seed()
+        runs = self.run(max_iterations, budget, request=request)
+        return RunResult(self.context, runs, self.outcome)
+
+    async def aask(
+        self,
+        seed: Artifact[Any] | Any,
+        max_iterations: int = 100,
+        budget: Budget | None = None,
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> RunResult:
+        """Async form of `ask()`."""
+        if isinstance(seed, Artifact):
+            if self.context.get(seed.id) is None:
+                self.context.create(seed.data, id=seed.id)
+        else:
+            self.context.create(seed)
+        runs = await self.arun(max_iterations, budget, request=request)
+        return RunResult(self.context, runs, self.outcome)
 
     async def replay_run(
         self,

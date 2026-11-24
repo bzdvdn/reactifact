@@ -44,6 +44,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   runtime: raw steps, explicit groups, or both (steps first). `validate_agents`
   remains as the deprecated alias; `ValidationIssue.groups` replaces `agents`
   with an `.agents` compatibility property.
+- **`Emit(model, id=..., links=...)` for return-style steps.** Sets an explicit
+  artifact id and provenance in the same expression, so the simple return form
+  no longer forces a drop to `effects.create`/`link` just to pin an id.
+- **`Runtime.ask(seed)` / `aask(seed)`.** Seeds one artifact, runs, and returns
+  a `RunResult` with `.latest(Type)`, `.sources(artifact)` and `.hash` — the
+  three-line on-ramp instead of `context.create` + `run` + `latest`.
+- **`reactifact validate <module>`.** Static contract checking is now a CLI
+  command, not only `graph --check`; same `--seed`/`--terminal` flags.
+- **Friendlier missing-input errors.** A typed parameter with no matching
+  artifact now names the step, the available types, the groups that produce the
+  missing type, and suggests `Consume(..., wakes=False)` when the step woke too
+  early.
+- **`Step.retry` and `steps=` for chat.** `retry=` is copied into the implicit
+  group like `priority`/`concurrency_limit`; `ChatAssistant`/`chat_agent`
+  accept raw `steps=` and wrap them.
 
 ## [0.22.0] — 2026-11-21
 

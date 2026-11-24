@@ -550,6 +550,7 @@ def normalize_units(
                 )
             group = StepGroup(name=item.name, steps=[item], priority=item.priority)
             group.concurrency_limit = item.concurrency_limit
+            group.retry = item.retry
             merged.append(group)
     if groups is not None:
         merged.extend(check_groups(groups, "groups"))

@@ -89,13 +89,14 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `StepGroup` — deprecated-алиас |
+| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `Agent` — deprecated-алиас |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
-| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами |
+| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. `.ask(seed)` сеет артефакт, запускает пайплайн и возвращает `RunResult` (sync; `aask` для async) |
+| `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
-| `run_subflow(parent, *, agents, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
+| `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
-| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `graph --check`. `validate_agents` — deprecated-алиас |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`). `validate_agents` — deprecated-алиас |
 | `Wakes(False)` / `Scope` / `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |

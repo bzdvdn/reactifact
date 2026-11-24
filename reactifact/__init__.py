@@ -53,9 +53,10 @@ from .providers import (
 )
 from .request import current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
-from .runtime import Runtime
+from .runtime import RunResult, Runtime
 from .session import Session, SessionStore
 from .step import (
+    Emit,
     Latest,
     Scope,
     Step,
@@ -98,6 +99,7 @@ __all__ = [
     "Delete",
     "EmbeddingProvider",
     "Effects",
+    "Emit",
     "Event",
     "EventType",
     "FakeEmbedder",
@@ -119,6 +121,7 @@ __all__ = [
     "ResourceScope",
     "RetryPolicy",
     "RunOutcome",
+    "RunResult",
     "RunStats",
     "Scope",
     "Runtime",

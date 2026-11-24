@@ -57,9 +57,22 @@ async def run(self, question: Artifact[Question]) -> Answer:
     return Answer(text=question.data.text)
 ```
 
-Use `effects` when the step needs an explicit id, update/link/delete, HITL, or
-more than one create. Returning `None` means "no changes" (a guard or a branch
-that did not apply).
+When the id or provenance must be explicit, return `Emit` instead of dropping
+to `effects`:
+
+```python
+from reactifact import Emit
+
+return Emit(
+    Answer(text=...),
+    id=f"answer:{question.id}",
+    links=(("supported_by", evidence),),
+)
+```
+
+Use `effects` when the step needs update/delete, HITL, or several heterogeneous
+creates. Returning `None` means "no changes" (a guard or a branch that did not
+apply).
 
 ## Idempotency sugar: `create_once` and `upsert`
 

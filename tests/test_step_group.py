@@ -6,15 +6,19 @@ import pytest
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Artifact,
     Budget,
     Consume,
     Context,
+    Emit,
+    RetryPolicy,
     Runtime,
     StepGroup,
     create_agent,
     create_step_group,
     step,
 )
+from reactifact.quick import chat_agent
 
 
 class Question(BaseModel):
@@ -112,3 +116,42 @@ def test_step_name_and_policy_are_copied_to_the_implicit_group() -> None:
     assert group.priority == 5
     assert group.concurrency_limit == 2
     assert named.name == "analysis"
+
+
+@step(produces=Answer, consumes=Question)
+def emit_answer(question: Artifact[Question]) -> Emit:
+    return Emit(
+        Answer(text=question.data.text),
+        id="custom-answer",
+        links=(("supported_by", question),),
+    )
+
+
+@step(produces=Answer, consumes=Question, retry=RetryPolicy(max_attempts=2))
+def retrying(question: Question) -> Answer:
+    return Answer(text=question.text)
+
+
+def test_emit_sets_an_explicit_id_and_links() -> None:
+    context = Context()
+    context.create(Question(text="hi"), id="q")
+    Runtime(context, steps=[emit_answer]).run()
+    answer = context.get("custom-answer")
+    assert answer is not None
+    assert context.related("custom-answer", "supported_by")[0].id == "q"
+
+
+def test_step_retry_is_copied_to_the_implicit_group() -> None:
+    runtime = Runtime(Context(), steps=[retrying])
+    assert isinstance(runtime.groups[0].retry, RetryPolicy)
+
+
+def test_runtime_ask_returns_a_friendly_result() -> None:
+    result = Runtime(Context(), steps=[answer]).ask(Question(text="hi"))
+    assert result.latest(Answer).data.text == "hi"
+    assert result.runs >= 1
+    assert len(result.hash) == 64
+
+
+def test_chat_agent_accepts_raw_steps() -> None:
+    assert chat_agent(steps=[answer]) is not None

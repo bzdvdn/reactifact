@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import types
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import (
     Annotated,
     Any,
@@ -24,6 +25,7 @@ from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
 from ..patches import Patch
+from ..policy import RetryPolicy
 from .annotations import Latest, Scope, Wakes, When
 from .call import (
     StepCall,
@@ -59,6 +61,23 @@ def _scope_matches(
         return bool(getattr(artifact.data, scope.field, None) == value)
     field = scope if isinstance(scope, str) else scope.field
     return bool(getattr(artifact.data, field, None) == value)
+
+
+@dataclass(frozen=True)
+class Emit:
+    """A return-style instruction: create `data` with an explicit id and links.
+
+    `@step` functions can return a model, but then the runtime picks the id.
+    Return `Emit(Model(...), id="answer:42")` when the id must be stable, and
+    optionally attach provenance in the same expression:
+
+        return Emit(Answer(text=...), id=f"answer:{q.id}",
+                    links=(("supported_by", evidence),))
+    """
+
+    data: Any
+    id: str | None = None
+    links: tuple[tuple[str, Any], ...] = ()
 
 
 class Step(Generic[TOut]):
@@ -164,6 +183,9 @@ class Step(Generic[TOut]):
     #: `True` uses ``derived_from``; a string overrides the relation name.
     #: `False` (the default for now) preserves the explicit-`link` style.
     auto_link: bool | str = False
+    #: Retry policy for this step, copied to the implicit group created by
+    #: `Runtime(steps=...)`. `StepGroup` remains for shared retry across steps.
+    retry: RetryPolicy | None = None
 
     @staticmethod
     def _normalize_types(
@@ -248,6 +270,7 @@ class Step(Generic[TOut]):
         priority: int | None = None,
         concurrency_limit: int | None = None,
         name: str | None = None,
+        retry: RetryPolicy | None = None,
     ):
         resolved_produces = self._normalize_types(produces)
         if resolved_produces is None:
@@ -327,6 +350,11 @@ class Step(Generic[TOut]):
             raise ValueError("Step.concurrency_limit must be > 0")
         if name is not None:
             self.name = name
+        self.retry = (
+            retry if retry is not None else getattr(self.__class__, "retry", None)
+        )
+        if self.retry is not None and not isinstance(self.retry, RetryPolicy):
+            raise TypeError("Step.retry must be a RetryPolicy or None")
 
     def consume_specs(self) -> tuple[Consume, ...] | None:
         """The normalized (always-`Consume`) form of `consumes`."""
@@ -459,13 +487,18 @@ class Step(Generic[TOut]):
         """
         if result is None:
             return
+        if isinstance(result, Emit):
+            handle = effects.create(result.data, id=result.id)
+            for relation, target in result.links:
+                handle.link(relation, target)
+            return
         if isinstance(result, Patch):
             for op in result.operations:
                 effects.add(op)
             return
         if isinstance(result, list):
             for item in result:
-                effects.create(item)
+                self._apply_result(item, effects)
         else:
             effects.create(result)
 

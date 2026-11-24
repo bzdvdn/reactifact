@@ -40,7 +40,8 @@ from .request import reset_request, set_request
 from .resources import RuntimeResources
 from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
-from .step import StepGroup, create_step_group
+from .step import Step, StepGroup, create_step_group
+from .step.group import normalize_units
 
 logger = logging.getLogger("reactifact.chat")
 
@@ -395,6 +396,7 @@ class ChatAssistant:
         store: SessionStore,
         agents: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
         groups: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
+        steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]],
         session_state: Callable[[Context], dict[str, Any]] | None = None,
@@ -412,11 +414,19 @@ class ChatAssistant:
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
-        if agents is not None and groups is not None:
-            raise ValueError("Pass either agents= (deprecated) or groups=, not both")
-        resolved = groups if groups is not None else agents
-        if resolved is None:
-            raise TypeError("ChatAssistant requires groups=")
+        provided = [value for value in (agents, groups, steps) if value is not None]
+        if len(provided) > 1:
+            raise ValueError("Pass only one of steps=, groups= or agents= (deprecated)")
+        if steps is not None:
+            resolved: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] = (
+                normalize_units(steps=list(steps))
+            )
+        elif groups is not None:
+            resolved = groups
+        elif agents is not None:
+            resolved = agents
+        else:
+            raise TypeError("ChatAssistant requires steps= or groups=")
         self.store = store
         self._agents = resolved
         self._user_message = user_message
