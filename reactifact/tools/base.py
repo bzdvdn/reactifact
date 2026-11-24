@@ -10,7 +10,9 @@ Tools are capabilities; they are not part of consume/produce: those bind artifac
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
+import dataclasses
 import functools
 import inspect
 import json
@@ -19,12 +21,62 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import Any, ClassVar, cast, overload
+from datetime import UTC, date, datetime, timedelta
+from datetime import time as datetime_time
+from decimal import Decimal
+from enum import Enum
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ClassVar,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    overload,
+)
+from uuid import UUID
 
 from pydantic import BaseModel, Field, create_model
 
+from ..policy import RetryPolicy
 from ..redaction import Redactor
+
+if TYPE_CHECKING:
+    from ..context import Context
+    from ..resources import RuntimeResources
+
+#: Annotations that are data, never an injected collaborator. Everything else
+#: that is a plain class (a client, a protocol implementation) is resolved from
+#: `RuntimeResources` and excluded from the JSON schema.
+_DATA_ANNOTATIONS = (
+    str,
+    int,
+    float,
+    bool,
+    bytes,
+    bytearray,
+    type(None),
+    dict,
+    list,
+    tuple,
+    set,
+    frozenset,
+    datetime,
+    date,
+    datetime_time,
+    timedelta,
+    Decimal,
+    UUID,
+    Path,
+)
+
+#: The resources bound for a tool call outside a runtime step (`execute_tool(..., resources=...)`).
+_bound_resources: ContextVar[RuntimeResources | None] = ContextVar(
+    "reactifact_tool_resources", default=None
+)
 
 
 class ToolError(BaseModel):
@@ -164,22 +216,49 @@ async def _execute_instrumented(
         preview = _redact_args(args, log.redactor) if log.record_args else None
         with contextlib.suppress(Exception):  # best-effort observer
             log.on_start(tool.name, preview if isinstance(preview, dict) else None)
-    try:
+    retry = getattr(tool, "retry", None)
+    timeout = getattr(tool, "timeout", None)
+
+    async def attempt() -> ToolOutput:
         if log is not None and log.recorder is not None:
-            output = cast("ToolOutput", await log.recorder.execute(tool, args))
-        else:
-            output = await raw_execute(args)
-    except Exception as exc:
-        run = _record_tool_run(
-            tool.name,
-            started_at=started_at,
-            latency_ms=(time.monotonic() - started) * 1000,
-            ok=False,
-            error=f"{type(exc).__name__}: {exc}",
-            args=args,
-        )
-        _notify_tool_end(log, run)
-        raise
+            return cast("ToolOutput", await log.recorder.execute(tool, args))
+        if timeout is not None:
+            async with asyncio.timeout(timeout):
+                return cast("ToolOutput", await raw_execute(args))
+        return cast("ToolOutput", await raw_execute(args))
+
+    attempt_no = 0
+    while True:
+        attempt_no += 1
+        try:
+            output = await attempt()
+        except Exception as exc:
+            if (
+                retry is None
+                or attempt_no >= retry.max_attempts
+                or not retry.should_retry(exc)
+            ):
+                run = _record_tool_run(
+                    tool.name,
+                    started_at=started_at,
+                    latency_ms=(time.monotonic() - started) * 1000,
+                    ok=False,
+                    error=f"{type(exc).__name__}: {exc}",
+                    args=args,
+                )
+                _notify_tool_end(log, run)
+                raise
+            await asyncio.sleep(retry.delay(attempt_no))
+            continue
+        if (
+            retry is not None
+            and output.error_info is not None
+            and output.error_info.retryable
+            and attempt_no < retry.max_attempts
+        ):
+            await asyncio.sleep(retry.delay(attempt_no))
+            continue
+        break
     if output.error:
         error = output.error
         chars = 0
@@ -208,17 +287,30 @@ async def _execute_instrumented(
     return output
 
 
-async def execute_tool(tool: Tool, args: dict[str, Any]) -> ToolOutput:
+async def execute_tool(
+    tool: Tool,
+    args: dict[str, Any],
+    *,
+    resources: RuntimeResources | None = None,
+) -> ToolOutput:
     """Executes a tool with the same trace/record instrumentation as `tool.execute`.
 
     Kept as the compatibility entry point for framework loops (`ToolUse`,
     `recipes.run_tool_loop`). Instrumentation lives on the `Tool` subclass
     wrapper, so a direct `tool.execute(...)` inside a step is traced too; only
     duck-typed tools that do not inherit `Tool` go through the fallback here.
+
+    `resources=` supplies collaborators to a `@tool` that injects them when the
+    call is not already inside a step (outside a runtime, tests, a web job).
     """
-    if getattr(type(tool), "_reactifact_instrumented", False):
-        return await tool.execute(args)
-    return await _execute_instrumented(tool, tool.execute, args)
+    token = _bound_resources.set(resources) if resources is not None else None
+    try:
+        if getattr(type(tool), "_reactifact_instrumented", False):
+            return await tool.execute(args)
+        return await _execute_instrumented(tool, tool.execute, args)
+    finally:
+        if token is not None:
+            _bound_resources.reset(token)
 
 
 def _redact_args(value: Any, redactor: Redactor | None) -> Any:
@@ -316,6 +408,10 @@ class Tool(ABC):
     description: str = ""
     destructive: bool = False
     schema: dict[str, Any] = {}
+    #: Retry a failed attempt (`RetryPolicy`); `None` = fail once.
+    retry: RetryPolicy | None = None
+    #: Per-attempt deadline in seconds; `None` = no deadline.
+    timeout: float | None = None
     _reactifact_instrumented: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -349,8 +445,49 @@ class Tool(ABC):
         ...
 
 
-def _args_model(fn: Callable[..., Any]) -> type[BaseModel]:
-    """Builds a Pydantic model of arguments from the function signature (→ JSON schema)."""
+def _resolved_annotations(fn: Callable[..., Any]) -> dict[str, Any]:
+    """Runtime annotations, resolving `from __future__ import annotations` strings."""
+    try:
+        return get_type_hints(fn, include_extras=True)
+    except Exception:  # noqa: BLE001 — a forward ref may still be unresolvable
+        return {}
+
+
+def _annotation_kind(annotation: Any) -> Any:
+    """Unwraps `Annotated[...]` so injection/data classification sees the real type."""
+    if get_origin(annotation) is Annotated:
+        args = get_args(annotation)
+        return args[0] if args else Any
+    return annotation
+
+
+def _is_injected(annotation: Any) -> bool:
+    """Whether a tool parameter is a collaborator from `RuntimeResources`, not an argument.
+
+    Plain classes (clients, protocols, services) are injected; pydantic models,
+    dataclasses, enums and scalars/containers stay in the JSON schema.
+    """
+    annotation = _annotation_kind(annotation)
+    if annotation is Any or annotation is inspect.Parameter.empty:
+        return False
+    if not isinstance(annotation, type):
+        return False
+    if issubclass(annotation, BaseModel) or issubclass(annotation, Enum):
+        return False
+    if dataclasses.is_dataclass(annotation):
+        return False
+    return not issubclass(annotation, _DATA_ANNOTATIONS)
+
+
+def _args_model(
+    fn: Callable[..., Any], injected: dict[str, Any] | None = None
+) -> type[BaseModel]:
+    """Builds a Pydantic model of arguments from the function signature (→ JSON schema).
+
+    Parameters that are injected collaborators are recorded in `injected` and
+    omitted from the schema, so the model is never asked for them.
+    """
+    hints = _resolved_annotations(fn)
     fields: dict[str, Any] = {}
     for name, param in inspect.signature(fn).parameters.items():
         if param.kind not in (
@@ -358,9 +495,13 @@ def _args_model(fn: Callable[..., Any]) -> type[BaseModel]:
             inspect.Parameter.KEYWORD_ONLY,
         ):
             continue
-        annotation = (
-            param.annotation if param.annotation is not inspect.Parameter.empty else Any
-        )
+        annotation = hints.get(name, param.annotation)
+        if annotation is inspect.Parameter.empty:
+            annotation = Any
+        if _is_injected(annotation):
+            if injected is not None:
+                injected[name] = _annotation_kind(annotation)
+            continue
         if param.default is inspect.Parameter.empty:
             fields[name] = (annotation, ...)  # required argument
         else:
@@ -368,8 +509,29 @@ def _args_model(fn: Callable[..., Any]) -> type[BaseModel]:
     return create_model(f"args_{fn.__name__}", **fields)
 
 
+def _active_resources() -> RuntimeResources | None:
+    resources = _bound_resources.get()
+    if resources is not None:
+        return resources
+    from ..step.call import current_step_context
+
+    context: Context | None = current_step_context()
+    return context.resources if context is not None else None
+
+
 class FunctionTool(Tool):
-    """Tool from a plain async function: schema is derived from the signature."""
+    """Tool from a plain async function: schema is derived from the signature.
+
+    Parameters annotated with a pydantic model/scalar are arguments (the model
+    sees them); a plain class annotation is an injected collaborator, resolved
+    from `RuntimeResources` like a step parameter:
+
+    ```python
+    @tool
+    async def get_pod(name: str, k8s: K8sClient) -> Pod:
+        return await k8s.get(name)
+    ```
+    """
 
     def __init__(
         self,
@@ -378,19 +540,50 @@ class FunctionTool(Tool):
         name: str | None = None,
         destructive: bool = False,
         description: str | None = None,
+        retry: RetryPolicy | None = None,
+        timeout: float | None = None,
     ):
         self._fn = fn
-        self.args_model = _args_model(fn)
+        self._injected: dict[str, Any] = {}
+        self.args_model = _args_model(fn, self._injected)
         self.name = name or fn.__name__
         self.destructive = destructive
         self.description = description or (fn.__doc__ or "").strip() or fn.__name__
         self.schema = self.args_model.model_json_schema()
+        self.retry = retry
+        self.timeout = timeout
+
+    def _service(self, tool_name: str, param: str, annotation: Any) -> Any:
+        resources = _active_resources()
+        if resources is None:
+            raise RuntimeError(
+                f"@tool {tool_name!r} injects {annotation.__name__!r} for "
+                f"parameter {param!r}, but the tool is not running inside a "
+                "step; call it from a step or pass resources= to execute_tool()."
+            )
+        service = resources.resolve(annotation)
+        if service is None:
+            raise RuntimeError(
+                f"@tool {tool_name!r} needs {annotation.__name__!r} for parameter "
+                f"{param!r}; register it on RuntimeResources (or set it on the "
+                "Pipeline's resources)."
+            )
+        return service
 
     async def execute(self, args: dict[str, Any]) -> ToolOutput:
         validated = self.args_model(**args)
-        result = await self._fn(**validated.model_dump())
+        # Read validated attributes instead of `model_dump()` so a pydantic
+        # model argument arrives as a model, not a dict.
+        kwargs = {
+            name: getattr(validated, name) for name in type(validated).model_fields
+        }
+        for param, annotation in self._injected.items():
+            kwargs[param] = self._service(self.name, param, annotation)
+        result = await self._fn(**kwargs)
         if isinstance(result, ToolOutput):
             return result
+        if isinstance(result, BaseModel):
+            return ToolOutput(data=result.model_dump(mode="json"))
         if isinstance(result, str):
             return ToolOutput(text=result)
         if isinstance(result, dict):
@@ -405,6 +598,8 @@ def tool(
     name: str | None = None,
     destructive: bool = False,
     description: str | None = None,
+    retry: RetryPolicy | None = None,
+    timeout: float | None = None,
 ) -> FunctionTool: ...
 
 
@@ -415,6 +610,8 @@ def tool(
     name: str | None = None,
     destructive: bool = False,
     description: str | None = None,
+    retry: RetryPolicy | None = None,
+    timeout: float | None = None,
 ) -> Callable[[Callable[..., Any]], FunctionTool]: ...
 
 
@@ -424,12 +621,22 @@ def tool(
     name: str | None = None,
     destructive: bool = False,
     description: str | None = None,
+    retry: RetryPolicy | None = None,
+    timeout: float | None = None,
 ) -> Any:
-    """Decorator: turns an async function into a `FunctionTool` (schema from the signature)."""
+    """Decorator: turns an async function into a `FunctionTool` (schema from the signature).
+
+    `retry=` retries a failed call (`RetryPolicy`), `timeout=` bounds one attempt.
+    """
 
     def wrap(f: Callable[..., Any]) -> FunctionTool:
         return FunctionTool(
-            f, name=name, destructive=destructive, description=description
+            f,
+            name=name,
+            destructive=destructive,
+            description=description,
+            retry=retry,
+            timeout=timeout,
         )
 
     return wrap(fn) if fn is not None else wrap

@@ -224,6 +224,42 @@ reactifact. С ключом в `.env` модель реально решит в�
 `LLMProvider` — так же, как это делает `ScriptedLLM` в `tests/test_tools.py`,
 или используйте `reactifact.testing.ScenarioLab`, если пишете это как тест.
 
+### Tools: инъекция, политики, типизированный результат
+
+Параметр тула, аннотированный обычным классом, — это collaborator из
+`RuntimeResources` (как параметр шага), он не попадает в JSON-схему для
+модели. Верните pydantic-модель — она окажется в `ToolOutput.data`;
+`retry=`/`timeout=` добавьте для временных сбоев:
+
+```python
+from pydantic import BaseModel
+from reactifact import RetryPolicy, RuntimeResources, tool
+from reactifact.providers import from_env
+
+
+class Pod(BaseModel):
+    name: str
+
+
+class K8sClient:
+    async def get(self, name: str) -> str: ...
+
+
+@tool(retry=RetryPolicy(max_attempts=3, backoff=0.5), timeout=10)
+async def get_pod(name: str, k8s: K8sClient) -> Pod:
+    """Прочитать под."""
+    return Pod(name=await k8s.get(name))
+
+
+resources = RuntimeResources(llm=from_env())
+resources.register(K8sClient, K8sClient())
+```
+
+`execute_tool(tool, args, resources=...)` инжектит вне шага (тесты, веб-джоб);
+внутри шага ресурсы берутся из текущего `Context`. `ToolOutput.error_info`
+(`ToolError(retryable=True)`) ретраится той же политикой; неретраибельная
+ошибка возвращается модели как данные.
+
 **Полная версия**: `examples/devops` — три специалиста (k8s/GitLab/Ansible)
 за одним роутером, трейс-дашборд, веб-UI. Запуск:
 `.venv/bin/python examples/devops/chat.py`.

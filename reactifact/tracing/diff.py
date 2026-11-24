@@ -52,7 +52,9 @@ class TraceDiff:
     @property
     def token_delta(self) -> int:
         def tokens(trace: RunTrace) -> int:
-            return sum(call.prompt_tokens + call.completion_tokens for call in trace.llm_calls)
+            return sum(
+                call.prompt_tokens + call.completion_tokens for call in trace.llm_calls
+            )
 
         return tokens(self.right) - tokens(self.left)
 

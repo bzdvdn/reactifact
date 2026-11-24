@@ -12,6 +12,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   the user-message and reply hooks from types, accepts a `seed_factory` (request
   metadata) and a `per_turn` async context manager; `invoke/stream/history`
   delegate to `ChatAssistant`.
+- **Tool DI and policies.** A `@tool` parameter annotated with a plain class is
+  resolved from `RuntimeResources` (and omitted from the JSON schema);
+  `@tool(retry=RetryPolicy(...), timeout=...)` retries transient failures
+  (retryable `ToolError`s too); a pydantic return type fills `ToolOutput.data`;
+  `execute_tool(..., resources=...)` supplies collaborators outside a step.
+  `from __future__ import annotations` signatures now resolve their types.
 
 ### Added
 

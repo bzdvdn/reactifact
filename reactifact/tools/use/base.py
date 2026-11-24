@@ -116,7 +116,7 @@ class _ToolLoopBase(Step[ToolAnswer]):
         if tool.destructive and not allow_destructive:
             return f"Tool '{tool_id}' is destructive and not offered to the LLM."
         try:
-            output = await execute_tool(tool, args)
+            output = await execute_tool(tool, args, resources=context.resources)
         except Exception as exc:  # noqa: BLE001 — tool failure is returned to the LLM
             return f"Tool '{tool_id}' failed: {exc}"
         if output.error:

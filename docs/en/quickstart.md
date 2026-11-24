@@ -248,6 +248,42 @@ deterministically offline (no key, no guessing), swap `resources.llm` for a
 scripted `LLMProvider` the way `tests/test_tools.py`'s `ScriptedLLM` does, or
 reach for `reactifact.testing.ScenarioLab` if you're writing this as a test.
 
+### Tools: injection, policies, typed results
+
+A tool parameter annotated with a plain class is a collaborator, resolved from
+`RuntimeResources` exactly like a step parameter — it never enters the model's
+JSON schema. Return a pydantic model and it lands in `ToolOutput.data`; add
+`retry=`/`timeout=` for transient failures:
+
+```python
+from pydantic import BaseModel
+from reactifact import RetryPolicy, RuntimeResources, tool
+from reactifact.providers import from_env
+
+
+class Pod(BaseModel):
+    name: str
+
+
+class K8sClient:
+    async def get(self, name: str) -> str: ...
+
+
+@tool(retry=RetryPolicy(max_attempts=3, backoff=0.5), timeout=10)
+async def get_pod(name: str, k8s: K8sClient) -> Pod:
+    """Read one pod."""
+    return Pod(name=await k8s.get(name))
+
+
+resources = RuntimeResources(llm=from_env())
+resources.register(K8sClient, K8sClient())
+```
+
+`execute_tool(tool, args, resources=...)` injects outside a runtime step (tests,
+a web job); inside a step the current `Context` supplies the resources.
+`ToolOutput.error_info` (`ToolError(retryable=True)`) is retried by the same
+policy; a non-retryable error is returned to the model as data.
+
 **Full version**: `examples/devops` — three specialist agents (k8s/GitLab/
 Ansible) behind one router, a trace dashboard, a web UI. Run it:
 `.venv/bin/python examples/devops/chat.py`.
