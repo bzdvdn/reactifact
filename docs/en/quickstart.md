@@ -45,6 +45,30 @@ traces, settings-driven budgets/LLM). The generated project owns its
 LLM/budget, traces, graceful shutdown, and `APP_RUN_ONCE=true` for a one-shot
 smoke run.
 
+## Chat in a few lines
+
+`Chat` is the typed facade over `ChatAssistant`: seed and reply come from the
+models, sessions are persisted, and streaming/history are ready.
+
+```python
+from reactifact import Chat
+
+chat = Chat(
+    steps=[search, answer],
+    store="sessions.db",
+    seed_type=Question,
+    answer_type=Answer,
+)
+
+reply = await chat.invoke("why is checkout down?", session_id="u1")
+async for event in chat.stream("and now?", session_id="u1"):
+    ...
+```
+
+`seed_factory(text, session_id, request)` supplies app metadata (a category,
+tenant, user); `per_turn(text, session_id, request)` is an async context manager
+for turn-scoped context vars or resource cleanup.
+
 ## One object: `Pipeline`
 
 `Pipeline` is the short path when you already have steps: it owns the steps,

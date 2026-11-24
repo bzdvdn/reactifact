@@ -16,8 +16,8 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
-from reactifact import Effects, Step, StepGroup, When, create_step_group
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Chat, Effects, Step, StepGroup, When, create_step_group
+from reactifact.chat import ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.context import Context
 from reactifact.recipes.conversation import Conversation, ConversationMessage
@@ -59,14 +59,14 @@ def _reply(ctx: Context, msg_id: str) -> dict[str, Any]:
     return {"reply": texts[-1] if texts else "(no reply)"}
 
 
-def build() -> tuple[ChatAssistant, Conversation, SessionStore]:
+def build() -> tuple[Chat, Conversation, SessionStore]:
     """The assistant, its conversation model, and the in-memory store."""
     conv = Conversation()  # one message model for both sides
     store = SessionStore(InMemoryKVBackend())
-    assistant = ChatAssistant(
+    assistant = Chat(
         store=store,
         groups=[_group()],
-        user_message=ConversationMessage,
+        seed_type=ConversationMessage,
         create_message=conv.create_turn,  # record each user turn
         reply=_reply,
         session_state=conv.state,  # history() shape

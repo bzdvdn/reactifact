@@ -28,6 +28,7 @@ from .agents import Agent, create_agent
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
+from .chat import Chat
 from .commit import ContextCheckpoint
 from .consume import Consume, consume
 from .context import Context, ProvenanceLink, View
@@ -102,6 +103,7 @@ __all__ = [
     "Artifact",
     "ArtifactConflict",
     "Budget",
+    "Chat",
     "BudgetTracker",
     "Consume",
     "Context",

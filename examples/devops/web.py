@@ -35,8 +35,8 @@ from examples.devops.step_groups import (
 )
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, SessionStore
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Budget, Chat, SessionStore
+from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.eval import create_online_eval_router
 from reactifact.providers import openai_llm, openrouter_llm
@@ -168,10 +168,10 @@ def create_app(
         str(Path(store_dir) / "traces.db") if store_dir else str(ROOT / "traces.db")
     )
 
-    assistant = ChatAssistant(
+    assistant = Chat(
         store=store,
         groups=GROUPS,
-        user_message=UserMsg,
+        seed_type=UserMsg,
         reply=terminal_reply,
         session_state=session_state,
         create_message=create_message,

@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 
+- **`Chat` facade.** `Chat(steps=..., seed_type=..., answer_type=...)` derives
+  the user-message and reply hooks from types, accepts a `seed_factory` (request
+  metadata) and a `per_turn` async context manager; `invoke/stream/history`
+  delegate to `ChatAssistant`.
+
+### Added
+
 - **Portable trace reports and diff.** `RunTrace.to_text/to_markdown/to_html`,
   `reactifact trace --format md|html|json|text --out`, and
   `reactifact trace <run> --against <other>`; `Pipeline(traces=True|path)`

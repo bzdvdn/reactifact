@@ -23,8 +23,8 @@ from examples.repair.services import Catalog
 from examples.repair.step_groups import RepairFlow
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, Context, RuntimeResources, SessionStore
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Budget, Chat, Context, RuntimeResources, SessionStore
+from reactifact.chat import ChatMemory
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import (
     embedder_from_env,
@@ -135,10 +135,10 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         str(db_dir / "traces.db") if store_dir else str(ROOT / "traces.db")
     )
 
-    assistant = ChatAssistant(
+    assistant = Chat(
         store=store,
         groups=[RepairFlow()],
-        user_message=UserMsg,
+        seed_type=UserMsg,
         reply=terminal_reply,
         session_state=session_state,
         resources=lambda: _resources(active_llm),

@@ -26,8 +26,9 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from contextlib import asynccontextmanager, suppress
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -686,7 +687,175 @@ class ChatAssistant:
         return {"reply": self._fallback_reply, "waiting": False}
 
 
+class Chat:
+    """A typed, low-ceremony facade over `ChatAssistant`.
+
+    `Chat(steps=[...], seed_type=Question, answer_type=Answer)` derives the
+    user-message hook and the reply payload from the types; `seed_factory` and
+    `per_turn` cover app-specific hooks (a request category, a secret vault).
+    """
+
+    def __init__(
+        self,
+        steps: Sequence[Step[Any]] | None = None,
+        *,
+        groups: Sequence[StepGroup] | None = None,
+        store: SessionStore | str | Path | None = None,
+        seed_type: type[BaseModel],
+        seed_field: str = "text",
+        seed_factory: Callable[[str, str, Mapping[str, Any]], BaseModel] | None = None,
+        answer_type: type[BaseModel] | None = None,
+        reply: Callable[[Context, str], dict[str, Any]] | None = None,
+        session_state: Callable[[Context], dict[str, Any]] | None = None,
+        resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
+        llm: Any = None,
+        budget: Budget | None = None,
+        max_concurrency: int | None = None,
+        tracer: Any = None,
+        memory: ChatMemory | None = None,
+        session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
+        status_kinds: Sequence[str] = ("status",),
+        fallback_reply: str = "No reply assembled.",
+        per_turn: Callable[
+            [str, str, Mapping[str, Any]], AbstractAsyncContextManager[Any]
+        ]
+        | None = None,
+        isolate_errors: bool = False,
+        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
+        create_message: Callable[..., str] | None = None,
+        dispatcher: Dispatcher | None = None,
+        on_dispatch_error: DispatchErrorHandler | None = None,
+    ):
+        if steps is None and groups is None:
+            raise TypeError("Chat requires steps= and/or groups=")
+        if resources is None:
+            resources = RuntimeResources(llm=llm)
+        self.seed_type = seed_type
+        self.seed_field = seed_field
+        self.answer_type = answer_type
+        self.per_turn = per_turn
+        self._seed_factory = seed_factory
+        create = create_message or self._create_message
+        self.assistant = ChatAssistant(
+            steps=steps,
+            groups=groups,
+            store=_as_store(store),
+            user_message=seed_type,
+            reply=reply or self._default_reply,
+            session_state=session_state,
+            resources=resources,
+            budget=budget,
+            max_concurrency=max_concurrency,
+            tracer=tracer,
+            create_message=create,
+            status_kinds=status_kinds,
+            fallback_reply=fallback_reply,
+            isolate_errors=isolate_errors,
+            on_agent_error=on_agent_error,
+            session_save_policy=session_save_policy,
+            memory=memory,
+            dispatcher=dispatcher,
+            on_dispatch_error=on_dispatch_error,
+        )
+
+    def _seed(
+        self, text: str, session_id: str, request: Mapping[str, Any]
+    ) -> BaseModel:
+        if self._seed_factory is not None:
+            return self._seed_factory(text, session_id, request)
+        fields = getattr(self.seed_type, "model_fields", {})
+        kwargs: dict[str, Any] = {self.seed_field: text}
+        if "session_id" in fields:
+            kwargs["session_id"] = session_id
+        return self.seed_type(**kwargs)
+
+    def _create_message(
+        self,
+        context: Context,
+        text: str,
+        session_id: str = "",
+        request: Mapping[str, Any] | None = None,
+    ) -> str:
+        return context.create(self._seed(text, session_id, request or {})).id
+
+    def _default_reply(self, context: Context, _msg_id: str) -> dict[str, Any]:
+        artifact = None
+        if self.answer_type is not None:
+            artifact = context.latest(self.answer_type)
+        if artifact is None:
+            for candidate in reversed(context.list_artifacts()):
+                if not isinstance(candidate.data, self.seed_type):
+                    artifact = candidate
+                    break
+        if artifact is None:
+            return {"reply": self.assistant._fallback_reply, "waiting": False}
+        data = artifact.data
+        payload: dict[str, Any] = {
+            "reply": str(getattr(data, "text", "")),
+            "waiting": False,
+        }
+        sources = getattr(data, "sources", None)
+        if sources is not None:
+            payload["sources"] = list(sources)
+        payload["answer"] = data.model_dump(mode="json")
+        return payload
+
+    async def stream(
+        self,
+        text: str,
+        session_id: str = "",
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> AsyncIterator[ChatEvent]:
+        if self.per_turn is None:
+            async for event in self.assistant.stream(
+                text, session_id=session_id, request=request
+            ):
+                yield event
+            return
+        async with self.per_turn(text, session_id, request or {}):
+            async for event in self.assistant.stream(
+                text, session_id=session_id, request=request
+            ):
+                yield event
+
+    async def invoke(
+        self,
+        text: str,
+        session_id: str = "",
+        *,
+        request: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        async for event in self.stream(text, session_id=session_id, request=request):
+            if event.kind == "message":
+                payload = dict(event.payload)
+        return payload
+
+    async def history(self, session_id: str = "") -> dict[str, Any]:
+        return await self.assistant.history(session_id=session_id)
+
+    @property
+    def store(self) -> SessionStore:
+        """The underlying session store (used by `create_chat_router`)."""
+        return self.assistant.store
+
+    def reply_fallback(self) -> dict[str, Any]:
+        return self.assistant.reply_fallback()
+
+
+def _as_store(store: SessionStore | str | Path | None) -> SessionStore:
+    from .checkpoints import FileKVBackend, InMemoryKVBackend
+
+    if store is None:
+        return SessionStore(InMemoryKVBackend())
+    if isinstance(store, SessionStore):
+        return store
+    return SessionStore(FileKVBackend(str(store)))
+
+
 __all__ = [
+    "Chat",
     "ChatAssistant",
     "ChatEvent",
     "ChatEventKind",

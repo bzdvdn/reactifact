@@ -42,8 +42,8 @@ from examples.knowledge.models import (
 from examples.knowledge.step_groups import GROUPS
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, SessionStore
-from reactifact.chat import ChatAssistant, ChatMemory
+from reactifact import Budget, Chat, SessionStore
+from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.knowledge.web import create_knowledge_router
 from reactifact.recipes.conversation import MessageSpec, Transcript
@@ -125,14 +125,14 @@ def _build_assistant(
     *,
     backend: KnowledgeBackend,
     trace_store: TraceStore,
-) -> ChatAssistant:
+) -> Chat:
     store = SessionStore(
         FileKVBackend(str(Path(store_dir) if store_dir else ROOT / "sessions"))
     )
-    return ChatAssistant(
+    return Chat(
         store=store,
         groups=GROUPS,
-        user_message=UserQuery,
+        seed_type=UserQuery,
         reply=terminal_reply,
         session_state=session_state,
         resources=lambda: build_resources(llm=llm, backend=backend),

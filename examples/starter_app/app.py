@@ -49,14 +49,14 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import (
     Artifact,
+    Chat,
     Context,
     Effects,
     LLMProvider,
     configure_logging,
-    create_step_group,
     step,
 )
-from reactifact.quick import Doc, Question, agent, chat_agent, rag, tools_agent
+from reactifact.quick import Doc, Question, agent, rag, tools_agent
 from reactifact.runtime import active_runs
 from reactifact.structured import llm_reply
 from reactifact.tools import tool
@@ -124,8 +124,10 @@ def create_app(
         llm=provider,
         tracer=tracer,
     )
-    chat_agent_instance = chat_agent(
-        [create_step_group("chat", steps=[_chat_reply])],
+    chat_agent_instance = Chat(
+        steps=[_chat_reply],
+        seed_type=Question,
+        answer_type=ChatReply,
         store=str(directory / "sessions"),
         llm=provider,
         tracer=tracer,

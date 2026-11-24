@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from ._extras import require_extra
-from .chat import ChatAssistant, ChatEvent, ChatEventKind
+from .chat import Chat, ChatAssistant, ChatEvent, ChatEventKind
 
 if TYPE_CHECKING:
     from fastapi import APIRouter, Request
@@ -76,7 +76,7 @@ def sse(event_type: str, data: dict[str, Any]) -> str:
 
 
 def create_chat_router(
-    assistant: ChatAssistant,
+    assistant: Chat | ChatAssistant,
     *,
     prefix: str = "/api",
     with_health: bool = True,
@@ -89,7 +89,7 @@ def create_chat_router(
     ]
     | None = None,
 ) -> APIRouter:
-    """Builds the chat router on top of a `ChatAssistant`.
+    """Builds the chat router on top of a `Chat` or `ChatAssistant`.
 
     Routes (default prefix `/api`):
       POST   /api/chat/stream       — SSE turn (session → status… → message)
