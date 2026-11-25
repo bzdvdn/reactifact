@@ -16,6 +16,18 @@ uv add reactifact                 # core + CLI; FastAPI stays optional
 uv run reactifact skills install  # teach your coding agent the model
 ```
 
+Or start from the one-file agent template (no web, no API key):
+
+```bash
+uvx reactifact new agent my-agent
+cd my-agent && uv sync
+uv run reactifact run main:pipeline "hello"
+uv run reactifact trace
+```
+
+`run` writes `.reactifact/traces.db`; `trace` renders the latest run. Use
+`--no-trace` to skip it.
+
 The fastest way to see the claim end to end — a computed figure, its
 provenance, and a reproducible context hash, with no API key and no files —
 is the bundled demo:

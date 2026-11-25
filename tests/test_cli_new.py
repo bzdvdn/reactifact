@@ -26,6 +26,17 @@ def test_new_app_refuses_a_non_empty_destination(tmp_path):
     assert (destination / "keep.txt").read_text() == "do not overwrite"
 
 
+def test_new_agent_creates_a_minimal_project(tmp_path):
+    destination = tmp_path / "demo-agent"
+    assert main(["new", "agent", str(destination)]) == 0
+
+    assert (destination / "main.py").is_file()
+    assert (destination / "pyproject.toml").is_file()
+    assert (destination / "README.md").is_file()
+    assert not (destination / "app").exists()
+    assert "Pipeline" in (destination / "main.py").read_text()
+
+
 def test_new_daemon_creates_a_worker_project(tmp_path):
     destination = tmp_path / "worker"
     assert main(["new", "daemon", str(destination)]) == 0

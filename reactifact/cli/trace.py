@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import sys
+
+from .common import DEFAULT_TRACE_PATH
 
 
 def cmd_trace(args: argparse.Namespace) -> int:
@@ -15,6 +18,13 @@ def cmd_trace(args: argparse.Namespace) -> int:
     from ..tracing.diff import diff_traces
     from ..viz import trace_to_mermaid
 
+    if not Path(args.path).exists():
+        print(
+            f"no trace store at {args.path!r}; run `reactifact run ...` first "
+            "or pass the .db path",
+            file=sys.stderr,
+        )
+        return 1
     store = TraceStore(args.path)
 
     async def _run() -> int:
@@ -79,7 +89,12 @@ def cmd_trace(args: argparse.Namespace) -> int:
 
 def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     p_trace = sub.add_parser("trace", help="run diagram from a trace store")
-    p_trace.add_argument("path", help="trace SQLite db")
+    p_trace.add_argument(
+        "path",
+        nargs="?",
+        default=DEFAULT_TRACE_PATH,
+        help=f"trace SQLite db (default: {DEFAULT_TRACE_PATH})",
+    )
     p_trace.add_argument(
         "run_id", nargs="?", default=None, help="run id (default: latest)"
     )

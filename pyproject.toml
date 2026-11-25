@@ -128,6 +128,8 @@ reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
     "daemon/.gitignore",
     "daemon/app/*.py",
     "daemon/tests/*.py",
+    "agent/*",
+    "agent/.gitignore",
 ]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
 "reactifact.contracts" = ["templates/*.html", "templates/*.svg"]

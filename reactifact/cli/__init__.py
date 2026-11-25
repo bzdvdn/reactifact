@@ -3,7 +3,7 @@
 Subcommands:
 
     demo     run a self-contained auditable answer (no API key)
-    new      create a project (FastAPI chat or scheduled daemon)
+    new      create a project (minimal agent, FastAPI chat or daemon)
     dev      run an ASGI app with contracts/traces URLs
     check    contracts + scenarios + evals in one gate
     doctor   check app settings and common boundaries
@@ -20,6 +20,7 @@ Subcommands:
 
 Examples:
 
+    reactifact new agent my-agent
     reactifact new app my-app
     reactifact new daemon my-worker
     reactifact demo
@@ -114,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Start here:")
         print("  reactifact demo                30-second auditable answer, no key")
         print('  reactifact run <module:pipeline> "text"   run a Pipeline')
+        print("  reactifact new agent <dir>     minimal one-file Pipeline")
         print("  reactifact new app <dir>       FastAPI chat template")
         print("  reactifact new daemon <dir>    scheduled agent loop")
         print("  reactifact dev                 run the app with reload")

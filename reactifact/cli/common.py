@@ -1,6 +1,6 @@
 """Shared helpers for CLI subcommands: module-path agent loading, KV-backend
-opening by path/extension. No argparse wiring here — see each subcommand
-module for that."""
+opening by path/extension, and the default local trace store. No argparse
+wiring here — see each subcommand module for that."""
 
 from __future__ import annotations
 
@@ -8,6 +8,9 @@ import importlib
 from typing import TYPE_CHECKING
 
 from ..step import StepGroup
+
+#: Where `reactifact run` writes traces and `reactifact trace` reads them.
+DEFAULT_TRACE_PATH = ".reactifact/traces.db"
 
 if TYPE_CHECKING:
     from ..checkpoints import FileKVBackend, SQLiteKVBackend

@@ -193,11 +193,13 @@ def test_trace_command_happy_path(tmp_path, capsys):
 
 
 def test_trace_command_empty_store_reports_no_traces(tmp_path, capsys):
-    # TraceStore(path) always creates the schema, so this hits "no traces
-    # found" rather than the sqlite3.OperationalError branch — still the
-    # error path a fresh `reactifact trace some.db` actually takes.
     missing = str(tmp_path / "missing.db")
     assert main(["trace", missing]) == 1
+    assert "no trace store" in capsys.readouterr().err
+
+    empty = tmp_path / "empty.db"
+    TraceStore(str(empty)).close()
+    assert main(["trace", str(empty)]) == 1
     assert "no traces found" in capsys.readouterr().out
 
 
@@ -237,3 +239,34 @@ def test_run_command_accepts_json_seed(capsys):
         == 0
     )
     assert '"text": "YO"' in capsys.readouterr().out
+
+
+def test_run_records_a_trace_and_trace_reads_the_latest(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["run", "tests.cli_pipeline_fixture:pipeline", "hello"]) == 0
+    captured = capsys.readouterr()
+    assert '"text": "HELLO"' in captured.out
+    assert "trace: .reactifact/traces.db" in captured.err
+    assert (tmp_path / ".reactifact" / "traces.db").is_file()
+
+    assert main(["trace"]) == 0
+    assert "sequenceDiagram" in capsys.readouterr().out
+
+
+def test_run_can_skip_the_trace(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    assert (
+        main(["run", "tests.cli_pipeline_fixture:pipeline", "hello", "--no-trace"]) == 0
+    )
+    assert not (tmp_path / ".reactifact").exists()
+
+
+def test_trace_without_a_store_explains_how_to_create_one(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["trace"]) == 1
+    assert "no trace store" in capsys.readouterr().err

@@ -166,7 +166,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `context_to_mermaid(context)` | live provenance graph of a context (artifacts + relations) |
 | `trace_to_mermaid(trace)` | one run as a Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI printing the diagrams to stdout |
-| `reactifact new app` / `reactifact dev` / `reactifact doctor` | CLI: scaffold the bundled FastAPI chat template / run an ASGI app with reload and contracts+traces URLs / check app settings and boundaries |
+| `reactifact new agent` / `new app` / `dev` / `doctor` | CLI: one-file minimal Pipeline / bundled FastAPI chat template / run an ASGI app with reload and contracts+traces URLs / check app settings and boundaries |
+| `reactifact run` / `trace` | CLI: run a Pipeline and record `.reactifact/traces.db` by default (`--no-trace` skips), then render the latest trace without arguing the path |
 | `trace_provenance_to_mermaid(trace, *, max_nodes=, max_edges=)` | a run's evidence graph (written artifacts + `patch.link` edges); long ids are shortened and the dashboard caps nodes/edges |
 
 ## Replay (reactifact.replay, §55)

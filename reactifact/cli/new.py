@@ -11,7 +11,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-_TEMPLATES = {"app": "fastapi_chat", "daemon": "daemon"}
+_TEMPLATES = {"app": "fastapi_chat", "daemon": "daemon", "agent": "agent"}
 _IGNORE = {
     "__pycache__",
     ".mypy_cache",
@@ -52,12 +52,17 @@ def cmd_new_template(args: argparse.Namespace) -> int:
     print()
     print("Next:")
     print(f"  cd {destination}")
-    print("  uv sync --extra dev")
-    print("  cp .env.example .env")
-    if args.template_key == "daemon":
-        print("  uv run python -m app.main")
+    if args.template_key == "agent":
+        print("  uv sync")
+        print('  uv run reactifact run main:pipeline "hello"')
+        print("  uv run reactifact trace")
     else:
-        print("  uv run reactifact dev")
+        print("  uv sync --extra dev")
+        print("  cp .env.example .env")
+        if args.template_key == "daemon":
+            print("  uv run python -m app.main")
+        else:
+            print("  uv run reactifact dev")
     return 0
 
 
@@ -92,6 +97,17 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         help="destination directory (must be empty or absent)",
     )
     p_daemon.set_defaults(func=cmd_new_template, template_key="daemon")
+
+    p_agent = templates.add_parser(
+        "agent", help="minimal one-file Pipeline (no web, no API key)"
+    )
+    p_agent.add_argument(
+        "directory",
+        nargs="?",
+        default="my-agent",
+        help="destination directory (must be empty or absent)",
+    )
+    p_agent.set_defaults(func=cmd_new_template, template_key="agent")
 
 
 __all__ = ["add_parser"]

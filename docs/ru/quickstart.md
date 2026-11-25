@@ -16,6 +16,18 @@ uv add reactifact                 # core + CLI; FastAPI остаётся опц�
 uv run reactifact skills install  # научить кодового агента модели
 ```
 
+Или начните с one-file шаблона агента (без web и API-ключа):
+
+```bash
+uvx reactifact new agent my-agent
+cd my-agent && uv sync
+uv run reactifact run main:pipeline "hello"
+uv run reactifact trace
+```
+
+`run` пишет `.reactifact/traces.db`; `trace` рисует последний прогон.
+`--no-trace` отключает запись.
+
 Самый быстрый способ увидеть всё целиком — вычисленную цифру, её провенанс и
 воспроизводимый хеш контекста, без API-ключа и без файлов — встроенное демо:
 

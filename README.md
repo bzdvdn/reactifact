@@ -96,6 +96,10 @@ app = pipeline.http()   # POST /run, POST /stream, /docs, /contracts, /traces
 validation, OpenAPI and Swagger UI from `Question`/`Answer`. Web stays an
 adapter — the same pipeline still runs from the CLI, daemon or MCP.
 
+Prefer no web at all? `reactifact new agent my-agent` scaffolds a one-file
+Pipeline; `reactifact run main:pipeline "hello"` records a trace, and
+`reactifact trace` opens the latest run.
+
 ## Who this is for
 
 - **Knowledge assistants over mixed sources.** One question spans Confluence, a

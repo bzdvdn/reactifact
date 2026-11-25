@@ -148,6 +148,7 @@ with bind(tenant="acme"):
 
 ```bash
 reactifact graph  examples.knowledge.agents     # static agent blueprint
+reactifact trace                                 # latest .reactifact/traces.db
 reactifact trace  traces.db                     # run diagram (Mermaid)
 reactifact context sessions.sqlite3             # live provenance graph
 reactifact replay  sessions.sqlite3             # deterministic replay
