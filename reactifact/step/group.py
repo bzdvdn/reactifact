@@ -295,9 +295,8 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
 
         Overriding `run()` to return a `Patch` by hand is a low-level,
         internal escape hatch for cases `effects` genuinely can't express —
-        not a third everyday produce style (see `reactifact.produce`'s module
-        docstring for the two you should reach for first). No example in
-        this repo overrides it; only this repo's own tests do.
+        everyday code writes a `Step` subclass or an `@step` function instead.
+        No example in this repo overrides it; only this repo's own tests do.
         """
         await self.execute(context, event)
         return None

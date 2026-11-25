@@ -196,6 +196,13 @@ reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag
 
 - `Produce` / `ProduceCall` / `@produce` удалены; используйте `Step`/`@step`/
   `StepCall`.
+- `also_creates=` / `reacts_to=` у шагов удалены (deprecated с 0.20): outputs
+  объявляются в `produces=(Primary, Extra)`, входы/триггеры — в
+  `consumes=(...)` (или `Consume(..., wakes=False)`).
+- `Effects.ask` / `Effects.resume` / `Effects.act` удалены; инжектируйте
+  `Human`/`Outbox` (`human.ask/resume`, `outbox.act`). Отдельного
+  deprecation-релиза у них не было: 0.23 — первый релиз с заменой, поэтому это
+  осознанное исключение из правила одного минора.
 - `ChatAssistant`, `Agent`, `create_agent`, `agents=`, `Agent.produces` и
   `Artifact.at/history/diff` остаются deprecated-мостами до 0.24.0. Новый
   код использует `Chat`, `StepGroup`, `create_step_group`, `groups=`, `steps`
@@ -216,8 +223,10 @@ reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag
 5. Замените подклассы рецептов на `from_funcs(...)`, где функциональная форма
    подходит.
 6. Переведите трейсы на `traces=`/`trace_sample=` и добавьте retention-политику.
-7. Прогоните тесты и поищите старые написания:
+7. Замените `effects.ask/act/resume` на инжектируемые `Human`/`Outbox`, а
+   `also_creates=`/`reacts_to=` перенесите в `produces=`/`consumes=`.
+8. Прогоните тесты и поищите старые написания:
 
    ```bash
-   rg "ChatAssistant|agents=|user_message=|reactifact\.tool_use|@produce"
+   rg "ChatAssistant|agents=|user_message=|reactifact\.tool_use|@produce|also_creates|reacts_to|effects\.(ask|act|resume)"
    ```

@@ -36,7 +36,7 @@ transcript (the window that survives):
   session_state=conv.state, memory=ChatMemory(message_type=ConversationMessage,
   keep=KEEP))`. That is the whole wiring: turns are recorded and rendered by
   the recipe, and the thread stays bounded.
-- `Echo` — a plain `Produce`; swap it for an LLM agent and the rest is
+- `Echo` — a plain `Step`; swap it for an LLM agent and the rest is
   unchanged.
 - `run()` — used by `tests/test_chat_example.py`, so the example is covered in
   CI.

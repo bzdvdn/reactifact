@@ -29,8 +29,10 @@ Changelog). При бампе версии:
 - **0.23.0** — типизированный фасад `Chat` (`answer/traces/lifespan/test_client`),
   DI тулов через `Inject`/`Depends`, типизированные результаты и
   структурированные ошибки тулов, function-first `PlanExecute`/`ReflectionLoop`,
-  tail-сэмплирование и retention трейсов. `Produce`/`@produce`/`ProduceCall`
-  удалены; оставшиеся deprecated-мосты описаны в migration guide 0.23.
+  tail-сэмплирование и retention трейсов. `Produce`/`@produce`/`ProduceCall`,
+  `also_creates=`/`reacts_to=` и `Effects.ask/resume/act` удалены (у последних
+  не было отдельного deprecation-релиза; используйте `Human`/`Outbox`);
+  оставшиеся deprecated-мосты описаны в migration guide 0.23.
 - **0.22.0** — CLI-scaffolding (`new app|daemon`, `doctor`) и встроенные
   FastAPI/daemon-шаблоны (FastAPI остаётся опциональным extra ядра);
   provenance-aware `MemoryStore` с индексацией после commit; per-request

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import StepGroup, Artifact, Effects, Step
+from reactifact import Artifact, Effects, Step, StepGroup
 from reactifact.structured import structured_llm
 
 from app.models import Report, ReportBody, Tick

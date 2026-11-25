@@ -56,7 +56,7 @@ def test_missing_auth_and_model_are_errors(tmp_path):
     assert any("llm_model" in m for m in messages)
 
 
-def test_budget_and_deprecated_usage_are_warnings(tmp_path):
+def test_budget_and_removed_usage_are_warnings(tmp_path):
     (tmp_path / "app.py").write_text("@produce\nfrom reactifact import Produce\n")
     findings = check_settings(
         _settings(
@@ -69,4 +69,4 @@ def test_budget_and_deprecated_usage_are_warnings(tmp_path):
     )
     messages = [f.message for f in findings if f.level == "WARN"]
     assert any("no budget" in m for m in messages)
-    assert any("deprecated" in m for m in messages)
+    assert any("removed" in m for m in messages)

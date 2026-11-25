@@ -123,7 +123,7 @@ flowchart LR
         A5["resolver<br/>ResolveRef"]
         ART8 -.->|Consume| A5
         A5 ==>|creates| ART4
-        A6["search_scout<br/>ScoutSources · Produce"]
+        A6["search_scout<br/>ScoutSources · Step"]
         ART0 -.->|Consume| A6
         A6 ==>|creates| ART8
         A6 ==>|creates| ART10

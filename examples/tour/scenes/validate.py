@@ -20,7 +20,7 @@ class Final(BaseModel):
     text: str
 
 
-class Produce(Step):
+class MiddleProducer(Step):
     consumes = (Question,)
     produces = (Middle,)
 
@@ -37,7 +37,7 @@ class Finish(Step):
 
 
 def run_validate_scene() -> dict[str, Any]:
-    producer = create_step_group("producer", steps=[Produce()])
+    producer = create_step_group("producer", steps=[MiddleProducer()])
     finisher = create_step_group("finisher", steps=[Finish()])
 
     good = validate_agents(

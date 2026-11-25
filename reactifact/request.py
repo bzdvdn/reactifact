@@ -1,7 +1,7 @@
 """reactifact.request — the per-run request context (§24, §52).
 
 `Runtime.arun(..., request=...)` (and `ChatAssistant.stream/invoke`) attach a
-read-only mapping for the duration of one turn; produces read it as
+read-only mapping for the duration of one turn; steps read it as
 `call.request`. This is the first-class version of the per-request data
 (an authenticated user, a tenant id, a correlation id from an HTTP header)
 that apps otherwise thread through a hand-rolled `ContextVar` or stuff into
@@ -11,14 +11,15 @@ concurrent requests.
 It is implemented with a `ContextVar` *internally*, so it is propagated to the
 child tasks a generation fans out to, and isolated between concurrent turns
 (each `asyncio.Task` gets its own context). Callers never touch the var: pass
-`request=` at the entry point, read `call.request` in a produce.
+`request=` at the entry point, read `call.request` in a step.
 
-    runtime = Runtime(ctx, agents=[...])
+    runtime = Runtime(ctx, groups=[...])
     await runtime.arun(request={"user": "bob", "tenant": "acme"})
 
-    @produce(Answer)
-    async def answer(call):
+    @step(produces=(Answer,))
+    async def answer(call: StepCall) -> Answer:
         user = call.request.get("user", "anonymous")
+        return Answer(text=f"hello, {user}")
 
 `request=None` (the default) means "no explicit request": a nested run (e.g.
 `AgentAsTool`) inherits whatever is active, rather than clearing it.

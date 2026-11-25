@@ -30,8 +30,10 @@ frameworks):
 - **0.23.0** — the typed `Chat` facade (`answer/traces/lifespan/test_client`),
   `Inject`/`Depends` tool DI, typed tool results and structured tool errors,
   function-first `PlanExecute`/`ReflectionLoop`, tail trace sampling and
-  retention. `Produce`/`@produce`/`ProduceCall` are removed; the remaining
-  deprecated bridges are documented in the 0.23 migration guide.
+  retention. `Produce`/`@produce`/`ProduceCall`, `also_creates=`/`reacts_to=`
+  and `Effects.ask/resume/act` are removed (the last has no prior deprecation
+  release; use `Human`/`Outbox`); the remaining deprecated bridges are
+  documented in the 0.23 migration guide.
 - **0.22.0** — CLI scaffolding (`new app|daemon`, `doctor`) and bundled
   FastAPI/daemon templates (FastAPI remains an optional core extra);
   provenance-aware `MemoryStore` with post-commit indexing; per-request chat

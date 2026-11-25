@@ -35,7 +35,9 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 - **Депрекейшен**: символ на пути к удалению остаётся импортируемым и работает
   минимум один минорный релиз; он помечается deprecated в docstring и в
   `CHANGELOG.md` (с заменой) до любого удаления, а удаление происходит только в
-  минорном релизе под заголовком `### Breaking`.
+  минорном релизе под заголовком `### Breaking`. Если удаление не может ждать,
+  это явно указывается в `### Breaking` и в migration-гайде (такое исключение —
+  `Effects.ask/resume/act` в 0.23).
 - **Любое ломающее изменение помечено в `CHANGELOG.md` заголовком
   `### Breaking`**, даже в pre-1.0 релизе — см. [release.md](release.md). Если
   перед апгрейдом читать только один раздел — читайте этот.
@@ -105,7 +107,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
 | `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными |
-| `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); `Effects.ask/resume/act` — deprecated-алиасы |
+| `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); старые `Effects.ask/resume/act` удалены в 0.23 |
 | `Emit` / `Edit` / `Drop` / `Relate` | return-style инструкции изменений: create с явным id/links, update полей, delete, link — компилируются в тот же атомарный патч |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
@@ -117,8 +119,6 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` ретраит вызов; параметр с обычным классом инжектится из `RuntimeResources` (и не попадает в схему); pydantic-результат заполняет `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `human.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
-| `Effects.ask(...)` / `Effects.resume(...)` | HITL-авторинг: `ask(question, kind=, notes=, schema=, id=)` создаёт вопрос; `resume(question, answer)` принимает legacy-строку или Pydantic-модель/mapping (пишется в `resolution_data`) |
-| `Effects.act(kind, *, key, payload=…)` | outbox-примитив: записывает намерение `PendingAction` (стабильный id `action:{key}`) вместо I/O в produce; `None`, если уже существует |
 | `Effects.update(artifact, *, expected_version=…, **fields)` | обновление полей существующего артефакта; `expected_version=` включает optimistic concurrency (`ArtifactConflict` вместо last-write-wins) |
 | `PendingAction` | записанный внешний side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); выполняется один раз через `Runtime(dispatcher=...)`, затем `dispatched` / `failed` (`retry_action` возвращает в очередь) |
 

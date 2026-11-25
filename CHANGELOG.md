@@ -76,10 +76,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   factory; `refresh=False` reuses an existing `resolved:{ref_id}` (the default
   re-fetches, preserving the old behaviour); `on_error(ref, exc)` reports a missing source
   or resolve failure. `fan_out_sources(..., as_artifacts=True)` returns the
-  handles for the same-produce path.
-
-### Added
-
+  handles for the same-step path.
 - **Portable trace reports and diff.** `RunTrace.to_text/to_markdown/to_html`,
   `reactifact trace --format md|html|json|text --out`, and
   `reactifact trace <run> --against <other>`; `Pipeline(traces=True|path)`
@@ -92,9 +89,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   keep_failed=, keep_tags=)` on `TraceStore`/`PostgresStore`, plus
   `reactifact traces prune <db> [--keep] [--days] [--keep-failed]
   [--keep-tag] [--dry-run]`.
-
-### Added
-
 - **Typed resource injection and `Pipeline.override`.** Step parameters
   annotated with a registered type (or a built-in resource like
   `LLMProvider`/`EmbeddingProvider`) are injected from `RuntimeResources`;
@@ -104,9 +98,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`Pipeline` lifespan and `test_client()`.** `lifespan=` + `async with` open
   and close long-lived resources (clients, indexes) once; `pipeline.test_client()`
   returns a copy with isolated overrides and an in-memory trace store for tests.
-
-### Added
-
 - **`Human` / `Outbox` collaborators.** HITL (`ask`/`resume`) and outbound
   intents (`act`) move off `Effects` into injected collaborators
   (`human: Human`, `outbox: Outbox`, or `call.human` / `call.outbox`).
@@ -187,7 +178,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   group like `priority`/`concurrency_limit`; `ChatAssistant`/`chat_agent`
   accept raw `steps=` and wrap them.
 
-### Removed
+### Breaking
+
+0.23 lands the removals scheduled in 0.20; the remaining bridges stay until
+0.24. The [0.23 migration guide](docs/en/migration-0.23.md) has the
+replacements.
 
 - **The `reactifact.produce` compatibility shim.** `Produce`, `ProduceCall`
   and `@produce` are gone (they were scheduled for removal in 0.23); use
@@ -196,10 +191,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `produces=(Primary, Extra)` and every input/trigger in `consumes=(...)`
   (or `Consume(..., wakes=False)`); the runtime no longer reads the old
   class attributes or constructor keywords.
-
 - **`Effects.ask` / `Effects.resume` / `Effects.act`.** HITL and outbound
   intents moved to the injected `Human`/`Outbox` collaborators; `Effects` is
-  now only `create/update/delete/link/upsert/unlink`.
+  now only `create/update/delete/link/upsert/unlink`. Unlike the removals
+  above, this one has no separate deprecation release: `Human`/`Outbox` land
+  in 0.23, so it is a deliberate exception to the one-minor window.
 
 ## [0.22.0] — 2026-11-21
 

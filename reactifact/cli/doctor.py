@@ -122,7 +122,7 @@ def check_settings(settings: Any, *, root: Path) -> list[Finding]:
         if "lifespan" not in text and "aclose" not in text:
             add("WARN", "no lifespan/resource cleanup found")
         if "@produce" in text or "Produce" in text:
-            add("WARN", "deprecated Produce/@produce usage found")
+            add("WARN", "removed Produce/@produce usage found; use Step/@step")
 
     return findings
 

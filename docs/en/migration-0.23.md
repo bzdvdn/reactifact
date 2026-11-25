@@ -196,6 +196,13 @@ See [observability](observability.md) for `RetentionPolicy` and sampling.
 
 - `Produce` / `ProduceCall` / `@produce` are removed; use `Step`/`@step`/
   `StepCall`.
+- `also_creates=` / `reacts_to=` on steps are removed (deprecated since 0.20);
+  declare outputs in `produces=(Primary, Extra)` and inputs/triggers in
+  `consumes=(...)` (or `Consume(..., wakes=False)`).
+- `Effects.ask` / `Effects.resume` / `Effects.act` are removed; inject
+  `Human`/`Outbox` instead (`human.ask/resume`, `outbox.act`). These three had
+  no separate deprecation release: 0.23 is the first release with their
+  replacements, so this is a deliberate exception to the one-minor window.
 - `ChatAssistant`, `Agent`, `create_agent`, `agents=`, `Agent.produces` and
   `Artifact.at/history/diff` remain deprecated bridges through 0.24.0. New
   code should use `Chat`, `StepGroup`, `create_step_group`, `groups=`, `steps`
@@ -216,8 +223,10 @@ See [observability](observability.md) for `RetentionPolicy` and sampling.
 5. Replace recipe subclasses with `from_funcs(...)` where the function form
    fits.
 6. Switch trace wiring to `traces=`/`trace_sample=` and add a retention policy.
-7. Run the test suite and search for the old spellings:
+7. Replace `effects.ask/act/resume` with the injected `Human`/`Outbox`, and
+   move `also_creates=`/`reacts_to=` into `produces=`/`consumes=`.
+8. Run the test suite and search for the old spellings:
 
    ```bash
-   rg "ChatAssistant|agents=|user_message=|reactifact\.tool_use|@produce"
+   rg "ChatAssistant|agents=|user_message=|reactifact\.tool_use|@produce|also_creates|reacts_to|effects\.(ask|act|resume)"
    ```
