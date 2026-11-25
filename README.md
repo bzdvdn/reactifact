@@ -86,6 +86,16 @@ print(result.hash)                              # reproducible fingerprint
 reactifact run app:pipeline "why did cloud spend jump in Q2?"
 ```
 
+Need HTTP? The same typed pipeline is the app:
+
+```python
+app = pipeline.http()   # POST /run, POST /stream, /docs, /contracts, /traces
+```
+
+`reactifact dev app:app` serves it with reload; FastAPI derives request
+validation, OpenAPI and Swagger UI from `Question`/`Answer`. Web stays an
+adapter — the same pipeline still runs from the CLI, daemon or MCP.
+
 ## Who this is for
 
 - **Knowledge assistants over mixed sources.** One question spans Confluence, a
@@ -131,6 +141,13 @@ uv run reactifact skills install   # teach your coding agent the mental model
 ```
 Then start with `reactifact.quick` in [Quickstart](docs/en/quickstart.md), or
 read [Concepts](docs/en/concepts.md) before designing artifacts.
+
+**Run it and check the loop**
+```bash
+reactifact dev     # app, /contracts and /traces URLs
+reactifact check my_app.pipeline:pipeline \
+  --scenarios my_app.scenarios --evals evals/qa.json --overall 0.8
+```
 
 **Inspect what a run actually did**
 ```bash

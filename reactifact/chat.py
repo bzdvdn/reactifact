@@ -29,7 +29,7 @@ from collections.abc import (
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
@@ -43,6 +43,10 @@ from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
 from .step import Step, StepGroup, create_step_group
 from .step.group import normalize_units
+
+if TYPE_CHECKING:
+    from .contracts.report import ContractReport
+    from .validate import ValidationReport
 
 logger = logging.getLogger("reactifact.chat")
 
@@ -736,6 +740,8 @@ class Chat:
             raise TypeError("Chat requires steps= and/or groups=")
         if resources is None:
             resources = RuntimeResources(llm=llm)
+        self.steps = list(steps) if steps is not None else None
+        self.groups = list(groups) if groups is not None else None
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type
@@ -914,15 +920,64 @@ class Chat:
         self._check_lifespan()
         return await self.assistant.history(session_id=session_id)
 
+    def validate(
+        self,
+        *,
+        seeds: Sequence[type | str] = (),
+        terminal: Sequence[type | str] = (),
+    ) -> ValidationReport:
+        """Static contract check for this chat's steps (no run, no LLM)."""
+        from .validate import validate_contracts
+
+        inferred_seeds: list[type | str] = list(seeds)
+        inferred_terminal: list[type | str] = list(terminal)
+        if not inferred_seeds and self.seed_type is not None:
+            inferred_seeds.append(self.seed_type)
+        if not inferred_terminal and self.answer_type is not None:
+            inferred_terminal.append(self.answer_type)
+        return validate_contracts(
+            steps=self.steps,
+            groups=self.groups,
+            seeds=inferred_seeds,
+            terminal=inferred_terminal,
+        )
+
+    def describe(self) -> ContractReport:
+        """The static contract plus seed/answer JSON Schemas."""
+        from .contracts.report import ContractReport, describe_contracts
+
+        groups = normalize_units(steps=self.steps, groups=self.groups)
+        base = describe_contracts(groups)
+        return ContractReport(
+            groups=base.groups,
+            seed_schema=(
+                self.seed_type.model_json_schema()
+                if self.seed_type is not None
+                else None
+            ),
+            answer_schema=(
+                self.answer_type.model_json_schema()
+                if self.answer_type is not None
+                else None
+            ),
+        )
+
     def router(self, **kwargs: Any) -> Any:
         """A FastAPI `APIRouter` for this chat (SSE, history, delete, health).
 
         Equivalent to `create_chat_router(chat, **kwargs)`; FastAPI is imported
-        lazily, so the core package does not depend on it.
+        lazily, so the core package does not depend on it. Use `routes=` to
+        expose `/chat`, `/chat/stream`, `/chat/history`, `/chat/clear`.
         """
         from .web import create_chat_router
 
         return create_chat_router(self, **kwargs)
+
+    def http(self, **kwargs: Any) -> Any:
+        """A ready FastAPI app for this chat (sessions, history, traces)."""
+        from .web import create_chat_app
+
+        return create_chat_app(self, **kwargs)
 
     def test_client(self, *, traces: bool = True) -> Any:
         """A copy with an isolated in-memory session store and traces."""

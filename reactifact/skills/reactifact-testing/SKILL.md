@@ -119,6 +119,8 @@ drift fails. Use it to catch unintended changes to the whole run shape.
   factory fixture and runs `async def` scenario tests.
 - `python -m reactifact scenario <module>` runs `@scenario`-decorated functions
   outside pytest, with a pytest-style failure report and the run state.
+- `python -m reactifact check <pipeline> --scenarios <module>` runs the same
+  scenarios together with contracts and an optional dataset eval, as one gate.
 
 ## Where to look
 

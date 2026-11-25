@@ -63,12 +63,26 @@ class GroupContract:
 
 @dataclass(frozen=True)
 class ContractReport:
-    """The declared contract of one or more `StepGroup`s."""
+    """The declared contract of one or more `StepGroup`s.
+
+    `seed_schema` / `answer_schema` are optional JSON Schemas attached by
+    `Pipeline.describe()`; the group-only `describe_contracts()` leaves them
+    `None`, so existing callers and pages are unchanged.
+    """
 
     groups: tuple[GroupContract, ...] = ()
+    seed_schema: dict[str, Any] | None = None
+    answer_schema: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"groups": [_group_dict(group) for group in self.groups]}
+        payload: dict[str, Any] = {
+            "groups": [_group_dict(group) for group in self.groups]
+        }
+        if self.seed_schema is not None:
+            payload["seed"] = self.seed_schema
+        if self.answer_schema is not None:
+            payload["answer"] = self.answer_schema
+        return payload
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)

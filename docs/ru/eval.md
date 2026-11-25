@@ -242,7 +242,11 @@ await evaluator.run_forever(interval_seconds=300)
 ```bash
 reactifact eval traces.db --sample 1.0
 reactifact eval traces.db --evaluators judge --provider openai:gpt-4o-mini
+reactifact check my_app.pipeline:pipeline --evals evals/qa.json --overall 0.8
 ```
+
+`reactifact check` — датасетный гейт: прогоняет pipeline по `Dataset` с core-
+метриками и возвращает ненулевой код, если `--overall`/`--gate` не выполнены.
 
 ## Типы
 

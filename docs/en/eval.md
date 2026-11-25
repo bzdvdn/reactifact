@@ -241,7 +241,11 @@ in one command:
 ```bash
 reactifact eval traces.db --sample 1.0
 reactifact eval traces.db --evaluators judge --provider openai:gpt-4o-mini
+reactifact check my_app.pipeline:pipeline --evals evals/qa.json --overall 0.8
 ```
+
+`reactifact check` is the dataset gate: it runs the pipeline over a `Dataset`
+with the core metrics and exits non-zero when `--overall`/`--gate` is not met.
 
 ## Types
 

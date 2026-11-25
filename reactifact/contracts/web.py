@@ -7,14 +7,16 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from .._extras import require_extra
-from .report import describe_contracts
+from .report import ContractReport, describe_contracts
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
 
 
 def create_contracts_router(
-    groups: Sequence[Any] | Callable[[], Sequence[Any]],
+    groups: (
+        Sequence[Any] | ContractReport | Callable[[], Sequence[Any] | ContractReport]
+    ),
     *,
     prefix: str = "",
     title: str = "reactifact contracts",
@@ -23,9 +25,11 @@ def create_contracts_router(
 ) -> APIRouter:
     """Serve the static agent contracts as a FastAPI page + JSON + Markdown.
 
-    `groups` is a sequence of `StepGroup`s (or a zero-arg callable returning
-    one, for dynamic registries). Routes (relative to `prefix`):
-    `/contracts` (HTML), `/api/contracts` (JSON), `/contracts.md` (Markdown).
+    `groups` is a sequence of `StepGroup`s, a ready `ContractReport` (e.g.
+    `Pipeline.describe()`), or a zero-arg callable returning either — for
+    dynamic registries. Routes (relative to `prefix`): `/contracts` (HTML),
+    `/api/contracts` (JSON, including seed/answer schemas when the report has
+    them), `/contracts.md` (Markdown).
 
     This is opt-in and not mounted by default — tool descriptions and schemas
     can be sensitive. Pass `username`/`password` for HTTP Basic auth, the same
@@ -35,8 +39,17 @@ def create_contracts_router(
     from fastapi import APIRouter, Depends, HTTPException
     from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-    def _groups() -> Sequence[Any]:
-        return groups() if callable(groups) else groups
+    # Endpoint annotations are strings (`from __future__ import annotations`);
+    # publish the response classes so FastAPI/OpenAPI can resolve them.
+    globals().setdefault("HTMLResponse", HTMLResponse)
+    globals().setdefault("JSONResponse", JSONResponse)
+    globals().setdefault("Response", Response)
+
+    def _report() -> ContractReport:
+        value = groups() if callable(groups) else groups
+        if isinstance(value, ContractReport):
+            return value
+        return describe_contracts(value)
 
     dependencies = []
     if username is not None and password is not None:
@@ -67,16 +80,16 @@ def create_contracts_router(
 
     @router.get("/contracts", response_class=HTMLResponse)
     async def contracts_page() -> str:
-        return describe_contracts(_groups()).to_html(title=title)
+        return _report().to_html(title=title)
 
     @router.get("/api/contracts")
     async def contracts_json() -> JSONResponse:
-        return JSONResponse(describe_contracts(_groups()).to_dict())
+        return JSONResponse(_report().to_dict())
 
     @router.get("/contracts.md")
     async def contracts_markdown() -> Response:
         return Response(
-            describe_contracts(_groups()).to_markdown(),
+            _report().to_markdown(),
             media_type="text/markdown",
         )
 

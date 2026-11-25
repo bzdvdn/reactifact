@@ -180,6 +180,7 @@ def test_refund_policy(scenario_lab):
 ```bash
 reactifact scenario examples.repair.scenarios
 reactifact scenario examples.knowledge.scenarios --mode replay
+reactifact check my_app.pipeline:pipeline --scenarios examples.repair.scenarios
 ```
 
 Падение выводится в духе pytest: секция `FAILURES`, падающий фрейм из *вашего*

@@ -153,6 +153,8 @@ reactifact context sessions.sqlite3             # live provenance graph
 reactifact replay  sessions.sqlite3             # deterministic replay
 reactifact branch  sessions.sqlite3 <session> list
 reactifact skills  install                      # bundled agent skills
+reactifact dev                                  # app + /contracts + /traces URLs
+reactifact check my_app.pipeline:pipeline --evals evals/qa.json --overall 0.8
 ```
 
 Everything prints Mermaid — paste it into GitHub, Notion or mermaid.live. In

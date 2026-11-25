@@ -57,7 +57,7 @@ def cmd_new_template(args: argparse.Namespace) -> int:
     if args.template_key == "daemon":
         print("  uv run python -m app.main")
     else:
-        print("  uv run uvicorn app.main:create_app --factory --reload")
+        print("  uv run reactifact dev")
     return 0
 
 

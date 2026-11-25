@@ -63,6 +63,9 @@ under `context_source`.
   `GET /api/evals/report`, `GET /api/evals/summary` (lazy import).
 - CLI `python -m reactifact eval <traces.db> [--sample 1.0] [--evaluators
   trace|judge|all] [--provider openai:gpt-4o-mini]`.
+- CLI `python -m reactifact check <pipeline> --evals <dataset.json> --overall 0.8`
+  runs a `Dataset` through the pipeline with the core metrics and fails the
+  command on a gate.
 
 ## Cost and duplicate control
 

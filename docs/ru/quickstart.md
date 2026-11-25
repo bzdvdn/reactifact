@@ -33,8 +33,12 @@ uv add "reactifact[web]"          # + FastAPI/uvicorn
 uv run reactifact new app my-app  # или: uvx reactifact new app my-app
 cd my-app && uv sync --extra dev
 cp .env.example .env
-uv run uvicorn app.main:create_app --factory --reload
+uv run reactifact dev
 ```
+
+`reactifact dev` запускает приложение с reload и печатает три URL: приложение,
+`/contracts` и `/traces` (если смонтированы). Можно передать
+`app.main:create_app` явно или открыть браузер через `--open /contracts`.
 
 `reactifact new app` копирует встроенный FastAPI-шаблон (auth, sessions, SSE,
 traces, бюджеты/LLM из settings). Сгенерированный проект сам объявляет
@@ -69,6 +73,26 @@ async for event in chat.stream("а теперь?", session_id="u1"):
 async context manager для turn-scoped contextvars или очистки ресурсов.
 `chat.router()` возвращает готовый FastAPI `APIRouter` (SSE + history), а
 `chat.test_client()` — копию с in-memory store и traces.
+
+Для HTTP-чата с сессиями `chat.http()` повторяет DEVOPS-стиль путей:
+
+```python
+from reactifact.web import ChatRoutes
+
+app = chat.http(
+    routes=ChatRoutes(
+        invoke="/chat",          # POST /api/chat
+        stream="/chat/stream",   # POST /api/chat/stream
+        history="/chat/history", # GET  /api/chat/history
+        clear="/chat/clear",     # POST /api/chat/clear
+        clear_method="POST",
+        history_messages=True,
+    )
+)
+```
+
+`/docs`, `/api/contracts` и `/api/traces` тоже монтируются; `reactifact dev`
+поднимает приложение.
 
 ## Один объект: `Pipeline`
 
@@ -121,6 +145,44 @@ result = client.run(Question(text="..."))
 assert asyncio.run(client.traces.query())["total"] >= 1
 client.close()
 ```
+
+## Одна команда: `check`
+
+`reactifact check` прогоняет цикл качества над `Pipeline`: статические
+контракты, зарегистрированные сценарии и оценку на датасете; если хоть один
+этап упал, код выхода ненулевой.
+
+```bash
+uv run reactifact check app.pipeline:pipeline \
+  --scenarios app.scenarios \
+  --evals evals/qa.json \
+  --overall 0.8
+```
+
+Он печатает по строке на этап и финальный `check: PASSED`/`FAILED`; для
+метрики используйте `--gate KEY=VALUE`. `reactifact dev` — серверная
+пара: запускает приложение и показывает `/contracts` и `/traces`.
+
+## HTTP в одну строку
+
+Web-адаптер опционален; когда нужен HTTP, он получается из того же типизированного
+пайплайна:
+
+```python
+pipeline = Pipeline(
+    steps=[extract, classify, answer],
+    seed_type=Question,
+    answer_type=Answer,
+    traces=True,
+)
+
+app = pipeline.http()
+```
+
+`reactifact dev main:app` поднимает `POST /run`, `POST /stream`, `/health`,
+интерактивный `/docs` (OpenAPI из `Question`/`Answer`), `/contracts` и
+`/traces`. Для встраивания в существующее приложение:
+`app.include_router(pipeline.router(prefix="/agent"))`.
 
 ## 0. Он-рамп для 80%: `reactifact.quick`
 

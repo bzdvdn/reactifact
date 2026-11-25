@@ -15,7 +15,7 @@ import copy
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -27,6 +27,11 @@ from .providers import LLMProvider
 from .resources import RuntimeResources
 from .runtime import RunResult, Runtime
 from .step import Step, StepGroup
+from .step.group import normalize_units
+
+if TYPE_CHECKING:
+    from .contracts.report import ContractReport
+    from .validate import ValidationReport
 
 
 class Pipeline:
@@ -128,6 +133,78 @@ class Pipeline:
         """Drop every `override` and fall back to the configured resources."""
         self._overrides.clear()
         return self
+
+    def validate(
+        self,
+        *,
+        seeds: Sequence[type | str] = (),
+        terminal: Sequence[type | str] = (),
+    ) -> ValidationReport:
+        """Static contract check for this pipeline (no run, no LLM).
+
+        `seed_type`/`answer_type` are used as the default seeds/terminal when
+        set; pass `seeds=`/`terminal=` to override them. This is the same
+        `validate_contracts` the CLI and the HTTP adapter use at startup.
+        """
+        from .validate import validate_contracts
+
+        inferred_seeds: list[type | str] = list(seeds)
+        inferred_terminal: list[type | str] = list(terminal)
+        if not inferred_seeds and self.seed_type is not None:
+            inferred_seeds.append(self.seed_type)
+        if not inferred_terminal and self.answer_type is not None:
+            inferred_terminal.append(self.answer_type)
+        return validate_contracts(
+            steps=self.steps,
+            groups=self.groups,
+            seeds=inferred_seeds,
+            terminal=inferred_terminal,
+        )
+
+    def describe(self) -> ContractReport:
+        """The static contract plus seed/answer JSON Schemas.
+
+        The transport-neutral "OpenAPI": the CLI prints it, the HTTP adapter
+        serves it as `/api/contracts`, and MCP/tool adapters read the same
+        models. It never runs the pipeline.
+        """
+        from .contracts.report import ContractReport, describe_contracts
+
+        groups = normalize_units(steps=self.steps, groups=self.groups)
+        base = describe_contracts(groups)
+        return ContractReport(
+            groups=base.groups,
+            seed_schema=(
+                self.seed_type.model_json_schema()
+                if self.seed_type is not None
+                else None
+            ),
+            answer_schema=(
+                self.answer_type.model_json_schema()
+                if self.answer_type is not None
+                else None
+            ),
+        )
+
+    def router(self, **kwargs: Any) -> Any:
+        """A FastAPI `APIRouter` with `/run`, `/stream` and `/health`.
+
+        Needs `seed_type=` and `answer_type=`. FastAPI is imported lazily, so
+        the core package does not depend on it; install `reactifact[web]`.
+        """
+        from .web import create_pipeline_router
+
+        return create_pipeline_router(self, **kwargs)
+
+    def http(self, **kwargs: Any) -> Any:
+        """A ready FastAPI app: run/stream routes, `/docs`, `/contracts`, traces.
+
+        The web adapter, not the core: `Pipeline` stays usable from a CLI,
+        daemon, queue or MCP without FastAPI installed.
+        """
+        from .web import create_http_app
+
+        return create_http_app(self, **kwargs)
 
     def _prepare(self, seed: Artifact[Any] | Any) -> tuple[Context, Runtime]:
         if self.lifespan is not None and self._lifespan_cm is None:
@@ -286,6 +363,8 @@ class Pipeline:
             context,
             runtime.last_stats.runs if runtime.last_stats else 0,
             runtime.outcome,
+            trace_id=runtime.run_id,
+            trace_store=self.trace_store,
         )
 
 

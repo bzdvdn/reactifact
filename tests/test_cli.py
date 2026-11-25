@@ -53,6 +53,8 @@ def test_build_parser_registers_every_subcommand():
         "contracts",
         "eval",
         "new",
+        "dev",
+        "check",
         "doctor",
         "demo",
         "run",

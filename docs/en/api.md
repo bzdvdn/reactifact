@@ -90,8 +90,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers. `Agent` is the deprecated alias |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=`. `create_agent` is the deprecated alias |
 | `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords. |
-| `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `router()`, `test_client()`, `traces=`/`lifespan=`, `store=` |
-| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.answer(seed)` / `.aanswer(seed)` return the typed `answer_type`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()` |
+| `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
+| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.answer(seed)` / `.aanswer(seed)` return the typed `answer_type`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()`. `.validate()` runs the static contract check; `.describe()` returns `ContractReport` with seed/answer JSON Schemas; `.router()` / `.http()` are the optional FastAPI adapters |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
@@ -153,6 +153,9 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.contracts.web.create_contracts_router(groups, *, prefix=, title=, username=, password=)` | opt-in FastAPI router: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `groups` may be a zero-arg factory |
 | `install_error_handlers(app, *, extra=…)` | maps `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` to JSON HTTP responses (403/422/429/409); `extra` overrides/adds mappings |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); `request_factory(request)` builds the per-turn `request=` mapping from the FastAPI `Request` (identity/ACL-aware turns); the event schema is published in the route's OpenAPI `responses` |
+| `create_pipeline_router(pipeline, *, prefix=, routes=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` for a typed `Pipeline`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; FastAPI derives validation/OpenAPI/`/docs` from the pipeline's models. `PipelineRoutes` overrides the paths |
+| `create_chat_app(chat, *, prefix="/api", routes=, traces=, contracts=True, dependencies=, validate=True)` | ready FastAPI app for a `Chat`: sessions, history, clear, SSE, contracts and traces. `ChatRoutes` can expose the DEVOPS-style `/chat`, `/chat/stream`, `/chat/history`, `/chat/clear` |
+| `create_http_app(pipeline, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | ready FastAPI app: pipeline router + contracts page + trace dashboard + error handlers; `validate=True` fails at startup on a broken contract; `dependencies=` applies to every router |
 | `reactifact.web.sse(event, data)` | one SSE frame |
 
 ## Visualization (reactifact.viz + python -m reactifact)
@@ -163,7 +166,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `context_to_mermaid(context)` | live provenance graph of a context (artifacts + relations) |
 | `trace_to_mermaid(trace)` | one run as a Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI printing the diagrams to stdout |
-| `reactifact new app` / `reactifact doctor` | CLI: scaffold the bundled FastAPI chat template / check app settings and boundaries |
+| `reactifact new app` / `reactifact dev` / `reactifact doctor` | CLI: scaffold the bundled FastAPI chat template / run an ASGI app with reload and contracts+traces URLs / check app settings and boundaries |
 | `trace_provenance_to_mermaid(trace, *, max_nodes=, max_edges=)` | a run's evidence graph (written artifacts + `patch.link` edges); long ids are shortened and the dashboard caps nodes/edges |
 
 ## Replay (reactifact.replay, §55)
@@ -209,6 +212,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `trace_source()` · `context_source(run_fn)` · `output_present(key)` · `no_errors()` | what to score from a run: the trace itself, a rehydrated `Context`, its outputs, its spans |
 | `create_online_eval_router(evaluator)` | FastAPI router: `POST /api/evals/run`, `GET /api/evals/report`, `GET /api/evals/summary` |
 | `python -m reactifact eval <traces.db>` | CLI: online-evaluate runs (tags the results, `--evaluators trace\|judge\|all`) |
+| `python -m reactifact check <pipeline>` | CLI gate: contracts + `@scenario` modules + a `Dataset` eval (`--scenarios`, `--evals`, `--gate`, `--overall`) |
 
 ## Structured output
 

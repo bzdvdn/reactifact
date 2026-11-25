@@ -34,8 +34,12 @@ uv add "reactifact[web]"          # + FastAPI/uvicorn
 uv run reactifact new app my-app  # or: uvx reactifact new app my-app
 cd my-app && uv sync --extra dev
 cp .env.example .env
-uv run uvicorn app.main:create_app --factory --reload
+uv run reactifact dev
 ```
+
+`reactifact dev` starts the app with reload and prints the three URLs worth
+opening: the app, `/contracts` and `/traces` (when mounted). Pass
+`app.main:create_app` explicitly or use `--open /contracts` to open the browser.
 
 `reactifact new app` copies the bundled FastAPI template (auth, sessions, SSE,
 traces, settings-driven budgets/LLM). The generated project owns its
@@ -70,6 +74,27 @@ tenant, user); `per_turn(text, session_id, request)` is an async context manager
 for turn-scoped context vars or resource cleanup. `chat.router()` returns a
 ready FastAPI `APIRouter` (SSE + history), and `chat.test_client()` is a copy
 with an in-memory store and traces.
+
+For a sessionful HTTP app, `chat.http()` adds the same paths as the DEVOPS-style
+API:
+
+```python
+from reactifact.web import ChatRoutes
+
+app = chat.http(
+    routes=ChatRoutes(
+        invoke="/chat",          # POST /api/chat
+        stream="/chat/stream",   # POST /api/chat/stream
+        history="/chat/history", # GET  /api/chat/history
+        clear="/chat/clear",     # POST /api/chat/clear
+        clear_method="POST",
+        history_messages=True,
+    )
+)
+```
+
+`/docs`, `/api/contracts` and `/api/traces` are mounted too; `reactifact dev`
+serves it.
 
 ## One object: `Pipeline`
 
@@ -122,6 +147,44 @@ result = client.run(Question(text="..."))
 assert asyncio.run(client.traces.query())["total"] >= 1
 client.close()
 ```
+
+## One command: `check`
+
+`reactifact check` runs the quality loop over a `Pipeline`: static contracts,
+registered scenarios and a dataset evaluation, then exits non-zero if any stage
+fails.
+
+```bash
+uv run reactifact check app.pipeline:pipeline \
+  --scenarios app.scenarios \
+  --evals evals/qa.json \
+  --overall 0.8
+```
+
+It prints one line per stage and a final `check: PASSED`/`FAILED` gate; use
+`--gate KEY=VALUE` for a metric-specific bar. `reactifact dev` is the server
+counterpart: it starts the app and points at `/contracts` and `/traces`.
+
+## HTTP in one line
+
+The web adapter is optional; when you need HTTP, it comes from the same typed
+pipeline:
+
+```python
+pipeline = Pipeline(
+    steps=[extract, classify, answer],
+    seed_type=Question,
+    answer_type=Answer,
+    traces=True,
+)
+
+app = pipeline.http()
+```
+
+`reactifact dev main:app` then serves `POST /run`, `POST /stream`, `/health`,
+interactive `/docs` (OpenAPI generated from `Question`/`Answer`), `/contracts`
+and `/traces`. To mount it in an existing app, use
+`app.include_router(pipeline.router(prefix="/agent"))`.
 
 ## 0. The 80% on-ramp: `reactifact.quick`
 

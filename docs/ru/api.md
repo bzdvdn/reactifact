@@ -94,8 +94,8 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `Agent` — deprecated-алиас |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. |
-| `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `router()`, `test_client()`, `traces=`/`lifespan=`, `store=` |
-| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()` |
+| `Chat(steps=..., seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
+| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()`. `.validate()` — статическая проверка контрактов; `.describe()` — `ContractReport` со схемами seed/answer; `.router()` / `.http()` — опциональные FastAPI-адаптеры |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
@@ -157,6 +157,9 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `reactifact.contracts.web.create_contracts_router(groups, *, prefix=, title=, username=, password=)` | opt-in FastAPI-роутер: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `groups` может быть zero-arg фабрикой |
 | `install_error_handlers(app, *, extra=…)` | отображает `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` в JSON-ответы (403/422/429/409); `extra` добавляет/переопределяет |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); `request_factory(request)` строит request-маппинг хода из FastAPI `Request` (ходы с учётом идентичности/ACL); схема событий публикуется в OpenAPI `responses` маршрута |
+| `create_pipeline_router(pipeline, *, prefix=, routes=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` для типизированного `Pipeline`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; валидация/OpenAPI/`/docs` выводятся из моделей пайплайна. `PipelineRoutes` переопределяет пути |
+| `create_chat_app(chat, *, prefix="/api", routes=, traces=, contracts=True, dependencies=, validate=True)` | готовое FastAPI-приложение для `Chat`: сессии, история, clear, SSE, contracts и traces. `ChatRoutes` даёт DEVOPS-стиль `/chat`, `/chat/stream`, `/chat/history`, `/chat/clear` |
+| `create_http_app(pipeline, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | готовое FastAPI-приложение: pipeline-роутер + contracts-страница + trace dashboard + error handlers; `validate=True` падает на старте при разорванном контракте; `dependencies=` применяется ко всем роутерам |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
 
 ## Визуализация (reactifact.viz + python -m reactifact)
@@ -167,7 +170,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `context_to_mermaid(context)` | живой граф провенанса контекста (артефакты + связи) |
 | `trace_to_mermaid(trace)` | один запуск как Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI, печатающий диаграммы в stdout |
-| `reactifact new app` / `reactifact doctor` | CLI: scaffold встроенного FastAPI-шаблона / проверка settings и границ |
+| `reactifact new app` / `reactifact dev` / `reactifact doctor` | CLI: scaffold встроенного FastAPI-шаблона / запуск ASGI-приложения с reload и URL contracts+traces / проверка settings и границ |
 | `trace_provenance_to_mermaid(trace, *, max_nodes=, max_edges=)` | граф доказательств запуска (записанные артефакты + рёбра `patch.link`); длинные id сокращаются, дашборд ограничивает узлы/рёбра |
 
 ## Replay (reactifact.replay, §55)
@@ -213,6 +216,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `trace_source()` · `context_source(run_fn)` · `output_present(key)` · `no_errors()` | что оценивать: сам трейс, восстановленный `Context`, выводы, спаны |
 | `create_online_eval_router(evaluator)` | FastAPI-роутер: `POST /api/evals/run`, `GET /api/evals/report`, `GET /api/evals/summary` |
 | `python -m reactifact eval <traces.db>` | CLI: online-оценка прогонов (теги результатов, `--evaluators trace\|judge\|all`) |
+| `python -m reactifact check <pipeline>` | CLI-гейт: контракты + модули `@scenario` + `Dataset`-оценка (`--scenarios`, `--evals`, `--gate`, `--overall`) |
 
 ## Структурный вывод
 

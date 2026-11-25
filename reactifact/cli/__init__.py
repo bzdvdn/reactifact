@@ -4,6 +4,8 @@ Subcommands:
 
     demo     run a self-contained auditable answer (no API key)
     new      create a project (FastAPI chat or scheduled daemon)
+    dev      run an ASGI app with contracts/traces URLs
+    check    contracts + scenarios + evals in one gate
     doctor   check app settings and common boundaries
     graph    static group blueprint from a module path ("pkg.mod:Attr")
     contracts static consumes/produces/tools contracts (Markdown or JSON)
@@ -41,9 +43,11 @@ import sys
 from .. import __version__
 from . import (
     branch,
+    check,
     context,
     contracts,
     demo,
+    dev,
     doctor,
     eval,
     graph,
@@ -85,6 +89,8 @@ def build_parser() -> argparse.ArgumentParser:
         validate,
         eval,
         new,
+        dev,
+        check,
         run,
         doctor,
     ):
@@ -110,11 +116,14 @@ def main(argv: list[str] | None = None) -> int:
         print('  reactifact run <module:pipeline> "text"   run a Pipeline')
         print("  reactifact new app <dir>       FastAPI chat template")
         print("  reactifact new daemon <dir>    scheduled agent loop")
+        print("  reactifact dev                 run the app with reload")
+        print("  reactifact check <pipeline>    contracts + scenarios + evals")
         print("  reactifact doctor              check an app's settings")
         print("  reactifact skills install      add agent skills to your project\n")
         print("Check a pipeline:")
         print("  reactifact validate <module>   static consumes/produces check")
-        print("  reactifact contracts <module>  static contracts (md/json)\n")
+        print("  reactifact contracts <module>  static contracts (md/json)")
+        print("  reactifact check <pipeline>    contracts + scenarios + evals\n")
         print("Inspect a run:")
         print("  reactifact graph   <module:StepGroup>   static blueprint")
         print("  reactifact trace   <trace.db>       run diagram\n")

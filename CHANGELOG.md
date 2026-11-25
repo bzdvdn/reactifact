@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added
+
+- **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
+  from the target, and prints the app, `/contracts` and `/traces` URLs. A
+  missing `.env` gets a hint instead of a bare uvicorn traceback.
+- **`reactifact check`.** One gate for the quality loop: static contracts, any
+  number of `@scenario` modules, and a `Dataset` eval against a `Pipeline`
+  (`--gate KEY=VALUE`, `--overall`). Each stage reuses the dedicated CLI runner
+  and the command exits non-zero when any stage fails.
+- **`Pipeline.validate()` / `.describe()`.** Static contracts plus seed/answer
+  JSON Schemas on the pipeline itself — the transport-neutral "OpenAPI" the
+  CLI and adapters share.
+- **HTTP adapter for `Pipeline`.** `pipeline.router()` serves typed `/run` and
+  streaming `/stream` routes (FastAPI derives validation and OpenAPI from
+  `seed_type`/`answer_type`); `pipeline.http()` returns a ready app with
+  `/docs`, `/contracts`, `/traces` and fail-fast contract validation.
+  `PipelineRoutes` overrides the paths or omits a route.
+- **Sessionful chat app.** `chat.http()` mounts a ready FastAPI app over a
+  `Chat` with `/docs`, `/contracts` and `/traces`; `ChatRoutes` adds the
+  non-streaming `POST /chat`, `/chat/history`, `/chat/clear` (GET/POST method)
+  and keeps sessions/history in the `Chat` store. `Chat.validate()` and
+  `.describe()` mirror the Pipeline surface.
+
 ## [0.23.0] — 2026-11-25
 
 ### Added

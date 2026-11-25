@@ -179,6 +179,7 @@ useful for live/record runs a normal `pytest` session must not touch:
 ```bash
 reactifact scenario examples.repair.scenarios
 reactifact scenario examples.knowledge.scenarios --mode replay
+reactifact check my_app.pipeline:pipeline --scenarios examples.repair.scenarios
 ```
 
 A failure is reported pytest-style: a `FAILURES` section, the failing frame

@@ -1,8 +1,8 @@
 """FastAPI app factory for the reactifact chat template.
 
-Run with the factory form (no import-time env validation):
+Run it with the dev command (factory mode, reload, contracts/traces URLs):
 
-    uvicorn app.main:create_app --factory --reload
+    reactifact dev
 """
 
 from __future__ import annotations

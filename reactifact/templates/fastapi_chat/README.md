@@ -15,7 +15,7 @@ From a generated project (or this directory copied out of the repo):
 uv sync --extra dev
 cp .env.example .env
 # set APP_AUTH_TOKEN and (optionally) an LLM provider block in .env
-uv run uvicorn app.main:create_app --factory --reload
+uv run reactifact dev
 ```
 
 No LLM configured (`APP_LLM_PROVIDER=none`) is a valid offline mode: the app

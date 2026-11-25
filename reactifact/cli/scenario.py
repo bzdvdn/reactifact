@@ -51,6 +51,38 @@ class _Outcome:
     state: str = ""
 
 
+@dataclass
+class ScenarioOutcome:
+    """A scenario plus its result and wall-clock time."""
+
+    case: ScenarioCase
+    outcome: _Outcome
+    elapsed: float
+
+
+@dataclass
+class ScenarioRun:
+    """The result of running a batch of scenarios (used by `scenario` and `check`)."""
+
+    outcomes: list[ScenarioOutcome]
+    counts: dict[str, int]
+
+    @property
+    def total(self) -> int:
+        return len(self.outcomes)
+
+    @property
+    def ok(self) -> bool:
+        return not (self.counts[FAIL] or self.counts[ERROR])
+
+    def summary(self) -> str:
+        return (
+            f"{self.total} scenario(s): {self.counts[PASS]} passed, "
+            f"{self.counts[FAIL]} failed, {self.counts[ERROR]} errored, "
+            f"{self.counts[SKIP]} skipped"
+        )
+
+
 async def _run_one(case: ScenarioCase) -> _Outcome:
     """Runs one scenario and classifies it: status is one of PASS/FAIL/ERROR/SKIP."""
     try:
@@ -121,6 +153,39 @@ def _print_failure(case: ScenarioCase, outcome: _Outcome, *, show_state: bool) -
         print(outcome.state)
 
 
+def run_cases(cases: list[ScenarioCase]) -> ScenarioRun:
+    """Runs scenarios in order and collects their outcomes (shared with `check`)."""
+    counts = {PASS: 0, FAIL: 0, ERROR: 0, SKIP: 0}
+    outcomes: list[ScenarioOutcome] = []
+    for case in cases:
+        started = time.monotonic()
+        outcome = asyncio.run(_run_one(case))
+        elapsed = time.monotonic() - started
+        counts[outcome.status] += 1
+        outcomes.append(ScenarioOutcome(case, outcome, elapsed))
+
+    return ScenarioRun(outcomes=outcomes, counts=counts)
+
+
+def render_run(run: ScenarioRun, *, show_state: bool = True) -> None:
+    """Prints a pytest-style per-scenario report and the final counts."""
+    for row in run.outcomes:
+        print(
+            f"{_styled_status(row.outcome.status)} {row.case.name} ({row.elapsed:.2f}s)"
+        )
+        if row.outcome.status == SKIP and row.outcome.detail:
+            print(f"      {row.outcome.detail}")
+
+    failures = [row for row in run.outcomes if row.outcome.status in (FAIL, ERROR)]
+    if failures:
+        print()
+        print(f" {FAILURES_TITLE} ".center(_WIDTH, "="))
+        for row in failures:
+            _print_failure(row.case, row.outcome, show_state=show_state)
+
+    print(f"\n{run.summary()}")
+
+
 def cmd_scenario(args: argparse.Namespace) -> int:
     if args.mode is not None:
         os.environ[MODE_ENV_VAR] = args.mode
@@ -132,31 +197,9 @@ def cmd_scenario(args: argparse.Namespace) -> int:
         print("no scenarios found (check the module path and -k filter)")
         return 1
 
-    counts = {PASS: 0, FAIL: 0, ERROR: 0, SKIP: 0}
-    failures: list[tuple[ScenarioCase, _Outcome]] = []
-    for case in cases:
-        started = time.monotonic()
-        outcome = asyncio.run(_run_one(case))
-        elapsed = time.monotonic() - started
-        counts[outcome.status] += 1
-        print(f"{_styled_status(outcome.status)} {case.name} ({elapsed:.2f}s)")
-        if outcome.status == SKIP and outcome.detail:
-            print(f"      {outcome.detail}")
-        if outcome.status in (FAIL, ERROR):
-            failures.append((case, outcome))
-
-    if failures:
-        print()
-        print(f" {FAILURES_TITLE} ".center(_WIDTH, "="))
-        for case, outcome in failures:
-            _print_failure(case, outcome, show_state=not args.no_state)
-
-    total = len(cases)
-    print(
-        f"\n{total} scenario(s): {counts[PASS]} passed, {counts[FAIL]} failed, "
-        f"{counts[ERROR]} errored, {counts[SKIP]} skipped"
-    )
-    return 1 if counts[FAIL] or counts[ERROR] else 0
+    run = run_cases(cases)
+    render_run(run, show_state=not args.no_state)
+    return 0 if run.ok else 1
 
 
 def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
