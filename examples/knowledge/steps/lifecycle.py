@@ -51,7 +51,7 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
     produces = (ResearchTurn,)
     terminal = frozenset({"answered", "insufficient"})
 
-    def next_status(self, state: StatusState) -> str | None:
+    def next_status(self, state: StatusState[ResearchTurn]) -> str | None:
         """Pure function: which status the turn deserves in the current state."""
         if state.any(Answer):
             return "answered"

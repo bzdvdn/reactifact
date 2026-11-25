@@ -70,6 +70,11 @@ class Handle:
         return self
 
     @property
+    def data(self) -> Any:
+        """The planned payload, for recipes that link a handle before commit."""
+        return self._data
+
+    @property
     def type(self) -> str:
         return type(self._data).__name__
 

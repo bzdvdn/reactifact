@@ -589,6 +589,14 @@ class FunctionTool(Tool):
             return result
         if isinstance(result, BaseModel):
             return ToolOutput(data=result.model_dump(mode="json"))
+        if (
+            isinstance(result, (list, tuple))
+            and result
+            and all(isinstance(item, BaseModel) for item in result)
+        ):
+            return ToolOutput(
+                data={"items": [item.model_dump(mode="json") for item in result]}
+            )
         if isinstance(result, str):
             return ToolOutput(text=result)
         if isinstance(result, dict):

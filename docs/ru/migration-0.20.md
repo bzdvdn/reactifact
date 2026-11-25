@@ -24,7 +24,7 @@
 | v1 session payload | v2 `blobs` + `data_ref`; v1 мигрирует при загрузке |
 | `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool` | `reactifact.tools.use`, `reactifact.tools.native`, `reactifact.tools.agent` |
 
-Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. Удаление планируется в 0.23.0, поэтому миграцию стоит закончить до этого релиза.
+Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0; остальные мосты доступны до 0.24.0.
 
 ## 2. Шаги и агенты
 
@@ -205,7 +205,7 @@ from reactifact.tools.agent import AgentAsTool
 | `reactifact.native_tool_use` | `reactifact.tools.native` |
 | `reactifact.agent_tool` | `reactifact.tools.agent` |
 
-Shims импортируются в 0.21.x и запланированы к удалению в 0.23.0.
+Shims импортируются в окне совместимости 0.21 и сохраняются до 0.24.0.
 
 ## 8. Удалённые примеры
 
@@ -243,9 +243,12 @@ Shims импортируются в 0.21.x и запланированы к уд
 
 ## 10. Совместимость и удаление
 
-Импортируется в 0.21.x, удаляется в 0.23.0:
+Удалено в 0.23.0:
 
 - `Produce`, `ProduceCall`, `@produce`
+
+Остаются deprecated-мостами до 0.24.0:
+
 - `Agent.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`

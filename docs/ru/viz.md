@@ -23,6 +23,8 @@ python -m reactifact graph examples.knowledge.step_groups:Planner # один а�
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
+python -m reactifact contracts examples.knowledge.step_groups  # контракты в Markdown
+python -m reactifact contracts examples.knowledge.step_groups --format json
 ```
 
 - `graph` инстансирует каждый подкласс `StepGroup`, определённый в модуле (или один
@@ -30,6 +32,8 @@ python -m reactifact trace traces.db [run_id]
   запускает `validate_contracts`: неизвестные входы — errors (exit 1), dead
   outputs/unreachable/cycles — warnings; `--seed TYPE`/`--terminal TYPE` можно
   повторять.
+- `contracts` печатает объявленную поверхность (шаги, consumes/produces, tools,
+  timeout/retry) в Markdown или JSON; без запуска и LLM.
 - `context` читает сохранённую сессию из KV-бэкенда (директория файлов или
   SQLite) и печатает её граф провенанса; `--session` выбирает сессию,
   `--limit` ограничивает число артефактов.

@@ -21,19 +21,24 @@ entry when the version is bumped:
 
 ## Upgrading
 
-0.20.0 has a dedicated [migration guide](migration-0.20.md). `CHANGELOG.md`
+0.23.0 has a dedicated [migration guide](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
 remains the source of truth for what changed between versions, and breaking
 entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
 
+- **0.23.0** — the typed `Chat` facade (`answer/traces/lifespan/test_client`),
+  `Inject`/`Depends` tool DI, typed tool results and structured tool errors,
+  function-first `PlanExecute`/`ReflectionLoop`, tail trace sampling and
+  retention. `Produce`/`@produce`/`ProduceCall` are removed; the remaining
+  deprecated bridges are documented in the 0.23 migration guide.
 - **0.22.0** — CLI scaffolding (`new app|daemon`, `doctor`) and bundled
   FastAPI/daemon templates (FastAPI remains an optional core extra);
   provenance-aware `MemoryStore` with post-commit indexing; per-request chat
   resources; typed run events, checkpoints/forks, retries/timeouts, tool
   record/replay, swarm/map_reduce, optimistic concurrency/merge policies, typed
   HITL answers and trace scopes. `Produce`/`ProduceCall`/`@produce` leave the
-  top-level `__all__` but remain importable until 0.23.0.
+  top-level `__all__` and are removed in 0.23.0.
 - **0.21.0** — the optional, code-first `reactifact.knowledge` layer:
   `Connector → RawDocument → Document → Chunk → Index`, incremental `DocStore`
   state, `FilesystemConnector`, hybrid BM25 + RRF retrieval, `MemoryIndex` /
@@ -48,7 +53,7 @@ frameworks):
   `Produce`, `ProduceCall`, `@produce`, `Agent.produces`, `Artifact.at/history/
   diff` and the top-level tool-module shims remain importable for the 0.21
   compatibility window; `Produce`/`ProduceCall`/`@produce` are no longer part of
-  the top-level `__all__`, and all of them are removed in 0.23.0.
+  the top-level `__all__`; `Produce`/`ProduceCall`/`@produce` are removed in 0.23.0, while the other bridges are kept through 0.24.0.
 - **0.14.0** — behavior-visible (non-breaking) changes to know about:
   - `Budget.max_seconds` is now a **hard** turn deadline: the runtime cancels
     the generation in flight when it passes (a hung LLM call is actually

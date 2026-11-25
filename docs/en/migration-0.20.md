@@ -26,7 +26,8 @@ window; this page shows the replacements and what to plan for 0.23.0.
 
 Everything marked as a bridge remains importable in 0.21.x, but the
 top-level `Produce`/`ProduceCall`/`@produce` are no longer in `__all__`.
-Removal is planned for 0.23.0, so finish the migration before that release.
+`Produce`/`ProduceCall`/`@produce` are removed in 0.23.0; the other bridges
+remain available through 0.24.0.
 
 ## 2. Steps and agents
 
@@ -209,7 +210,7 @@ from reactifact.tools.agent import AgentAsTool
 | `reactifact.native_tool_use` | `reactifact.tools.native` |
 | `reactifact.agent_tool` | `reactifact.tools.agent` |
 
-The shims stay importable through 0.21.x and are scheduled for removal in 0.23.0.
+The shims stay importable through the 0.21 compatibility window and are kept through 0.24.0.
 
 ## 8. Removed examples
 
@@ -248,9 +249,12 @@ API.
 
 ## 10. Compatibility and removal
 
-Kept importable in 0.21.x, removed in 0.23.0:
+Removed in 0.23.0:
 
 - `Produce`, `ProduceCall`, `@produce`
+
+Kept as deprecated bridges through 0.24.0:
+
 - `Agent.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`

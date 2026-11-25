@@ -75,6 +75,49 @@ def sse(event_type: str, data: dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def install_error_handlers(
+    app: Any,
+    *,
+    extra: Mapping[type[Exception], int] | None = None,
+) -> None:
+    """Map reactifact domain errors to JSON HTTP responses.
+
+    Call once on the FastAPI app (before serving). Defaults:
+    `AuthorizationError` → 403, `GuardrailViolation` → 422,
+    `QuotaExceeded` → 429, `MergeConflict` → 409. `extra` adds or overrides
+    mappings (`{MyError: 418}`).
+
+    FastAPI is imported lazily, like the rest of this module.
+    """
+    from fastapi.responses import JSONResponse
+
+    from .authz import AuthorizationError
+    from .branching import MergeConflict
+    from .guardrails import GuardrailViolation
+    from .quota import QuotaExceeded
+
+    statuses: dict[type[Exception], int] = {
+        AuthorizationError: 403,
+        GuardrailViolation: 422,
+        QuotaExceeded: 429,
+        MergeConflict: 409,
+    }
+    if extra:
+        statuses.update(extra)
+
+    for exc_type, status in statuses.items():
+
+        async def handler(
+            request: Any, exc: Exception, _status: int = status
+        ) -> JSONResponse:
+            return JSONResponse(
+                status_code=_status,
+                content={"error": type(exc).__name__, "detail": str(exc)},
+            )
+
+        app.add_exception_handler(exc_type, handler)
+
+
 def create_chat_router(
     assistant: Chat | ChatAssistant,
     *,
@@ -189,4 +232,10 @@ def create_chat_router(
     return router
 
 
-__all__ = ["DEFAULT_EVENT_NAMES", "ChatMessage", "create_chat_router", "sse"]
+__all__ = [
+    "DEFAULT_EVENT_NAMES",
+    "ChatMessage",
+    "create_chat_router",
+    "install_error_handlers",
+    "sse",
+]

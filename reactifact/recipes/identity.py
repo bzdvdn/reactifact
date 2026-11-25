@@ -1,6 +1,6 @@
 """recipes.identity — per-request data into a turn via a contextvar (§24, §42).
 
-`ChatAssistant` builds one long-lived instance per process; neither its
+`Chat` builds one long-lived instance per process; neither its
 `resources=` factory (opt-in `session_id`-arity only, see `chat.py`'s own
 docstring) nor an agent's `produce()` receive arbitrary per-request HTTP
 data — only the caller of `.stream()`/`.invoke()` (a web route) knows which
@@ -27,7 +27,7 @@ rather than an unbounded process-lifetime dict.
                          extract=lambda ri: ri.user, fallback=lambda: UserContext(uid="unknown")),
         ]
 
-    # right before assistant.stream()/.invoke():
+    # right before chat.stream()/.invoke():
     token = identity_var.set(RequestIdentity(session_id=sid, user=user))
     try:
         async for event in assistant.stream(text, session_id=sid): ...

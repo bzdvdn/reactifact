@@ -12,7 +12,7 @@ route does", so it isn't a recipe here):
   (§60 HITL). Tracks the *whole* history of a thread's approval questions,
   not just the unanswered ones, so re-entry after a rejection doesn't spawn
   a duplicate question chain. Uses `kind="approve"` — the same vocabulary
-  `tool_use.py`'s destructive-tool gate and `verify.py`'s `Verify` already
+  `reactifact.tools.use`'s destructive-tool gate and `verify.py`'s `Verify` already
   use, so one control-plane UI built for "approve" requests handles all
   three, instead of each recipe inventing its own `kind` string.
 

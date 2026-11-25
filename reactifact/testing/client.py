@@ -35,7 +35,9 @@ class TestPipeline:
             from ..tracing import Tracer, TraceStore
 
             self.traces = TraceStore(":memory:")
-            self.pipeline.tracer = Tracer(store=self.traces)
+            self.pipeline.tracer = Tracer(
+                store=self.traces, sample=pipeline.trace_sample
+            )
 
     def override(self, kind: type[Any], instance: Any) -> TestPipeline:
         self.pipeline.override(kind, instance)
@@ -46,6 +48,12 @@ class TestPipeline:
 
     async def arun(self, seed: Any, **kwargs: Any) -> RunResult:
         return await self.pipeline.arun(seed, **kwargs)
+
+    def answer(self, seed: Any, **kwargs: Any) -> Any:
+        return self.pipeline.answer(seed, **kwargs)
+
+    async def aanswer(self, seed: Any, **kwargs: Any) -> Any:
+        return await self.pipeline.aanswer(seed, **kwargs)
 
     @property
     def last_result(self) -> RunResult | None:

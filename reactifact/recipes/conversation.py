@@ -34,7 +34,7 @@ read-only `Transcript` instead, which merges several types by role:
 
 Any message model with `role`/`text` fields works (that is all `transcript`
 reads, and all `recipes.memory` needs), so `WindowPruner` /
-`RollingDigestSummarizer` and `ChatAssistant(memory=ChatMemory(...))` bound a
+`RollingDigestSummarizer` and `Chat(memory=ChatMemory(...))` bound a
 conversation out of the box. The module-level `add_message`/`create_turn`/
 `transcript`/`turn_count`/`conversation_state` are thin defaults over
 `ConversationMessage` for the common case.
@@ -119,7 +119,7 @@ class Transcript:
     `FinalResponse` (assistant) — into provider `Message`s, leaving the
     artifacts untouched. It removes the merge/sort/window/map boilerplate apps
     otherwise repeat (a role per type, a renderer for a non-text assistant
-    side), and its `state` is a `ChatAssistant(session_state=…)` payload.
+    side), and its `state` is a `Chat(session_state=…)` payload.
     Messages use the Context's insertion order by default (the order replay
     restores); pass `order_key=` to sort by a field instead.
     """
@@ -166,7 +166,7 @@ class Transcript:
         ]
 
     def state(self, ctx: Context) -> dict[str, Any]:
-        """`ChatAssistant(session_state=transcript.state)` history payload."""
+        """`Chat(session_state=transcript.state)` history payload."""
         messages: list[dict[str, Any]] = []
         for _, spec, artifact in self._entries(ctx):
             message = {
@@ -232,7 +232,7 @@ class Conversation:
 
     def create_turn(self, ctx: Context, text: str, session_id: str = "") -> str:
         """Creates the user message and returns its id — a `create_message=`
-        hook for `ChatAssistant`/`run_message`."""
+        hook for `Chat`/`run_message`."""
         return self.add(ctx, "user", text, session_id=session_id).id
 
     def transcript(
@@ -250,7 +250,7 @@ class Conversation:
         return [Message(role=a.data.role, content=a.data.text) for a in artifacts]
 
     def state(self, ctx: Context) -> dict[str, Any]:
-        """`ChatAssistant(session_state=conversation.state)` history payload."""
+        """`Chat(session_state=conversation.state)` history payload."""
         return {
             "messages": [
                 {
@@ -301,7 +301,7 @@ def transcript(
 
 
 def conversation_state(ctx: Context) -> dict[str, Any]:
-    """`ChatAssistant(session_state=conversation_state)` history payload."""
+    """`Chat(session_state=conversation_state)` history payload."""
     return _DEFAULT.state(ctx)
 
 

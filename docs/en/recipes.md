@@ -38,6 +38,9 @@ refs = await fan_out_sources(
 )  # each SourceRef is created in the current produce's effects (effects)
 ```
 
+Pass `as_artifacts=True` to get the planned `Handle`s instead of the data — the
+shape `materialize_doc` accepts in the same produce.
+
 What it does:
 
 1. Fans out to **every configured source** in `context.resources.sources`.
@@ -139,7 +142,7 @@ from reactifact.recipes import Handoff, swarm
 
 result = await swarm(
     context,
-    agents={"triage": triage, "billing": billing},
+    groups={"triage": triage, "billing": billing},
     start="triage",
     input=Question(text="refund please"),
     final_type=Answer,
@@ -157,25 +160,44 @@ subflow, so trace/budget/provenance carry over.
 ## `materialize_doc` — lazy reference resolution
 
 ```python
-from reactifact.recipes import materialize_doc
+from reactifact.recipes import fan_out_sources, materialize_doc
 
-async def doc_from_ref(context, ref_artifact, content) -> TypedDoc:
-    # build your domain document from the fetched content
-    return TypedDoc(query_id=ref_artifact.data.query_id, path=..., text=content)
-
+# `as_artifacts=True` returns planned handles; `materialize_doc` accepts them
+refs = await fan_out_sources(
+    context, "gpu costs", owner_id="q1", as_artifacts=True
+)
 doc = await materialize_doc(
     context,
-    ref_artifact,
-    doc_from_ref,
-    relation="resolved_from",    # default: materialized_from
+    refs[0],
+    doc_type=TypedDoc,
+    text_field="content",
+    field_map={"path": "locator"},
 )
 ```
 
+The short form builds the document from `doc_type=`, filling `text_field` with
+the resolved content and matching fields from the ref (`locator`, `source_id`,
+`title`, `query_id`, `score`, `metadata`). For anything custom, keep the
+factory form:
+
+```python
+async def doc_from_ref(context, ref, content) -> TypedDoc:
+    return TypedDoc(query_id=ref.data.query_id, path=..., content=content)
+
+doc = await materialize_doc(
+    context, refs[0], doc_from_ref, relation="resolved_from"
+)
+```
+
+`materialize_doc` accepts an `Artifact[SourceRef]`, a plain `SourceRef`, or a
+`Handle` from `as_artifacts=True`. An already-resolved `resolved:{ref_id}` doc
+is reused with `refresh=False` (the default re-fetches, preserving the old
+behaviour); a missing source or resolve failure
+yields `None` and calls `on_error(ref, exc)`, never a crash.
+
 Because sources return *references*, not payloads, documents are fetched
 **lazily, only when needed** — the rule in the research demo is "resolve a page
-only after the model ranks it relevant". A missing source or a resolve failure
-yields `None` (an honest no-op), never a crash, and the failure is surfaced in
-the run trace.
+only after the model ranks it relevant".
 
 The produced document is linked back:
 `TypedDoc ──resolved_from──► SourceRef` (§34), so the provenance walk
@@ -192,12 +214,11 @@ from reactifact.recipes import StatusMachine, StatusState
 
 
 class EvaluateTurn(StatusMachine[ResearchTurn]):
-    artifact_type = ResearchTurn                 # what it advances
     terminal = frozenset({"answered", "insufficient"})  # where it stops
     query_id_field = "query_id"                  # owner key field (default)
     status_field = "status"                      # status field (default)
 
-    def next_status(self, state: StatusState) -> str | None:
+    def next_status(self, state: StatusState[ResearchTurn]) -> str | None:
         """Pure function: which status the lifecycle deserves now."""
         if state.any(Answer):
             return "answered"
@@ -208,16 +229,28 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
                          kind="status", query_id=key)
 ```
 
+For a one-method machine, `StatusMachine.from_funcs(...)` avoids the subclass:
+
+```python
+machine = StatusMachine.from_funcs(
+    artifact_type=ResearchTurn,
+    terminal={"answered", "insufficient"},
+    next_status=lambda state: "answered" if state.any(Answer) else None,
+)
+```
+
 Mechanics (all inherited from `Step`):
 
+- The generic `StatusMachine[ResearchTurn]` supplies `artifact_type`; an
+  explicit `artifact_type` still works.
 - Woken by any event; the event maps to a lifecycle via `owner_key` (reads
   `query_id_field` of the artifact data, falling back to its `id`).
-- Picks the first matching `artifact_type` artifact; `terminal` statuses stop
-  the machine.
-- `next_status` receives a `StatusState`: the target plus this step's inputs
-  already restricted to `key`. `state.all(T)`, `state.any(T)` and
-  `state.latest(T)` replace the repeated `list_artifacts(T)` +
-  `query_id == key` filtering.
+- Picks the **latest** matching `artifact_type` artifact (by `updated_at`);
+  `terminal` statuses stop the machine.
+- `next_status` receives a typed `StatusState[StatusT]`: the target plus this
+  step's inputs already restricted to `key`. `state.status`, `state.all(T)`,
+  `state.any(T)` and `state.latest(T)` replace the repeated
+  `list_artifacts(T)` + `query_id == key` filtering.
 - `next_status` decides the new status; `None` or unchanged ⇒ nothing happens.
 - Right before applying the change, `on_transition` is called — your hook for
   progress announces.

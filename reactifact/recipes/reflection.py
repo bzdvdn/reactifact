@@ -43,7 +43,7 @@ from __future__ import annotations
 import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -51,7 +51,10 @@ from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
-from ..step import Step, create_step_group
+from ..step import Step, StepGroup, create_step_group
+
+if TYPE_CHECKING:
+    from ..pipeline import Pipeline
 
 TopicT = TypeVar("TopicT", bound=BaseModel)
 DraftT = TypeVar("DraftT", bound=BaseModel)
@@ -158,13 +161,13 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
             Consume(self.review_type),
         ]
 
-    def group(self, name: str = "reflection", **kwargs: Any) -> Any:
+    def group(self, name: str = "reflection", **kwargs: Any) -> StepGroup:
         """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
         return create_step_group(
             name, consumes=self.consumes(), steps=self.produces(), **kwargs
         )
 
-    def pipeline(self, *, name: str = "reflection", **kwargs: Any) -> Any:
+    def pipeline(self, *, name: str = "reflection", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this loop already grouped and wired."""
         from ..pipeline import Pipeline
 

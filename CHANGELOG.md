@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-11-25
+
 ### Added
 
 - **`Chat` facade.** `Chat(steps=..., seed_type=..., answer_type=...)` derives
@@ -16,19 +18,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   takes `traces=`/`trace_sample=`/`lifespan=` (parity with `Pipeline`),
   `await chat.answer(...)` returns the typed `answer_type`, and
   `TestChat.override(Type, instance)` replaces a typed resource.
+- **`Pipeline.answer()` parity.** `Pipeline.answer(seed)` / `aanswer(seed)`
+  return the typed `answer_type`; `TestPipeline` delegates them and honours
+  `trace_sample=`.
 - **Tool DI and policies.** A `@tool` parameter annotated with a plain class is
   resolved from `RuntimeResources` (and omitted from the JSON schema);
   `@tool(retry=RetryPolicy(...), timeout=...)` retries transient failures
-  (retryable `ToolError`s too); a pydantic return type fills `ToolOutput.data`;
+  (retryable `ToolError`s too); a pydantic return type fills `ToolOutput.data`
+  (a `list[Model]` becomes `{"items": [...]}`);
   `execute_tool(..., resources=...)` supplies collaborators outside a step.
   `Annotated[T, Inject()]` marks an otherwise ambiguous collaborator
-  explicitly (`Depends` is a FastAPI-style alias); `ToolUse` now returns a structured tool error (code/retryable)
-  to the model. `from __future__ import annotations` signatures resolve their
+  explicitly (`Depends` is a FastAPI-style alias); `ToolUse` now returns a
+  structured tool error (code/retryable) to the model. `from __future__ import annotations` signatures resolve their
   types.
 - **Function-first recipes.** `PlanExecute.from_funcs(...)` and
   `ReflectionLoop.from_funcs(...)` build the flow from plain (sync or async)
   hooks; `flow.group()` / `flow.pipeline(seed_type=...)` wire the consumes and
-  return a ready `StepGroup`/`Pipeline`.
+  return a ready `StepGroup`/`Pipeline`; both are now typed as
+  `StepGroup`/`Pipeline`.
+- **Static contracts (`reactifact contracts`).** `describe_contracts(groups)`
+  renders the declared steps, consumes/produces, tools, timeout and retry as
+  Markdown or JSON; no run and no LLM. CLI:
+  `reactifact contracts <module> [--format md|json] [--out PATH]`.
+- **FastAPI error handlers.** `reactifact.web.install_error_handlers(app, *,
+  extra=...)` maps authorization, guardrail, quota and merge errors to JSON
+  HTTP responses (403/422/429/409).
+- **Trace dashboard branding.** The `/traces`, `/sessions` and run pages share
+  a favicon matching the sidebar mark (`/traces/assets/favicon.svg`).
+- **Friendlier `StatusMachine`.** The generic `StatusMachine[Model]` now
+  supplies `artifact_type`; transitions pick the latest target by `updated_at`;
+  `StatusState[StatusT]` exposes a typed `status`; `StatusMachine.from_funcs(...)`
+  builds a machine from a pure `next_status` callback.
+- **Friendlier `materialize_doc`.** It accepts an `Artifact[SourceRef]`, a plain
+  `SourceRef`, or a `Handle`; `doc_type=` builds the document without a custom
+  factory; `refresh=False` reuses an existing `resolved:{ref_id}` (the default
+  re-fetches, preserving the old behaviour); `on_error(ref, exc)` reports a missing source
+  or resolve failure. `fan_out_sources(..., as_artifacts=True)` returns the
+  handles for the same-produce path.
 
 ### Added
 
@@ -306,7 +332,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Deprecated 0.1.x aliases leave the top-level public surface.** `Produce`,
   `ProduceCall` and `@produce` remain importable from `reactifact` and
   `reactifact.produce` for the 0.21 compatibility window, but are no longer in
-  `reactifact.__all__`; removal is planned for 0.23.0. New code uses
+  `reactifact.__all__`; they are removed in 0.23.0. New code uses
   `Step`/`@step`/`StepCall`.
 
 ### Fixed

@@ -1,6 +1,6 @@
 """Off-the-shelf building blocks for agents — reactive patterns and helpers.
 
-These are not core primitives (Context/Artifact/Patch/Produce stay minimal, the
+These are not core primitives (Context/Artifact/Patch/Step stay minimal, the
 constitution's primitives-first rule). Instead they are ready-made patterns that
 keep reappearing across agent codebases and the bundled examples:
 
@@ -9,18 +9,21 @@ keep reappearing across agent codebases and the bundled examples:
 - `EphemeralCleanup` / `PrefixedEphemeralCleanup` — delete a turn's/thread's
   "scratch" artifacts once a terminal artifact exists for their shared
   correlation key, instead of every app hand-rolling the same
-  `Produce[Terminal]` subclass (§24, §42) — see `recipes.cleanup`;
+  `Step[Terminal]` subclass (§24, §42) — see `recipes.cleanup`;
   `SeedIdentity` — per-request data (an authenticated user, a tenant id, ...)
   into a turn via a `contextvars.ContextVar` set right before
-  `ChatAssistant.stream()`/`.invoke()`, written as an ordinary artifact
+  `Chat.stream()`/`.invoke()`, written as an ordinary artifact
   instead of a `resources`-side dict (§24, §42) — see `recipes.identity`;
 - `fan_out_sources` — query all configured sources, emit ranked, idempotent
-  `SourceRef`s tagged with an owner (§8, §24, §42) — see `recipes.search`;
-- `materialize_doc` — lazily resolve a `SourceRef` into a document with a
-  provenance edge (Reference → Artifact, §6, §34) — see `recipes.resolve`;
+  `SourceRef`s tagged with an owner; `as_artifacts=True` returns the planned
+  handles (§8, §24, §42) — see `recipes.search`;
+- `materialize_doc` — lazily resolve a `SourceRef`/artifact/handle into a
+  document with a provenance edge; `doc_type=`, `refresh=`, `on_error=` keep
+  the simple case short (§6, §34) — see `recipes.resolve`;
 - `StatusMachine` — a step that deterministically advances an artifact's
-  `status` lifecycle driven by a pure `next_status(state)` over
-  key-scoped inputs (§67, §69) — see `recipes.status`;
+  `status` lifecycle driven by a pure `next_status(state)` over key-scoped
+  inputs; subclass it or use `from_funcs(...)` (§67, §69) — see
+  `recipes.status`;
 - `PlanExecute` — sequential plan → execute → finish: ordering, gating each
   step on its predecessor's result, and completion detection owned by the
   recipe; domain supplies `plan`/`execute_step`/`finish` (§24, §42, §69) —
@@ -34,7 +37,7 @@ keep reappearing across agent codebases and the bundled examples:
   `recipes.reflection`;
 - `WindowSummarizer` / `WindowPruner` / `llm_summarizer` — bounded
   conversation memory: periodic summarization + pruning as two plain
-  `Produce`s, domain owns the summarizer callback and the summary artifact
+  steps, domain owns the summarizer callback and the summary artifact
   shape (§27, §37) — see `recipes.memory`;
 - `Conversation` / `ConversationMessage` / `add_message` / `create_turn` /
   `transcript` — a canonical multi-turn conversation (an append helper + a

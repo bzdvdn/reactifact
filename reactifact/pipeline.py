@@ -68,6 +68,7 @@ class Pipeline:
         self.llm = llm
         self.budget = budget
         self.trace_store: Any = None
+        self.trace_sample = trace_sample
         if traces:
             from .tracing import TraceStore
 
@@ -208,6 +209,51 @@ class Pipeline:
         )
         self.last_result = result
         return result
+
+    def answer(
+        self,
+        seed: Artifact[Any] | Any,
+        *,
+        max_iterations: int = 100,
+        budget: Budget | None = None,
+        request: Mapping[str, Any] | None = None,
+    ) -> BaseModel:
+        """Run once and return the typed `answer_type` artifact.
+
+        The `Pipeline` equivalent of `Chat.answer()`; requires `answer_type=...`.
+        """
+        if self.answer_type is None:
+            raise TypeError("Pipeline.answer requires answer_type=...")
+        result = self.run(
+            seed, max_iterations=max_iterations, budget=budget, request=request
+        )
+        artifact = result.context.latest(self.answer_type)
+        if artifact is None:
+            raise LookupError(
+                f"Pipeline.answer: no {self.answer_type.__name__} was produced"
+            )
+        return artifact.data
+
+    async def aanswer(
+        self,
+        seed: Artifact[Any] | Any,
+        *,
+        max_iterations: int = 100,
+        budget: Budget | None = None,
+        request: Mapping[str, Any] | None = None,
+    ) -> BaseModel:
+        """Async form of `answer()`."""
+        if self.answer_type is None:
+            raise TypeError("Pipeline.answer requires answer_type=...")
+        result = await self.arun(
+            seed, max_iterations=max_iterations, budget=budget, request=request
+        )
+        artifact = result.context.latest(self.answer_type)
+        if artifact is None:
+            raise LookupError(
+                f"Pipeline.answer: no {self.answer_type.__name__} was produced"
+            )
+        return artifact.data
 
     def close(self) -> None:
         """Close the trace store opened by `traces=` (no-op otherwise)."""

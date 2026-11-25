@@ -50,6 +50,7 @@ def test_build_parser_registers_every_subcommand():
         "scenario",
         "skills",
         "validate",
+        "contracts",
         "eval",
         "new",
         "doctor",

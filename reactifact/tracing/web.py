@@ -409,6 +409,13 @@ def create_trace_router(
             media_type="text/css",
         )
 
+    @router.get("/traces/assets/favicon.svg", include_in_schema=False)
+    async def favicon() -> Response:
+        return Response(
+            (_TEMPLATES / "favicon.svg").read_text(encoding="utf-8"),
+            media_type="image/svg+xml",
+        )
+
     @router.get("/traces", response_class=HTMLResponse)
     async def traces_list_page(request: Request) -> str:
         return _render_page(request, "ui.html", "/traces")

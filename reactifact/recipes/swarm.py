@@ -7,7 +7,7 @@ instead of spinning forever:
 
     result = await swarm(
         context,
-        agents={"triage": triage, "billing": billing},
+        groups={"triage": triage, "billing": billing},
         start="triage",
         input=Question(text="refund please"),
         final_type=Answer,

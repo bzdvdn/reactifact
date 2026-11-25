@@ -2,20 +2,21 @@
 
 Effects-based: fans out over every configured source and *writes* the ranked,
 idempotent `SourceRef`s into the current produce's `effects` slot instead of
-returning a patch to merge by hand. Returns the scoped refs so the caller can
-inspect/rank them and add its own marker effect (e.g. `SearchDone`).
+returning a patch to merge by hand. Returns the scoped refs (or planned handles
+with `as_artifacts=True`) so the caller can inspect/rank them and add its own
+marker effect (e.g. `SearchDone`).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from ..context import Context
 from ..sources import SourceRef
 
 if TYPE_CHECKING:
-    from ..effects import Effects
+    from ..effects import Effects, Handle
 
 
 def _active_effects(context: Context) -> Effects:
@@ -30,6 +31,7 @@ def _active_effects(context: Context) -> Effects:
     return effects
 
 
+@overload
 async def fan_out_sources(
     context: Context,
     query: str,
@@ -40,15 +42,47 @@ async def fan_out_sources(
     extra_metadata: dict[str, Any] | None = None,
     on_start: Callable[[str], None] | None = None,
     on_count: Callable[[str, int], None] | None = None,
-) -> list[SourceRef]:
+    as_artifacts: Literal[False] = False,
+) -> list[SourceRef]: ...
+
+
+@overload
+async def fan_out_sources(
+    context: Context,
+    query: str,
+    owner_id: str,
+    *,
+    limit: int = 5,
+    query_id: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
+    on_start: Callable[[str], None] | None = None,
+    on_count: Callable[[str, int], None] | None = None,
+    as_artifacts: Literal[True],
+) -> list[Handle]: ...
+
+
+async def fan_out_sources(
+    context: Context,
+    query: str,
+    owner_id: str,
+    *,
+    limit: int = 5,
+    query_id: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
+    on_start: Callable[[str], None] | None = None,
+    on_count: Callable[[str, int], None] | None = None,
+    as_artifacts: bool = False,
+) -> list[SourceRef] | list[Handle]:
     """Fans out over every configured source and builds idempotent refs in `effects`.
 
     Each `SourceRef` becomes a `create(ref, id=f"ref:{ref.stable_id()}:{owner_id}")`
     in the current produce's effect slot (§42), so a repeated fan-out for the same
     owner re-creates the same ids (create-or-refresh). `on_start` / `on_count`
-    receive each source's id and hit count for progress announces. The returned
-    list is the scoped, ranked refs — the caller may inspect them and add its
-    own "search done" marker effect.
+    receive each source's id and hit count for progress announces.
+
+    By default the scoped, ranked refs are returned as data. Pass
+    `as_artifacts=True` to get planned `Handle`s instead — the shape
+    `materialize_doc` accepts in the same produce, without a lookup after commit.
     """
     effects = _active_effects(context)
     refs: list[SourceRef] = []
@@ -62,6 +96,7 @@ async def fan_out_sources(
     refs.sort(key=lambda r: r.score or 0.0, reverse=True)
 
     scoped_refs: list[SourceRef] = []
+    handles: list[Handle] = []
     for ref in refs[:limit]:
         scoped = ref.model_copy(
             update={
@@ -74,8 +109,8 @@ async def fan_out_sources(
             }
         )
         scoped_refs.append(scoped)
-        effects.create(scoped, id=f"ref:{ref.stable_id()}:{owner_id}")
-    return scoped_refs
+        handles.append(effects.create(scoped, id=f"ref:{ref.stable_id()}:{owner_id}"))
+    return handles if as_artifacts else scoped_refs
 
 
 __all__ = ["fan_out_sources"]

@@ -115,6 +115,7 @@ nav:
       - Troubleshooting: en/troubleshooting.md
   - Migrate & compare:
       - Migrating: en/migrating.md
+      - Migrating to 0.23.0: en/migration-0.23.md
       - Migrating from 0.1.x: en/migration-0.20.md
       - Why reactifact: en/why-reactifact.md
       - Comparison: en/comparison.md

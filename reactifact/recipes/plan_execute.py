@@ -39,7 +39,7 @@ from __future__ import annotations
 import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -47,7 +47,10 @@ from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
-from ..step import Step, create_step_group
+from ..step import Step, StepGroup, create_step_group
+
+if TYPE_CHECKING:
+    from ..pipeline import Pipeline
 
 GoalT = TypeVar("GoalT", bound=BaseModel)
 StepT = TypeVar("StepT", bound=BaseModel)
@@ -143,13 +146,13 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
             Consume(self.result_type),
         ]
 
-    def group(self, name: str = "plan-execute", **kwargs: Any) -> Any:
+    def group(self, name: str = "plan-execute", **kwargs: Any) -> StepGroup:
         """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
         return create_step_group(
             name, consumes=self.consumes(), steps=self.produces(), **kwargs
         )
 
-    def pipeline(self, *, name: str = "plan-execute", **kwargs: Any) -> Any:
+    def pipeline(self, *, name: str = "plan-execute", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this flow already grouped and wired.
 
         ```python

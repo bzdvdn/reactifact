@@ -9,7 +9,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
 поэтому новый экспорт добавляется осознанно (и документируется на этой
@@ -93,11 +93,12 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `router()`, `test_client()`, `traces=`/`lifespan=`, `store=` |
-| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()` |
+| `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()` |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
+| `describe_contracts(groups)` / `ContractReport` | статический контракт consumes/produces/tools (Markdown или JSON); CLI `reactifact contracts <module> [--format md\|json]` |
 | `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`). `validate_agents` — deprecated-алиас |
 | `Wakes(False)` / `Scope` / `Consume` / `consume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `wakes=False` — читать как вход, не будя агента; `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
@@ -153,6 +154,7 @@ reactifact всё ещё pre-1.0 (`0.22.0`), но не `rc` — поверхно
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
+| `install_error_handlers(app, *, extra=…)` | отображает `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` в JSON-ответы (403/422/429/409); `extra` добавляет/переопределяет |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); `request_factory(request)` строит request-маппинг хода из FastAPI `Request` (ходы с учётом идентичности/ACL); схема событий публикуется в OpenAPI `responses` маршрута |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
 
@@ -267,8 +269,8 @@ OTLP/Langfuse-приёмников.
 | Символ | Роль |
 | --- | --- |
 | `find(inputs, Model)` / `find_all(inputs, Model)` | типизированный поиск в `inputs` шага без `next(... isinstance ...)` |
-| `fan_out_sources(context, query, owner_id, …)` | идемпотентный поиск fan-out → рефы + патч |
-| `materialize_doc(context, ref_artifact, doc_factory, relation=…)` | ленивый реф → документ с провенансом |
+| `fan_out_sources(context, query, owner_id, …, as_artifacts=False)` | идемпотентный поиск fan-out → рефы + патч; `as_artifacts=True` возвращает planned-handles |
+| `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=…)` | ленивый реф → документ с провенансом; принимает артефакт, `SourceRef` или handle |
 | `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), `terminal`, `on_transition` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений; `message_type` может быть последовательностью типов |
 | `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов |

@@ -143,7 +143,7 @@ from reactifact.recipes import Handoff, swarm
 
 result = await swarm(
     context,
-    agents={"triage": triage, "billing": billing},
+    groups={"triage": triage, "billing": billing},
     start="triage",
     input=Question(text="refund please"),
     final_type=Answer,
@@ -161,24 +161,43 @@ result = await swarm(
 ## `materialize_doc` — ленивое разрешение ссылок
 
 ```python
-from reactifact.recipes import materialize_doc
+from reactifact.recipes import fan_out_sources, materialize_doc
 
-async def doc_from_ref(context, ref_artifact, content) -> TypedDoc:
-    # постройте доменный документ из полученного содержимого
-    return TypedDoc(query_id=ref_artifact.data.query_id, path=..., text=content)
-
+# `as_artifacts=True` возвращает planned-Handle; materialize_doc их принимает
+refs = await fan_out_sources(
+    context, "gpu costs", owner_id="q1", as_artifacts=True
+)
 doc = await materialize_doc(
     context,
-    ref_artifact,
-    doc_from_ref,
-    relation="resolved_from",    # по умолчанию: materialized_from
+    refs[0],
+    doc_type=TypedDoc,
+    text_field="content",
+    field_map={"path": "locator"},
 )
 ```
 
+Короткая форма собирает документ из `doc_type=`: `text_field` получает
+содержимое, остальные поля заполняются из ref (`locator`, `source_id`, `title`,
+`query_id`, `score`, `metadata`). Для полного контроля остаётся фабрика:
+
+```python
+async def doc_from_ref(context, ref, content) -> TypedDoc:
+    return TypedDoc(query_id=ref.data.query_id, path=..., content=content)
+
+doc = await materialize_doc(
+    context, refs[0], doc_from_ref, relation="resolved_from"
+)
+```
+
+`materialize_doc` принимает `Artifact[SourceRef]`, обычный `SourceRef` или
+`Handle` из `as_artifacts=True`. Уже разрешённый `resolved:{ref_id}` документ
+переиспользуется с `refresh=False` (по умолчанию перечитывается, как раньше);
+отсутствие источника или сбой дают `None` и вызывают `on_error(ref, exc)`, а не
+падение.
+
 Источники возвращают *ссылки*, а не содержимое, поэтому документы достаются
 **лениво, только когда нужны** — правило в демо research: «разрешить страницу
-только после того, как модель оценила её релевантной». Отсутствие источника или
-сбой разрешения дают `None` (честный no-op), а не падение, и сбой виден в трейсе.
+только после того, как модель оценила её релевантной».
 
 Созданный документ связывается назад:
 `TypedDoc ──resolved_from──► SourceRef`, так что обход провенанса
@@ -195,12 +214,11 @@ from reactifact.recipes import StatusMachine, StatusState
 
 
 class EvaluateTurn(StatusMachine[ResearchTurn]):
-    artifact_type = ResearchTurn                       # что продвигается
     terminal = frozenset({"answered", "insufficient"}) # где останавливается
     query_id_field = "query_id"                        # owner-ключ (по умолчанию)
     status_field = "status"                            # поле статуса (по умолчанию)
 
-    def next_status(self, state: StatusState) -> str | None:
+    def next_status(self, state: StatusState[ResearchTurn]) -> str | None:
         """Чистая функция: какой статус жизненный цикл заслуживает сейчас."""
         if state.any(Answer):
             return "answered"

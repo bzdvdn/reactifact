@@ -48,7 +48,6 @@ class Echo(Step[Answer]):
 
 
 class AdvanceTurn(StatusMachine[Turn]):
-    artifact_type = Turn
     terminal = frozenset()
 
     def next_status(self, state):

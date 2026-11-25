@@ -6,6 +6,7 @@ Subcommands:
     new      create a project (FastAPI chat or scheduled daemon)
     doctor   check app settings and common boundaries
     graph    static group blueprint from a module path ("pkg.mod:Attr")
+    contracts static consumes/produces/tools contracts (Markdown or JSON)
     validate static contract check of a module's groups
     context  live provenance graph from a saved session (KV backend)
     trace    run diagram from a trace store (SQLite)
@@ -25,6 +26,7 @@ Examples:
     reactifact context examples/knowledge/sessions/traces.sqlite3
     reactifact trace traces.db
     reactifact skills install --target both
+    reactifact contracts examples.knowledge.step_groups
     reactifact validate examples.knowledge.step_groups
 
 Inspection commands print Mermaid source to stdout — paste it into GitHub,
@@ -40,6 +42,7 @@ from .. import __version__
 from . import (
     branch,
     context,
+    contracts,
     demo,
     doctor,
     eval,
@@ -71,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     for module in (
         demo,
         graph,
+        contracts,
         context,
         trace,
         replay,
@@ -109,7 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         print("  reactifact doctor              check an app's settings")
         print("  reactifact skills install      add agent skills to your project\n")
         print("Check a pipeline:")
-        print("  reactifact validate <module>   static consumes/produces check\n")
+        print("  reactifact validate <module>   static consumes/produces check")
+        print("  reactifact contracts <module>  static contracts (md/json)\n")
         print("Inspect a run:")
         print("  reactifact graph   <module:StepGroup>   static blueprint")
         print("  reactifact trace   <trace.db>       run diagram\n")

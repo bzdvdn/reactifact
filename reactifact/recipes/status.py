@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 @dataclass(frozen=True)
-class StatusState:
+class StatusState(Generic[StatusT]):
     """The scoped snapshot `StatusMachine.next_status()` decides from.
 
     `inputs` is the step's consumed artifacts restricted to `key` (via the
@@ -29,8 +29,15 @@ class StatusState:
 
     context: Context
     key: str
-    target: Artifact[Any]
+    target: Artifact[StatusT]
     inputs: tuple[Artifact[Any], ...] = ()
+    status_field: str = "status"
+
+    @property
+    def status(self) -> str | None:
+        """The target's current status, read through the machine's field."""
+        value = getattr(self.target.data, self.status_field, None)
+        return value if isinstance(value, str) else None
 
     def all(self, artifact_type: type[T]) -> list[Artifact[T]]:
         """Every scoped input whose data is an instance of `artifact_type`."""
@@ -70,6 +77,43 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
     query_id_field: str = "query_id"
     status_field: str = "status"
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.artifact_type is not None:
+            return
+        for base in getattr(cls, "__orig_bases__", ()):
+            if get_origin(base) is StatusMachine:
+                args = get_args(base)
+                if args and isinstance(args[0], type):
+                    cls.artifact_type = args[0]
+                    return
+
+    @classmethod
+    def from_funcs(
+        cls,
+        *,
+        artifact_type: type[StatusT],
+        next_status: Any,
+        terminal: frozenset[str] | set[str] = frozenset(),
+        on_transition: Any = None,
+        query_id_field: str = "query_id",
+        status_field: str = "status",
+    ) -> StatusMachine[StatusT]:
+        """Build a machine from a pure `next_status` function instead of a class.
+
+        `next_status(state) -> str | None`; `on_transition(context, key, old,
+        new)` is optional. The artifact type is explicit here because there is
+        no subclass generic to infer it from.
+        """
+        return _FuncStatusMachine(
+            artifact_type=artifact_type,
+            next_status_fn=next_status,
+            terminal=terminal,
+            on_transition_fn=on_transition,
+            query_id_field=query_id_field,
+            status_field=status_field,
+        )
+
     def owner_key(self, artifact: Artifact[Any]) -> str | None:
         """Which lifecycle the artifact belongs to (default: its `query_id_field`)."""
         data = artifact.data
@@ -80,7 +124,7 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         return artifact.id
 
     @abstractmethod
-    def next_status(self, state: StatusState) -> str | None:
+    def next_status(self, state: StatusState[StatusT]) -> str | None:
         """The status the lifecycle should move to, or None (no change)."""
 
     def on_transition(
@@ -98,6 +142,10 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         artifact = trigger
         if artifact is None:
             return None
+        if self.artifact_type is None:
+            raise TypeError(
+                f"{type(self).__name__} needs artifact_type=... or StatusMachine[Model]"
+            )
         key = self.owner_key(artifact)
         if key is None:
             return None
@@ -108,21 +156,52 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         ]
         if not targets:
             return None
-        target = targets[0]
-        current = getattr(target.data, self.status_field, None)
-        if current in self.terminal:
-            return None
-        state = StatusState(
+        target = max(targets, key=lambda item: item.updated_at)
+        state: StatusState[StatusT] = StatusState(
             context=context,
             key=key,
-            target=target,
+            target=cast("Artifact[StatusT]", target),
             inputs=tuple(
                 a for a in inputs if getattr(a.data, self.query_id_field, None) == key
             ),
+            status_field=self.status_field,
         )
+        current = state.status
+        if current in self.terminal:
+            return None
         expected = self.next_status(state)
         if expected is None or expected == current:
             return None
         self.on_transition(context, key, str(current), expected)
         effects.update(target, **{self.status_field: expected})
         return None
+
+
+class _FuncStatusMachine(StatusMachine[StatusT]):
+    """`StatusMachine.from_funcs` adapter: delegates the pure hooks."""
+
+    def __init__(
+        self,
+        *,
+        artifact_type: type[StatusT],
+        next_status_fn: Any,
+        terminal: frozenset[str] | set[str],
+        on_transition_fn: Any,
+        query_id_field: str,
+        status_field: str,
+    ) -> None:
+        super().__init__(artifact_type=artifact_type)
+        self.terminal = frozenset(terminal)
+        self.query_id_field = query_id_field
+        self.status_field = status_field
+        self._next_status_fn = next_status_fn
+        self._on_transition_fn = on_transition_fn
+
+    def next_status(self, state: StatusState[StatusT]) -> str | None:
+        return cast("str | None", self._next_status_fn(state))
+
+    def on_transition(
+        self, context: Context, key: str, old_status: str, new_status: str
+    ) -> None:
+        if self._on_transition_fn is not None:
+            self._on_transition_fn(context, key, old_status, new_status)

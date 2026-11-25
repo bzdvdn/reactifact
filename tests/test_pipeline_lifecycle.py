@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import pytest
 from pydantic import BaseModel
 from reactifact import FakeLLM, Pipeline, RuntimeResources, step
+from reactifact.tracing import SamplingPolicy
 
 
 class Question(BaseModel):
@@ -70,3 +71,28 @@ def test_test_client_has_an_in_memory_trace_store():
     traces = asyncio.run(client.traces.query())
     assert traces["total"] >= 1
     client.close()
+
+
+def test_pipeline_answer_returns_the_typed_model():
+    pipeline = Pipeline(
+        steps=[with_service],
+        seed_type=Question,
+        answer_type=Answer,
+        resources=RuntimeResources().with_overrides({Service: Service("typed")}),
+    )
+    assert pipeline.answer(Question(text="q")).text == "typed:q"
+    assert asyncio.run(pipeline.aanswer(Question(text="a"))).text == "typed:a"
+
+
+def test_test_pipeline_answer_and_trace_sample():
+    pipeline = Pipeline(
+        steps=[with_service],
+        answer_type=Answer,
+        resources=RuntimeResources().with_overrides({Service: Service("test")}),
+        traces=True,
+        trace_sample=SamplingPolicy(rate=0.0),
+    )
+    with pipeline.test_client() as client:
+        assert client.answer(Question(text="q")).text == "test:q"
+        assert client.traces is not None
+        assert asyncio.run(client.traces.query())["total"] == 0

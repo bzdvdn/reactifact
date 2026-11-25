@@ -210,7 +210,7 @@ async def map_reduce(
 
     child_runtime = Runtime(
         child,
-        agents=[
+        groups=[
             create_step_group(
                 f"{name}-map", steps=[MapWorker(map_fn, on_error=on_error)]
             ),

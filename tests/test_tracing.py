@@ -1176,6 +1176,7 @@ def test_trace_pages_are_prefix_aware(tmp_path):
     html = listing.text
     assert "__BASE__" not in html
     assert 'href="/ai/traces/assets/app.css"' in html
+    assert 'href="/ai/traces/assets/favicon.svg"' in html
     assert 'href="/ai/traces"' in html
     assert 'href="/ai/sessions"' in html
     assert "'/ai/api/traces" in html
@@ -1191,6 +1192,7 @@ def test_trace_pages_are_prefix_aware(tmp_path):
     assert "__BASE__" not in run_page
     assert "'/ai/api/traces/" in run_page
     assert 'href="/ai/traces/assets/app.css"' in run_page
+    assert 'href="/ai/traces/assets/favicon.svg"' in run_page
 
 
 def test_trace_pages_without_prefix_keep_root_paths(tmp_path):
@@ -1205,6 +1207,7 @@ def test_trace_pages_without_prefix_keep_root_paths(tmp_path):
     html = client.get("/traces").text
     assert "__BASE__" not in html
     assert 'href="/traces/assets/app.css"' in html
+    assert 'href="/traces/assets/favicon.svg"' in html
     assert "'/api/traces" in html
 
 
@@ -1696,3 +1699,19 @@ def test_runtime_explicit_trace_scope_wins(tmp_path):
     trace = run(store.get(run(store.query())["items"][0]["id"]))
     assert trace is not None
     assert trace.scope == "ws-explicit"
+
+
+def test_trace_favicon_is_served(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "favicon.db"))
+    app = FastAPI()
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+
+    response = client.get("/traces/assets/favicon.svg")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert "<svg" in response.text

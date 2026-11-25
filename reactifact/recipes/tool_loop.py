@@ -1,6 +1,6 @@
 """recipes — an opt-in native tool-calling loop (§46, §47).
 
-`reactifact.native_tool_use` deliberately ships *functions* for one native
+`reactifact.tools.native` deliberately ships *functions* for one native
 tool-calling turn, not a loop (see its module docstring) — the framework keeps
 that stance. But every RAG/coding app otherwise re-implements the same loop
 around those functions: bounded rounds, execute the calls (often in parallel),
@@ -9,7 +9,7 @@ and nudge it when a *mandatory* tool never ran.
 
 This is that loop as an explicit, opt-in **recipe** (not a core primitive, and
 not a reactive `StepGroup`): call it inside a produce when the shape fits, or ignore
-it and compose `native_tool_use` yourself. It returns a `ToolLoopResult` with the
+it and compose `reactifact.tools.native` yourself. It returns a `ToolLoopResult` with the
 final text, the full OpenAI-format transcript, and every tool observation — so a
 caller can record which documents/tools were read.
 

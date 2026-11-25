@@ -342,7 +342,7 @@ class MemoryStore:
         the artifact still being in the live context.
 
         Wire `Runtime(..., dispatcher=MemoryStore.dispatch)` (or pass
-        `dispatcher=MemoryStore.dispatch` to `ChatAssistant`); a dispatcher
+        `dispatcher=MemoryStore.dispatch` to `Chat`); a dispatcher
         composed for several action kinds can call it alongside its own handler.
         """
         if not key.strip():

@@ -21,18 +21,23 @@ Changelog). При бампе версии:
 
 ## Обновление между версиями
 
-Для 0.20.0 есть отдельный [migration-гайд](migration-0.20.md). Источник истины
+Для 0.23.0 есть отдельный [migration-гайд](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
 о том, что изменилось, — `CHANGELOG.md`; ломающие изменения помечены по правилу
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.23.0** — типизированный фасад `Chat` (`answer/traces/lifespan/test_client`),
+  DI тулов через `Inject`/`Depends`, типизированные результаты и
+  структурированные ошибки тулов, function-first `PlanExecute`/`ReflectionLoop`,
+  tail-сэмплирование и retention трейсов. `Produce`/`@produce`/`ProduceCall`
+  удалены; оставшиеся deprecated-мосты описаны в migration guide 0.23.
 - **0.22.0** — CLI-scaffolding (`new app|daemon`, `doctor`) и встроенные
   FastAPI/daemon-шаблоны (FastAPI остаётся опциональным extra ядра);
   provenance-aware `MemoryStore` с индексацией после commit; per-request
   ресурсы чата; типизированные run-события, checkpoints/forks, retries/timeouts,
   tool record/replay, swarm/map_reduce, optimistic concurrency/merge policies,
   типизированные HITL-ответы и trace scopes. `Produce`/`ProduceCall`/`@produce`
-  уходят из top-level `__all__`, но импортируются до 0.23.0.
+  уходят из top-level `__all__` и удаляются в 0.23.0.
 - **0.21.0** — опциональный code-first слой `reactifact.knowledge`:
   `Connector → RawDocument → Document → Chunk → Index`, инкрементальное
   состояние `DocStore`, `FilesystemConnector`, hybrid BM25 + RRF, индексы
@@ -47,7 +52,7 @@ Changelog). При бампе версии:
   `Produce`, `ProduceCall`, `@produce`, `Agent.produces`,
   `Artifact.at/history/diff` и top-level shims инструментов остаются
   импортируемыми на окно совместимости 0.21; `Produce`/`ProduceCall`/`@produce`
-  больше не входят в top-level `__all__`, а в 0.23.0 удаляются все.
+  больше не входят в top-level `__all__`; `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0, остальные мосты сохранены до 0.24.0.
 - **0.14.0** — поведенчески заметные (не ломающие) изменения:
   - `Budget.max_seconds` теперь **жёсткий** дедлайн хода: runtime отменяет
     генерацию в полёте, когда он истекает (зависший LLM-вызов действительно

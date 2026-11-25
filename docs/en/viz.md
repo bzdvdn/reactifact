@@ -21,6 +21,8 @@ python -m reactifact run app:pipeline "why is checkout down?"
 reactifact graph examples.knowledge.step_groups        # all agents of a module
 python -m reactifact graph examples.knowledge.step_groups:Planner # one agent
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
+reactifact contracts examples.knowledge.step_groups          # Markdown contracts
+reactifact contracts examples.knowledge.step_groups --format json
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
 ```
@@ -30,6 +32,8 @@ python -m reactifact trace traces.db [run_id]
   runs `validate_contracts` instead: unknown inputs are errors (exit 1), dead
   outputs/unreachable/cycles are warnings; `--seed TYPE`/`--terminal TYPE` are
   repeatable.
+- `contracts` prints the declared surface (steps, consumes/produces, tools,
+  timeout/retry) as Markdown or JSON; no run and no LLM.
 - `context` reads a saved session from a KV backend (file directory or
   SQLite) and prints its provenance graph; `--session` picks a session,
   `--limit` caps the number of artifacts.

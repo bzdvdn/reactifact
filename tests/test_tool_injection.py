@@ -278,3 +278,12 @@ def test_tool_use_surfaces_structured_tool_errors_to_the_model():
     )
     assert "[E_BAD]" in text
     assert "no access" in text
+
+
+def test_a_list_of_pydantic_models_becomes_structured_data():
+    @tool
+    async def list_pods() -> list[Pod]:
+        return [Pod(name="api"), Pod(name="worker")]
+
+    output = asyncio.run(execute_tool(list_pods, {}))
+    assert output.data == {"items": [{"name": "api"}, {"name": "worker"}]}

@@ -12,6 +12,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    create_step_group,
 )
 from reactifact.artifacts import Artifact
 from reactifact.recipes import (
@@ -20,7 +21,7 @@ from reactifact.recipes import (
     fan_out_sources,
     materialize_doc,
 )
-from reactifact.sources import FileSystemSource, SourceRef
+from reactifact.sources import FileSystemSource, Source, SourceRef
 
 
 class Job(BaseModel):
@@ -62,7 +63,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
             return None
 
     class Engine(Agent):
-        consumes = [Consume(Job)]
+        consumes = (Consume(Job),)
         produces = [Scout(), Step(Job)]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
@@ -139,7 +140,6 @@ class Fill(Step[Job]):
 
 
 class Survey(StatusMachine[Job]):
-    artifact_type = Job
     terminal = frozenset({"done"})
 
     def next_status(self, state):
@@ -464,3 +464,152 @@ def test_downstream_fields_reset_inclusive_suffix():
     assert resets == frozenset(
         {"area", "budget"}
     )  # plan + estimate stay, upstream is kept
+
+
+def test_fan_out_sources_as_artifacts_then_materialize_doc(tmp_path):
+    """`as_artifacts=True` gives handles that materialize_doc can link directly."""
+
+    class ScoutResolve(Step[SourceRef]):
+        produces = (SourceRef, Doc)
+        consumes = (Consume(Job),)
+
+        async def run(self, call: StepCall) -> None:
+            handles = await fan_out_sources(
+                call.context,
+                "prevents colds",
+                owner_id="handles",
+                limit=1,
+                as_artifacts=True,
+            )
+            assert handles
+            await materialize_doc(
+                call.context,
+                handles[0],
+                doc_type=Doc,
+                text_field="content",
+                field_map={"path": "locator"},
+            )
+            return None
+
+    ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
+    ctx.create(Job(query_id="handles", status="pending"))
+    runtime = Runtime(ctx, steps=[ScoutResolve()])
+    asyncio.run(runtime.arun())
+
+    docs = ctx.list_artifacts(Doc)
+    assert len(docs) == 1
+    assert docs[0].data.query_id == "handles"
+    assert docs[0].data.content
+    assert ctx.related(docs[0].id, relation="materialized_from")
+
+
+class CountingSource(Source):
+    def __init__(self) -> None:
+        super().__init__("count")
+        self.calls = 0
+
+    async def resolve(self, ref: SourceRef) -> str:
+        self.calls += 1
+        return "payload"
+
+
+def test_materialize_doc_reuses_an_existing_document():
+    source = CountingSource()
+
+    class First(Step[Doc]):
+        produces = (SourceRef, Doc)
+        consumes = (Consume(Job),)
+
+        async def run(self, call: StepCall) -> None:
+            await materialize_doc(
+                call.context,
+                SourceRef(source_id="count", locator="x"),
+                doc_type=Doc,
+                text_field="content",
+                field_map={"path": "locator"},
+                refresh=False,
+            )
+            return None
+
+    class Again(Step[Doc]):
+        produces = (SourceRef, Doc)
+        consumes = (Consume(Doc),)
+
+        async def run(self, call: StepCall) -> None:
+            await materialize_doc(
+                call.context,
+                SourceRef(source_id="count", locator="x"),
+                doc_type=Doc,
+                text_field="content",
+                field_map={"path": "locator"},
+                refresh=False,
+            )
+            return None
+
+    ctx = Context(resources=RuntimeResources(sources={"count": source}))
+    ctx.create(Job(query_id="reuse", status="pending"))
+    asyncio.run(Runtime(ctx, steps=[First(), Again()]).arun())
+
+    assert source.calls == 1
+    assert len(ctx.list_artifacts(Doc)) == 1
+
+
+def test_materialize_doc_reports_a_missing_source():
+    errors: list[tuple[SourceRef, BaseException | None]] = []
+
+    class Missing(Step[Doc]):
+        produces = (Doc,)
+        consumes = (Consume(Job),)
+
+        async def run(self, call: StepCall) -> None:
+            result = await materialize_doc(
+                call.context,
+                SourceRef(source_id="missing", locator="x"),
+                doc_type=Doc,
+                text_field="content",
+                on_error=lambda ref, exc: errors.append((ref, exc)),
+            )
+            assert result is None
+            return None
+
+    ctx = Context(resources=RuntimeResources())
+    ctx.create(Job(query_id="missing", status="pending"))
+    asyncio.run(Runtime(ctx, steps=[Missing()]).arun())
+
+    assert errors
+    assert errors[0][0].source_id == "missing"
+    assert errors[0][1] is None
+
+
+def test_status_machine_from_funcs_and_state_status():
+    transitions: list[tuple[str, str, str]] = []
+    machine = StatusMachine.from_funcs(
+        artifact_type=Job,
+        terminal={"done"},
+        next_status=lambda state: "done" if state.status == "pending" else None,
+        on_transition=lambda ctx, key, old, new: transitions.append((key, old, new)),
+    )
+    group = create_step_group("status", consumes=[Consume(Job)], steps=[machine])
+    ctx = Context()
+    ctx.create(Job(query_id="func", status="pending"))
+    asyncio.run(Runtime(ctx, groups=[group]).arun())
+
+    assert ctx.list_artifacts(Job)[0].data.status == "done"
+    assert transitions == [("func", "pending", "done")]
+
+
+def test_status_machine_advances_the_latest_target_for_a_key():
+    machine = StatusMachine.from_funcs(
+        artifact_type=Job,
+        next_status=lambda state: (
+            "done" if state.target.data.text == "newest" else None
+        ),
+    )
+    group = create_step_group("status", consumes=[Consume(Job)], steps=[machine])
+    ctx = Context()
+    first = ctx.create(Job(query_id="same", status="pending", text="old"))
+    second = ctx.create(Job(query_id="same", status="pending", text="newest"))
+    asyncio.run(Runtime(ctx, groups=[group]).arun())
+
+    assert ctx.get(first.id).data.status == "pending"
+    assert ctx.get(second.id).data.status == "done"
