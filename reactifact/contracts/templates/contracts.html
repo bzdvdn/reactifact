@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="light dark"/>
+<title>__TITLE__</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON__"/>
+<script>(function(){try{var s=localStorage.getItem('reactifact-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();</script>
+<style>
+:root{--bg:#f6f6f8;--bg-2:#eef0f5;--panel:#fff;--panel-2:#fafafb;--text:#17171f;--muted:#6b6b7a;--faint:#9a9aae;--border:#e7e7ee;--border-strong:#d6d6e0;--accent:#4f46e5;--accent-strong:#4338ca;--accent-soft:#eef0ff;--chip:#eef0ff;--chip-text:#4338ca;--ok:#15803d;--ok-soft:#e9f7ef;--danger:#b91c1c;--danger-soft:#fdeeee;--shadow:0 1px 2px rgba(16,16,30,.04),0 8px 24px rgba(16,16,30,.05);--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;}
+html.dark{--bg:#0e0f14;--bg-2:#12131a;--panel:#16171e;--panel-2:#1b1c24;--text:#e8e8f0;--muted:#9a9aae;--faint:#6f6f82;--border:#262733;--border-strong:#34354a;--accent:#8b93ff;--accent-strong:#a9b1ff;--accent-soft:#232448;--chip:#262a48;--chip-text:#a9b1ff;--ok:#3ecf7c;--ok-soft:#123522;--danger:#f97c7c;--danger-soft:#3c1718;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.28);}
+html{color-scheme:light}html.dark{color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;scroll-behavior:smooth}
+a{color:inherit}.mono{font-family:var(--mono)}.muted{color:var(--muted)}.faint{color:var(--faint)}.spacer{flex:1}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);min-width:0}.brand svg{color:var(--accent);flex:none}.brand .name{font-weight:700;white-space:nowrap}.brand .name em{font-style:normal;color:var(--accent)}
+.stats{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:12px}.stats span{font-size:12px;color:var(--muted)}.stats b{color:var(--text);font-variant-numeric:tabular-nums}
+.topbar .toplink{color:var(--muted);text-decoration:none;font-size:13px;font-weight:600;padding:5px 9px;border-radius:7px}.topbar .toplink:hover{background:var(--accent-soft);color:var(--accent)}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;min-width:30px;padding:0 8px;border:1px solid var(--border);border-radius:7px;background:var(--panel);color:var(--muted);font:600 12px var(--sans);cursor:pointer}.icon-btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+main{max-width:1280px;margin:0 auto;padding:22px 24px 64px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+.card-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel)}.card-head h2{font-size:15px;margin:0;font-weight:700}.hint{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap}
+.search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:0 10px;height:38px;min-width:min(100%,420px);box-shadow:var(--shadow)}
+.search input{width:100%;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:13px}.search input::placeholder{color:var(--faint)}
+#filter-count{font-size:12px;color:var(--muted)}
+.graph{background:var(--panel)}
+.graph-toolbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.gbtn{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:7px;min-width:29px;height:28px;padding:0 7px;cursor:pointer;font:600 15px/1 var(--sans)}.gbtn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.graph-zoom{font:12px var(--mono);color:var(--muted);min-width:44px;text-align:center}
+.graph-viewport{overflow:auto;max-height:72vh;min-height:420px;padding:12px;cursor:grab}.graph-viewport.panning{cursor:grabbing;user-select:none}.graph-stage{transform-origin:top left;display:inline-block}.graph-stage svg{display:block;max-width:none;height:auto}
+details{border-top:1px solid var(--border)}details:first-child{border-top:0}summary{cursor:pointer;list-style:none;padding:12px 16px;display:flex;align-items:center;gap:10px}summary::-webkit-details-marker{display:none}summary::before{content:'▸';color:var(--faint);font-size:11px;width:11px;flex:none}details[open]>summary::before{content:'▾'}details[open] summary{border-bottom:1px solid var(--border)}.src pre{margin:0;padding:12px 16px;overflow:auto;font-size:12px;background:var(--bg-2)}
+.group{margin-bottom:14px}.group-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel)}.group-head h2{font-size:15px;margin:0;font-weight:700}.group-head h2 code{font-family:var(--mono)}.group-head .count{font-size:12px;color:var(--muted);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600}.badge.accent{border-color:transparent;background:var(--accent-soft);color:var(--accent)}
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--panel-2)}.io-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:700;margin-bottom:4px}
+.chips{display:flex;gap:5px;flex-wrap:wrap}.chip{background:var(--chip);color:var(--chip-text);border-radius:999px;padding:2px 9px;font-size:12px;font-family:var(--mono);white-space:nowrap}
+.step{border-top:1px solid var(--border)}.step summary{background:var(--panel)}.step summary:hover{background:var(--panel-2)}.step-name{font-weight:650}.step-name code,.tool-head code{font-family:var(--mono);font-weight:650}.kind{color:var(--muted);font-weight:500;font-size:12px}.meta{display:flex;gap:5px;flex-wrap:wrap;padding:10px 16px 0}.meta .pill{font-size:11.5px;color:var(--muted);background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px}
+.step-body{padding:0 16px 14px}.step-body .io{padding:10px 0 8px;background:transparent;border:0}.tools{padding-top:8px}.tool-card{border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:10px 12px;margin-top:8px}.tool-head{display:flex;align-items:center;gap:8px}.tool-desc{color:var(--muted);font-size:12.5px;margin-top:3px}.tool-card details{border:0;margin-top:7px}.tool-card summary{padding:4px 0;font-size:12px;color:var(--muted)}.tool-card pre{margin:5px 0 0;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);max-height:280px}
+.empty{color:var(--muted);padding:14px 16px}.hidden{display:none!important}
+/* contract tree */
+.tree{padding:4px 8px 10px}
+.tree-group{margin:0;border:0;border-top:1px solid var(--border);background:transparent}
+.tree-group:first-child{border-top:0}
+.tree-group>summary{padding:11px 8px;border-radius:8px}
+.tree-group>summary:hover{background:var(--panel-2)}
+.tree-children{margin-left:20px;padding-left:14px;border-left:1px solid var(--border)}
+.tree-step{margin:2px 0;border:0;border-radius:8px;background:transparent}
+.tree-step>summary{padding:8px;border-radius:8px;background:transparent;border-bottom:0}
+.tree-step>summary:hover{background:var(--panel-2)}
+.tree-name{font-weight:650}.tree-name code{font-family:var(--mono)}
+.tree-io{display:flex;gap:14px;flex-wrap:wrap;padding:5px 0 3px}
+.tree-meta{display:flex;gap:5px;flex-wrap:wrap;padding:4px 0 2px}
+.tree-meta .pill{font-size:11.5px;color:var(--muted);background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px}
+.tree-tools{padding:7px 0 2px}
+.tree-tool{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0 5px 2px;border-top:1px dashed var(--border)}.tree-tool:first-of-type{border-top:0}.tree-tool code{font-family:var(--mono);font-weight:650}.tree-tool .tool-desc{color:var(--muted);font-size:12px}.tree-schema{flex-basis:100%;border:0;margin-top:2px}.tree-schema summary{padding:2px 0;font-size:11.5px;color:var(--faint)}.tree-schema pre{margin:3px 0 0;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);max-height:260px;overflow:auto}
+@media (max-width:720px){.topbar{flex-wrap:wrap;gap:8px}.stats{margin-left:0;order:3;width:100%}.topbar .toplink{padding:4px 6px}.group-head{align-items:flex-start}.io{grid-template-columns:1fr}main{padding:14px 12px 48px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="contracts">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="5" r="2.6" fill="currentColor"/><circle cx="19" cy="19" r="2.6" fill="currentColor"/><path d="M7.4 11 16.6 6M7.4 13l9.2 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="name">reactifact <em>contracts</em></span>
+  </a>
+  <div class="stats">__SUMMARY__</div>
+  <span class="spacer"></span>
+  <a class="toplink" href="api/contracts" target="_blank">JSON</a>
+  <a class="toplink" href="contracts.md" target="_blank">Markdown</a>
+  <button class="icon-btn" id="contracts-theme" type="button" title="toggle theme">Dark</button>
+</header>
+<main>
+  <div class="toolbar">
+    <label class="search"><span class="muted">⌕</span><input id="contract-search" type="search" placeholder="Filter groups, steps, tools, artifact types…" autocomplete="off"/></label>
+    <span id="filter-count"></span>
+  </div>
+  <section class="card">
+    <div class="card-head"><h2>Connection graph</h2><span class="hint">groups → artifacts, from consumes/produces</span></div>
+    <div class="graph" id="contracts-graph">
+      <div class="graph-toolbar">
+        <button class="gbtn" type="button" data-graph-zoom="-1" title="zoom out" aria-label="zoom out">−</button>
+        <span class="graph-zoom" id="contracts-zoom">100%</span>
+        <button class="gbtn" type="button" data-graph-zoom="1" title="zoom in" aria-label="zoom in">+</button>
+        <button class="gbtn" type="button" data-graph-reset title="fit graph" aria-label="fit graph">↺</button>
+        <span class="grow"></span>
+        <span class="muted">drag to pan · ctrl/⌘ + wheel to zoom</span>
+      </div>
+      <div class="graph-viewport" id="contracts-viewport">
+        <div class="graph-stage" id="contracts-graph-stage"><div class="empty">Rendering…</div></div>
+      </div>
+    </div>
+    <details class="src"><summary>Mermaid source</summary><pre id="contracts-graph-src">__GRAPH__</pre></details>
+  </section>
+  <section class="card tree-card">
+    <div class="card-head"><h2>Contracts</h2><span class="hint">groups → steps → tools</span></div>
+    <div class="tree" id="contracts-groups">__GROUPS__</div>
+  </section>
+</main>
+<script type="module">
+const source = document.getElementById('contracts-graph-src');
+const stage = document.getElementById('contracts-graph-stage');
+const viewport = document.getElementById('contracts-viewport');
+const label = document.getElementById('contracts-zoom');
+const themeButton = document.getElementById('contracts-theme');
+let graphScale = 1, graphBaseWidth = 0, mermaidApi = null, graphRendered = false;
+function ensureBaseWidth(){
+  if (graphBaseWidth) return true;
+  const svg = stage.querySelector('svg');
+  if (!svg) return false;
+  const vb = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width;
+  graphBaseWidth = (vb && vb > 0 ? vb : svg.getBoundingClientRect().width) || 1000;
+  return true;
+}
+function applyZoom(){
+  if (!ensureBaseWidth()) return;
+  const svg = stage.querySelector('svg');
+  if (!svg) return;
+  svg.style.width = (graphBaseWidth * graphScale) + 'px';
+  svg.style.maxWidth = 'none';
+  svg.style.height = 'auto';
+  label.textContent = Math.round(graphScale * 100) + '%';
+}
+function fitGraph(){
+  if (!ensureBaseWidth()) return;
+  const available = Math.max(320, viewport.clientWidth - 24);
+  graphScale = Math.max(0.35, Math.min(2.5, available / graphBaseWidth));
+  applyZoom();
+}
+function zoomGraph(factor){
+  graphScale = Math.max(0.25, Math.min(4, graphScale * factor));
+  applyZoom();
+}
+async function loadMermaid(){
+  if (mermaidApi) return mermaidApi;
+  const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/+esm');
+  mermaidApi = mod.default || mod;
+  return mermaidApi;
+}
+async function renderGraph(){
+  try {
+    const mermaid = await loadMermaid();
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'
+    });
+    const { svg } = await mermaid.render('contracts-graph-svg', source.textContent);
+    stage.innerHTML = svg;
+    graphBaseWidth = 0;
+    graphRendered = true;
+    requestAnimationFrame(fitGraph);
+  } catch (_) {
+    stage.innerHTML = '<div class="empty">Mermaid unavailable — use the source below.</div>';
+  }
+}
+function syncThemeButton(){
+  themeButton.textContent = document.documentElement.classList.contains('dark') ? 'Light' : 'Dark';
+}
+function toggleTheme(){
+  const dark = !document.documentElement.classList.contains('dark');
+  document.documentElement.classList.toggle('dark', dark);
+  try { localStorage.setItem('reactifact-theme', dark ? 'dark' : 'light'); } catch (_) {}
+  syncThemeButton();
+  if (graphRendered) renderGraph();
+}
+syncThemeButton();
+themeButton.addEventListener('click', toggleTheme);
+document.querySelectorAll('[data-graph-zoom]').forEach(b => b.addEventListener('click', () => zoomGraph(Number(b.dataset.graphZoom) > 0 ? 1.2 : 1 / 1.2)));
+document.querySelector('[data-graph-reset]').addEventListener('click', fitGraph);
+let panning = false, panX = 0, panY = 0, panLeft = 0, panTop = 0;
+viewport.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  panning = true; panX = e.clientX; panY = e.clientY; panLeft = viewport.scrollLeft; panTop = viewport.scrollTop;
+  viewport.classList.add('panning');
+  viewport.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!panning) return;
+  viewport.scrollLeft = panLeft - (e.clientX - panX);
+  viewport.scrollTop = panTop - (e.clientY - panY);
+});
+const endPan = () => { panning = false; viewport.classList.remove('panning'); };
+viewport.addEventListener('pointerup', endPan);
+viewport.addEventListener('pointercancel', endPan);
+viewport.addEventListener('pointerleave', endPan);
+viewport.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  zoomGraph(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, {passive: false});
+const search = document.getElementById('contract-search');
+const count = document.getElementById('filter-count');
+function filterContracts(){
+  const q = search.value.trim().toLowerCase();
+  let groupsShown = 0;
+  document.querySelectorAll('#contracts-groups .group').forEach((group) => {
+    const groupText = (group.dataset.search || '').toLowerCase();
+    const groupMatch = !q || groupText.includes(q);
+    let anyStep = false;
+    group.querySelectorAll('.step').forEach((step) => {
+      const match = !q || groupMatch || (step.dataset.search || '').toLowerCase().includes(q);
+      step.classList.toggle('hidden', !match);
+      if (match) anyStep = true;
+    });
+    const visible = !q || groupMatch || anyStep;
+    group.classList.toggle('hidden', !visible);
+    if (visible) groupsShown += 1;
+  });
+  count.textContent = q ? groupsShown + ' group(s)' : '';
+}
+search.addEventListener('input', filterContracts);
+renderGraph();
+</script>
+</body>
+</html>

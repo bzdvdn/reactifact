@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, Context, RuntimeResources, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import SQLiteKVBackend
+from reactifact.contracts.web import create_contracts_router
 from reactifact.providers import (
     embedder_from_env,
     image_from_env,
@@ -184,6 +185,9 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         )
     )
     app.include_router(create_chat_router(assistant))
+    app.include_router(
+        create_contracts_router([RepairFlow()], title="repair-ai contracts")
+    )
 
     @app.get("/api/runs/{session_id}/estimate.csv")
     async def estimate_csv(session_id: str) -> Response:

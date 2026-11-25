@@ -952,6 +952,8 @@ def test_runtime_records_provenance_relations(tmp_path):
     loaded = run(store.get(items[0]["id"]))
     assert loaded is not None
     assert loaded.spans and loaded.spans[0].writes
+    assert {write.data_type for write in loaded.spans[0].writes} == {"Note"}
+    assert all(write.data for write in loaded.spans[0].writes)
     relations = loaded.spans[0].relations
     assert len(relations) == 1
     edge = relations[0]
@@ -1715,3 +1717,50 @@ def test_trace_favicon_is_served(tmp_path):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")
     assert "<svg" in response.text
+
+
+def test_trace_provenance_graph_caps_nodes_and_shortens_ids():
+    from reactifact.viz import trace_provenance_graph
+
+    trace = RunTrace(
+        id="caps",
+        outcome="completed",
+        spans=[
+            AgentSpan(
+                agent="answerer",
+                writes=[
+                    {
+                        "artifact_id": f"answer-{index}-1234567890abcdef",
+                        "op_type": "create",
+                        "data_type": "Answer",
+                        "data": "{}",
+                    }
+                    for index in range(4)
+                ],
+                relations=[
+                    RelationRef(
+                        source_id="answer-0-1234567890abcdef",
+                        relation="supported_by",
+                        target_id="answer-1-1234567890abcdef",
+                        source_type="Answer",
+                        target_type="Answer",
+                    ),
+                    RelationRef(
+                        source_id="answer-1-1234567890abcdef",
+                        relation="supported_by",
+                        target_id="answer-2-1234567890abcdef",
+                        source_type="Answer",
+                        target_type="Answer",
+                    ),
+                ],
+            )
+        ],
+    )
+
+    source, truncated = trace_provenance_graph(trace, max_nodes=2, max_edges=1)
+    assert truncated is True
+    assert "…90abcdef" in source
+    assert source.count("-->") == 1
+    assert source.count('N0["') == 1
+    assert source.count('N1["') == 1
+    assert 'N2["' not in source

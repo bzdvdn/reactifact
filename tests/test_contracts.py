@@ -65,6 +65,13 @@ def test_contract_markdown_and_json_render():
 
     payload = json.loads(report.to_json())
     assert payload["groups"][0]["steps"][0]["produces"] == ["Answer"]
+    assert payload["groups"][0]["produces"] == ["Answer"]
+
+    graph = report.to_mermaid()
+    assert graph.startswith("flowchart LR")
+    assert 'G0["answer"]' in graph
+    assert 'A0["Question"]' in graph
+    assert "consumes" in graph and "produces" in graph
 
 
 def test_contracts_cli(capsys):

@@ -41,6 +41,10 @@ python -m reactifact trace traces.db [run_id]
 
 ## In the dashboard
 
+Apps can also mount the same contracts as a page with
+`reactifact.contracts.web.create_contracts_router(groups)` — `/contracts` (HTML), `/api/contracts`
+(JSON) and `/contracts.md` (Markdown). It is opt-in and supports Basic auth.
+
 The run page (`/traces/<run_id>`) renders the trace diagram live via Mermaid,
 with a `copy` button and the source in a collapsible `<pre>`; if the browser is
 offline (no Mermaid JS), it degrades to showing the source text.

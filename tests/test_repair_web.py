@@ -183,3 +183,13 @@ def __ctx(project):
     ctx = Context(resources=RuntimeResources())
     ctx.create(project)
     return ctx
+
+
+def test_contracts_page_is_mounted(tmp_path):
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    page = client.get("/contracts")
+    assert page.status_code == 200
+    assert "repair-ai contracts" in page.text
+    assert client.get("/api/contracts").json()["groups"]

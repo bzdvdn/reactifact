@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from reactifact import Step
+from reactifact.provenance import SUPPORTED_BY
 
 from ..models import AnsibleReport, ChatReply, GitlabReport, K8sReport
 
@@ -15,6 +16,7 @@ class RenderReply(Step):
     consumes = (K8sReport, GitlabReport, AnsibleReport)
     produces = (ChatReply,)
     scope = "query_id"
+    provenance = SUPPORTED_BY
 
     async def run(self, report: K8sReport | GitlabReport | AnsibleReport) -> ChatReply:
         return ChatReply(query_id=report.query_id, text=report.text)

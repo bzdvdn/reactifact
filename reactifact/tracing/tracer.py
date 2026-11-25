@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator, Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from ..patches import Create, Link, Update
+from ..patches import Create, Link, Unlink, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 from ..tools import ToolRun, current_produce_name
 from .models import (
@@ -637,6 +637,10 @@ class RunTracer:
                 writes = writes[: self._max_refs]
             ops_by_id: dict[str, tuple[str, Any | None]] = {}
             for op in patch.operations:
+                # Link/Unlink also carry `artifact_id` (the edge source); they
+                # must not overwrite the Create/Update entry for that artifact.
+                if isinstance(op, (Link, Unlink)):
+                    continue
                 artifact_id = getattr(op, "artifact_id", None)
                 if artifact_id is None:
                     continue

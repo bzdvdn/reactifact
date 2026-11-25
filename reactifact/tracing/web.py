@@ -107,6 +107,8 @@ def create_trace_router(
     export_limit: int = 500,
     max_detail_spans: int = 500,
     max_mermaid_spans: int = 200,
+    max_mermaid_nodes: int | None = 120,
+    max_mermaid_edges: int | None = 240,
     max_concurrent_reads: int | None = 2,
 ) -> APIRouter:
     """Router over a trace store (SQLite or Postgres).
@@ -315,15 +317,19 @@ def create_trace_router(
 
     @router.get("/api/traces/{trace_id}/diagram")
     async def get_trace_diagram(trace_id: str) -> dict[str, Any]:
-        from ..viz import trace_provenance_to_mermaid, trace_to_mermaid
+        from ..viz import trace_provenance_graph, trace_to_mermaid
 
         trace = await _read(store.get(trace_id, span_limit=max_mermaid_spans))
         if trace is None:
             raise HTTPException(status_code=404, detail="trace not found")
+        provenance, graph_truncated = trace_provenance_graph(
+            trace, max_nodes=max_mermaid_nodes, max_edges=max_mermaid_edges
+        )
         return {
             "mermaid": trace_to_mermaid(trace),
-            "provenance": trace_provenance_to_mermaid(trace),
+            "provenance": provenance,
             "truncated": trace.has_more_spans,
+            "graph_truncated": graph_truncated,
             "span_total": trace.span_total,
             "span_limit": max_mermaid_spans,
         }

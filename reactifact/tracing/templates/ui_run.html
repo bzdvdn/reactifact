@@ -103,7 +103,7 @@ let MERMAID_SRC='';
 let MERMAID_GRAPH_SRC='';
 const SPAN_PAGE=200;
 const UI_MAX_SPANS=2000;
-function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}DIAGRAMS.forEach(d=>{if(d.src)d.render(d.src);});}
+function applyTheme(dark){document.documentElement.classList.toggle('dark',dark);document.getElementById('theme-label').textContent=dark?'Light mode':'Dark mode';try{localStorage.setItem('reactifact-theme',dark?'dark':'light');}catch(_){}DIAGRAMS.forEach(d=>{if(d.rendered)d.render(d.src);});}
 function initTheme(){let s=null;try{s=localStorage.getItem('reactifact-theme');}catch(_){}applyTheme(s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches);}
 document.getElementById('theme').addEventListener('click',()=>applyTheme(!document.documentElement.classList.contains('dark')));
 (function initShell(){
@@ -160,6 +160,7 @@ async function loadDiagram(){
     const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=MERMAID_SRC;
     mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
     if(d.truncated)toast('Diagram truncated: '+d.span_limit+' of '+d.span_total+' spans');
+    if(d.graph_truncated)toast('Evidence graph capped for the page — see JSON for all nodes');
   }catch(err){
     const msg='Could not load diagram — '+escapeHtml(err&&err.message?err.message:String(err));
     const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=msg;
@@ -599,7 +600,7 @@ function mermaidConfig(){
   return {startOnLoad:false,securityLevel:'strict',theme:'base',themeVariables:vars};
 }
 function Diagram(root){
-  this.root=root;this.src='';this.scale=1;this.fitScale=1;this.tx=0;this.ty=0;this.naturalW=0;this.loading=null;
+  this.root=root;this.src='';this.rendered=false;this.scale=1;this.fitScale=1;this.tx=0;this.ty=0;this.naturalW=0;this.loading=null;
   this.stage=root.querySelector('.diagram-stage');this.viewport=root.querySelector('.diagram-viewport');this.zoomLabel=root.querySelector('[data-zoom]');
   DIAGRAMS.push(this);this.bind();
 }
@@ -644,6 +645,7 @@ Diagram.prototype.showLoading=function(on){
 };
 Diagram.prototype.render=async function(src){
   this.src=src||'';
+  this.rendered=true;
   if(!this.src){this.stage.innerHTML='<div class="diag-fallback">no provenance recorded</div>';return;}
   this.showLoading(true);
   try{
@@ -656,7 +658,19 @@ Diagram.prototype.render=async function(src){
     this.stage.innerHTML='<div class="'+(offline?'diag-fallback':'diag-error')+'">'+(offline?'Mermaid JS unavailable (offline) — the diagram source is shown below.':'Mermaid could not render: '+escapeHtml(err&&err.message?err.message:String(err)))+'</div>';
   }
 };
-function mountDiagram(src,rootId,preId){const pre=document.getElementById(preId);if(pre)pre.textContent=src||'no provenance recorded';const root=document.getElementById(rootId);if(root)new Diagram(root).render(src);}
+function mountDiagram(src,rootId,preId){
+  const pre=document.getElementById(preId);if(pre)pre.textContent=src||'no provenance recorded';
+  const root=document.getElementById(rootId);if(!root)return;
+  const diagram=new Diagram(root);diagram.src=src||'';
+  const stage=root.querySelector('.diagram-stage');
+  if(!diagram.src){diagram.render('');return;}
+  if(stage)stage.innerHTML='<div class="diag-fallback">Diagram loads when visible…</div>';
+  const load=()=>{if(diagram.rendered&&diagram.src===src)return;diagram.render(diagram.src);};
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((entries)=>{if(entries.some(e=>e.isIntersecting)){io.disconnect();load();}},{rootMargin:'240px'});
+    io.observe(root);
+  }else load();
+}
 function openDataModal(title,text){
   document.getElementById('data-modal-title').textContent=title;
   document.getElementById('data-modal-pre').textContent=text;

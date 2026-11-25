@@ -203,55 +203,86 @@ def trace_to_mermaid(trace: RunTrace) -> str:
     return "\n".join(lines)
 
 
-def trace_provenance_to_mermaid(trace: RunTrace) -> str:
+def trace_provenance_to_mermaid(
+    trace: RunTrace,
+    *,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+) -> str:
     """Mermaid provenance graph of one run: written artifacts + `patch.link` edges (§34).
 
     Artifacts written by any span become nodes; the `relations` recorded by the
     spans become the edges — a per-run "evidence graph" (`Answer →supported_by→
     Claim →derived_from→ Evidence →extracted_from→ Doc`).
+
+    `max_nodes`/`max_edges` cap the graph for the dashboard; use
+    `trace_provenance_graph` when the caller also needs the truncation flag.
     """
+    source, _ = trace_provenance_graph(trace, max_nodes=max_nodes, max_edges=max_edges)
+    return source
+
+
+def trace_provenance_graph(
+    trace: RunTrace,
+    *,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+) -> tuple[str, bool]:
+    """The provenance Mermaid source plus whether nodes/edges were capped."""
 
     def _short(data_type: str) -> str:
         return data_type.rsplit(".", 1)[-1] if data_type else "artifact"
 
-    nodes: dict[str, tuple[str, str]] = {}
+    def _short_id(value: str) -> str:
+        return value if len(value) <= 12 else "…" + value[-8:]
+
+    all_nodes: dict[str, tuple[str, str]] = {}
     for span in trace.spans:
         for write in span.writes:
-            nodes.setdefault(
+            all_nodes.setdefault(
                 write.artifact_id, (_short(write.data_type), write.artifact_id)
             )
         for rel in span.relations:
-            nodes.setdefault(
+            all_nodes.setdefault(
                 rel.source_id, (rel.source_type or "artifact", rel.source_id)
             )
-            nodes.setdefault(
+            all_nodes.setdefault(
                 rel.target_id, (rel.target_type or "artifact", rel.target_id)
             )
 
-    for span in trace.spans:
-        for rel in span.relations:
-            if rel.source_id not in nodes:
-                nodes[rel.source_id] = (rel.source_type or "artifact", rel.source_id)
-            if rel.target_id not in nodes:
-                nodes[rel.target_id] = (rel.target_type or "artifact", rel.target_id)
+    if not all_nodes:
+        return 'flowchart TD\n    EMPTY["no provenance recorded"]', False
 
-    if not nodes:
-        return 'flowchart TD\n    EMPTY["no provenance recorded"]'
+    truncated = False
+    selected: dict[str, tuple[str, str]] = {}
+    for artifact_id, value in all_nodes.items():
+        if max_nodes is not None and len(selected) >= max_nodes:
+            truncated = True
+            break
+        selected[artifact_id] = value
 
     lines: list[str] = ["flowchart TD"]
     node_ids: dict[str, str] = {}
-    for index, (artifact_id, (tname, _)) in enumerate(nodes.items()):
+    for index, (artifact_id, (tname, _)) in enumerate(selected.items()):
         node = f"N{index}"
         node_ids[artifact_id] = node
-        lines.append(f'    {node}["{_esc(tname)}:{_esc(artifact_id)}"]')
+        lines.append(f'    {node}["{_esc(tname)}:{_esc(_short_id(artifact_id))}"]')
+    edges = 0
     for span in trace.spans:
         for rel in span.relations:
-            if rel.source_id in node_ids and rel.target_id in node_ids:
-                lines.append(
-                    f'    {node_ids[rel.source_id]} -->|"{_esc(rel.relation)}"| '
-                    f"{node_ids[rel.target_id]}"
-                )
-    return "\n".join(lines)
+            if rel.source_id not in node_ids or rel.target_id not in node_ids:
+                continue
+            if max_edges is not None and edges >= max_edges:
+                truncated = True
+                break
+            lines.append(
+                f'    {node_ids[rel.source_id]} -->|"{_esc(rel.relation)}"| '
+                f"{node_ids[rel.target_id]}"
+            )
+            edges += 1
+        if max_edges is not None and edges >= max_edges:
+            break
+    return "\n".join(lines), truncated
 
 
 def _plural(n: int, word: str) -> str:
@@ -261,6 +292,7 @@ def _plural(n: int, word: str) -> str:
 __all__ = [
     "blueprint",
     "context_to_mermaid",
+    "trace_provenance_graph",
     "trace_provenance_to_mermaid",
     "trace_to_mermaid",
 ]

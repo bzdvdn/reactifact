@@ -20,6 +20,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from ...context import Context
+from ...provenance import DERIVED_FROM
 from ...step import Step
 from ..base import Tool, execute_tool
 
@@ -78,6 +79,7 @@ class _ToolLoopBase(Step[ToolAnswer]):
     """
 
     artifact_type = ToolAnswer
+    provenance = DERIVED_FROM
 
     def __init__(
         self,

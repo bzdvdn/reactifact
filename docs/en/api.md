@@ -150,6 +150,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`) |
+| `reactifact.contracts.web.create_contracts_router(groups, *, prefix=, title=, username=, password=)` | opt-in FastAPI router: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `groups` may be a zero-arg factory |
 | `install_error_handlers(app, *, extra=…)` | maps `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` to JSON HTTP responses (403/422/429/409); `extra` overrides/adds mappings |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); `request_factory(request)` builds the per-turn `request=` mapping from the FastAPI `Request` (identity/ACL-aware turns); the event schema is published in the route's OpenAPI `responses` |
 | `reactifact.web.sse(event, data)` | one SSE frame |
@@ -163,7 +164,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `trace_to_mermaid(trace)` | one run as a Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI printing the diagrams to stdout |
 | `reactifact new app` / `reactifact doctor` | CLI: scaffold the bundled FastAPI chat template / check app settings and boundaries |
-| `trace_provenance_to_mermaid(trace)` | a run's evidence graph (written artifacts + `patch.link` edges) |
+| `trace_provenance_to_mermaid(trace, *, max_nodes=, max_edges=)` | a run's evidence graph (written artifacts + `patch.link` edges); long ids are shortened and the dashboard caps nodes/edges |
 
 ## Replay (reactifact.replay, §55)
 
@@ -299,7 +300,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `TraceColumn` | a configurable, artifact-derived table column for `create_trace_router(store, columns=[…])`: `label`, `field` (dotted path, list→first), `agent`, `type` (class or name), `direction` read/write/any, `index`, `scope` run/session, `default` |
 | `Tag`, `TagAssignment`, `TraceAnnotator`, `TraceStoreProtocol` | reviewer annotations: a tag vocabulary (`Tag`) and per-run tags + notes (`TagAssignment`, `RunTrace.annotations`); stores expose `list_tags`/`tag_runs`/`untag_runs`/`rename_tag`/`set_tag_color`/`delete_tag` |
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | external trace sinks — `OTLPTracer` is vendor-neutral (GenAI semconv, any OTLP/HTTP collector), `LangfuseTracer` targets Langfuse specifically, Postgres supports async read+write and the full annotation API; the dashboard (`create_trace_router`) accepts any `TraceStoreProtocol` (SQLite or Postgres) |
-| `create_trace_router(store, *, max_detail_spans=500, max_mermaid_spans=200, max_concurrent_reads=2)` (`reactifact.tracing.web`) | FastAPI dashboard router: list/detail/sessions pages, tag facets + filtering, bulk tagging, tag-vocabulary management, URL-synced + saved views, sortable table, Tree/Timeline run view, in-trace search, raw JSON, JSON export; detail/diagram are bounded and lazy, `DELETE /api/traces/{id}` / `DELETE /api/sessions/{id}` remove runs/sessions; pages are prefix-aware (work under `include_router(prefix=…)` / ASGI `root_path`) |
+| `create_trace_router(store, *, max_detail_spans=500, max_mermaid_spans=200, max_mermaid_nodes=120, max_mermaid_edges=240, max_concurrent_reads=2)` (`reactifact.tracing.web`) | FastAPI dashboard router: list/detail/sessions pages, tag facets + filtering, bulk tagging, tag-vocabulary management, URL-synced + saved views, sortable table, Tree/Timeline run view, in-trace search, raw JSON, JSON export; detail/diagram are bounded and lazy, `DELETE /api/traces/{id}` / `DELETE /api/sessions/{id}` remove runs/sessions; pages are prefix-aware (work under `include_router(prefix=…)` / ASGI `root_path`) |
 | `Metrics`, `MetricsTracer`, `create_metrics_router` (`reactifact.metrics`) | dependency-free Prometheus metrics: counters/histograms (`runs_total`, `agent_runs_total`, `llm_calls_total`, `llm_tokens_total`, `llm_cost_total`, `artifacts_written_total`, `relations_total`, latencies…) filled from the tracer hook; `render()` emits the text exposition, `create_metrics_router` serves `GET /metrics`. `RuntimeResources(metrics=…)` exposes the same sink to produces (defaults to a no-op) |
 
 ## Trust & safety (reactifact.guardrails / reactifact.authz / reactifact.quota, §57)

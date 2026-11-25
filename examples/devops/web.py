@@ -38,6 +38,7 @@ from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
+from reactifact.contracts.web import create_contracts_router
 from reactifact.eval import create_online_eval_router
 from reactifact.providers import openai_llm, openrouter_llm
 from reactifact.recipes import MemoryStore
@@ -224,10 +225,23 @@ def create_app(
         )
     )
     app.include_router(create_chat_router(assistant, request_factory=_request_user))
+    app.include_router(
+        create_contracts_router(
+            GROUPS,
+            title="devops-ai contracts",
+            username=os.environ.get("TRACE_USER") or None,
+            password=os.environ.get("TRACE_PASSWORD") or None,
+        )
+    )
     # Quality monitoring over the same store: POST /api/evals/run scores the
     # latest traces with examples/devops/online_eval.py, tagging them eval /
     # eval:failed. The trace dashboard above then shows the results.
     app.include_router(create_online_eval_router(build_evaluator(trace_store)))
+
+    @app.get("/health", include_in_schema=False)
+    async def health() -> dict[str, bool]:
+        """Liveness probe for local/container runs."""
+        return {"ok": True}
 
     web_dir = ROOT / "web"
     if web_dir.exists():

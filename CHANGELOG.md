@@ -39,10 +39,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Static contracts (`reactifact contracts`).** `describe_contracts(groups)`
   renders the declared steps, consumes/produces, tools, timeout and retry as
   Markdown or JSON; no run and no LLM. CLI:
-  `reactifact contracts <module> [--format md|json] [--out PATH]`.
+  `reactifact contracts <module> [--format md|json] [--out PATH]`. The
+  optional `reactifact.contracts.web.create_contracts_router(groups)` serves the same page at
+  `/contracts`, JSON at `/api/contracts`, Markdown at `/contracts.md`.
 - **FastAPI error handlers.** `reactifact.web.install_error_handlers(app, *,
   extra=...)` maps authorization, guardrail, quota and merge errors to JSON
   HTTP responses (403/422/429/409).
+- **Connected tool provenance.** `ToolUse`/`ToolUseHITL` link their observations
+  and final answer `derived_from` the triggering artifact; devops report,
+  reply and memory steps now emit their provenance edges too.
+- **Trace writes keep their type.** `Link`/`Unlink` no longer shadow the
+  `Create` entry in `write_refs`, so trace columns and graph labels keep the
+  real artifact type.
+- **Leaner trace diagrams.** The evidence graph renders lazily when visible,
+  caps nodes/edges (`max_mermaid_nodes`/`max_mermaid_edges`), shortens artifact
+  ids, and no longer re-parses on a theme switch before the first render.
+- **Product contracts page.** `/contracts` has a light/dark toggle, search,
+  counts, a collapsible group → step → tool tree, and a zoomable connection
+  graph (fit, drag-to-pan, ctrl/⌘ + wheel).
 - **Trace dashboard branding.** The `/traces`, `/sessions` and run pages share
   a favicon matching the sidebar mark (`/traces/assets/favicon.svg`).
 - **Friendlier `StatusMachine`.** The generic `StatusMachine[Model]` now

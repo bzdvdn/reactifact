@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 from reactifact import Artifact, Step
+from reactifact.provenance import DERIVED_FROM
 from reactifact.tool_use import ToolAnswer
 
 from ..models import AnsibleReport, GitlabReport, K8sReport
@@ -19,6 +20,7 @@ class _ReportBuilder(Step):
     """
 
     report_type: type[BaseModel] = BaseModel
+    provenance = DERIVED_FROM
 
     async def run(self, answer: Artifact[ToolAnswer]) -> BaseModel | None:
         problem = self.context.get(answer.data.query_id)

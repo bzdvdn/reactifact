@@ -62,8 +62,8 @@ uv run python -m examples.starter_app.app      # http://127.0.0.1:8000
 и структурированному CSV-источнику → ленивую `materialize_doc` → извлечение
 доказательств → проверку утверждений → ответ с провенансом; детерминированный
 CSV-расчёт (`Spreadsheet` → `Calculation`). Веб-приложение также монтирует
-`/traces` (агентские запуски с колонками Question/Answer) и `/knowledge/`
-(статус индексации).
+`/traces` (агентские запуски с колонками Question/Answer), `/contracts`
+(статические consumes/produces/tools) и `/knowledge/` (статус индексации).
 
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + трейс-дашборд
@@ -106,7 +106,8 @@ uv run python ./examples/medic_lab/main.py    # uvicorn поднимается �
 **Что показывает:** `HITLLMAgent` + LLM-**роутер инструментов** (маршрутизация —
 отдельный структурный шаг, `StructuredLLM`), мутации Kubernetes/GitLab/Ansible с
 подтверждением человеком (каждая — необратимая операция, которую LLM не может
-выдумать сам); трейс-дашборд на `create_trace_router`. Плюс слой trust & safety:
+выдумать сам); трейс-дашборд на `create_trace_router` и страница
+`/contracts`. Плюс слой trust & safety:
 `guardrails.py` определяет **кастомный** guardrail (деструктивное изменение
 прода требует тикета `CHG-`) и редактирование секретов, подключаемые к
 `RuntimeResources` одной строкой — ops-политика блокирует инъекции и
@@ -154,6 +155,8 @@ git diff | python -m examples.code_review.main
 бюджет запускает пересборку с более ранней стадии с откатом через
 `_downstream_resets`. Явное детерминировано; LLM — только там, где это
 действительно генерация.
+
+Веб-приложение монтирует `/traces` и `/contracts` рядом с чатом.
 
 ```bash
 uv run python ./examples/repair/web.py

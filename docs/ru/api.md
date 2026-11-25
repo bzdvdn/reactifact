@@ -154,6 +154,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) |
+| `reactifact.contracts.web.create_contracts_router(groups, *, prefix=, title=, username=, password=)` | opt-in FastAPI-роутер: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `groups` может быть zero-arg фабрикой |
 | `install_error_handlers(app, *, extra=…)` | отображает `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` в JSON-ответы (403/422/429/409); `extra` добавляет/переопределяет |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); `request_factory(request)` строит request-маппинг хода из FastAPI `Request` (ходы с учётом идентичности/ACL); схема событий публикуется в OpenAPI `responses` маршрута |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
@@ -167,7 +168,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `trace_to_mermaid(trace)` | один запуск как Mermaid `sequenceDiagram` |
 | `python -m reactifact graph\|context\|trace` | CLI, печатающий диаграммы в stdout |
 | `reactifact new app` / `reactifact doctor` | CLI: scaffold встроенного FastAPI-шаблона / проверка settings и границ |
-| `trace_provenance_to_mermaid(trace)` | граф доказательств запуска (записанные артефакты + рёбра `patch.link`) |
+| `trace_provenance_to_mermaid(trace, *, max_nodes=, max_edges=)` | граф доказательств запуска (записанные артефакты + рёбра `patch.link`); длинные id сокращаются, дашборд ограничивает узлы/рёбра |
 
 ## Replay (reactifact.replay, §55)
 
@@ -302,7 +303,7 @@ OTLP/Langfuse-приёмников.
 | `LangfuseTracer`, `OTLPTracer`, `PostgresStore` | внешние приёмники трейсов — `OTLPTracer` вендор-нейтральный (GenAI semconv, любой OTLP/HTTP-коллектор), `LangfuseTracer` заточен под Langfuse, Postgres поддерживает async чтение+запись; дашборд (`create_trace_router`) принимает любой `TraceReader` |
 | `TraceLimits` | write-time лимиты трейса для `Tracer(..., limits=TraceLimits(max_spans=5000, max_refs_per_span=50, max_llm_calls_per_span=20, max_data_chars=None))`; `max_data_chars=None` берёт legacy-значение из `RuntimeResources.trace_truncate`; отброшенные данные помечают трейс `trace_truncated` |
 | `TraceColumn` | настраиваемая колонка таблицы из артефактов для `create_trace_router(store, columns=[…])`: `label`, `field` (точечный путь, список→первый), `agent`, `type` (класс или имя), `direction` read/write/any, `index`, `scope` run/session, `default` |
-| `create_trace_router(store, *, max_detail_spans=500, max_mermaid_spans=200, max_concurrent_reads=2)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда; detail/diagram ограничены и ленивые, `DELETE /api/traces/{id}` / `DELETE /api/sessions/{id}` удаляют run/сессию; страницы prefix-aware (работают под `include_router(prefix=…)`/ASGI `root_path`) |
+| `create_trace_router(store, *, max_detail_spans=500, max_mermaid_spans=200, max_mermaid_nodes=120, max_mermaid_edges=240, max_concurrent_reads=2)` (`reactifact.tracing.web`) | FastAPI-роутер дашборда; detail/diagram ограничены и ленивые, `DELETE /api/traces/{id}` / `DELETE /api/sessions/{id}` удаляют run/сессию; страницы prefix-aware (работают под `include_router(prefix=…)`/ASGI `root_path`) |
 | `Metrics`, `MetricsTracer`, `create_metrics_router` (`reactifact.metrics`) | Prometheus-метрики без зависимостей: счётчики/гистограммы (`runs_total`, `agent_runs_total`, `llm_calls_total`, `llm_tokens_total`, `llm_cost_total`, `artifacts_written_total`, `relations_total`, латентности…) из трейс-хука; `render()` выдаёт text exposition, `create_metrics_router` отдаёт `GET /metrics`. `RuntimeResources(metrics=…)` открывает тот же sink produce'ам (по умолчанию no-op) |
 
 ## Trust & safety (reactifact.guardrails / reactifact.authz / reactifact.quota, §57)

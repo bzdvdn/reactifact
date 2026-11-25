@@ -179,6 +179,10 @@ def test_traces_table_shows_question_and_answer_columns(tmp_path):
     assert top["fields"]["Question"] == "упал под"
     assert top["fields"]["Answer"] == "В production всё ок"
 
+    diagram = client.get(f"/api/traces/{top['id']}/diagram").json()
+    assert "derived_from" in diagram["provenance"]
+    assert "supported_by" in diagram["provenance"]
+
 
 def test_trace_detail_shows_pending_question_column(tmp_path):
     """The HITL ask run surfaces the clarify question as a `Pending` field."""
@@ -320,3 +324,18 @@ def test_sse_memory_provenance_uses_the_request_session(tmp_path):
     hits = asyncio.run(memory.search("OOMKilled", tags={"kind": "report"}))
     assert len(hits) == 1
     assert hits[0].record.source_session == "admin1:web-1"
+
+
+def test_health_probe_is_available(tmp_path):
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    assert TestClient(app).get("/health").json() == {"ok": True}
+
+
+def test_contracts_page_is_mounted(tmp_path):
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    page = client.get("/contracts")
+    assert page.status_code == 200
+    assert "devops-ai contracts" in page.text
+    assert client.get("/api/contracts").json()["groups"]

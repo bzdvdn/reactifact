@@ -145,3 +145,15 @@ def test_trace_dashboard_and_knowledge_status(tmp_path):
     assert status["sources"][0]["source_id"] == "knowledge"
     assert status["index"]["type"] == "SqliteIndex"
     assert status["index"]["count"] > 0
+
+
+def test_contracts_page_is_mounted(tmp_path):
+    app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
+    client = TestClient(app)
+
+    page = client.get("/contracts")
+    assert page.status_code == 200
+    assert "knowledge-ai contracts" in page.text
+
+    payload = client.get("/api/contracts").json()
+    assert payload["groups"]

@@ -130,6 +130,7 @@ reactifact = ["py.typed", "skills/*/SKILL.md", "skills/*/references/*.md"]
     "daemon/tests/*.py",
 ]
 "reactifact.tracing" = ["templates/*.html", "templates/*.css"]
+"reactifact.contracts" = ["templates/*.html", "templates/*.svg"]
 "reactifact.knowledge" = ["templates/*.html"]
 
 [tool.pytest.ini_options]

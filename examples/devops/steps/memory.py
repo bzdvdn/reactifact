@@ -10,6 +10,7 @@ entry pointing at a report version that never existed.
 from __future__ import annotations
 
 from reactifact import Artifact, Effects, PendingAction, Step
+from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import MemoryStore
 
 from ..models import AnsibleReport, GitlabReport, K8sReport, UserMsg
@@ -20,6 +21,7 @@ class RememberReport(Step):
 
     consumes = (K8sReport, GitlabReport, AnsibleReport)
     produces = (PendingAction,)
+    provenance = DERIVED_FROM
 
     async def run(
         self,

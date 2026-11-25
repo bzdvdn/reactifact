@@ -62,7 +62,8 @@ uv run python -m examples.starter_app.app      # http://127.0.0.1:8000
 structured CSV source → lazy `materialize_doc` → evidence extraction → claim
 verification → answer with provenance; deterministic CSV calculation
 (`Spreadsheet` → `Calculation`). The web app also mounts `/traces` (agent runs
-with Question/Answer columns) and `/knowledge/` (ingestion status).
+with Question/Answer columns), `/contracts` (static consumes/produces/tools) and
+`/knowledge/` (ingestion status).
 
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + trace dashboard
@@ -105,7 +106,8 @@ uv run python ./examples/medic_lab/main.py    # serves uvicorn automatically
 **What it shows:** `HITLLMAgent` + LLM **tool router** (routing is a separate
 structured step, `StructuredLLM`), HITL-approved mutations for Kubernetes,
 GitLab, Ansible (each is a fateful operation the LLM cannot dream up on its
-own); trace dashboard with the `create_trace_router` UI. It also carries the
+own); trace dashboard with the `create_trace_router` UI and a `/contracts`
+page. It also carries the
 trust & safety layer: `guardrails.py` defines a **custom** guardrail (a
 destructive production change must cite a `CHG-` ticket) plus secret
 redaction, wired onto `RuntimeResources` in one line — the ops policy blocks
@@ -153,6 +155,8 @@ concern, not a framework one). The flow: fact collection → LLM design options 
 budget complaint triggers a rebuild from an earlier stage with a `_downstream_resets`
 rollback. Everything explicit is deterministic; only genuinely generative steps
 use the LLM.
+
+The web app mounts `/traces` and `/contracts` next to the chat.
 
 ```bash
 uv run python ./examples/repair/web.py

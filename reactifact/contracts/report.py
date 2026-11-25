@@ -8,13 +8,16 @@ same `StepGroup` objects the runtime uses, so docs cannot drift from code.
 
 from __future__ import annotations
 
+import base64
+import html as _html
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
-from .consume import Consume
-from .step import Step, StepGroup
+from ..consume import Consume
+from ..step import Step, StepGroup
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,7 @@ class GroupContract:
     name: str
     kind: str
     consumes: tuple[ConsumeContract, ...] = ()
+    produces: tuple[str, ...] = ()
     steps: tuple[StepContract, ...] = ()
 
 
@@ -68,6 +72,54 @@ class ContractReport:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+
+    def to_mermaid(self) -> str:
+        """A group/artifact connection graph (static, no run state)."""
+        lines = ["flowchart LR"]
+        artifact_ids: dict[str, str] = {}
+        for index, group in enumerate(self.groups):
+            group_id = f"G{index}"
+            lines.append(f'    {group_id}["{_mermaid_escape(group.name)}"]')
+            consumes = [
+                *group.consumes,
+                *(item for step in group.steps for item in step.consumes),
+            ]
+            seen: set[str] = set()
+            for consume in consumes:
+                if consume.artifact in seen:
+                    continue
+                seen.add(consume.artifact)
+                artifact_id = _artifact_node_id(lines, artifact_ids, consume.artifact)
+                lines.append(f"    {artifact_id} -.->|consumes| {group_id}")
+            for produced in group.produces:
+                artifact_id = _artifact_node_id(lines, artifact_ids, produced)
+                lines.append(f"    {group_id} ==>|produces| {artifact_id}")
+        return "\n".join(lines)
+
+    def to_html(self, *, title: str = "reactifact contracts") -> str:
+        """A self-contained HTML page (no external CSS/JS, dark-mode aware)."""
+        groups = "".join(_group_html(group) for group in self.groups)
+        if not groups:
+            groups = '<p class="empty">No groups.</p>'
+        template_dir = Path(__file__).resolve().parent / "templates"
+        template = (template_dir / "contracts.html").read_text(encoding="utf-8")
+        favicon = base64.b64encode((template_dir / "favicon.svg").read_bytes()).decode(
+            "ascii"
+        )
+        steps = sum(len(group.steps) for group in self.groups)
+        tools = sum(len(step.tools) for group in self.groups for step in group.steps)
+        summary = (
+            f"<span><b>{len(self.groups)}</b> groups</span>"
+            f"<span><b>{steps}</b> steps</span>"
+            f"<span><b>{tools}</b> tools</span>"
+        )
+        return (
+            template.replace("__TITLE__", _html.escape(title))
+            .replace("__FAVICON__", favicon)
+            .replace("__SUMMARY__", summary)
+            .replace("__GRAPH__", _html.escape(self.to_mermaid()))
+            .replace("__GROUPS__", groups)
+        )
 
     def to_markdown(self) -> str:
         lines = ["# reactifact contracts", ""]
@@ -176,19 +228,178 @@ def _step_contract(step: Step[Any]) -> StepContract:
 
 
 def _group_contract(group: StepGroup) -> GroupContract:
+    steps = tuple(
+        _step_contract(step) for step in (getattr(group, "steps", None) or ())
+    )
+    produces = tuple(dict.fromkeys(name for step in steps for name in step.produces))
     return GroupContract(
         name=getattr(group, "name", "") or type(group).__name__,
         kind=type(group).__name__,
         consumes=_consumes(getattr(group, "consumes", None)),
-        steps=tuple(
-            _step_contract(step) for step in (getattr(group, "steps", None) or ())
-        ),
+        produces=produces,
+        steps=steps,
     )
 
 
 def describe_contracts(groups: Sequence[StepGroup]) -> ContractReport:
     """Describe the declared surface of `groups` (no run, no LLM)."""
     return ContractReport(groups=tuple(_group_contract(group) for group in groups))
+
+
+def _mermaid_escape(value: Any) -> str:
+    return str(value).replace("\r", " ").replace("\n", " ").replace('"', "'")
+
+
+def _artifact_node_id(lines: list[str], ids: dict[str, str], name: str) -> str:
+    node = ids.get(name)
+    if node is None:
+        node = f"A{len(ids)}"
+        ids[name] = node
+        lines.append(f'    {node}["{_mermaid_escape(name)}"]')
+    return node
+
+
+def _chips(values: Sequence[str]) -> str:
+    return "".join(
+        f'<span class="chip">{_html.escape(value)}</span>' for value in values
+    )
+
+
+def _search_attr(*parts: str) -> str:
+    return _html.escape(" ".join(part for part in parts if part), quote=True)
+
+
+def _io_block(label: str, values: Sequence[str]) -> str:
+    if not values:
+        return ""
+    return (
+        f'<div><div class="io-label">{_html.escape(label)}</div>'
+        f'<div class="chips">{_chips(values)}</div></div>'
+    )
+
+
+def _group_html(group: GroupContract) -> str:
+    steps = "".join(_step_html(step) for step in group.steps)
+    if not steps:
+        steps = '<p class="empty">No steps.</p>'
+    consumes = [*group.consumes]
+    seen = {item.artifact for item in consumes}
+    for step in group.steps:
+        for item in step.consumes:
+            if item.artifact not in seen:
+                seen.add(item.artifact)
+                consumes.append(item)
+    io = ""
+    if consumes or group.produces:
+        io = (
+            '<div class="tree-io">'
+            + _io_block("consumes", [item.artifact for item in consumes])
+            + _io_block("produces", list(group.produces))
+            + "</div>"
+        )
+    search = _search_attr(
+        group.name,
+        group.kind,
+        *(item.artifact for item in consumes),
+        *group.produces,
+        *(step.name for step in group.steps),
+        *(step.kind for step in group.steps),
+        *(tool.name for step in group.steps for tool in step.tools),
+    )
+    return (
+        f'<details class="group tree-group" open data-search="{search}">'
+        '<summary class="tree-row group-row">'
+        f'<span class="tree-name"><code>{_html.escape(group.name)}</code></span>'
+        f'<span class="badge accent">{_html.escape(group.kind)}</span>'
+        '<span class="spacer"></span>'
+        f'<span class="count">{len(group.steps)} step(s)</span>'
+        "</summary>"
+        f'<div class="tree-children">{io}{steps}</div>'
+        "</details>"
+    )
+
+
+def _step_html(step: StepContract) -> str:
+    consumes = [
+        item.artifact + ("" if item.wakes else " · read-only") for item in step.consumes
+    ]
+    meta: list[str] = []
+    if step.timeout is not None:
+        meta.append(f"timeout {step.timeout:g}s")
+    if step.priority:
+        meta.append(f"priority {step.priority}")
+    if step.retry is not None:
+        meta.append("retry " + ", ".join(f"{k}={v}" for k, v in step.retry.items()))
+    meta_html = (
+        '<div class="tree-meta">'
+        + "".join(f'<span class="pill">{_html.escape(item)}</span>' for item in meta)
+        + "</div>"
+        if meta
+        else ""
+    )
+    io = ""
+    if consumes or step.produces:
+        io = (
+            '<div class="tree-io">'
+            + _io_block("consumes", consumes)
+            + _io_block("produces", list(step.produces))
+            + "</div>"
+        )
+    tools = ""
+    if step.tools:
+        items = []
+        for tool in step.tools:
+            flags = (
+                '<span class="badge accent">destructive</span>'
+                if tool.destructive
+                else ""
+            )
+            desc = (
+                f'<span class="tool-desc">{_html.escape(tool.description)}</span>'
+                if tool.description
+                else ""
+            )
+            schema = ""
+            if tool.schema:
+                schema = (
+                    '<details class="tree-schema"><summary>schema</summary><pre>'
+                    + _html.escape(
+                        json.dumps(tool.schema, ensure_ascii=False, indent=2)
+                    )
+                    + "</pre></details>"
+                )
+            items.append(
+                '<div class="tree-tool">'
+                f"<code>{_html.escape(tool.name)}</code>{flags}{desc}{schema}</div>"
+            )
+        tools = (
+            '<div class="tree-tools"><div class="io-label">tools</div>'
+            + "".join(items)
+            + "</div>"
+        )
+    search = _search_attr(
+        step.name,
+        step.kind,
+        *consumes,
+        *step.produces,
+        *(tool.name for tool in step.tools),
+        *(tool.description for tool in step.tools),
+    )
+    return (
+        f'<details class="step tree-step" open data-search="{search}">'
+        '<summary class="tree-row step-row">'
+        f'<span class="tree-name"><code>{_html.escape(step.name)}</code></span>'
+        f'<span class="kind">{_html.escape(step.kind)}</span>'
+        '<span class="spacer"></span>'
+        + (
+            f'<span class="count">{len(step.tools)} tool(s)</span>'
+            if step.tools
+            else ""
+        )
+        + "</summary>"
+        f'<div class="tree-children">{meta_html}{io}{tools}</div>'
+        "</details>"
+    )
 
 
 def _join_consumes(consumes: Sequence[ConsumeContract]) -> str:
@@ -206,6 +417,7 @@ def _group_dict(group: GroupContract) -> dict[str, Any]:
         "name": group.name,
         "kind": group.kind,
         "consumes": [_consume_dict(item) for item in group.consumes],
+        "produces": list(group.produces),
         "steps": [
             {
                 "name": step.name,

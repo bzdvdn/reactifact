@@ -41,6 +41,10 @@ python -m reactifact contracts examples.knowledge.step_groups --format json
 
 ## В дашборде
 
+Приложение может смонтировать те же контракты как страницу через
+`reactifact.contracts.web.create_contracts_router(groups)` — `/contracts` (HTML), `/api/contracts`
+(JSON) и `/contracts.md` (Markdown). Это opt-in, с поддержкой Basic auth.
+
 Страница запуска (`/traces/<run_id>`) рендерит диаграмму трассы вживую через
 Mermaid, с кнопкой `copy` и исходником в раскрывающемся `<pre>`; если браузер
 офлайн (нет Mermaid JS) — показывается текст исходника.

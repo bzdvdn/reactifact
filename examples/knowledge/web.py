@@ -45,6 +45,7 @@ from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
+from reactifact.contracts.web import create_contracts_router
 from reactifact.knowledge.web import create_knowledge_router
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import TraceColumn, Tracer, TraceStore
@@ -204,6 +205,7 @@ def create_app(
         prefix="/knowledge",
     )
     app.include_router(create_chat_router(assistant))
+    app.include_router(create_contracts_router(GROUPS, title="knowledge-ai contracts"))
 
     web_dir = ROOT / "web"
     if web_dir.exists():
