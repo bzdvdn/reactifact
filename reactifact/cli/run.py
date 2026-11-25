@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import importlib
 import json
 import sys
 from pathlib import Path
@@ -13,34 +12,11 @@ from typing import Any
 from pydantic import BaseModel
 
 from ..pipeline import Pipeline
-from .common import DEFAULT_TRACE_PATH
-
-
-def _load_attr(spec: str) -> Any:
-    module_name, has_attr, attr = spec.partition(":")
-    if not has_attr:
-        raise SystemExit(f"expected 'module:attr', got {spec!r}")
-    try:
-        module = importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        raise SystemExit(f"could not import {module_name!r}: {exc}") from exc
-    try:
-        return getattr(module, attr)
-    except AttributeError as exc:
-        raise SystemExit(f"{spec!r} not found") from exc
-
-
-def _load_pipeline(spec: str) -> Pipeline:
-    value = _load_attr(spec)
-    if not isinstance(value, Pipeline):
-        raise SystemExit(
-            f"{spec!r} must resolve to a Pipeline, got {type(value).__name__}"
-        )
-    return value
+from .common import DEFAULT_TRACE_PATH, load_attr, load_pipeline
 
 
 def _load_model(spec: str) -> type[BaseModel]:
-    value = _load_attr(spec)
+    value = load_attr(spec)
     if not (isinstance(value, type) and issubclass(value, BaseModel)):
         raise SystemExit(f"{spec!r} must resolve to a pydantic model")
     return value
@@ -83,7 +59,7 @@ def _announce_trace(path: str | None, run_id: str) -> None:
 
 def cmd_run(args: argparse.Namespace) -> int:
     pipeline, trace_path, created_store = _configure_trace(
-        _load_pipeline(args.pipeline), args
+        load_pipeline(args.pipeline), args
     )
 
     seed_type = _load_model(args.seed) if args.seed else pipeline.seed_type

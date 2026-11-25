@@ -5,8 +5,9 @@ wiring here — see each subcommand module for that."""
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from ..pipeline import Pipeline
 from ..step import StepGroup
 
 #: Where `reactifact run` writes traces and `reactifact trace` reads them.
@@ -14,6 +15,31 @@ DEFAULT_TRACE_PATH = ".reactifact/traces.db"
 
 if TYPE_CHECKING:
     from ..checkpoints import FileKVBackend, SQLiteKVBackend
+
+
+def load_attr(spec: str) -> Any:
+    """Imports `module:attr` for CLI commands that need one object."""
+    module_name, has_attr, attr = spec.partition(":")
+    if not has_attr:
+        raise SystemExit(f"expected 'module:attr', got {spec!r}")
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        raise SystemExit(f"could not import {module_name!r}: {exc}") from exc
+    try:
+        return getattr(module, attr)
+    except AttributeError as exc:
+        raise SystemExit(f"{spec!r} not found") from exc
+
+
+def load_pipeline(spec: str) -> Pipeline:
+    """Resolves `module:attr` to a `Pipeline` (raises otherwise)."""
+    value = load_attr(spec)
+    if not isinstance(value, Pipeline):
+        raise SystemExit(
+            f"{spec!r} must resolve to a Pipeline, got {type(value).__name__}"
+        )
+    return value
 
 
 def load_agents(spec: str) -> list[StepGroup]:

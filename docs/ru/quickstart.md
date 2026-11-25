@@ -60,6 +60,22 @@ traces, бюджеты/LLM из settings). Сгенерированный про
 settings, трейсы, graceful shutdown и `APP_RUN_ONCE=true` для одноразового
 smoke-запуска.
 
+Цикл доступен и как библиотека:
+
+```python
+from reactifact import Daemon
+
+Daemon(
+    pipeline,
+    seed_source=next_tick,   # sync/async: индекс тика -> seed | None
+    interval=60,
+    traces=True,
+).serve()
+```
+
+`reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60`
+запускает то же из CLI.
+
 ## Чат в несколько строк
 
 `Chat` — типизированный фасад над `ChatAssistant`: seed и ответ выводятся из

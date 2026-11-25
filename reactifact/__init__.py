@@ -32,6 +32,7 @@ from .chat import Chat
 from .commit import ContextCheckpoint
 from .consume import Consume, consume
 from .context import Context, ProvenanceLink, View
+from .daemon import Daemon
 from .di import Depends, Inject
 from .effects import Effects, Handle
 from .events import Event, EventType
@@ -111,6 +112,7 @@ __all__ = [
     "ProvenanceLink",
     "ContextCheckpoint",
     "Create",
+    "Daemon",
     "Delete",
     "Depends",
     "EmbeddingProvider",

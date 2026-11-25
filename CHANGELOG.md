@@ -20,6 +20,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **CLI traces by default.** `reactifact run` writes `.reactifact/traces.db`
   (`--no-trace` skips it) and prints the run id; `reactifact trace` defaults to
   the same file, so the loop is `run` → `trace` with no path juggling.
+- **`Daemon`.** A transport-neutral interval loop for a `Pipeline`
+  (`seed_source(tick)`, graceful SIGINT/SIGTERM, `run_once`/`max_ticks`,
+  per-tick error isolation) or a custom `tick=` function. `reactifact daemon`
+  exposes it from the CLI, and the bundled daemon template now uses it instead
+  of its own signal/loop code.
 - **`Pipeline.validate()` / `.describe()`.** Static contracts plus seed/answer
   JSON Schemas on the pipeline itself — the transport-neutral "OpenAPI" the
   CLI and adapters share.

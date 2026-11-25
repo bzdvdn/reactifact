@@ -61,6 +61,22 @@ traces, settings-driven budgets/LLM). The generated project owns its
 LLM/budget, traces, graceful shutdown, and `APP_RUN_ONCE=true` for a one-shot
 smoke run.
 
+The loop is also available as a library:
+
+```python
+from reactifact import Daemon
+
+Daemon(
+    pipeline,
+    seed_source=next_tick,   # sync/async: tick index -> seed | None
+    interval=60,
+    traces=True,
+).serve()
+```
+
+`reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60`
+runs the same thing from the CLI.
+
 ## Chat in a few lines
 
 `Chat` is the typed facade over `ChatAssistant`: seed and reply come from the

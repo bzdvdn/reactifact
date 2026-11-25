@@ -6,6 +6,7 @@ Subcommands:
     new      create a project (minimal agent, FastAPI chat or daemon)
     dev      run an ASGI app with contracts/traces URLs
     check    contracts + scenarios + evals in one gate
+    daemon   run a Pipeline on an interval
     doctor   check app settings and common boundaries
     graph    static group blueprint from a module path ("pkg.mod:Attr")
     contracts static consumes/produces/tools contracts (Markdown or JSON)
@@ -47,6 +48,7 @@ from . import (
     check,
     context,
     contracts,
+    daemon,
     demo,
     dev,
     doctor,
@@ -92,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
         new,
         dev,
         check,
+        daemon,
         run,
         doctor,
     ):
@@ -120,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  reactifact new daemon <dir>    scheduled agent loop")
         print("  reactifact dev                 run the app with reload")
         print("  reactifact check <pipeline>    contracts + scenarios + evals")
+        print("  reactifact daemon <pipeline>   run it on an interval")
         print("  reactifact doctor              check an app's settings")
         print("  reactifact skills install      add agent skills to your project\n")
         print("Check a pipeline:")

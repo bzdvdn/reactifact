@@ -26,6 +26,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Context",
             "ContextCheckpoint",
             "Create",
+            "Daemon",
             "Delete",
             "Depends",
             "Effects",

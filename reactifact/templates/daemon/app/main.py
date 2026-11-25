@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import signal
-from contextlib import suppress
+
+from reactifact import Daemon
 
 from app.config import Settings, get_settings
 from app.runner import run_once
@@ -16,29 +16,20 @@ from app.runner import run_once
 logger = logging.getLogger("daemon")
 
 
-def _install_stop_handlers(stop: asyncio.Event) -> None:
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        # Windows / non-main thread: rely on KeyboardInterrupt instead.
-        with suppress(NotImplementedError, RuntimeError):
-            loop.add_signal_handler(sig, stop.set)
-
-
 async def serve(settings: Settings) -> int:
-    stop = asyncio.Event()
-    _install_stop_handlers(stop)
-    sequence = 0
-    while not stop.is_set():
+    async def tick(sequence: int) -> None:
         report = await run_once(settings, sequence)
         if report is not None:
             logger.info("tick %s: %s", report.sequence, report.text)
-        sequence += 1
-        if settings.run_once:
-            break
-        with suppress(TimeoutError):
-            await asyncio.wait_for(stop.wait(), timeout=settings.interval_seconds)
-    logger.info("daemon stopped after %s tick(s)", sequence)
-    return sequence
+
+    daemon = Daemon(
+        tick=tick,
+        interval=settings.interval_seconds,
+        run_once=settings.run_once,
+    )
+    ticks = await daemon.serve()
+    logger.info("daemon stopped after %s tick(s)", ticks)
+    return ticks
 
 
 async def main() -> int:
