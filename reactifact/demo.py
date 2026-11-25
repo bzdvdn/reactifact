@@ -20,6 +20,7 @@ import io
 import os
 import sys
 import textwrap
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -245,11 +246,14 @@ def _seed(context: Context) -> None:
     context.create(Policy(text=POLICY, locator="policy.md"), id="policy")
 
 
-async def run_demo() -> Context:
-    """Run the pipeline once; call twice to compare ``context_hash``."""
+async def run_demo(*, tracer: Any | None = None) -> Context:
+    """Run the pipeline once; call twice to compare ``context_hash``.
+
+    Pass `tracer=` to record the demo in a `TraceStore` (used by `demo --web`).
+    """
     context = Context()
     _seed(context)
-    runtime = Runtime(context, steps=STEPS, budget=Budget(max_runs=20))
+    runtime = Runtime(context, steps=STEPS, budget=Budget(max_runs=20), tracer=tracer)
     await runtime.arun()
     return context
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
@@ -40,6 +42,56 @@ def sse(event_type: str, data: dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def request_id_of(request: Any) -> str:
+    """The request id assigned by `install_request_id`, or a fallback."""
+    state = getattr(request, "state", None)
+    value = getattr(state, "request_id", "") if state is not None else ""
+    return value or request.headers.get("X-Request-ID") or uuid.uuid4().hex
+
+
+def error_payload(
+    exc: BaseException,
+    request: Any,
+    *,
+    code: str | None = None,
+    trace_id: str = "",
+) -> dict[str, Any]:
+    """The stable error envelope shared by domain errors and route failures."""
+    request_id = request_id_of(request)
+    state = getattr(request, "state", None)
+    run_id = trace_id or (
+        getattr(state, "reactifact_run_id", "") if state is not None else ""
+    )
+    run_id = run_id or request.headers.get("X-Reactifact-Run-Id", "")
+    message = str(exc)
+    return {
+        "error": {
+            "code": code or _snake(type(exc).__name__),
+            "message": message,
+            "request_id": request_id,
+            "trace_id": run_id,
+        },
+        # Kept for clients written against the pre-0.24 shape.
+        "detail": message,
+    }
+
+
+def install_request_id(app: Any) -> None:
+    """Add `X-Request-ID` to every response and `request.state.request_id`."""
+
+    @app.middleware("http")  # type: ignore[untyped-decorator]
+    async def _request_id(request: Any, call_next: Any) -> Any:
+        value = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+        request.state.request_id = value
+        response = await call_next(request)
+        response.headers.setdefault("X-Request-ID", value)
+        return response
+
+
 def install_error_handlers(
     app: Any,
     *,
@@ -51,6 +103,10 @@ def install_error_handlers(
     `AuthorizationError` → 403, `GuardrailViolation` → 422,
     `QuotaExceeded` → 429, `MergeConflict` → 409. `extra` adds or overrides
     mappings (`{MyError: 418}`).
+
+    The body is `{"error": {"code", "message", "request_id", "trace_id"},
+    "detail"}`; `detail` is the legacy alias. Install `install_request_id(app)`
+    as well for correlation headers.
 
     FastAPI is imported lazily, like the rest of this module.
     """
@@ -75,10 +131,12 @@ def install_error_handlers(
         async def handler(
             request: Any, exc: Exception, _status: int = status
         ) -> JSONResponse:
-            return JSONResponse(
-                status_code=_status,
-                content={"error": type(exc).__name__, "detail": str(exc)},
-            )
+            payload = error_payload(exc, request)
+            error = payload["error"]
+            headers = {"X-Request-ID": error["request_id"]}
+            if error["trace_id"]:
+                headers["X-Reactifact-Run-Id"] = error["trace_id"]
+            return JSONResponse(status_code=_status, content=payload, headers=headers)
 
         app.add_exception_handler(exc_type, handler)
 

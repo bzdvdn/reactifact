@@ -51,6 +51,7 @@ def test_http_run_and_openapi_are_generated_from_the_types():
     assert response.status_code == 200
     assert response.json() == {"text": "HELLO"}
     assert response.headers["x-reactifact-run-id"]
+    assert response.headers["x-request-id"]
 
     schema = client.get("/openapi.json").json()
     run = schema["paths"]["/run"]["post"]

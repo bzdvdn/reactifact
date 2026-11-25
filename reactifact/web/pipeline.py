@@ -9,7 +9,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from .._extras import require_extra
-from .common import PipelineRoutes, _check_path, _routes, install_error_handlers, sse
+from .common import (
+    PipelineRoutes,
+    _check_path,
+    _routes,
+    error_payload,
+    install_error_handlers,
+    install_request_id,
+    sse,
+)
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
@@ -42,7 +50,7 @@ def create_pipeline_router(
     async.
     """
     require_extra("web.create_pipeline_router", "fastapi", "web")
-    from fastapi import APIRouter, HTTPException, Request, Response
+    from fastapi import APIRouter, Request, Response
     from fastapi.responses import StreamingResponse
 
     routes = cast(
@@ -88,14 +96,26 @@ def create_pipeline_router(
             max_iterations=max_iterations,
             request=await _turn_request(request),
         )
+        request.state.reactifact_run_id = result.trace_id
         if result.trace_id:
             response.headers["X-Reactifact-Run-Id"] = result.trace_id
         artifact = result.context.latest(answer_type)
         if artifact is None:
-            raise HTTPException(
-                status_code=500,
-                detail=f"pipeline completed without a {answer_type.__name__} artifact",
+            from fastapi.responses import JSONResponse
+
+            payload = error_payload(
+                RuntimeError(
+                    f"pipeline completed without a {answer_type.__name__} artifact"
+                ),
+                request,
+                code="no_answer",
+                trace_id=result.trace_id,
             )
+            error = payload["error"]
+            headers = {"X-Request-ID": error["request_id"]}
+            if error["trace_id"]:
+                headers["X-Reactifact-Run-Id"] = error["trace_id"]
+            return JSONResponse(status_code=500, content=payload, headers=headers)
         return artifact.data
 
     run.__annotations__ = {
@@ -233,6 +253,7 @@ def create_http_app(
         lifespan=lifespan,
         **fastapi_kwargs,
     )
+    install_request_id(app)
     deps = list(dependencies)
     app.include_router(
         create_pipeline_router(

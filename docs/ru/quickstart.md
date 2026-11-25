@@ -33,10 +33,13 @@ uv run reactifact trace
 
 ```bash
 uv run reactifact demo            # ~3 секунды; --plain отключает цвет
+uv run reactifact demo --web      # тот же ответ, provenance, contracts + traces
 ```
 
 Это та же форма из трёх `@step`, которую вы напишете ниже; весь исходник —
 [`reactifact/demo.py`](https://github.com/bzdvdn/reactifact/blob/master/reactifact/demo.py).
+`--web` поднимает локальную страницу и открывает браузер; `--no-open` — если
+не нужно открывать.
 
 Для web-приложения либо добавьте extra сами, либо сгенерируйте шаблон:
 
@@ -209,8 +212,10 @@ app = pipeline.http()
 
 `reactifact dev main:app` поднимает `POST /run`, `POST /stream`, `/health`,
 интерактивный `/docs` (OpenAPI из `Question`/`Answer`), `/contracts` и
-`/traces`. Для встраивания в существующее приложение:
-`app.include_router(pipeline.router(prefix="/agent"))`.
+`/traces`. Каждый ответ несёт `X-Request-ID`; `/run` добавляет
+`X-Reactifact-Run-Id`, а доменные ошибки используют
+`{"error": {"code", "message", "request_id", "trace_id"}}`. Для встраивания в
+существующее приложение: `app.include_router(pipeline.router(prefix="/agent"))`.
 
 ## 0. Он-рамп для 80%: `reactifact.quick`
 

@@ -18,6 +18,7 @@ from .common import (
     _default_payload,
     _routes,
     install_error_handlers,
+    install_request_id,
     sse,
 )
 
@@ -325,6 +326,7 @@ def create_chat_app(
         lifespan=lifespan,
         **fastapi_kwargs,
     )
+    install_request_id(app)
     deps = list(dependencies)
     app.include_router(
         create_chat_router(

@@ -94,6 +94,16 @@ server = create_mcp_server([search_catalog], name="my-app")
 await server.run_stdio_async()
 ```
 
+A typed `Pipeline` is a tool as well — the MCP argument schema comes from
+`seed_type`, and the result is the latest `answer_type`:
+
+```python
+server = create_mcp_server(
+    [pipeline.as_tool(name="ask_knowledge", description="Ask the KB pipeline")],
+    name="my-app",
+)
+```
+
 `destructive=True` on a `Tool` becomes the MCP tool's `destructiveHint`
 annotation — the same signal Claude Desktop's own confirmation UI reads.
 

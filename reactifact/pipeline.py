@@ -23,11 +23,13 @@ from .artifacts import Artifact
 from .budget import Budget
 from .context import Context
 from .events import Event
+from .policy import RetryPolicy
 from .providers import LLMProvider
 from .resources import RuntimeResources
 from .runtime import RunResult, Runtime
 from .step import Step, StepGroup
 from .step.group import normalize_units
+from .tools import Tool, ToolError, ToolOutput
 
 if TYPE_CHECKING:
     from .contracts.report import ContractReport
@@ -206,6 +208,32 @@ class Pipeline:
 
         return create_http_app(self, **kwargs)
 
+    def as_tool(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        destructive: bool = False,
+        retry: RetryPolicy | None = None,
+        timeout: float | None = None,
+    ) -> Tool:
+        """Expose this pipeline as a `Tool` (MCP, tool loops, agent-as-tool).
+
+        The tool schema is `seed_type`'s JSON Schema and the result is the
+        latest `answer_type`; `create_mcp_server([pipeline.as_tool()])` is the
+        MCP adapter. Requires `seed_type=` and `answer_type=`.
+        """
+        if self.seed_type is None or self.answer_type is None:
+            raise TypeError("Pipeline.as_tool requires seed_type= and answer_type=")
+        return _PipelineTool(
+            self,
+            name=name,
+            description=description,
+            destructive=destructive,
+            retry=retry,
+            timeout=timeout,
+        )
+
     def _prepare(self, seed: Artifact[Any] | Any) -> tuple[Context, Runtime]:
         if self.lifespan is not None and self._lifespan_cm is None:
             raise RuntimeError(
@@ -365,6 +393,55 @@ class Pipeline:
             runtime.outcome,
             trace_id=runtime.run_id,
             trace_store=self.trace_store,
+        )
+
+
+class _PipelineTool(Tool):
+    """A `Tool` view of a typed Pipeline (schema from seed/answer models)."""
+
+    def __init__(
+        self,
+        pipeline: Pipeline,
+        *,
+        name: str | None,
+        description: str | None,
+        destructive: bool,
+        retry: RetryPolicy | None,
+        timeout: float | None,
+    ):
+        assert pipeline.seed_type is not None and pipeline.answer_type is not None
+        self._pipeline = pipeline
+        self._seed_type = pipeline.seed_type
+        self._answer_type = pipeline.answer_type
+        self.name = name or "pipeline"
+        self.description = description or (
+            f"Run the {self._seed_type.__name__} -> "
+            f"{self._answer_type.__name__} pipeline"
+        )
+        self.destructive = destructive
+        self.schema = self._seed_type.model_json_schema()
+        self.retry = retry
+        self.timeout = timeout
+
+    async def execute(self, args: dict[str, Any]) -> ToolOutput:
+        seed = self._seed_type.model_validate(args)
+        result = await self._pipeline.arun(seed)
+        artifact = result.context.latest(self._answer_type)
+        if artifact is None:
+            return ToolOutput.failed(
+                ToolError(
+                    code="no_answer",
+                    message=(
+                        f"pipeline completed without a "
+                        f"{self._answer_type.__name__} artifact"
+                    ),
+                )
+            )
+        data = artifact.data
+        text = getattr(data, "text", "")
+        return ToolOutput(
+            data=data.model_dump(mode="json"),
+            text=text if isinstance(text, str) else "",
         )
 
 

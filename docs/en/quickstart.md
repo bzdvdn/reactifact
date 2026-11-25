@@ -34,10 +34,13 @@ is the bundled demo:
 
 ```bash
 uv run reactifact demo            # ~3 seconds; --plain disables colour
+uv run reactifact demo --web      # same answer, provenance, contracts + traces
 ```
 
 It is the same three-`@step` shape you'll write below, and the whole source is
 [`reactifact/demo.py`](https://github.com/bzdvdn/reactifact/blob/master/reactifact/demo.py).
+`--web` serves it locally and opens the browser; use `--no-open` in a terminal
+you don't want to interrupt.
 
 For a web app, either add the extra yourself or generate the template:
 
@@ -211,8 +214,10 @@ app = pipeline.http()
 
 `reactifact dev main:app` then serves `POST /run`, `POST /stream`, `/health`,
 interactive `/docs` (OpenAPI generated from `Question`/`Answer`), `/contracts`
-and `/traces`. To mount it in an existing app, use
-`app.include_router(pipeline.router(prefix="/agent"))`.
+and `/traces`. Every response carries `X-Request-ID`; `/run` adds
+`X-Reactifact-Run-Id`, and domain errors use
+`{"error": {"code", "message", "request_id", "trace_id"}}`. To mount it in an
+existing app, use `app.include_router(pipeline.router(prefix="/agent"))`.
 
 ## 0. The 80% on-ramp: `reactifact.quick`
 

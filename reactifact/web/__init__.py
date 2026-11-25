@@ -20,6 +20,7 @@ from .common import (
     ChatRoutes,
     PipelineRoutes,
     install_error_handlers,
+    install_request_id,
     sse,
 )
 from .pipeline import create_http_app, create_pipeline_router
@@ -34,5 +35,6 @@ __all__ = [
     "create_http_app",
     "create_pipeline_router",
     "install_error_handlers",
+    "install_request_id",
     "sse",
 ]

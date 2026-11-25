@@ -95,6 +95,16 @@ server = create_mcp_server([search_catalog], name="my-app")
 await server.run_stdio_async()
 ```
 
+Типизированный `Pipeline` — тоже инструмент: схема аргументов MCP берётся из
+`seed_type`, результат — последний `answer_type`:
+
+```python
+server = create_mcp_server(
+    [pipeline.as_tool(name="ask_knowledge", description="Ask the KB pipeline")],
+    name="my-app",
+)
+```
+
 `destructive=True` у `Tool` становится аннотацией `destructiveHint` у
 MCP-инструмента — тот же сигнал, что читает собственный UI подтверждения в
 Claude Desktop.

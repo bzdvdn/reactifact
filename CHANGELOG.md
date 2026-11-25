@@ -25,6 +25,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   per-tick error isolation) or a custom `tick=` function. `reactifact daemon`
   exposes it from the CLI, and the bundled daemon template now uses it instead
   of its own signal/loop code.
+- **`Pipeline.as_tool()`.** Exposes a typed pipeline as a `Tool`: the MCP/LLM
+  argument schema comes from `seed_type` and the result is the latest
+  `answer_type`, so `create_mcp_server([pipeline.as_tool()])` needs no extra
+  MCP adapter.
+- **HTTP error envelope and request ids.** `create_http_app`/`create_chat_app`
+  install `X-Request-ID` middleware and domain errors return
+  `{"error": {"code", "message", "request_id", "trace_id"}}` (with the legacy
+  `detail` alias); pipeline `/run` adds `X-Reactifact-Run-Id` and the
+  no-answer failure uses the same envelope.
+- **`reactifact demo --web`.** Serves the no-key demo in a browser: the answer,
+  computed figures, citations, provenance graph, contracts page, trace
+  dashboard and `/api/demo` JSON; the demo runs once into an in-memory trace
+  store.
 - **`Pipeline.validate()` / `.describe()`.** Static contracts plus seed/answer
   JSON Schemas on the pipeline itself — the transport-neutral "OpenAPI" the
   CLI and adapters share.
