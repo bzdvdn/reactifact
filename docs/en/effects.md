@@ -124,6 +124,24 @@ once per committed intent, recording `dispatched`/`failed`. See
 [patterns — Outbox](patterns.md#outbox-external-side-effects) and
 [durability](durability.md). `Effects.ask/resume/act` were removed; use `Human`/`Outbox`.
 
+## Progress is neither data nor an effect
+
+`progress: Progress` is the third injected collaborator — an ephemeral UI
+signal:
+
+```python
+@step(produces=Answer, consumes=Question)
+async def answer(question: Question, progress: Progress, llm: LLMProvider | None) -> Answer:
+    progress("Считаю…", count=3)
+    ...
+```
+
+It is a thin view over `Context.announce`, so it publishes a `ProgressEvent`
+immediately and never enters the commit. A step that only announces and then
+calls an LLM or tools does not need `Context` at all. When the status must
+survive a replay or appear in the run's receipt, model it as a status artifact
+(`recipes.status.StatusMachine`) instead.
+
 ## The three-layer picture
 
 | Layer | What it is | Who writes it |

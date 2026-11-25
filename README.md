@@ -142,6 +142,10 @@ examples, domain vocabulary and the confidence threshold. `ApprovalDecision`
 records `policy_hash`, and downstream code still checks
 `decision.allows(min_confidence=0.8)` — ambiguity never auto-approves.
 
+LLM calls are provider methods now: a step takes `llm: LLMProvider` and calls
+`await llm.structured(Schema, user=...)` (or `llm.reply`, `llm.structured_json`,
+`llm.chat`); `context.resources.llm` is still accepted by the old helpers.
+
 ## Define a step, run it
 
 ```python

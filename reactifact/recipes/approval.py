@@ -32,6 +32,7 @@ from ..effects import Effects
 from ..interaction import Human
 from ..interrupt import PendingQuestion
 from ..provenance import DERIVED_FROM
+from ..providers import LLMProvider
 from ..step import Step
 from ..structured import structured_llm
 
@@ -292,7 +293,7 @@ def _explicit_intent(
 
 
 async def classify_approval(
-    context: Context,
+    llm: LLMProvider | None,
     question: PendingQuestion,
     *,
     policy: ApprovalPolicy | None = None,
@@ -319,9 +320,15 @@ async def classify_approval(
     if explicit is not None:
         return explicit
 
+    if llm is None:
+        return ApprovalIntent(
+            decision="ambiguous",
+            confidence=0.0,
+            reason="approval classifier needs an LLMProvider",
+        )
     system, user = policy.prompt(question)
     intent = await structured_llm(
-        context,
+        llm,
         schema=ApprovalIntent,
         system=system,
         user=user,
@@ -371,6 +378,7 @@ class InterpretApproval(Step):
         context: Context,
         question: Artifact[PendingQuestion],
         effects: Effects,
+        llm: LLMProvider | None,
     ) -> None:
         data = question.data
         if data.kind not in APPROVAL_KINDS:
@@ -378,7 +386,7 @@ class InterpretApproval(Step):
         decision_id = f"approval:{question.id}"
         if context.get(decision_id) is not None:
             return None
-        intent = await classify_approval(context, data, policy=self.policy)
+        intent = await classify_approval(llm, data, policy=self.policy)
         handle = effects.create(
             ApprovalDecision(
                 question_id=question.id,

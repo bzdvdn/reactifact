@@ -150,7 +150,7 @@ class Scheduler:
             for i, item in enumerate(top)
         )
         body = await structured_llm(
-            context,
+            context.resources.llm,
             schema=_Order,
             system=self.llm_system,
             user=description,

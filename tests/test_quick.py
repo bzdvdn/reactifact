@@ -269,7 +269,9 @@ async def llm_chat_reply(call):
     question = call.trigger
     if question is None or not isinstance(question.data, Question):
         return None
-    text = await llm_reply(call.context, system="Reply.", user=question.data.text)
+    text = await llm_reply(
+        call.context.resources.llm, system="Reply.", user=question.data.text
+    )
     call.effects.create(ChatReply(text=text or "(none)"))
     return None
 

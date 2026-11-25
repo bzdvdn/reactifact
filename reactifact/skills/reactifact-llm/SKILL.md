@@ -28,18 +28,15 @@ returns the schema instance or `None` (never a half-parsed dict):
 ```python
 import asyncio
 from pydantic import BaseModel
-from reactifact import Context, FakeLLM, RuntimeResources
-from reactifact.structured import structured_llm
+from reactifact import FakeLLM
 
 
 class Sentiment(BaseModel):
     label: str
 
 
-ctx = Context(resources=RuntimeResources(llm=FakeLLM('{"label": "positive"}')))
-result = asyncio.run(
-    structured_llm(ctx, schema=Sentiment, user="I love it")
-)
+llm = FakeLLM('{"label": "positive"}')
+result = asyncio.run(llm.structured(Sentiment, user="I love it"))
 assert result is not None and result.label == "positive"
 ```
 
@@ -50,9 +47,12 @@ assert result is not None and result.label == "positive"
 - `on_error(reason, exc)` reports *why* a `None` came back
   (`"no_provider"`, `"provider_error"`, `"parse_error"`, `"validation_error"`)
   without changing the `None` contract.
-- `json_schema_llm(ctx, my_dict_schema, user=...)` is the same for a raw JSON
-  Schema; `llm_reply(ctx, system=..., user=...)` returns plain text or `None`;
-  `StructuredLLM(schema).call(ctx, user)` is the reusable instance form.
+- `llm.structured_json(my_dict_schema, user=...)` is the same for a raw JSON
+  Schema; `llm.reply(system=..., user=...)` returns plain text or `None`;
+  `StructuredLLM(schema).call(llm, user)` is the reusable instance form.
+  `structured_llm(llm, ...)`, `json_schema_llm(llm, ...)` and
+  `llm_reply(llm, ...)` are the function equivalents — they no longer take a
+  `Context`.
 
 ## Structured agent = generate → artifact
 

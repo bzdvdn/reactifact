@@ -50,7 +50,7 @@ class _StructuredStep(Step[Any]):
         if question is None:
             return None
         body = await structured_llm(
-            context,
+            context.resources.llm,
             schema=self.schema,
             system=self.system,
             user=_text_of(question.data),

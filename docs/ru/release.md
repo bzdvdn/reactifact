@@ -21,11 +21,16 @@ Changelog). При бампе версии:
 
 ## Обновление между версиями
 
-Для 0.23.0 есть отдельный [migration-гайд](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
+Для 0.24.0 есть [migration-гайд](migration-0.24.md); для 0.23.0 — [свой](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
 о том, что изменилось, — `CHANGELOG.md`; ломающие изменения помечены по правилу
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.24.0** — CLI/daemon/MCP/HTTP-адаптеры, `check`, `new agent`,
+  `demo --web`, pipeline tools и HITL/approval-рецепты. LLM-хелперы
+  (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
+  `StructuredLLM.call`) теперь принимают `LLMProvider` (или `None`), а не
+  `Context`.
 - **0.23.0** — типизированный фасад `Chat` (`answer/traces/lifespan/test_client`),
   DI тулов через `Inject`/`Depends`, типизированные результаты и
   структурированные ошибки тулов, function-first `PlanExecute`/`ReflectionLoop`,

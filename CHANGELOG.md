@@ -6,8 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Breaking
+
+- **LLM helpers take an `LLMProvider`, not a `Context`.**
+  `structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete`,
+  `chat_complete_full` and `StructuredLLM.call` now accept `LLMProvider | None`
+  as their first argument. Use `llm.structured(...)` / `llm.reply(...)` when a
+  provider is injected, or pass `context.resources.llm` explicitly. The
+  `Context` union shim (and its `context=` keyword) is gone.
+
 ### Added
 
+- **`Progress` collaborator.** Inject `progress: Progress` into a step to
+  publish UI progress without the whole `Context`:
+  `progress("Считаю смету…", count=3)` is a thin view over
+  `Context.announce` (same `ProgressEvent`s, same `kind`s, never committed).
+  `StepCall.progress` mirrors it for the legacy single-`call` form. Steps that
+  only announce and then work with an LLM, tools or domain logic no longer need
+  `Context`; `Context.announce` remains for code that already holds one.
+  Optional service parameters (`llm: LLMProvider | None`) now resolve from
+  `RuntimeResources` instead of silently becoming `None`.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.
@@ -42,6 +60,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `waiting: true` with a structured question payload, `Chat.history` shows it
   across reloads, and `Chat(resume_pending=True)` turns the next user message
   into its answer — no separate HITL router or endpoint.
+- **Provider-level LLM helpers.** `LLMProvider` now has default
+  `structured`/`structured_json`/`reply`/`chat` methods (they delegate to the
+  shared parse/retry policy and call `self.complete`, so traces/budgets still
+  apply); `structured_llm`/`json_schema_llm`/`llm_reply`/`chat_complete` accept
+  either a `Context` or an `LLMProvider`. `EmbeddingProvider.embed_one` is the
+  single-text convenience.
 - **`recipes.approval`.** `ApprovalIntent` / `ApprovalDecision` /
   `classify_approval` / `InterpretApproval` / `ClarifyApproval`: typed yes/no
   and deterministic text first, structured LLM only for unclear answers,

@@ -144,16 +144,29 @@ hatch для ручной сборки `Patch`; это не третий пов�
 `run()`:
 
 ```python
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Effects, Progress, Step
 
 class EstimateStage(Step):
     consumes = (Project,)
     produces = (Project,)
 
-    async def run(self, project_art: Artifact[Project], effects: Effects) -> None:
+    async def run(
+        self,
+        project_art: Artifact[Project],
+        effects: Effects,
+        progress: Progress,
+    ) -> None:
         ...
+        progress("Считаю смету…")
         effects.update(project_art, stage="estimate")
 ```
+
+`progress` опционален: он публикует эфемерный UI-статус (`ProgressEvent`) и не
+требует инжектить весь `Context`. Используйте его, когда шаг только объявляет
+статус, а дальше работает с LLM, инструментами или доменной логикой. Тот же
+резолвер инжектит и другие не-модельные параметры из `RuntimeResources`, в том
+числе опциональные: `llm: LLMProvider | None` даёт настроенного провайдера или
+честный `None`.
 
 Функциональная форма принимает один `call: StepCall` и пишет через
 `call.effects`:

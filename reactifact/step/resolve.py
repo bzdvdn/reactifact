@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import types
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, cast, get_args, get_origin, get_type_hints
+from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
 
@@ -12,7 +13,7 @@ from ..artifacts import Artifact
 from ..context import Context
 from ..effects import Effects
 from ..events import Event
-from ..interaction import Human, Outbox
+from ..interaction import Human, Outbox, Progress
 from .annotations import Latest, Scope
 from .call import StepCall
 from .core import Step, _annotation_types, _scope_matches, _scope_value
@@ -94,6 +95,29 @@ def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
             seen.add(artifact.id)
 
 
+def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
+    """Resolve a non-artifact service parameter (`LLMProvider`, `X | None`, …).
+
+    Pydantic models are data (resolved as artifacts below); everything else is
+    looked up in `RuntimeResources`. A union is unwrapped so `LLMProvider |
+    None` injects the configured provider or honestly returns `None` — the
+    same no-provider fallback the LLM helpers document.
+    """
+    origin = get_origin(annotation)
+    if origin in (types.UnionType, Union):
+        candidates = [arg for arg in get_args(annotation) if arg is not type(None)]
+    else:
+        candidates = [annotation]
+    for candidate in candidates:
+        if (
+            isinstance(candidate, type)
+            and not issubclass(candidate, BaseModel)
+            and (service := call.context.resources.resolve(candidate)) is not None
+        ):
+            return service
+    return None
+
+
 def _resolve_arg(
     name: str,
     annotation: Any,
@@ -113,11 +137,9 @@ def _resolve_arg(
         return Human(call.effects)
     if annotation is Outbox or name == "outbox":
         return Outbox(call.effects)
-    if (
-        isinstance(annotation, type)
-        and not issubclass(annotation, BaseModel)
-        and (service := call.context.resources.resolve(annotation)) is not None
-    ):
+    if annotation is Progress or name == "progress":
+        return Progress(call.context.announce)
+    if (service := _resolve_service(call, annotation)) is not None:
         return service
     if annotation is Event or name == "event":
         return call.event

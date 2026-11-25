@@ -219,7 +219,7 @@ llm = openai_llm(model="gpt-4o-mini", temperature=0.7, max_tokens=2048)
 Per-call overrides win (e.g. a deterministic extractor that must not wander):
 
 ```python
-body = await structured_llm(context, schema=AnswerBody, user=text, temperature=0.0)
+body = await structured_llm(llm, schema=AnswerBody, user=text, temperature=0.0)
 ```
 
 Resolution order: **call → provider → omit the field**. The same applies to

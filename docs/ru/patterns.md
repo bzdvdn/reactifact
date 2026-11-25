@@ -206,19 +206,21 @@ ToolUse(
 Runtime оборачивает один вызов LLM в схему `pydantic` с ретраями и терпимым
 парсингом JSON:
 
+Первый аргумент — `LLMProvider`, обычно инжектированный `llm: LLMProvider`; код, у которого есть только `Context`, передаёт `context.resources.llm`. Функции и методы провайдера используют одну и ту же parse/retry-политику.
+
 ```python
 from reactifact.structured import StructuredLLM, structured_llm
 
 # процедурный вариант:
 body = await structured_llm(
-    context, schema=AnswerBody,
+    llm, schema=AnswerBody,
     system="You assemble coherent answers.",
     user=f"Question: {question}\nFacts: {facts}",
 )
 
 # переиспользуемый объектный вариант:
 _extractor = StructuredLLM(ProjectInfo, system="Extract repair facts; unknown = null")
-facts = await _extractor.call(context, user=message_text)
+facts = await _extractor.call(llm, user=message_text)
 ```
 
 Оба возвращают `None` при отсутствии модели или провале парсинга после ретраев —
@@ -231,7 +233,7 @@ def alert_if_down(reason: str, exc: Exception | None) -> None:
     if reason == "provider_error":
         logger.error("LLM outage: %r", exc)
 
-body = await structured_llm(context, schema=AnswerBody, user=text, on_error=alert_if_down)
+body = await structured_llm(llm, schema=AnswerBody, user=text, on_error=alert_if_down)
 ```
 
 Строки `system`/`user` собирайте через `PromptTemplate` (ядро): объявленные

@@ -62,7 +62,7 @@ class Evaluate(Step):
         questions = context.list_artifacts(Question)
         question = questions[0].data if questions else None
         body = await structured_llm(
-            context,
+            context.resources.llm,
             schema=AnswerBody,
             system=synthesis_system(
                 topic=question.topic if question else "unknown",

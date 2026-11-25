@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from reactifact import Context, FakeLLM, PendingQuestion, Pipeline, RuntimeResources
+from reactifact import FakeLLM, PendingQuestion, Pipeline
 from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import (
     ApprovalDecision,
@@ -30,10 +30,12 @@ def _question(
     )
 
 
-def _intent(question: PendingQuestion, policy: ApprovalPolicy | None = None):
-    context = Context()
-    context.create(question, id="q1")
-    return asyncio.run(classify_approval(context, question, policy=policy))
+def _intent(
+    question: PendingQuestion,
+    policy: ApprovalPolicy | None = None,
+    llm=None,
+):
+    return asyncio.run(classify_approval(llm, question, policy=policy))
 
 
 def test_typed_answer_never_uses_a_model():
@@ -96,37 +98,26 @@ def test_interpret_step_records_the_policy_hash():
 
 
 def test_llm_fallback_is_used_only_for_unclear_text():
-    context = Context(
-        resources=RuntimeResources(
-            llm=FakeLLM(
-                response=(
-                    '{"decision": "approve", "confidence": 0.94, '
-                    '"reason": "clear go-ahead"}'
-                )
-            )
+    llm = FakeLLM(
+        response=(
+            '{"decision": "approve", "confidence": 0.94, "reason": "clear go-ahead"}'
         )
     )
     question = _question(resolution="please proceed")
-    context.create(question, id="q1")
 
-    intent = asyncio.run(classify_approval(context, question))
+    intent = asyncio.run(classify_approval(llm, question))
 
     assert intent.decision == "approve"
     assert intent.confidence == 0.94
 
 
 def test_low_llm_confidence_is_never_approval():
-    context = Context(
-        resources=RuntimeResources(
-            llm=FakeLLM(
-                response='{"decision": "approve", "confidence": 0.3, "reason": "guess"}'
-            )
-        )
+    llm = FakeLLM(
+        response='{"decision": "approve", "confidence": 0.3, "reason": "guess"}'
     )
     question = _question(resolution="please proceed")
-    context.create(question, id="q1")
 
-    intent = asyncio.run(classify_approval(context, question))
+    intent = asyncio.run(classify_approval(llm, question))
 
     assert intent.decision == "ambiguous"
     assert intent.confidence == 0.3

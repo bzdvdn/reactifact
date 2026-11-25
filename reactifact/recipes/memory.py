@@ -280,7 +280,7 @@ def llm_summarizer(
 
     async def _summarize(context: Context, history: str) -> str | None:
         return await llm_reply(
-            context,
+            context.resources.llm,
             system=system,
             user=history,
             attempts=attempts,
@@ -323,7 +323,7 @@ def llm_digest_summarizer(
             else history
         )
         return await llm_reply(
-            context,
+            context.resources.llm,
             system=system,
             user=user,
             attempts=attempts,

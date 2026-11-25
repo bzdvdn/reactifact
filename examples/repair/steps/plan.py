@@ -6,7 +6,7 @@ the deterministic `fallback_plan` covers demo mode without a model.
 
 from __future__ import annotations
 
-from reactifact.context import Context
+from reactifact import LLMProvider, Progress
 from reactifact.structured import structured_llm
 
 from ..fallbacks import fallback_plan
@@ -45,7 +45,9 @@ _PLAN_PROMPT = """Ты — Planner. Составь поэтапный план �
 {{"steps": [{{"name": "", "description": "", "materials": ["..."]}}]}}"""
 
 
-async def _make_plan(context: Context, project: Project) -> list[PlanStep]:
+async def _make_plan(
+    llm: LLMProvider | None, progress: Progress, project: Project
+) -> list[PlanStep]:
     info = project.info
     palette = _palette_text(project)
     budget = f"{info.budget:,.0f} ₽".replace(",", " ") if info.budget else "не задан"
@@ -54,9 +56,9 @@ async def _make_plan(context: Context, project: Project) -> list[PlanStep]:
         f"потолка {info.ceiling_area} м², периметр {info.perimeter} м, "
         f"высота потолков {info.ceiling_height} м"
     )
-    context.announce("Составляю план ремонта…", kind="status")
+    progress("Составляю план ремонта…")
     result = await structured_llm(
-        context,
+        llm,
         temperature=0.1,
         schema=RepairPlan,
         user=_PLAN_PROMPT.format(geometry=geometry, palette=palette, budget=budget),

@@ -126,7 +126,9 @@ async def llm_produce(call):
     question = call.trigger
     if question is None:
         return None
-    body = await structured_llm(call.context, schema=Body, user=question.data.text)
+    body = await structured_llm(
+        call.context.resources.llm, schema=Body, user=question.data.text
+    )
     call.effects.create(body or Body(text="none"))
     return None
 

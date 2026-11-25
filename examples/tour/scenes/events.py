@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 from reactifact import (
     Context,
+    Progress,
     Runtime,
     RuntimeResources,
     Step,
@@ -60,10 +61,14 @@ class EchoStep(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, context: Context, question: Question) -> Answer:
-        context.announce("calling the model…", kind="status", source="tour")
+    async def run(
+        self,
+        question: Question,
+        progress: Progress,
+        llm: LLMProvider | None,
+    ) -> Answer:
+        progress("calling the model…", source="tour")
         await execute_tool(echo_tool, {"text": question.text})
-        llm = context.resources.llm
         assert llm is not None
         text = "".join(
             [

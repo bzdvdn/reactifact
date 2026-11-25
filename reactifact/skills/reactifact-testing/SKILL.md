@@ -70,7 +70,7 @@ with chat.test_client() as client:
 | `result.relations` | provenance edges — `.has(source=…, relation=…, target=…)`, `.none(...)` |
 | `result.tools` | `.called(name)`, `.called_with(name, **args)`, `.called_times`, `.never_called` |
 | `result.llm` | call/token counts — `.calls`, `.tokens`, `.max_calls(n)`, `.by_agent(name)` |
-| `result.events` | progress messages from `context.announce()` — `.contains(regex, kind=…)` |
+| `result.events` | progress messages from `progress(...)` / `context.announce()` — `.contains(regex, kind=…)` |
 | `result.errors` | isolated agent errors — `.none()`, `.count()`, `.expected(agent)` |
 
 Every failure raises `AssertionFailure` with the observed data inlined, so the

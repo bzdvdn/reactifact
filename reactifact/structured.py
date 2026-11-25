@@ -9,8 +9,7 @@ from typing import Any, Generic, Literal, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
-from .context import Context
-from .providers import LLMRequest, LLMResponse, Message, Role
+from .providers import LLMProvider, LLMRequest, LLMResponse, Message, Role
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +112,7 @@ def _parse_raw_json(text: str) -> dict[str, Any] | None:
 
 
 async def structured_llm(
-    context: Context,
+    llm: LLMProvider | None,
     *,
     schema: type[TModel],
     system: str = SYSTEM_STRUCTURED,
@@ -148,7 +147,6 @@ async def structured_llm(
     default tells the model its reply violated a rule). When the attempts run
     out the result is the same honest `None`, with `on_error("validation_error")`.
     """
-    llm = context.resources.llm
     if llm is None:
         if on_error is not None:
             on_error("no_provider", None)
@@ -214,7 +212,7 @@ async def structured_llm(
 
 
 async def json_schema_llm(
-    context: Context,
+    llm: LLMProvider | None,
     *,
     json_schema: dict[str, Any] | str,
     schema_name: str = "response",
@@ -257,7 +255,6 @@ async def json_schema_llm(
     schema_dict = (
         json.loads(json_schema) if isinstance(json_schema, str) else json_schema
     )
-    llm = context.resources.llm
     if llm is None:
         if on_error is not None:
             on_error("no_provider", None)
@@ -327,7 +324,7 @@ async def json_schema_llm(
 
 
 async def llm_reply(
-    context: Context,
+    llm: LLMProvider | None,
     *,
     system: str = "",
     user: str,
@@ -349,7 +346,7 @@ async def llm_reply(
     `on_error`: see `structured_llm`.
     """
     body = await structured_llm(
-        context,
+        llm,
         schema=_ReplyBody,
         system=system,
         user=user,
@@ -363,7 +360,7 @@ async def llm_reply(
 
 
 async def chat_complete_full(
-    context: Context,
+    llm: LLMProvider | None,
     messages: Sequence[Message | dict[str, str]],
     *,
     temperature: float | None = None,
@@ -377,7 +374,6 @@ async def chat_complete_full(
     reply ended, and retry only that case) or `.usage`, both of which
     `chat_complete` discards. `None` on the same honest-failure contract
     (no provider configured, or the call raised)."""
-    llm = context.resources.llm
     if llm is None:
         return None
     request = LLMRequest(
@@ -400,7 +396,7 @@ async def chat_complete_full(
 
 
 async def chat_complete(
-    context: Context,
+    llm: LLMProvider | None,
     messages: Sequence[Message | dict[str, str]],
     *,
     temperature: float | None = None,
@@ -429,7 +425,7 @@ async def chat_complete(
     `chat_complete_full` instead when you need `.finish_reason`/`.usage` too.
     """
     response = await chat_complete_full(
-        context,
+        llm,
         messages,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -449,7 +445,7 @@ class StructuredLLM(Generic[TModel]):
     Build a role once, use it wherever the same struct is needed:
 
         extract_facts = StructuredLLM(schema=Facts, system=SYSTEM_EXTRACTOR)
-        facts = await extract_facts.call(context, user="Summarize this page: …")
+        facts = await extract_facts.call(llm, user="Summarize this page: …")
 
     All deterministic logic (JSON extraction, retries, backoff) is delegated to
     `structured_llm` (§67); the object only carries the fixed parts.
@@ -478,9 +474,9 @@ class StructuredLLM(Generic[TModel]):
         self.repair = repair
         self.prompt_hash = prompt_hash
 
-    async def call(self, context: Context, user: str) -> TModel | None:
+    async def call(self, llm: LLMProvider | None, user: str) -> TModel | None:
         return await structured_llm(
-            context,
+            llm,
             schema=self.schema,
             system=self.system,
             user=user,

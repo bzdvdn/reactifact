@@ -64,7 +64,7 @@ class StructuredGenerateAgent(StepGroup):
             return None
         text = self.build_prompt(inputs)
         result = await structured_llm(
-            context,
+            context.resources.llm,
             schema=self.schema,
             system=self.system_prompt,
             user=text,

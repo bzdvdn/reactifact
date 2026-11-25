@@ -1,9 +1,27 @@
-"""Human/Outbox collaborators keep Effects as a pure write surface."""
+"""Human/Outbox/Progress collaborators keep data writes and UI signals typed."""
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator, Iterable
+
 from pydantic import BaseModel
-from reactifact import Human, Outbox, PendingAction, PendingQuestion, Pipeline, step
+from reactifact import (
+    Context,
+    FakeLLM,
+    Human,
+    LLMProvider,
+    Outbox,
+    PendingAction,
+    PendingQuestion,
+    Pipeline,
+    Progress,
+    Runtime,
+    RuntimeResources,
+    Step,
+    step,
+)
+from reactifact.streaming import ProgressEvent
 
 
 class Ticket(BaseModel):
@@ -13,6 +31,10 @@ class Ticket(BaseModel):
 
 class Approval(BaseModel):
     approved: bool
+
+
+class Answer(BaseModel):
+    text: str
 
 
 @step(produces=PendingQuestion, consumes=Ticket)
@@ -28,6 +50,19 @@ def notify(ticket: Ticket, outbox: Outbox) -> None:
 @step(produces=PendingQuestion, consumes=Ticket)
 async def approve_call(call) -> None:
     call.human.ask("Approve?", schema=Approval, id=f"call:{call.trigger.id}")
+
+
+@step(produces=Answer, consumes=Ticket)
+def answer(ticket: Ticket, progress: Progress) -> Answer:
+    progress("Считаю…", source="test")
+    progress("Нашёл 2", count=2)
+    return Answer(text=ticket.text)
+
+
+@step(produces=Answer, consumes=Ticket)
+async def answer_call(call) -> Answer:
+    call.progress("call progress", tool="lookup")
+    return Answer(text=call.trigger.data.text)
 
 
 def test_human_creates_a_pending_question():
@@ -47,3 +82,48 @@ def test_outbox_records_a_pending_action():
 def test_stepcall_exposes_human():
     result = Pipeline(steps=[approve_call]).run(Ticket(id="9", text="x"))
     assert len(result.context.pending_questions()) == 1
+
+
+def _statuses(events: Iterable[ProgressEvent]) -> list[ProgressEvent]:
+    return [event for event in events if event.kind == "status"]
+
+
+def test_progress_publishes_announcements_with_payload() -> None:
+    pipeline = Pipeline(steps=[answer])
+    events = asyncio.run(_collect(pipeline.astream(Ticket(id="1", text="x"))))
+
+    statuses = _statuses(events)
+    assert [event.message for event in statuses] == ["Считаю…", "Нашёл 2"]
+    assert statuses[0].data == {"source": "test"}
+    assert statuses[1].data == {"count": 2}
+
+
+def test_stepcall_exposes_progress() -> None:
+    pipeline = Pipeline(steps=[answer_call])
+    events = asyncio.run(_collect(pipeline.astream(Ticket(id="2", text="x"))))
+
+    statuses = _statuses(events)
+    assert [event.message for event in statuses] == ["call progress"]
+    assert statuses[0].data == {"tool": "lookup"}
+
+
+async def _collect(events: AsyncIterator[ProgressEvent]) -> list[ProgressEvent]:
+    return [event async for event in events]
+
+
+class UsesLLM(Step):
+    consumes = (Ticket,)
+    produces = (Answer,)
+
+    async def run(self, ticket: Ticket, llm: LLMProvider | None) -> Answer:
+        assert llm is not None
+        return Answer(text="ok")
+
+
+def test_optional_service_injection_resolves_a_provider() -> None:
+    context = Context(resources=RuntimeResources(llm=FakeLLM("{}")))
+    context.create(Ticket(id="3", text="x"))
+
+    asyncio.run(Runtime(context, steps=[UsesLLM()]).arun())
+
+    assert context.list_artifacts(Answer)[0].data.text == "ok"

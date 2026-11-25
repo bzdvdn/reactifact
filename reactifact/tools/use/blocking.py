@@ -117,7 +117,7 @@ class ToolUse(_ToolLoopBase):
                 break  # token/cost budget exhausted — fall through to the answer
             available = self._available_tools(loaded_groups)
             decision = await structured_llm(
-                context,
+                context.resources.llm,
                 schema=_ToolUseStep,
                 system=self._system_prompt(available, loaded_groups),
                 user=self._user_prompt(goal, history),
@@ -154,7 +154,7 @@ class ToolUse(_ToolLoopBase):
         # Loop hit the step limit or the time budget: force the LLM to answer
         # based on the data gathered so far.
         forced = await structured_llm(
-            context,
+            context.resources.llm,
             schema=_FinalAnswer,
             system="Answer now based on the available data. "
             'Reply with strict JSON: {"text":"..."}',

@@ -95,7 +95,7 @@ class ReviewFileStep(Step):
                 else ""
             )
             body = await structured_llm(
-                self.context,
+                self.context.resources.llm,
                 schema=ReviewBody,
                 system=REVIEW_SYSTEM,
                 user=(

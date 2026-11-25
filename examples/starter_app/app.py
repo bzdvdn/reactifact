@@ -86,7 +86,7 @@ async def _chat_reply(
     context: Context, question: Artifact[Question], effects: Effects
 ) -> None:
     text = await llm_reply(
-        context,
+        context.resources.llm,
         system="You are a concise, friendly assistant.",
         user=question.data.text,
     )

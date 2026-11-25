@@ -204,19 +204,21 @@ once loaded.
 The runtime wraps a single LLM call into a `pydantic` schema with retries and
 lenient JSON parsing:
 
+The first argument is an `LLMProvider` — usually an injected `llm: LLMProvider`; code with only a `Context` can pass `context.resources.llm`. Functions and provider methods share the same parse/retry policy.
+
 ```python
 from reactifact.structured import StructuredLLM, structured_llm
 
 # procedural variant:
 body = await structured_llm(
-    context, schema=AnswerBody,
+    llm, schema=AnswerBody,
     system="You assemble coherent answers.",
     user=f"Question: {question}\nFacts: {facts}",
 )
 
 # re-usable object variant:
 _extractor = StructuredLLM(ProjectInfo, system="Extract repair facts; unknown = null")
-facts = await _extractor.call(context, user=message_text)
+facts = await _extractor.call(llm, user=message_text)
 ```
 
 Both return `None` on a missing model or a parse failure after retries — and the
@@ -229,7 +231,7 @@ def alert_if_down(reason: str, exc: Exception | None) -> None:
     if reason == "provider_error":
         logger.error("LLM outage: %r", exc)
 
-body = await structured_llm(context, schema=AnswerBody, user=text, on_error=alert_if_down)
+body = await structured_llm(llm, schema=AnswerBody, user=text, on_error=alert_if_down)
 ```
 
 Build the `system`/`user` strings with `PromptTemplate` (core): declared

@@ -109,6 +109,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
 | `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными |
 | `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); старые `Effects.ask/resume/act` удалены в 0.23 |
+| `Progress` | инжектируемый эфемерный progress-канал: `progress(message, kind="status", **data)` сразу публикует `ProgressEvent` (тонкая обёртка над `Context.announce`, никогда не коммитится). Шагу, который только объявляет статус и вызывает LLM/инструменты, `Context` не нужен |
 | `Emit` / `Edit` / `Drop` / `Relate` | return-style инструкции изменений: create с явным id/links, update полей, delete, link — компилируются в тот же атомарный патч |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
@@ -226,10 +227,10 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | один структурный вызов; `None` при честном сбое; `validate(model)->bool` добавляет домен-проверку, повторяемую как parse-сбой; `repair(invalid_or_None, last_reply)->str` даёт инструкцию для повтора; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) — понять *почему*, не меняя контракт `None` |
-| `json_schema_llm(context, json_schema, *, user, validate=…, repair=…, …)` | структурный вывод по собственной JSON Schema (dict или JSON-строка), возвращает обычный `dict`; те же хуки повтора `validate`/`repair`, что у `structured_llm` |
-| `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | переиспользуемый экземпляр; `.call(context, user)` |
-| `llm_reply(context, *, system, user, attempts=…, on_error=…)` | обычный (неструктурный) вызов → `str` или `None` (под капотом схема с одним полем) |
+| `structured_llm(llm, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` / `llm.structured(...)` | один структурный вызов; `None` при честном сбое; `validate(model)->bool` добавляет домен-проверку, повторяемую как parse-сбой; `repair(invalid_or_None, last_reply)->str` даёт инструкцию для повтора; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) — понять *почему*, не меняя контракт `None` |
+| `json_schema_llm(llm, json_schema, *, user, validate=…, repair=…, …)` / `llm.structured_json(...)` | структурный вывод по собственной JSON Schema (dict или JSON-строка), возвращает обычный `dict`; те же хуки повтора `validate`/`repair`, что у `structured_llm` |
+| `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | переиспользуемый экземпляр; `.call(llm, user)` |
+| `llm_reply(llm, *, system, user, attempts=…, on_error=…)` / `llm.reply(...)` | обычный (неструктурный) вызов → `str` или `None` (под капотом схема с одним полем) |
 | `parse_structured` | допускающий JSON→модель парсер, используемый внутри |
 
 ## Промпты (reactifact.prompts, §68)
@@ -260,7 +261,7 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `LLMProvider`, `EmbeddingProvider` | два контракта, с которыми говорит ядро |
+| `LLMProvider`, `EmbeddingProvider` | два контракта, с которыми говорит ядро; `LLMProvider` добавляет default-методы `structured`/`structured_json`/`reply`/`chat` (внутри вызывают `complete`, поэтому tracing/budget сохраняются), а `EmbeddingProvider` — `embed_one` |
 | `ImageProvider`, `SpeechProvider`, `TranscriberProvider`, `VideoProvider` | медиа-контракты |
 | `OpenAICompatProvider`, `OpenAICompatEmbedder` + вендорные фабрики (`openai_llm`, `anthropic_llm`, `deepseek_llm`, `groq_llm`, `mistral_llm`, `openrouter_llm`, `gemini_llm`, `ollama_llm`, `azure_llm`, …) | 20+ чат/эмбеддинг-бэкендов, у всех `retry_attempts=3` по умолчанию (429/5xx/сетевые ошибки, экспоненциальный backoff — никогда на 4xx) |
 | `openrouter_embedder`, `openrouter_speech`, `groq_transcriber`, `together_embedder`, `fireworks_embedder`, `qwen_embedder`, `nvidia_embedder` | эмбеддинги/TTS/STT для вендоров, чьи не-чат эндпоинты подтверждённо OpenAI-совместимы (см. [providers](providers.md)) |
@@ -291,7 +292,7 @@ OTLP/Langfuse-приёмников.
 | `Approval` / `ApprovalIntent` / `ApprovalDecision` | типизированный yes/no; результат классификатора (`approve`/`reject`/`conditional`/`ambiguous` + confidence); долговечное решение с `allows(min_confidence=0.8)` и `policy_hash` |
 | `ApprovalPolicy` | один объект для промпта и словаря: `threshold`, `system`, `instructions`, `examples`, фразы/маркеры, optional `prompt_builder`; `prompt()` и `policy_hash` |
 | `ApprovalFlow` | готовый список шагов, скрывающий `InterpretApproval` + `ClarifyApproval`; передайте `steps=[YourAction()]` и распакуйте: `Pipeline(steps=[AskApproval(), *ApprovalFlow(steps=[Action()])])` |
-| `classify_approval(context, question, *, policy=…)` | typed answer → детерминированный парсер → `structured_llm` fallback; низкая уверенность/условия/ошибки становятся ambiguous, никогда не approve |
+| `classify_approval(llm, question, *, policy=…)` | typed answer → детерминированный парсер → `structured_llm` fallback; низкая уверенность/условия/ошибки становятся ambiguous, никогда не approve |
 | `InterpretApproval` / `ClarifyApproval` | шаги: answered `PendingQuestion` → связанный `ApprovalDecision`; ambiguous/conditional → один typed follow-up `PendingQuestion` (схема `Approval`) |
 
 ## Хелперы текста и отката (reactifact.recipes)

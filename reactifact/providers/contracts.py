@@ -7,11 +7,14 @@ their env-based factories. Only interfaces live here, so the core does not pull 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, TypeVar
+
+from pydantic import BaseModel
 
 Role: TypeAlias = Literal["system", "user", "assistant", "tool"]
+TModel = TypeVar("TModel", bound=BaseModel)
 
 
 @dataclass
@@ -93,10 +96,93 @@ class LLMProvider(ABC):
     @abstractmethod
     def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]: ...
 
+    async def structured(
+        self,
+        schema: type[TModel],
+        *,
+        system: str | None = None,
+        user: str,
+        **kwargs: Any,
+    ) -> TModel | None:
+        """Schema-validated completion using this provider.
+
+        The default implementation uses the shared parse/retry/validate policy
+        and calls `self.complete`, so tracing/budget wrappers still apply.
+        Providers with a native JSON-schema mode may override it.
+        """
+        from ..structured import SYSTEM_STRUCTURED, structured_llm
+
+        return await structured_llm(
+            self,
+            schema=schema,
+            system=system or SYSTEM_STRUCTURED,
+            user=user,
+            **kwargs,
+        )
+
+    async def structured_json(
+        self,
+        json_schema: dict[str, Any] | str,
+        *,
+        schema_name: str = "response",
+        system: str | None = None,
+        user: str,
+        **kwargs: Any,
+    ) -> dict[str, Any] | None:
+        """Native JSON-schema completion with the shared fallback/retry."""
+        from ..structured import SYSTEM_STRUCTURED, json_schema_llm
+
+        return await json_schema_llm(
+            self,
+            json_schema=json_schema,
+            schema_name=schema_name,
+            system=system or SYSTEM_STRUCTURED,
+            user=user,
+            **kwargs,
+        )
+
+    async def reply(
+        self,
+        *,
+        system: str = "",
+        user: str,
+        **kwargs: Any,
+    ) -> str | None:
+        """A plain-text reply (no caller-side schema)."""
+        from ..structured import llm_reply
+
+        return await llm_reply(self, system=system, user=user, **kwargs)
+
+    async def chat(
+        self,
+        messages: Sequence[Message | dict[str, str]],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict[str, Any] | None = None,
+        prompt_hash: str = "",
+    ) -> LLMResponse | None:
+        """A raw multi-turn completion, returning the full response or None."""
+        from ..structured import chat_complete_full
+
+        return await chat_complete_full(
+            self,
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            prompt_hash=prompt_hash,
+        )
+
 
 class EmbeddingProvider(ABC):
     @abstractmethod
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+    async def embed_one(self, text: str) -> list[float]:
+        """Convenience for the common single-text call."""
+        vectors = await self.embed([text])
+        return vectors[0]
 
 
 #: Builds the value of an auth header.

@@ -575,9 +575,20 @@ observation is fed to the LLM and recorded on `ToolLoopResult.observations`.
 
 ## Progress events (UI reactivity)
 
-For the animated "Думаю… / Составляю план… / Считаю смету…" lines, `Step`s
-call `context.announce(message, kind=..., **payload)`. Those become
-`ProgressEvent`s on the `EventHub`, which the runtime yields to the SSE stream:
+For the animated "Думаю… / Составляю план… / Считаю смету…" lines, inject
+`progress: Progress` into a step and call it:
+
+```python
+async def run(self, question: Artifact[Question], progress: Progress) -> Evidence:
+    progress("Ищу в документации…")
+    ...
+```
+
+`Progress` is a thin view over `Context.announce(message, kind=..., **payload)`:
+both publish `ProgressEvent`s on the `EventHub`, which the runtime yields to the
+SSE stream. `Context.announce` stays available for code that already holds a
+`Context` (servers, dispatchers, recipes); a step that only needs to announce
+should take `Progress` instead of the whole `Context`.
 
 ```python
 async for event in runtime.astream():

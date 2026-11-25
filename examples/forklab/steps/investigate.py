@@ -27,7 +27,7 @@ async def _wording(context: Context, snippet: str) -> str:
     questions = context.list_artifacts(Question)
     question = questions[0].data if questions else None
     body = await structured_llm(
-        context,
+        context.resources.llm,
         schema=EvidenceBody,
         system=wording_system(
             topic=question.topic if question else "unknown",

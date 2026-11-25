@@ -36,7 +36,7 @@ from .daemon import Daemon
 from .di import Depends, Inject
 from .effects import Effects, Handle
 from .events import Event, EventType
-from .interaction import Human, Outbox
+from .interaction import Human, Outbox, Progress
 from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
@@ -138,6 +138,7 @@ __all__ = [
     "Pipeline",
     "PendingAction",
     "PendingQuestion",
+    "Progress",
     "Step",
     "StepCall",
     "SubflowResult",

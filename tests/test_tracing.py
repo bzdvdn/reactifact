@@ -324,7 +324,9 @@ def test_runtime_records_llm_calls(tmp_path):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):
-            body = await structured_llm(context, schema=AnswerBody, user="привет")
+            body = await structured_llm(
+                context.resources.llm, schema=AnswerBody, user="привет"
+            )
             return Patch().create(Answer(text=body.text if body else ""))
 
     store = TraceStore(str(tmp_path / "llm.db"))
@@ -358,7 +360,9 @@ def test_runtime_attributes_llm_call_to_its_step(tmp_path):
         produces = (Answer,)
 
         async def run(self, context: Context, question: Question) -> Answer:
-            body = await structured_llm(context, schema=AnswerBody, user=question.text)
+            body = await structured_llm(
+                context.resources.llm, schema=AnswerBody, user=question.text
+            )
             return Answer(text=body.text if body else "")
 
     store = TraceStore(str(tmp_path / "llm-step.db"))

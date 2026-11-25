@@ -171,6 +171,8 @@ Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
 - **Consume** — a subscription to artifacts of a type (see `reactifact-agents`
   for the variants).
 - **Effects** — the step-scoped change set; compiled into one `Patch`.
+- **Progress** — an ephemeral UI status from a step (`ProgressEvent`, never
+  committed); inject `progress: Progress` instead of the whole `Context`.
 - **Relation** — a typed provenance edge (source —relation→ target).
 
 ## Self-check before you are done

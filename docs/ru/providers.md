@@ -223,7 +223,7 @@ llm = openai_llm(model="gpt-4o-mini", temperature=0.7, max_tokens=2048)
 который не должен «блуждать»):
 
 ```python
-body = await structured_llm(context, schema=AnswerBody, user=text, temperature=0.0)
+body = await structured_llm(llm, schema=AnswerBody, user=text, temperature=0.0)
 ```
 
 Порядок разрешения: **вызов → провайдер → поле не отправляется**. То же

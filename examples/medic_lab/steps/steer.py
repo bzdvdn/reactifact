@@ -169,7 +169,7 @@ class Deepen(Step):
         if context.resources.llm is None:
             return []
         body = await _deepen_prompt.call(
-            context,
+            context.resources.llm,
             user=(
                 f"Hypothesis to deepen: «{hyp.statement}»\n"
                 f"Original question: {question.text}"
@@ -289,7 +289,7 @@ class Reporter(Step):
             for r in ranking
         )
         body = await _report_prompt.call(
-            context,
+            context.resources.llm,
             user=(
                 f"Laboratory question: {question_text}\n"
                 f"Hypothesis ranking:\n{lines}\n\n"

@@ -135,7 +135,7 @@ class ToolUseHITL(_ToolLoopBase):
             return None
 
         decision = await structured_llm(
-            context,
+            context.resources.llm,
             schema=_ToolUseStepHITL,
             system=self._system_prompt(),
             user=self._user_prompt(goal, history),
@@ -378,7 +378,7 @@ class ToolUseHITL(_ToolLoopBase):
         effects: Effects,
     ) -> None:
         forced = await structured_llm(
-            context,
+            context.resources.llm,
             schema=_FinalAnswer,
             system="Answer now based on the available data. "
             'Reply with strict JSON: {"text":"..."}',

@@ -21,8 +21,8 @@ needed for the imperative escape hatch (overriding `run()` with no `consumes`).
 
 A class step gets typed inputs + `effects: Effects`. A `@step` function can use
 the same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`,
-`Context`, `Effects`, `Event`), or the legacy single `call: StepCall` with
-`call.trigger`/`call.context`/`call.effects`/`call.inputs`. Typed parameters
+`Context`, `Effects`, `Progress`, `Event`), or the legacy single `call: StepCall`
+with `call.trigger`/`call.context`/`call.effects`/`call.inputs`. Typed parameters
 derive the step's `consumes`; `Annotated[T, When(...)]` conditions a type and
 `Annotated[T, Wakes(False)]` reads it without waking.
 

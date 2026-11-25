@@ -81,14 +81,14 @@ def test_record_then_replay_reproduces_responses(tmp_path):
         recording, mode="record", inner=ScriptedLLM(['{"text": "one"}'])
     )
     ctx1 = Context(resources=RuntimeResources(llm=recorder))
-    first = asyncio.run(structured_llm(ctx1, schema=Word, user="first"))
+    first = asyncio.run(structured_llm(ctx1.resources.llm, schema=Word, user="first"))
     assert first is not None and first.text == "one"
     assert recording.exists()
     assert len(recording.read_text(encoding="utf-8").splitlines()) == 1
 
     replay = ReplayLLM(recording, mode="replay")
     ctx2 = Context(resources=RuntimeResources(llm=replay))
-    again = asyncio.run(structured_llm(ctx2, schema=Word, user="first"))
+    again = asyncio.run(structured_llm(ctx2.resources.llm, schema=Word, user="first"))
     assert again is not None and again.text == "one"
 
 
@@ -98,11 +98,11 @@ def test_replay_misses_raise_not_silently_wrong(tmp_path):
     recording = tmp_path / "calls.jsonl"
     recorder = ReplayLLM(recording, mode="record", inner=ScriptedLLM(['{"text": "a"}']))
     ctx1 = Context(resources=RuntimeResources(llm=recorder))
-    asyncio.run(structured_llm(ctx1, schema=Word, user="prompt-a"))
+    asyncio.run(structured_llm(ctx1.resources.llm, schema=Word, user="prompt-a"))
 
     replay = ReplayLLM(recording, mode="replay")
     ctx2 = Context(resources=RuntimeResources(llm=replay))
-    good = asyncio.run(structured_llm(ctx2, schema=Word, user="prompt-a"))
+    good = asyncio.run(structured_llm(ctx2.resources.llm, schema=Word, user="prompt-a"))
     assert good is not None and good.text == "a"
 
     # provider level: an unrecorded call is a ReplayMiss, not a wrong answer
@@ -115,7 +115,9 @@ def test_replay_misses_raise_not_silently_wrong(tmp_path):
         raise AssertionError("expected ReplayMiss for an unrecorded call")
 
     # structured layer: the miss degrades to an honest None (a fallback path)
-    divergent = asyncio.run(structured_llm(ctx2, schema=Word, user="prompt-b"))
+    divergent = asyncio.run(
+        structured_llm(ctx2.resources.llm, schema=Word, user="prompt-b")
+    )
     assert divergent is None
 
 
@@ -125,7 +127,7 @@ def test_replay_records_model_and_usage(tmp_path):
         recording, mode="record", inner=ScriptedLLM(['{"text": "x"}']), model="toy"
     )
     ctx = Context(resources=RuntimeResources(llm=recorder))
-    asyncio.run(structured_llm(ctx, schema=Word, user="hi"))
+    asyncio.run(structured_llm(ctx.resources.llm, schema=Word, user="hi"))
     entry = recording.read_text(encoding="utf-8").splitlines()[0]
     assert '"model": "toy"' in entry
     assert '"usage"' in entry

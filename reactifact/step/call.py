@@ -47,7 +47,7 @@ def reset_step_call(token: Token[Any]) -> None:
 
 
 if TYPE_CHECKING:
-    from ..interaction import Human, Outbox
+    from ..interaction import Human, Outbox, Progress
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +120,13 @@ class StepCall:
         from ..interaction import Outbox
 
         return Outbox(self.effects)
+
+    @property
+    def progress(self) -> Progress:
+        """Progress collaborator bound to this call's context."""
+        from ..interaction import Progress
+
+        return Progress(self.context.announce)
 
     @property
     def request(self) -> Mapping[str, Any]:

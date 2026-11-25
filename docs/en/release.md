@@ -21,12 +21,16 @@ entry when the version is bumped:
 
 ## Upgrading
 
-0.23.0 has a dedicated [migration guide](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
+0.24.0 has a [migration guide](migration-0.24.md); 0.23.0 has [its own](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
 remains the source of truth for what changed between versions, and breaking
 entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
 
+- **0.24.0** — CLI/daemon/MCP/HTTP adapter work, `check`, `new agent`,
+  `demo --web`, pipeline tools and HITL/approval recipes. The LLM helpers
+  (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
+  `StructuredLLM.call`) now take an `LLMProvider` (or `None`), not a `Context`.
 - **0.23.0** — the typed `Chat` facade (`answer/traces/lifespan/test_client`),
   `Inject`/`Depends` tool DI, typed tool results and structured tool errors,
   function-first `PlanExecute`/`ReflectionLoop`, tail trace sampling and

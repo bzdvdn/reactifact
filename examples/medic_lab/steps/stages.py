@@ -80,7 +80,7 @@ class Generator(Step):
         used_demo_topic = True
         if question_text:
             body = await _hypotheses_prompt.call(
-                context,
+                context.resources.llm,
                 user=(
                     "Propose up to 4 concise, mutually exclusive candidate answers "
                     "(hypotheses) for this question. Each is a short statement; "
@@ -223,7 +223,8 @@ class ExtractEvidence(Step):
     ) -> None:
         doc = doc_art.data
         body = await _extract_prompt.call(
-            context, user=f"Extract the key factual claims of this page:\n{doc.content}"
+            context.resources.llm,
+            user=f"Extract the key factual claims of this page:\n{doc.content}",
         )
         text = body.text.strip() if body else " ".join(doc.content.split())[:220]
         evidence_id = f"evidence:{doc_art.id}"

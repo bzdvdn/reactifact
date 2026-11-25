@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from reactifact import Artifact, Context, Step, When
+from reactifact import Artifact, LLMProvider, Progress, Step, When
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, ChatReply, ResearchTurn, UserQuery
@@ -19,18 +19,23 @@ class PlannerReply(Step):
     )
     produces = (ChatReply,)
 
-    async def run(self, context: Context, query: Artifact[UserQuery]) -> ChatReply:
+    async def run(
+        self,
+        query: Artifact[UserQuery],
+        progress: Progress,
+        llm: LLMProvider | None,
+    ) -> ChatReply:
         user = query.data
         text = user.text.strip()
-        context.announce("Thinking...", kind="status")
+        progress("Thinking...")
 
         if GREETING_RE.match(text):
-            context.announce("Replying to the greeting", kind="status")
+            progress("Replying to the greeting")
             return ChatReply(query_id=query.id, text=GREETING_TEXT, kind="greeting")
 
-        context.announce("Replying from general knowledge", kind="status")
+        progress("Replying from general knowledge")
         answer = await structured_llm(
-            context,
+            llm,
             schema=AnswerBody,
             user=f"Answer concisely and to the point:\n{text}",
         )
@@ -50,8 +55,8 @@ class PlannerTurn(Step):
     )
     produces = (ResearchTurn,)
 
-    async def run(self, context: Context, query: Artifact[UserQuery]) -> ResearchTurn:
+    async def run(self, query: Artifact[UserQuery], progress: Progress) -> ResearchTurn:
         user = query.data
         text = user.text.strip()
-        context.announce("Question requires a documentation search", kind="status")
+        progress("Question requires a documentation search")
         return ResearchTurn(query_id=query.id, text=text, status="researching")

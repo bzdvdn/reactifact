@@ -95,6 +95,24 @@ outbox.act(
 один раз на закоммиченное намерение. См. [Outbox](patterns.md#outbox-side-effects)
 и [durability](durability.md).
 
+## Progress — не данные и не эффект
+
+`progress: Progress` — третий инжектируемый коллаборатор, эфемерный
+UI-сигнал:
+
+```python
+@step(produces=Answer, consumes=Question)
+async def answer(question: Question, progress: Progress, llm: LLMProvider | None) -> Answer:
+    progress("Считаю…", count=3)
+    ...
+```
+
+Это тонкая обёртка над `Context.announce`: `ProgressEvent` публикуется сразу
+и никогда не попадает в коммит. Шагу, который только объявляет статус и
+дальше вызывает LLM или инструменты, `Context` вообще не нужен. Если статус
+должен пережить replay или попасть в «квитанцию» запуска — моделируйте его
+status-артефактом (`recipes.status.StatusMachine`).
+
 ## Три слоя
 
 | Слой | Что это | Кто пишет |

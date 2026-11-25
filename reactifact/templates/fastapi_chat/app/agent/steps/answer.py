@@ -17,7 +17,7 @@ class AnswerStep(Step):
         if not query.data.text.strip():
             return None
         body = await structured_llm(
-            self.context,
+            self.context.resources.llm,
             schema=AnswerBody,
             system=ANSWER_SYSTEM,
             user=query.data.text,

@@ -38,7 +38,7 @@ class Classify(Step[Sentiment]):
 
     async def run(self, call):
         result = await structured_llm(
-            call.context, schema=Sentiment, user=call.trigger.data.text
+            call.context.resources.llm, schema=Sentiment, user=call.trigger.data.text
         )
         if result is not None:
             call.effects.create(result)

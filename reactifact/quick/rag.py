@@ -223,7 +223,7 @@ class _AnswerStep(Step[Any]):
             f"[{self.doc_locator(doc.data)}]\n{self.doc_text(doc.data)}" for doc in docs
         )
         text = await llm_reply(
-            context,
+            context.resources.llm,
             system=self.system,
             user=f"Question: {_text_of(question.data)}\n\nSources:\n{prompt}",
         )

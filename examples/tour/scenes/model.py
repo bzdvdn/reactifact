@@ -37,7 +37,7 @@ async def write_brief(
         f"- {line}" for line in facts.data.lines
     )
     text = await llm_reply(
-        context,
+        context.resources.llm,
         system="You are a precise technical writer. Reply with one sentence.",
         user=prompt,
     )

@@ -52,7 +52,9 @@ def test_structured_llm_retries_on_invalid_json():
     )
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    result = asyncio.run(structured_llm(ctx, schema=Summary, user="сделай итог"))
+    result = asyncio.run(
+        structured_llm(ctx.resources.llm, schema=Summary, user="сделай итог")
+    )
     assert result is not None
     assert result.text == "ок"
     assert len(llm.responses) == 0  # both calls used
@@ -62,7 +64,9 @@ def test_structured_llm_returns_none_on_all_failures():
     llm = ScriptedLLM(["мусор", "ещё мусор"])
     ctx = Context(resources=RuntimeResources(llm=llm))
 
-    result = asyncio.run(structured_llm(ctx, schema=Summary, user="итог", attempts=2))
+    result = asyncio.run(
+        structured_llm(ctx.resources.llm, schema=Summary, user="итог", attempts=2)
+    )
     assert result is None
 
 
@@ -115,7 +119,7 @@ def test_structured_generate_fallback_on_llm_failure():
 
 def test_structured_llm_without_llm_returns_none():
     ctx = Context()
-    result = asyncio.run(structured_llm(ctx, schema=Summary, user="x"))
+    result = asyncio.run(structured_llm(ctx.resources.llm, schema=Summary, user="x"))
     assert result is None
 
 
@@ -124,7 +128,9 @@ def test_llm_reply_returns_plain_text():
 
     llm = ScriptedLLM(['{"text": "просто ответ"}'])
     ctx = Context(resources=RuntimeResources(llm=llm))
-    text = asyncio.run(llm_reply(ctx, system="Будь краток", user="сколько будет 2+2?"))
+    text = asyncio.run(
+        llm_reply(ctx.resources.llm, system="Будь краток", user="сколько будет 2+2?")
+    )
     assert text == "просто ответ"
 
 
@@ -133,7 +139,7 @@ def test_llm_reply_is_none_on_honest_failure():
 
     llm = ScriptedLLM(["не json", "тоже не json"])
     ctx = Context(resources=RuntimeResources(llm=llm))
-    text = asyncio.run(llm_reply(ctx, user="х"))
+    text = asyncio.run(llm_reply(ctx.resources.llm, user="х"))
     assert text is None
 
 
@@ -141,7 +147,7 @@ def test_llm_reply_without_model_returns_none():
     from reactifact.structured import llm_reply
 
     ctx = Context()
-    assert asyncio.run(llm_reply(ctx, user="х")) is None
+    assert asyncio.run(llm_reply(ctx.resources.llm, user="х")) is None
 
 
 class FlakyLLM(LLMProvider):
@@ -161,7 +167,7 @@ class FlakyLLM(LLMProvider):
 def test_structured_llm_retries_on_network_error():
     llm = FlakyLLM()
     ctx = Context(resources=RuntimeResources(llm=llm))
-    result = asyncio.run(structured_llm(ctx, schema=Summary, user="x"))
+    result = asyncio.run(structured_llm(ctx.resources.llm, schema=Summary, user="x"))
     assert result is not None
     assert result.text == "ok"
     assert llm.calls == 2
@@ -184,7 +190,11 @@ def test_on_error_distinguishes_no_provider_from_provider_failure():
     ctx_no_provider = Context()
     result = asyncio.run(
         structured_llm(
-            ctx_no_provider, schema=Summary, user="x", on_error=record, attempts=1
+            ctx_no_provider.resources.llm,
+            schema=Summary,
+            user="x",
+            on_error=record,
+            attempts=1,
         )
     )
     assert result is None
@@ -193,7 +203,13 @@ def test_on_error_distinguishes_no_provider_from_provider_failure():
     reasons.clear()
     ctx_down = Context(resources=RuntimeResources(llm=AlwaysFailsLLM()))
     result = asyncio.run(
-        structured_llm(ctx_down, schema=Summary, user="x", on_error=record, attempts=1)
+        structured_llm(
+            ctx_down.resources.llm,
+            schema=Summary,
+            user="x",
+            on_error=record,
+            attempts=1,
+        )
     )
     assert result is None
     assert len(reasons) == 1
@@ -207,7 +223,7 @@ def test_on_error_reports_parse_error():
     ctx = Context(resources=RuntimeResources(llm=llm))
     result = asyncio.run(
         structured_llm(
-            ctx,
+            ctx.resources.llm,
             schema=Summary,
             user="итог",
             attempts=2,
@@ -235,7 +251,7 @@ def test_prompt_binds_system_and_schema():
     llm = CapturingLLM()
     ctx = Context(resources=RuntimeResources(llm=llm))
     role = StructuredLLM(schema=Summary, system="You are a strict analyst.")
-    result = asyncio.run(role.call(ctx, user="сделай итог по тексту"))
+    result = asyncio.run(role.call(ctx.resources.llm, user="сделай итог по тексту"))
     assert result is not None
     assert result.text == "роль"
     assert seen["system"] == "You are a strict analyst."
@@ -254,7 +270,9 @@ def test_json_schema_llm_parses_raw_dict_no_model_needed():
     ctx = Context(resources=RuntimeResources(llm=llm))
 
     result = asyncio.run(
-        json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="what is the answer?")
+        json_schema_llm(
+            ctx.resources.llm, json_schema=RAW_SCHEMA, user="what is the answer?"
+        )
     )
     assert result == {"answer": "42"}
 
@@ -264,7 +282,7 @@ def test_json_schema_llm_accepts_a_json_string_too():
     ctx = Context(resources=RuntimeResources(llm=llm))
 
     result = asyncio.run(
-        json_schema_llm(ctx, json_schema=json.dumps(RAW_SCHEMA), user="q")
+        json_schema_llm(ctx.resources.llm, json_schema=json.dumps(RAW_SCHEMA), user="q")
     )
     assert result == {"answer": "ok"}
 
@@ -282,7 +300,9 @@ def test_json_schema_llm_sends_strict_native_response_format():
 
     ctx = Context(resources=RuntimeResources(llm=CapturingLLM()))
     asyncio.run(
-        json_schema_llm(ctx, json_schema=RAW_SCHEMA, schema_name="my_schema", user="q")
+        json_schema_llm(
+            ctx.resources.llm, json_schema=RAW_SCHEMA, schema_name="my_schema", user="q"
+        )
     )
     assert seen["response_format"] == {
         "type": "json_schema",
@@ -295,14 +315,16 @@ def test_json_schema_llm_retries_and_gives_up_honestly():
     ctx = Context(resources=RuntimeResources(llm=llm))
 
     result = asyncio.run(
-        json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="q", attempts=2)
+        json_schema_llm(ctx.resources.llm, json_schema=RAW_SCHEMA, user="q", attempts=2)
     )
     assert result is None
 
 
 def test_json_schema_llm_returns_none_without_a_provider():
     ctx = Context(resources=RuntimeResources())
-    result = asyncio.run(json_schema_llm(ctx, json_schema=RAW_SCHEMA, user="q"))
+    result = asyncio.run(
+        json_schema_llm(ctx.resources.llm, json_schema=RAW_SCHEMA, user="q")
+    )
     assert result is None
 
 
@@ -323,7 +345,7 @@ def test_chat_complete_sends_messages_as_is_and_returns_raw_text():
         {"role": "user", "content": "u"},
         {"role": "assistant", "content": "a"},
     ]
-    result = asyncio.run(chat_complete(ctx, messages))
+    result = asyncio.run(chat_complete(ctx.resources.llm, messages))
 
     assert result == "raw reply, no envelope"
     assert seen["messages"] == [("system", "s"), ("user", "u"), ("assistant", "a")]
@@ -334,13 +356,15 @@ def test_chat_complete_accepts_message_objects_too():
 
     llm = ScriptedLLM(["ok"])
     ctx = Context(resources=RuntimeResources(llm=llm))
-    result = asyncio.run(chat_complete(ctx, [Message.user("hi")]))
+    result = asyncio.run(chat_complete(ctx.resources.llm, [Message.user("hi")]))
     assert result == "ok"
 
 
 def test_chat_complete_returns_none_without_a_provider():
     ctx = Context(resources=RuntimeResources())
-    result = asyncio.run(chat_complete(ctx, [{"role": "user", "content": "hi"}]))
+    result = asyncio.run(
+        chat_complete(ctx.resources.llm, [{"role": "user", "content": "hi"}])
+    )
     assert result is None
 
 
@@ -353,7 +377,9 @@ def test_chat_complete_returns_none_on_provider_error():
             yield LLMResponse(text="")  # pragma: no cover
 
     ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
-    result = asyncio.run(chat_complete(ctx, [{"role": "user", "content": "hi"}]))
+    result = asyncio.run(
+        chat_complete(ctx.resources.llm, [{"role": "user", "content": "hi"}])
+    )
     assert result is None
 
 
@@ -370,7 +396,9 @@ def test_chat_complete_full_exposes_finish_reason_that_chat_complete_discards():
             yield LLMResponse(text="")  # pragma: no cover
 
     ctx = Context(resources=RuntimeResources(llm=TruncatingLLM()))
-    response = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
+    response = asyncio.run(
+        chat_complete_full(ctx.resources.llm, [{"role": "user", "content": "hi"}])
+    )
 
     assert response is not None
     assert response.text == "cut off mid-sen"
@@ -379,7 +407,9 @@ def test_chat_complete_full_exposes_finish_reason_that_chat_complete_discards():
 
 def test_chat_complete_full_returns_none_without_a_provider():
     ctx = Context(resources=RuntimeResources())
-    result = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
+    result = asyncio.run(
+        chat_complete_full(ctx.resources.llm, [{"role": "user", "content": "hi"}])
+    )
     assert result is None
 
 
@@ -392,7 +422,9 @@ def test_chat_complete_full_returns_none_on_provider_error():
             yield LLMResponse(text="")  # pragma: no cover
 
     ctx = Context(resources=RuntimeResources(llm=FailingLLM()))
-    result = asyncio.run(chat_complete_full(ctx, [{"role": "user", "content": "hi"}]))
+    result = asyncio.run(
+        chat_complete_full(ctx.resources.llm, [{"role": "user", "content": "hi"}])
+    )
     assert result is None
 
 
@@ -411,7 +443,7 @@ def test_validate_rejects_then_repairs():
 
     result = asyncio.run(
         structured_llm(
-            ctx,
+            ctx.resources.llm,
             schema=_Pos,
             user="give a positive",
             validate=lambda m: m.n > 0,
@@ -429,7 +461,7 @@ def test_validation_error_reported_when_all_attempts_invalid():
 
     result = asyncio.run(
         structured_llm(
-            ctx,
+            ctx.resources.llm,
             schema=_Pos,
             user="x",
             validate=lambda m: m.n > 0,
@@ -449,7 +481,9 @@ def test_repair_sees_none_on_parse_failure():
         seen.append(bad)
         return "return json"
 
-    result = asyncio.run(structured_llm(ctx, schema=_Pos, user="x", repair=repair))
+    result = asyncio.run(
+        structured_llm(ctx.resources.llm, schema=_Pos, user="x", repair=repair)
+    )
     assert result is not None and result.n == 1
     assert seen == [None]
 
@@ -472,7 +506,7 @@ def test_json_schema_llm_validate_then_repair():
 
     result = asyncio.run(
         json_schema_llm(
-            ctx,
+            ctx.resources.llm,
             json_schema=_JSON_SCHEMA,
             user="x",
             validate=lambda d: d["n"] > 0,
@@ -490,7 +524,7 @@ def test_json_schema_llm_validation_error_reported():
 
     result = asyncio.run(
         json_schema_llm(
-            ctx,
+            ctx.resources.llm,
             json_schema=_JSON_SCHEMA,
             user="x",
             validate=lambda d: d["n"] > 0,
@@ -499,3 +533,37 @@ def test_json_schema_llm_validation_error_reported():
     )
     assert result is None
     assert reasons == ["validation_error"]
+
+
+def test_provider_level_structured_reply_and_chat():
+    from reactifact.providers import FakeEmbedder, FakeLLM
+
+    llm = FakeLLM(response='{"text": "ok", "topics": []}')
+    summary = asyncio.run(llm.structured(Summary, user="итог"))
+    assert summary is not None
+    assert summary.text == "ok"
+
+    text = asyncio.run(FakeLLM(response='{"text": "hello"}').reply(user="hi"))
+    assert text == "hello"
+
+    response = asyncio.run(
+        FakeLLM(response="raw").chat([{"role": "user", "content": "hi"}])
+    )
+    assert response is not None
+    assert response.text == "raw"
+
+    vector = asyncio.run(FakeEmbedder(dim=4).embed_one("hello"))
+    assert len(vector) == 4
+
+
+def test_provider_level_structured_json():
+    from reactifact.providers import FakeLLM
+
+    llm = FakeLLM(response='{"value": 3}')
+    result = asyncio.run(
+        llm.structured_json(
+            {"type": "object", "properties": {"value": {"type": "integer"}}},
+            user="value",
+        )
+    )
+    assert result == {"value": 3}

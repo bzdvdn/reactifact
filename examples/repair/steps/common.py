@@ -77,7 +77,7 @@ async def _extract_info(
         return _apply_facts(current, parse_facts(text), override=True)
 
     result = await structured_llm(
-        context,
+        context.resources.llm,
         schema=ProjectInfo,
         temperature=0.0,
         max_tokens=3000,

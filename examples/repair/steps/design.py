@@ -51,7 +51,7 @@ async def _make_design_options(
         else ""
     )
     result = await structured_llm(
-        context,
+        context.resources.llm,
         schema=DesignOptions,
         temperature=0.1,
         max_tokens=3000,

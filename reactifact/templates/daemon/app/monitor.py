@@ -25,7 +25,7 @@ class MonitorStep(Step):
             )
             return None
         body = await structured_llm(
-            self.context,
+            self.context.resources.llm,
             schema=ReportBody,
             system=MONITOR_SYSTEM,
             user=f"Tick {tick.data.sequence}. Write a status note.",

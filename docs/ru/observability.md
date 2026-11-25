@@ -577,9 +577,20 @@ resources = RuntimeResources(llm=from_env(), redactor=RegexRedactor())
 
 ## События прогресса (реактивность UI)
 
-Для анимированных строк «Думаю… / Составляю план… / Считаю смету…» `Step`
-вызывают `context.announce(message, kind=..., **payload)`. Это превращается в
-`ProgressEvent` на `EventHub`, который runtime отдаёт в SSE-поток:
+Для анимированных строк «Думаю… / Составляю план… / Считаю смету…» инжектируйте
+в шаг `progress: Progress` и вызывайте его:
+
+```python
+async def run(self, question: Artifact[Question], progress: Progress) -> Evidence:
+    progress("Ищу в документации…")
+    ...
+```
+
+`Progress` — тонкая обёртка над `Context.announce(message, kind=..., **payload)`:
+оба публикуют `ProgressEvent` на `EventHub`, который runtime отдаёт в SSE-поток.
+`Context.announce` остаётся для кода, у которого уже есть `Context` (серверы,
+диспетчеры, рецепты); шагу, которому нужно только объявить статус, лучше
+принимать `Progress`, а не весь `Context`.
 
 ```python
 async for event in runtime.astream():

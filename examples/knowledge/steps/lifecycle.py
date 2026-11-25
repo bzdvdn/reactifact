@@ -144,7 +144,10 @@ class BuildAnswer(Step):
             prompt += f"\n\n{conversation}"
         prompt += f"\nQuestion: {question}\nFacts:\n{material_lines}"
         body = await structured_llm(
-            context, schema=AnswerBody, user=prompt, on_error=_log_llm_outage
+            context.resources.llm,
+            schema=AnswerBody,
+            user=prompt,
+            on_error=_log_llm_outage,
         )
         sources = [e.data.source for e in evidences] + [
             f"{c.data.source_id}:{c.data.path}" for c in spreadsheets

@@ -51,7 +51,7 @@ def _run_with(redactor) -> tuple[Context, CapturingTracer]:
         if question is None or not isinstance(question.data, Question):
             return None
         body = await structured_llm(
-            call.context,
+            call.context.resources.llm,
             schema=ReplyBody,
             system="Reply.",
             user=f"contact: {question.data.text}",

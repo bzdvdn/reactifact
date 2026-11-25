@@ -74,7 +74,7 @@ async def route_target(context: Context, text: str, *, memory: str = "") -> str:
     used by the deterministic fallback (keywords come from the question).
     """
     user = text if not memory.strip() else f"{text}\n\nKnown context:\n{memory}"
-    decision = await _route_prompt.call(context, user=user)
+    decision = await _route_prompt.call(context.resources.llm, user=user)
     if decision is not None and decision.target in ("k8s", "gitlab", "ansible"):
         return decision.target
     return keyword_target(text)

@@ -105,6 +105,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
 | `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit group. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit. |
 | `Human` / `Outbox` | injected non-data collaborators: `human.ask/resume` (HITL, `PendingQuestion`) and `outbox.act` (outbound intent, `PendingAction`); the old `Effects.ask/resume/act` were removed in 0.23 |
+| `Progress` | injected ephemeral progress channel: `progress(message, kind="status", **data)` publishes a `ProgressEvent` immediately (a thin view over `Context.announce`, never committed). A step that only announces and then calls an LLM/tools needs no `Context` |
 | `Emit` / `Edit` / `Drop` / `Relate` | return-style change instructions: create with explicit id/links, update fields, delete, link — compiled into the same atomic patch |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
@@ -222,10 +223,10 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `structured_llm(context, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` | one structured call; `None` on honest failure; `validate(model)->bool` adds a domain-rule check retried like a parse failure, `repair(invalid_or_None, last_reply)->str` supplies the retry instruction; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) to distinguish *why*, without changing the `None` contract |
-| `json_schema_llm(context, json_schema, *, user, validate=…, repair=…, …)` | structured output against your own JSON Schema (dict or JSON string), returns a plain `dict`; same `validate`/`repair` retry hooks as `structured_llm` |
-| `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | reusable instance; `.call(context, user)` |
-| `llm_reply(context, *, system, user, attempts=…, on_error=…)` | plain-text completion → `str` or `None` (single-text schema under the hood) |
+| `structured_llm(llm, schema, *, system, user, attempts=…, validate=…, repair=…, prompt_hash=…, on_error=…)` / `llm.structured(...)` | one structured call; `None` on honest failure; `validate(model)->bool` adds a domain-rule check retried like a parse failure, `repair(invalid_or_None, last_reply)->str` supplies the retry instruction; `on_error(reason, exc)` (`"no_provider"`\|`"provider_error"`\|`"parse_error"`\|`"validation_error"`) to distinguish *why*, without changing the `None` contract |
+| `json_schema_llm(llm, json_schema, *, user, validate=…, repair=…, …)` / `llm.structured_json(...)` | structured output against your own JSON Schema (dict or JSON string), returns a plain `dict`; same `validate`/`repair` retry hooks as `structured_llm` |
+| `StructuredLLM(schema, *, system=…, attempts=…, on_error=…)` | reusable instance; `.call(llm, user)` |
+| `llm_reply(llm, *, system, user, attempts=…, on_error=…)` / `llm.reply(...)` | plain-text completion → `str` or `None` (single-text schema under the hood) |
 | `parse_structured` | lenient JSON→model parser used internally |
 
 ## Prompts (reactifact.prompts, §68)
@@ -256,7 +257,7 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `LLMProvider`, `EmbeddingProvider` | the two contracts the core talks to |
+| `LLMProvider`, `EmbeddingProvider` | the two contracts the core talks to; `LLMProvider` adds default `structured`/`structured_json`/`reply`/`chat` methods (they call `complete`, so tracing/budget still apply), and `EmbeddingProvider` adds `embed_one` |
 | `ImageProvider`, `SpeechProvider`, `TranscriberProvider`, `VideoProvider` | media contracts |
 | `OpenAICompatProvider`, `OpenAICompatEmbedder` + vendor factories (`openai_llm`, `anthropic_llm`, `deepseek_llm`, `groq_llm`, `mistral_llm`, `openrouter_llm`, `gemini_llm`, `ollama_llm`, `azure_llm`, …) | 20+ chat/embedder backends, all `retry_attempts=3` by default (429/5xx/transport errors, exponential backoff — never on 4xx) |
 | `openrouter_embedder`, `openrouter_speech`, `groq_transcriber`, `together_embedder`, `fireworks_embedder`, `qwen_embedder`, `nvidia_embedder` | embeddings/TTS/STT for vendors whose non-chat endpoints are confirmed OpenAI-compatible (see [providers](providers.md)) |
@@ -287,7 +288,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `Approval` / `ApprovalIntent` / `ApprovalDecision` | typed yes/no answer; classifier result (`approve`/`reject`/`conditional`/`ambiguous` + confidence); durable decision with `allows(min_confidence=0.8)` and `policy_hash` |
 | `ApprovalPolicy` | one object for the prompt and vocabulary: `threshold`, `system`, `instructions`, `examples`, phrase/marker tuples, optional `prompt_builder`; `prompt()` and `policy_hash` |
 | `ApprovalFlow` | the ready step list hiding `InterpretApproval` + `ClarifyApproval`; pass `steps=[YourAction()]` and spread it: `Pipeline(steps=[AskApproval(), *ApprovalFlow(steps=[Action()])])` |
-| `classify_approval(context, question, *, policy=…)` | typed answer → deterministic parser → `structured_llm` fallback; low confidence/conditions/errors become ambiguous, never approve |
+| `classify_approval(llm, question, *, policy=…)` | typed answer → deterministic parser → `structured_llm` fallback; low confidence/conditions/errors become ambiguous, never approve |
 | `InterpretApproval` / `ClarifyApproval` | steps: answered `PendingQuestion` → linked `ApprovalDecision`; ambiguous/conditional → one typed follow-up `PendingQuestion` (`Approval` schema) |
 
 ## Text & rollback helpers (reactifact.recipes)

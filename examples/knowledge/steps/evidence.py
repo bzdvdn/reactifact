@@ -35,7 +35,7 @@ class ExtractEvidence(Step):
             path=doc.path,
         )
         body = await structured_llm(
-            context,
+            context.resources.llm,
             schema=AnswerBody,
             user=f"Extract a short factual digest from the document:\n{doc.content}",
         )

@@ -143,16 +143,28 @@ hatch for hand-assembling a `Patch`; it is not a third everyday style.
 and receives typed inputs plus `effects: Effects` in `run()`:
 
 ```python
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Effects, Progress, Step
 
 class EstimateStage(Step):
     consumes = (Project,)
     produces = (Project,)
 
-    async def run(self, project_art: Artifact[Project], effects: Effects) -> None:
+    async def run(
+        self,
+        project_art: Artifact[Project],
+        effects: Effects,
+        progress: Progress,
+    ) -> None:
         ...
+        progress("Считаю смету…")
         effects.update(project_art, stage="estimate")
 ```
+
+`progress` is optional: it publishes an ephemeral UI status (`ProgressEvent`)
+without injecting the whole `Context`. Use it when a step only announces and
+then works with an LLM, tools or domain logic. The same resolver also injects
+other non-model parameters from `RuntimeResources`, including optional ones:
+`llm: LLMProvider | None` gives the configured provider or an honest `None`.
 
 The function form takes one `call: StepCall` and uses `call.effects`:
 
