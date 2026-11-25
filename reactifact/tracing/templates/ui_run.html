@@ -151,14 +151,23 @@ function updateWorkNote(){
   el.innerHTML=html;
   const b=document.getElementById('load-more-spans');if(b)b.addEventListener('click',loadMoreSpans);
 }
+let diagramRequested=false;
 async function loadDiagram(){
+  if(diagramRequested)return;
+  diagramRequested=true;
   try{
-    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/diagram');
+    const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/diagram?sequence=false');
     if(!res.ok)throw new Error('HTTP '+res.status);
     const d=await res.json();
     MERMAID_SRC=d.mermaid||'';MERMAID_GRAPH_SRC=d.provenance||'';
     const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=MERMAID_SRC;
-    mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
+    if(d.has_relations===false){
+      const graphPre=document.getElementById('graph-pre');if(graphPre)graphPre.textContent=MERMAID_GRAPH_SRC;
+      const stage=document.querySelector('#diagram-graph .diagram-stage');
+      if(stage)stage.innerHTML='<div class="diag-fallback">No provenance links recorded for this run — steps only created artifacts.</div>';
+    } else {
+      mountDiagram(MERMAID_GRAPH_SRC,'diagram-graph','graph-pre');
+    }
     if(d.truncated)toast('Diagram truncated: '+d.span_limit+' of '+d.span_total+' spans');
     if(d.graph_truncated)toast('Evidence graph capped for the page — see JSON for all nodes');
   }catch(err){
@@ -166,6 +175,16 @@ async function loadDiagram(){
     const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=msg;
     const b=document.getElementById('diagram-graph');if(b)b.innerHTML='<div class="empty">'+msg+'</div>';
   }
+}
+function setupDiagram(){
+  const card=document.getElementById('diagram-graph');
+  if(!card){loadDiagram();return;}
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((entries)=>{
+      if(entries.some(e=>e.isIntersecting)){io.disconnect();loadDiagram();}
+    },{rootMargin:'300px'});
+    io.observe(card);
+  }else loadDiagram();
 }
 function tile(k,v){return '<div class="stat-tile"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
 function fmtTime(t){try{const d=typeof t==='number'?new Date(t*1000):new Date(t);return d.toLocaleString();}catch(_){return '—';}}
@@ -597,7 +616,7 @@ function mermaidConfig(){
   const font='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif';
   const vars=dark?{darkMode:true,background:'#16171e',primaryColor:'#232448',primaryTextColor:'#e8e8f0',primaryBorderColor:'#8b93ff',lineColor:'#8f93b8',secondaryColor:'#1b1c24',tertiaryColor:'#1b1c24',noteBkgColor:'#232448',noteTextColor:'#e8e8f0',noteBorderColor:'#8b93ff',actorBkg:'#232448',actorTextColor:'#e8e8f0',actorBorder:'#8b93ff',signalColor:'#9a9aae',signalTextColor:'#e8e8f0',labelBoxBkgColor:'#1b1c24',labelBoxBorderColor:'#8b93ff',labelTextColor:'#e8e8f0',loopTextColor:'#e8e8f0',fontFamily:font}
     :{darkMode:false,background:'#ffffff',primaryColor:'#eef0ff',primaryTextColor:'#17171f',primaryBorderColor:'#4f46e5',lineColor:'#6b6b7a',secondaryColor:'#fafafb',tertiaryColor:'#f7f5ff',noteBkgColor:'#eef0ff',noteTextColor:'#17171f',noteBorderColor:'#4f46e5',actorBkg:'#eef0ff',actorTextColor:'#17171f',actorBorder:'#4f46e5',signalColor:'#6b6b7a',signalTextColor:'#17171f',labelBoxBkgColor:'#fafafb',labelBoxBorderColor:'#4f46e5',labelTextColor:'#17171f',loopTextColor:'#17171f',fontFamily:font};
-  return {startOnLoad:false,securityLevel:'strict',theme:'base',themeVariables:vars};
+  return {startOnLoad:false,securityLevel:'antiscript',theme:'base',themeVariables:vars};
 }
 function Diagram(root){
   this.root=root;this.src='';this.rendered=false;this.scale=1;this.fitScale=1;this.tx=0;this.ty=0;this.naturalW=0;this.loading=null;
@@ -671,6 +690,14 @@ function mountDiagram(src,rootId,preId){
     io.observe(root);
   }else load();
 }
+function openArtifactFromHash(){
+  const prefix='#artifact-';
+  if(!location.hash.startsWith(prefix))return;
+  const id=decodeURIComponent(location.hash.slice(prefix.length));
+  const key=Object.keys(ARTIFACTS).find(k=>k.startsWith(id+':'));
+  if(key!==undefined)openDataModal('Artifact '+id,ARTIFACTS[key]);
+}
+window.addEventListener('hashchange',openArtifactFromHash);
 function openDataModal(title,text){
   document.getElementById('data-modal-title').textContent=title;
   document.getElementById('data-modal-pre').textContent=text;
@@ -678,11 +705,20 @@ function openDataModal(title,text){
 }
 function closeDataModal(){document.getElementById('data-modal').classList.remove('show');}
 function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);}
+async function loadSequenceSource(){
+  if(MERMAID_SRC)return;
+  const res=await fetch('__BASE__/api/traces/'+RUN_ID+'/diagram');
+  if(!res.ok)return;
+  const d=await res.json();
+  MERMAID_SRC=d.mermaid||'';
+  const pre=document.getElementById('mermaid-pre');if(pre)pre.textContent=MERMAID_SRC;
+}
 function initCopy(){
-  const bind=(btnId,getSrc)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
-    btn.addEventListener('click',()=>{const done=()=>{label.textContent='copied';setTimeout(()=>{label.textContent='copy';},900);};const text=getSrc()||'';
+  const bind=(btnId,getSrc,ensure)=>{const btn=document.getElementById(btnId);const label=btn.querySelector('[data-label]')||btn;
+    btn.addEventListener('click',async()=>{try{if(ensure)await ensure();}catch(_){}
+      const done=()=>{label.textContent='copied';setTimeout(()=>{label.textContent='copy';},900);};const text=getSrc()||'';
       if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done();});else{fallbackCopy(text);done();}});};
-  bind('copy-mermaid',()=>MERMAID_SRC);bind('copy-graph',()=>MERMAID_GRAPH_SRC);
+  bind('copy-mermaid',()=>MERMAID_SRC,loadSequenceSource);bind('copy-graph',()=>MERMAID_GRAPH_SRC);
 }
 
 document.getElementById('view-seg').addEventListener('click',(e)=>{
@@ -732,7 +768,7 @@ document.getElementById('toggle-json').addEventListener('click',(e)=>{
   card.style.display=on?'block':'none';e.currentTarget.classList.toggle('on',on);
 });
 
-initTheme();load();loadVocab();loadDiagram();initCopy();
+initTheme();load();loadVocab();setupDiagram();initCopy();
 </script>
 </body>
 </html>

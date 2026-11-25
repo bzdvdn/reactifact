@@ -50,3 +50,12 @@ def test_auth_is_required(client):
         json={"message": "hi", "session_id": "s3"},
     )
     assert response.status_code == 401
+
+
+def test_contracts_page_requires_auth(client, auth_headers):
+    assert client.get("/contracts").status_code == 401
+    response = client.get("/contracts", headers=auth_headers)
+    assert response.status_code == 200
+    assert "reactifact contracts" in response.text
+    assert client.get("/api/contracts").status_code == 401
+    assert client.get("/api/contracts", headers=auth_headers).json()["groups"]

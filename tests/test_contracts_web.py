@@ -23,6 +23,9 @@ def test_contracts_router_serves_html_json_and_markdown():
     assert "tree-group" in page.text and "tree-step" in page.text
     assert "contracts-theme" in page.text
     assert "data:image/svg+xml;base64," in page.text
+    assert 'id="group-answer"' in page.text
+    assert 'class="anchor"' in page.text
+    assert "copy-json" in page.text and "collapse-all" in page.text
 
     payload = client.get("/api/contracts").json()
     assert payload["groups"][0]["name"] == "answer"

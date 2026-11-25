@@ -51,12 +51,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Trace writes keep their type.** `Link`/`Unlink` no longer shadow the
   `Create` entry in `write_refs`, so trace columns and graph labels keep the
   real artifact type.
+- **Faster large traces.** The diagram request is lazy (visible graph only),
+  sequence source is generated on demand, provenance node collection stops at
+  the cap, and the router caches bounded diagram sources per immutable run.
+  The FastAPI template gzips large JSON responses.
 - **Leaner trace diagrams.** The evidence graph renders lazily when visible,
   caps nodes/edges (`max_mermaid_nodes`/`max_mermaid_edges`), shortens artifact
-  ids, and no longer re-parses on a theme switch before the first render.
+  ids, shows an empty state when no `patch.link` edges exist, makes nodes link
+  to their artifact JSON, and no longer re-parses on a theme switch before the
+  first render.
 - **Product contracts page.** `/contracts` has a light/dark toggle, search,
-  counts, a collapsible group → step → tool tree, and a zoomable connection
-  graph (fit, drag-to-pan, ctrl/⌘ + wheel).
+  counts, a collapsible group → step → tool tree with anchors, copy-JSON /
+  collapse-all, favicon, and a zoomable connection graph (fit, drag-to-pan,
+  ctrl/⌘ + wheel, capped for large modules). The FastAPI template mounts it
+  when `APP_CONTRACTS_ENABLED=true` (default).
 - **Trace dashboard branding.** The `/traces`, `/sessions` and run pages share
   a favicon matching the sidebar mark (`/traces/assets/favicon.svg`).
 - **Friendlier `StatusMachine`.** The generic `StatusMachine[Model]` now

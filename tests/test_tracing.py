@@ -938,6 +938,8 @@ def test_trace_run_page_embeds_provenance_graph(tmp_path):
     assert "loadDiagram" in html
     diagram = client.get("/api/traces/r1/diagram").json()
     assert "supported_by" in diagram["provenance"]
+    assert diagram["has_relations"] is True
+    assert 'click N0 href "#artifact-' in diagram["provenance"]
 
 
 def test_runtime_records_provenance_relations(tmp_path):
@@ -1764,3 +1766,26 @@ def test_trace_provenance_graph_caps_nodes_and_shortens_ids():
     assert source.count('N0["') == 1
     assert source.count('N1["') == 1
     assert 'N2["' not in source
+
+
+def test_trace_diagram_sequence_source_is_optional(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from reactifact.tracing.web import create_trace_router
+
+    store = TraceStore(str(tmp_path / "seq.db"))
+    run(
+        store.export(
+            RunTrace(id="r1", outcome="completed", spans=[AgentSpan(agent="a")])
+        )
+    )
+    app = FastAPI()
+    app.include_router(create_trace_router(store))
+    client = TestClient(app)
+
+    full = client.get("/api/traces/r1/diagram").json()
+    assert "sequenceDiagram" in full["mermaid"]
+
+    lazy = client.get("/api/traces/r1/diagram?sequence=false").json()
+    assert lazy["mermaid"] == ""
+    assert "flowchart" in lazy["provenance"]

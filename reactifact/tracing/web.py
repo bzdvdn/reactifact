@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections import OrderedDict
 from collections.abc import Awaitable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -163,6 +164,8 @@ def create_trace_router(
         dependencies = [Depends(_check)]
 
     router = APIRouter(dependencies=dependencies)
+    # Immutable runs: cache the (bounded) diagram source per trace/limits.
+    diagram_cache: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
     read_gate = (
         asyncio.Semaphore(max_concurrent_reads)
         if max_concurrent_reads is not None
@@ -316,23 +319,44 @@ def create_trace_router(
         return {"items": [a.model_dump(mode="json") for a in trace.annotations]}
 
     @router.get("/api/traces/{trace_id}/diagram")
-    async def get_trace_diagram(trace_id: str) -> dict[str, Any]:
+    async def get_trace_diagram(
+        trace_id: str, sequence: bool = Query(default=True)
+    ) -> dict[str, Any]:
         from ..viz import trace_provenance_graph, trace_to_mermaid
 
+        cache_key = (
+            trace_id,
+            max_mermaid_spans,
+            max_mermaid_nodes,
+            max_mermaid_edges,
+            sequence,
+        )
+        cached = diagram_cache.get(cache_key)
+        if cached is not None:
+            diagram_cache.move_to_end(cache_key)
+            return cached
         trace = await _read(store.get(trace_id, span_limit=max_mermaid_spans))
         if trace is None:
             raise HTTPException(status_code=404, detail="trace not found")
         provenance, graph_truncated = trace_provenance_graph(
-            trace, max_nodes=max_mermaid_nodes, max_edges=max_mermaid_edges
+            trace,
+            max_nodes=max_mermaid_nodes,
+            max_edges=max_mermaid_edges,
+            clickable=True,
         )
-        return {
-            "mermaid": trace_to_mermaid(trace),
+        result = {
+            "mermaid": trace_to_mermaid(trace) if sequence else "",
             "provenance": provenance,
             "truncated": trace.has_more_spans,
             "graph_truncated": graph_truncated,
+            "has_relations": any(span.relations for span in trace.spans),
             "span_total": trace.span_total,
             "span_limit": max_mermaid_spans,
         }
+        diagram_cache[cache_key] = result
+        if len(diagram_cache) > 128:
+            diagram_cache.popitem(last=False)
+        return result
 
     # ---- annotation writes ------------------------------------------------- #
 
@@ -369,6 +393,8 @@ def create_trace_router(
             raise HTTPException(status_code=501, detail="store cannot delete runs")
         if not await delete(trace_id):
             raise HTTPException(status_code=404, detail="trace not found")
+        for key in [key for key in diagram_cache if key[0] == trace_id]:
+            diagram_cache.pop(key, None)
         return {"deleted": 1}
 
     @router.delete("/api/sessions/{session_id}")

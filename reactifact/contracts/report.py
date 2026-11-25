@@ -73,27 +73,64 @@ class ContractReport:
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
-    def to_mermaid(self) -> str:
+    def to_mermaid(
+        self,
+        *,
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+    ) -> str:
         """A group/artifact connection graph (static, no run state)."""
         lines = ["flowchart LR"]
         artifact_ids: dict[str, str] = {}
+        edges = 0
+        truncated = False
+
+        def at_node_limit() -> bool:
+            return (
+                max_nodes is not None and len(artifact_ids) + groups_seen >= max_nodes
+            )
+
+        groups_seen = 0
         for index, group in enumerate(self.groups):
+            if at_node_limit():
+                truncated = True
+                break
             group_id = f"G{index}"
             lines.append(f'    {group_id}["{_mermaid_escape(group.name)}"]')
-            consumes = [
-                *group.consumes,
-                *(item for step in group.steps for item in step.consumes),
-            ]
-            seen: set[str] = set()
-            for consume in consumes:
-                if consume.artifact in seen:
+            groups_seen += 1
+            consumes = list(
+                dict.fromkeys(
+                    item.artifact
+                    for item in (
+                        *group.consumes,
+                        *(item for step in group.steps for item in step.consumes),
+                    )
+                )
+            )
+            for name in consumes:
+                is_new = name not in artifact_ids
+                if is_new and at_node_limit():
+                    truncated = True
                     continue
-                seen.add(consume.artifact)
-                artifact_id = _artifact_node_id(lines, artifact_ids, consume.artifact)
+                artifact_id = _artifact_node_id(lines, artifact_ids, name)
+                if max_edges is not None and edges >= max_edges:
+                    truncated = True
+                    continue
                 lines.append(f"    {artifact_id} -.->|consumes| {group_id}")
-            for produced in group.produces:
-                artifact_id = _artifact_node_id(lines, artifact_ids, produced)
+                edges += 1
+            for name in group.produces:
+                is_new = name not in artifact_ids
+                if is_new and at_node_limit():
+                    truncated = True
+                    continue
+                artifact_id = _artifact_node_id(lines, artifact_ids, name)
+                if max_edges is not None and edges >= max_edges:
+                    truncated = True
+                    continue
                 lines.append(f"    {group_id} ==>|produces| {artifact_id}")
+                edges += 1
+        if truncated:
+            lines.append('    TRUNC["… graph truncated …"]')
         return "\n".join(lines)
 
     def to_html(self, *, title: str = "reactifact contracts") -> str:
@@ -117,7 +154,10 @@ class ContractReport:
             template.replace("__TITLE__", _html.escape(title))
             .replace("__FAVICON__", favicon)
             .replace("__SUMMARY__", summary)
-            .replace("__GRAPH__", _html.escape(self.to_mermaid()))
+            .replace(
+                "__GRAPH__",
+                _html.escape(self.to_mermaid(max_nodes=160, max_edges=320)),
+            )
             .replace("__GROUPS__", groups)
         )
 
@@ -265,6 +305,11 @@ def _chips(values: Sequence[str]) -> str:
     )
 
 
+def _slug(value: str) -> str:
+    out = "".join(ch.lower() if ch.isalnum() else "-" for ch in value).strip("-")
+    return out or "item"
+
+
 def _search_attr(*parts: str) -> str:
     return _html.escape(" ".join(part for part in parts if part), quote=True)
 
@@ -279,7 +324,8 @@ def _io_block(label: str, values: Sequence[str]) -> str:
 
 
 def _group_html(group: GroupContract) -> str:
-    steps = "".join(_step_html(step) for step in group.steps)
+    group_id = f"group-{_slug(group.name)}"
+    steps = "".join(_step_html(step, group_id) for step in group.steps)
     if not steps:
         steps = '<p class="empty">No steps.</p>'
     consumes = [*group.consumes]
@@ -307,9 +353,10 @@ def _group_html(group: GroupContract) -> str:
         *(tool.name for step in group.steps for tool in step.tools),
     )
     return (
-        f'<details class="group tree-group" open data-search="{search}">'
+        f'<details class="group tree-group" id="{group_id}" open data-search="{search}">'
         '<summary class="tree-row group-row">'
         f'<span class="tree-name"><code>{_html.escape(group.name)}</code></span>'
+        f'<a class="anchor" href="#{group_id}" onclick="event.stopPropagation()" title="link to group">#</a>'
         f'<span class="badge accent">{_html.escape(group.kind)}</span>'
         '<span class="spacer"></span>'
         f'<span class="count">{len(group.steps)} step(s)</span>'
@@ -319,7 +366,7 @@ def _group_html(group: GroupContract) -> str:
     )
 
 
-def _step_html(step: StepContract) -> str:
+def _step_html(step: StepContract, group_id: str = "group") -> str:
     consumes = [
         item.artifact + ("" if item.wakes else " · read-only") for item in step.consumes
     ]
@@ -385,10 +432,12 @@ def _step_html(step: StepContract) -> str:
         *(tool.name for tool in step.tools),
         *(tool.description for tool in step.tools),
     )
+    step_id = f"{group_id}-step-{_slug(step.name)}"
     return (
-        f'<details class="step tree-step" open data-search="{search}">'
+        f'<details class="step tree-step" id="{step_id}" open data-search="{search}">'
         '<summary class="tree-row step-row">'
         f'<span class="tree-name"><code>{_html.escape(step.name)}</code></span>'
+        f'<a class="anchor" href="#{step_id}" onclick="event.stopPropagation()" title="link to step">#</a>'
         f'<span class="kind">{_html.escape(step.kind)}</span>'
         '<span class="spacer"></span>'
         + (

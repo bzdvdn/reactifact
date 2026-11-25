@@ -12,10 +12,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from reactifact.contracts.web import create_contracts_router
 from reactifact.tracing.web import create_trace_router
 
 from app.api.routes.chat import router as chat_router
 from app.bootstrap import (
+    build_agents,
     build_assistant_from_settings,
     build_session_store,
     build_trace_store,
@@ -52,6 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+    # Trace/diagram JSON is large and repetitive; compress it at the edge.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -62,6 +67,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         create_trace_router(trace_store),
         dependencies=[Depends(get_current_user)],
     )
+    if settings.contracts_enabled:
+        app.include_router(
+            create_contracts_router(build_agents(settings)),
+            dependencies=[Depends(get_current_user)],
+        )
     return app
 
 

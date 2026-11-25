@@ -48,7 +48,7 @@ details{border-top:1px solid var(--border)}details:first-child{border-top:0}summ
 .tree-step{margin:2px 0;border:0;border-radius:8px;background:transparent}
 .tree-step>summary{padding:8px;border-radius:8px;background:transparent;border-bottom:0}
 .tree-step>summary:hover{background:var(--panel-2)}
-.tree-name{font-weight:650}.tree-name code{font-family:var(--mono)}
+.tree-name{font-weight:650}.tree-name code{font-family:var(--mono)}.anchor{color:var(--faint);text-decoration:none;font-weight:600;opacity:0;padding:0 2px}.tree-row:hover .anchor{opacity:1}.anchor:hover{color:var(--accent)}#contracts-groups details{scroll-margin-top:78px}
 .tree-io{display:flex;gap:14px;flex-wrap:wrap;padding:5px 0 3px}
 .tree-meta{display:flex;gap:5px;flex-wrap:wrap;padding:4px 0 2px}
 .tree-meta .pill{font-size:11.5px;color:var(--muted);background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px}
@@ -73,6 +73,9 @@ details{border-top:1px solid var(--border)}details:first-child{border-top:0}summ
   <div class="toolbar">
     <label class="search"><span class="muted">⌕</span><input id="contract-search" type="search" placeholder="Filter groups, steps, tools, artifact types…" autocomplete="off"/></label>
     <span id="filter-count"></span>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="collapse-all" type="button">Collapse all</button>
+    <button class="icon-btn" id="copy-json" type="button">Copy JSON</button>
   </div>
   <section class="card">
     <div class="card-head"><h2>Connection graph</h2><span class="hint">groups → artifacts, from consumes/produces</span></div>
@@ -191,6 +194,24 @@ viewport.addEventListener('wheel', (e) => {
 }, {passive: false});
 const search = document.getElementById('contract-search');
 const count = document.getElementById('filter-count');
+const collapseAll = document.getElementById('collapse-all');
+let collapsed = false;
+collapseAll.addEventListener('click', () => {
+  collapsed = !collapsed;
+  document.querySelectorAll('#contracts-groups details').forEach((item) => { item.open = !collapsed; });
+  collapseAll.textContent = collapsed ? 'Expand all' : 'Collapse all';
+});
+const copyJson = document.getElementById('copy-json');
+copyJson.addEventListener('click', async () => {
+  try {
+    const response = await fetch('api/contracts');
+    await navigator.clipboard.writeText(await response.text());
+    copyJson.textContent = 'Copied';
+    setTimeout(() => { copyJson.textContent = 'Copy JSON'; }, 1200);
+  } catch (_) {
+    window.location.href = 'api/contracts';
+  }
+});
 function filterContracts(){
   const q = search.value.trim().toLowerCase();
   let groupsShown = 0;

@@ -31,6 +31,13 @@ outcome=…, tags=…, q=…)` reads runs back; `store.tag_runs(...)` /
 `list_tags(...)` annotate them for review. Sinks: `OTLPTracer` (OpenTelemetry)
 and `LangfuseTracer`; `TraceStore` also has a `PostgresStore` variant.
 
+## Contracts page
+
+`create_contracts_router(groups)` (`reactifact.contracts.web`) serves the
+declared surface as `/contracts` (HTML), `/api/contracts` (JSON) and
+`/contracts.md`; it is opt-in, supports Basic auth, and complements the trace
+dashboard. `reactifact contracts <module>` is the CLI form.
+
 ## Metrics
 
 `Metrics` is a dependency-free in-process collector; `MetricsTracer` fills it

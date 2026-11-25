@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     chat_session_save_policy: Literal["per_commit", "per_turn"] = "per_commit"
     fallback_reply: str = "No answer was produced. Configure APP_LLM_* or check the server logs."
     tracing_enabled: bool = True
+    contracts_enabled: bool = True
 
     # ── Stores ──────────────────────────────────────────────────────────
     session_backend: Literal["memory", "file", "sqlite", "postgres"] = "sqlite"

@@ -72,6 +72,7 @@ def test_contract_markdown_and_json_render():
     assert 'G0["answer"]' in graph
     assert 'A0["Question"]' in graph
     assert "consumes" in graph and "produces" in graph
+    assert "TRUNC" in report.to_mermaid(max_nodes=1, max_edges=0)
 
 
 def test_contracts_cli(capsys):

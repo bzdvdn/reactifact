@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from .consume import Consume
 from .context import Context
@@ -227,6 +228,7 @@ def trace_provenance_graph(
     *,
     max_nodes: int | None = None,
     max_edges: int | None = None,
+    clickable: bool = False,
 ) -> tuple[str, bool]:
     """The provenance Mermaid source plus whether nodes/edges were capped."""
 
@@ -236,30 +238,26 @@ def trace_provenance_graph(
     def _short_id(value: str) -> str:
         return value if len(value) <= 12 else "…" + value[-8:]
 
-    all_nodes: dict[str, tuple[str, str]] = {}
-    for span in trace.spans:
-        for write in span.writes:
-            all_nodes.setdefault(
-                write.artifact_id, (_short(write.data_type), write.artifact_id)
-            )
-        for rel in span.relations:
-            all_nodes.setdefault(
-                rel.source_id, (rel.source_type or "artifact", rel.source_id)
-            )
-            all_nodes.setdefault(
-                rel.target_id, (rel.target_type or "artifact", rel.target_id)
-            )
-
-    if not all_nodes:
-        return 'flowchart TD\n    EMPTY["no provenance recorded"]', False
-
-    truncated = False
     selected: dict[str, tuple[str, str]] = {}
-    for artifact_id, value in all_nodes.items():
+    truncated = False
+
+    def add_node(artifact_id: str, data_type: str) -> None:
+        nonlocal truncated
+        if artifact_id in selected:
+            return
         if max_nodes is not None and len(selected) >= max_nodes:
             truncated = True
-            break
-        selected[artifact_id] = value
+            return
+        selected[artifact_id] = (data_type, artifact_id)
+
+    for span in trace.spans:
+        for write in span.writes:
+            add_node(write.artifact_id, _short(write.data_type))
+        for rel in span.relations:
+            add_node(rel.source_id, rel.source_type or "artifact")
+            add_node(rel.target_id, rel.target_type or "artifact")
+    if not selected:
+        return 'flowchart TD\n    EMPTY["no provenance recorded"]', truncated
 
     lines: list[str] = ["flowchart TD"]
     node_ids: dict[str, str] = {}
@@ -267,6 +265,10 @@ def trace_provenance_graph(
         node = f"N{index}"
         node_ids[artifact_id] = node
         lines.append(f'    {node}["{_esc(tname)}:{_esc(_short_id(artifact_id))}"]')
+        if clickable:
+            lines.append(
+                f'    click {node} href "#artifact-{quote(artifact_id, safe="")}"'
+            )
     edges = 0
     for span in trace.spans:
         for rel in span.relations:

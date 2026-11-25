@@ -78,8 +78,8 @@ single-pass variants.
 
 | Need | Use | Why |
 | --- | --- | --- |
-| one run of a pipeline (script, job, service) | `Pipeline(steps=[...])` | owns resources/defaults, `run/arun`, `seed_type`/`answer_type`, optional `traces=` |
-| a persisted multi-turn chat | `Chat(steps=[...], seed_type=..., answer_type=...)` | sessions, `invoke/stream/history`, `router()`, `test_client()` |
+| one run of a pipeline (script, job, service) | `Pipeline(steps=[...])` | owns resources/defaults, `run/arun`, `answer()`/`aanswer()`, `seed_type`/`answer_type`, optional `traces=` |
+| a persisted multi-turn chat | `Chat(steps=[...], seed_type=..., answer_type=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()` |
 | a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| groups=...)` | full control; `RunResult.trace()`/`traces` stay available |
 
 For example, the same `Answerer` as a one-shot pipeline:
@@ -96,6 +96,11 @@ assert result.context.latest(Answer).data.text == "HELLO"
 `Chat` is the FastAPI-shaped facade for conversations; `Pipeline` is the
 FastAPI-shaped facade for one request. Reach for `Runtime` only when you need
 the session, a scheduler, or a long-lived context.
+
+Inspect the declared surface — steps, consumes/produces, tools, timeout/retry —
+with `reactifact contracts <module>` (Markdown/JSON), or mount
+`create_contracts_router(groups)` from `reactifact.contracts.web` as an opt-in
+FastAPI page (`/contracts`, `/api/contracts`, `/contracts.md`).
 
 ## The working loop
 

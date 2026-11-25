@@ -60,7 +60,8 @@ Key groups:
   `APP_LLM_EXTRA_HEADERS` / `APP_LLM_EXTRA_BODY`.
 - **Budget** (per turn): `APP_BUDGET_MAX_RUNS`, `..._MAX_SECONDS`,
   `..._MAX_TOOL_CALLS`, `..._MAX_TOKENS`, `..._MAX_COST`.
-- **Chat**: concurrency, `ChatMemory` window/commit compaction, save policy.
+- **Chat**: concurrency, `ChatMemory` window/commit compaction, save policy,
+  `APP_CONTRACTS_ENABLED` for the `/contracts` page.
 - **Stores**: `APP_SESSION_BACKEND` (`memory|file|sqlite|postgres`),
   `APP_TRACE_BACKEND=sqlite`.
 - **Auth placeholder**: `APP_AUTH_TOKEN`, `APP_AUTH_USER_ID`.
