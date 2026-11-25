@@ -94,6 +94,54 @@ Need sessions and history? `Chat(..., store="sessions.db").http()` adds
 `/chat/stream` plus `/runs/{id}`; pass `ChatRoutes(invoke="/chat",
 history="/chat/history", clear="/chat/clear")` for the DEVOPS-style paths.
 
+## HITL is just the next chat turn
+
+Approval is a `PendingQuestion`, not a separate service. Ask from a step, let
+`Chat` report `waiting`, and the next user message resumes the same pipeline:
+
+```python
+from reactifact import Chat, Human, PendingQuestion, step
+
+@step(consumes=Question, produces=PendingQuestion)
+def approve(question: Question, human: Human) -> None:
+    human.ask("Deploy to production?", kind="approval")
+
+chat = Chat(
+    steps=[approve, ...],          # the rest of the pipeline continues after the answer
+    store="sessions.db",
+    seed_type=Question,
+    answer_type=Answer,
+    resume_pending=True,           # "yes" answers the pending question
+)
+
+await chat.invoke("ship it")       # {"waiting": True, "question": {...}}
+await chat.invoke("yes")           # same PendingQuestion resumed; pipeline continues
+```
+
+The `message` payload carries the structured question (`id`, `kind`, `schema`,
+`notes`), and `Chat.history` shows a `waiting: true` message across reloads.
+There is no `/hitl` endpoint: `Chat.http()` keeps the normal
+`/chat`, `/chat/stream` and history contract, so the answer is just another turn.
+`Pipeline` stays stateless; when it needs a person, wrap it in `Chat`.
+
+For free-text answers, spread the ready approval flow instead of naming its
+internal steps:
+
+```python
+from reactifact.recipes import ApprovalFlow
+
+chat = Chat(
+    steps=[approve, *ApprovalFlow(steps=[deploy])],
+    ...
+)
+```
+
+`ApprovalFlow` includes a deterministic yes/no parser plus an optional LLM
+fallback; `ApprovalPolicy` is the single place for custom prompts, few-shot
+examples, domain vocabulary and the confidence threshold. `ApprovalDecision`
+records `policy_hash`, and downstream code still checks
+`decision.allows(min_confidence=0.8)` — ambiguity never auto-approves.
+
 ## Define a step, run it
 
 ```python
@@ -307,6 +355,7 @@ Then read [Quickstart](docs/en/quickstart.md) or [Concepts](docs/en/concepts.md)
 - `chat` — minimal offline single-model multi-turn conversation.
 - `forklab` — deterministic branch & merge.
 - `fintech_audit` — auditable, reproducible CSV answer with content hashes and provenance.
+- `approval_gate` — HITL approval in one chat: ask, interpret free text, deploy only on `ApprovalDecision.allows()`.
 
 ## Documentation
 

@@ -203,6 +203,24 @@ def default_session_state(
                 "at": artifact.created_at.isoformat(),
             }
         )
+    pending = ctx.latest_pending_question()
+    if pending is not None:
+        data = pending.data
+        messages.append(
+            {
+                "role": "assistant",
+                "text": data.question,
+                "waiting": True,
+                "question": {
+                    "id": pending.id,
+                    "kind": data.kind,
+                    "question": data.question,
+                    "schema": data.resolution_schema,
+                    "notes": dict(data.notes),
+                },
+                "at": pending.created_at.isoformat(),
+            }
+        )
     return {"messages": messages}
 
 
@@ -733,6 +751,7 @@ class Chat:
         isolate_errors: bool = False,
         on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
         create_message: Callable[..., str] | None = None,
+        resume_pending: bool = False,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
@@ -767,7 +786,10 @@ class Chat:
         self.tracer = tracer
         self.lifespan = lifespan
         self._lifespan_cm: AbstractAsyncContextManager[RuntimeResources] | None = None
-        create = create_message or self._create_message
+        self.resume_pending = resume_pending
+        create = create_message or (
+            self._resume_or_create if resume_pending else self._create_message
+        )
         self.assistant = ChatAssistant(
             steps=steps,
             groups=groups,
@@ -810,7 +832,35 @@ class Chat:
     ) -> str:
         return context.create(self._seed(text, session_id, request or {})).id
 
+    def _resume_or_create(
+        self,
+        context: Context,
+        text: str,
+        session_id: str = "",
+        request: Mapping[str, Any] | None = None,
+    ) -> str:
+        """A pending question turns the next user message into its answer."""
+        pending = context.latest_pending_question()
+        if pending is not None:
+            context.resume(pending.id, text)
+            return pending.id
+        return self._create_message(context, text, session_id, request)
+
     def _default_reply(self, context: Context, _msg_id: str) -> dict[str, Any]:
+        pending = context.latest_pending_question()
+        if pending is not None:
+            question = pending.data
+            return {
+                "reply": question.question,
+                "waiting": True,
+                "question": {
+                    "id": pending.id,
+                    "kind": question.kind,
+                    "question": question.question,
+                    "schema": question.resolution_schema,
+                    "notes": dict(question.notes),
+                },
+            }
         artifact = None
         if self.answer_type is not None:
             artifact = context.latest(self.answer_type)

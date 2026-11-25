@@ -31,6 +31,10 @@ keep reappearing across agent codebases and the bundled examples:
 - `Router` / `ApprovalGate` — classify a request into a route with a
   deterministic fallback, and ask a human to sign off on a report before
   finalizing it (§60, §67) — see `recipes.supervisor`;
+- `ApprovalIntent` / `ApprovalDecision` / `classify_approval` /
+  `InterpretApproval` / `ClarifyApproval` — turn a free-text human approval into
+  an explicit, auditable decision (typed yes/no first, LLM only as a fallback,
+  ambiguity never auto-approves) — see `recipes.approval`;
 - `ReflectionLoop` — generate → critique → regenerate: round-capping, the
   accept threshold, and completion detection owned by the recipe; domain
   supplies `draft`/`critique`/`rewrite`/`finish` (§24, §42, §69) — see
@@ -69,6 +73,16 @@ from ..tools.native import (
     looks_like_tool_markup,
     parse_textual_tool_calls,
     parse_tool_calls_with_textual,
+)
+from .approval import (
+    Approval,
+    ApprovalDecision,
+    ApprovalFlow,
+    ApprovalIntent,
+    ApprovalPolicy,
+    ClarifyApproval,
+    InterpretApproval,
+    classify_approval,
 )
 from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup
 from .conversation import (
@@ -113,8 +127,16 @@ from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
 
 __all__ = [
+    "Approval",
+    "ApprovalDecision",
+    "ApprovalFlow",
     "ApprovalGate",
+    "ApprovalIntent",
+    "ApprovalPolicy",
+    "ClarifyApproval",
     "Conversation",
+    "InterpretApproval",
+    "classify_approval",
     "ConversationMessage",
     "EN_STOPWORDS",
     "EphemeralCleanup",

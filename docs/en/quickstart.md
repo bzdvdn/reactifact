@@ -104,7 +104,9 @@ async for event in chat.stream("and now?", session_id="u1"):
 tenant, user); `per_turn(text, session_id, request)` is an async context manager
 for turn-scoped context vars or resource cleanup. `chat.router()` returns a
 ready FastAPI `APIRouter` (SSE + history), and `chat.test_client()` is a copy
-with an in-memory store and traces.
+with an in-memory store and traces. A pending `PendingQuestion` is reported as
+`waiting: true`; with `Chat(..., resume_pending=True)` the next user message is
+its answer, so HITL needs no separate endpoint.
 
 For a sessionful HTTP app, `chat.http()` adds the same paths as the DEVOPS-style
 API:

@@ -38,6 +38,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   computed figures, citations, provenance graph, contracts page, trace
   dashboard and `/api/demo` JSON; the demo runs once into an in-memory trace
   store.
+- **HITL in `Chat`.** A pending `PendingQuestion` now makes the default reply
+  `waiting: true` with a structured question payload, `Chat.history` shows it
+  across reloads, and `Chat(resume_pending=True)` turns the next user message
+  into its answer — no separate HITL router or endpoint.
+- **`recipes.approval`.** `ApprovalIntent` / `ApprovalDecision` /
+  `classify_approval` / `InterpretApproval` / `ClarifyApproval`: typed yes/no
+  and deterministic text first, structured LLM only for unclear answers,
+  `conditional`/`ambiguous`/low-confidence never auto-approve, and one typed
+  follow-up instead of an approval loop. `ApprovalPolicy` bundles custom
+  system/instructions/few-shot examples, domain phrases and the threshold, and
+  stamps `policy_hash` on the decision. `ApprovalFlow` packs the two internal
+  steps into a spreadable list, so apps only add their ask/action steps.
 - **`Pipeline.validate()` / `.describe()`.** Static contracts plus seed/answer
   JSON Schemas on the pipeline itself — the transport-neutral "OpenAPI" the
   CLI and adapters share.
