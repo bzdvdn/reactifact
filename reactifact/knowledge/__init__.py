@@ -33,7 +33,14 @@ from .bridge import (
 )
 from .chunk import AutoChunker, Chunker, SectionsChunker, SizeChunker
 from .connectors import Connector, FilesystemConnector, ListingConnector
-from .docstore import DocEntry, DocStore, RunRecord
+from .diversity import MMR, mmr_select
+from .docstore import (
+    DocEntry,
+    DocStore,
+    JsonDocStore,
+    RunRecord,
+    SqliteDocStore,
+)
 from .embed import (
     CachingEmbedder,
     Embedder,
@@ -45,10 +52,12 @@ from .embed import (
     cache_key,
 )
 from .errors import ConfigError, KnowledgeError, PipelineError, SourceError
+from .eval import chunk_key, document_key, evaluate_pipeline
 from .extract import AutoExtractor, Extractor, HtmlExtractor, MarkdownExtractor
 from .indexes import (
     BatchIndexer,
     ChromaIndex,
+    CountableIndex,
     Indexer,
     KeywordIndexer,
     MemoryIndex,
@@ -67,7 +76,16 @@ from .models import (
     Section,
     content_hash,
 )
-from .pipeline import IngestReport, KnowledgePipeline, PipelineResult, query, run
+from .pipeline import (
+    IngestFailure,
+    IngestProgress,
+    IngestReport,
+    KnowledgePipeline,
+    PipelineResult,
+    query,
+    query_by_vector,
+    run,
+)
 from .rerank import (
     DEFAULT_RERANK_SYSTEM,
     RERANK_OUTPUT_CONTRACT,
@@ -83,6 +101,7 @@ __all__ = [
     "AutoChunker",
     "AutoExtractor",
     "BatchIndexer",
+    "CountableIndex",
     "CCT_SCHEMA_VERSION",
     "CachingEmbedder",
     "ChromaIndex",
@@ -93,6 +112,7 @@ __all__ = [
     "DEFAULT_RERANK_SYSTEM",
     "DocEntry",
     "DocStore",
+    "JsonDocStore",
     "Document",
     "DocumentMeta",
     "Embedder",
@@ -105,6 +125,8 @@ __all__ = [
     "InMemoryEmbeddingCache",
     "IndexSource",
     "Indexer",
+    "IngestFailure",
+    "IngestProgress",
     "IngestReport",
     "IngestReportArtifact",
     "IngestRequest",
@@ -114,6 +136,8 @@ __all__ = [
     "KnowledgePipeline",
     "ListingConnector",
     "MarkdownExtractor",
+    "MMR",
+    "mmr_select",
     "MemoryIndex",
     "PipelineError",
     "PgVectorIndex",
@@ -126,6 +150,7 @@ __all__ = [
     "QdrantIndex",
     "RawDocument",
     "RunRecord",
+    "SqliteDocStore",
     "SearchHit",
     "Section",
     "SectionsChunker",
@@ -136,7 +161,11 @@ __all__ = [
     "cache_key",
     "llm_reranker",
     "content_hash",
+    "chunk_key",
+    "document_key",
+    "evaluate_pipeline",
     "query",
+    "query_by_vector",
     "reciprocal_rank_fusion",
     "render_rerank_prompt",
     "run",

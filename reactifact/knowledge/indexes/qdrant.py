@@ -7,10 +7,10 @@ from typing import Any
 
 import httpx
 
-from ..errors import SourceError
+from ..errors import ConfigError, SourceError
 from ..http import HttpClient
 from ..models import Chunk, SearchHit
-from .base import point_id
+from .base import check_dimensions, chunk_point_id
 from .keyword import bm25_scores, tokenize
 
 _SCROLL_LIMIT = 100
@@ -31,6 +31,20 @@ _SYSTEM_PREFIX = "__"
 
 def _is_system_key(key: str) -> bool:
     return key.startswith(_SYSTEM_PREFIX)
+
+
+def _vector_size(info: Mapping[str, Any]) -> int | None:
+    config = info.get("config")
+    if not isinstance(config, dict):
+        return None
+    params = config.get("params")
+    if not isinstance(params, dict):
+        return None
+    vectors = params.get("vectors")
+    if not isinstance(vectors, dict):
+        return None
+    size = vectors.get("size")
+    return size if isinstance(size, int) else None
 
 
 def _document_identity(chunk: Chunk) -> str:
@@ -56,6 +70,7 @@ class QdrantIndex:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.collection = collection
+        self._dimensions: int | None = None
         self.client = HttpClient(
             base_url=url,
             api_token=api_token,
@@ -90,6 +105,8 @@ class QdrantIndex:
         for chunk, _, _ in items:
             self._validate_metadata(chunk.metadata)
         await self._ensure_collection(len(items[0][1]))
+        for _, vector, _ in items:
+            check_dimensions(self._dimensions, vector, backend="qdrant")
         points = [
             self._point(chunk, vector, source_id, artifact_hash)
             for chunk, vector, artifact_hash in items
@@ -123,7 +140,7 @@ class QdrantIndex:
         if acl:
             payload[_PAYLOAD_ACL] = [str(principal) for principal in acl]
         return {
-            "id": str(point_id(chunk.source_uri, chunk.text)),
+            "id": str(chunk_point_id(chunk)),
             "vector": vector,
             "payload": payload,
         }
@@ -185,7 +202,15 @@ class QdrantIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
+        if self._dimensions is None:
+            info = await self._collection_info()
+            if info is not None:
+                size = _vector_size(info)
+                if size is not None:
+                    self._dimensions = size
+        check_dimensions(self._dimensions, vector, backend="qdrant")
         payload: dict[str, object] = {
             "vector": vector,
             "limit": top_k,
@@ -195,6 +220,8 @@ class QdrantIndex:
             {"key": key, "match": {"value": value}}
             for key, value in (filters or {}).items()
         ]
+        if source_id is not None:
+            must.append({"key": _PAYLOAD_SOURCE, "match": {"value": source_id}})
         if principals is not None:
             must.append(
                 {
@@ -235,6 +262,7 @@ class QdrantIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         query_tokens = tokenize(text)
         if not query_tokens:
@@ -244,6 +272,8 @@ class QdrantIndex:
             {"key": key, "match": {"value": value}}
             for key, value in (filters or {}).items()
         ]
+        if source_id is not None:
+            must.append({"key": _PAYLOAD_SOURCE, "match": {"value": source_id}})
         if principals is not None:
             must.append(
                 {
@@ -338,22 +368,34 @@ class QdrantIndex:
         return int(count) if isinstance(count, int) else 0
 
     async def _ensure_collection(self, dimensions: int) -> None:
-        if await self._collection_exists():
+        info = await self._collection_info()
+        if info is None:
+            await self.client.request(
+                "PUT",
+                f"/collections/{self.collection}",
+                payload={"vectors": {"size": dimensions, "distance": "Cosine"}},
+            )
+            self._dimensions = dimensions
             return
-        await self.client.request(
-            "PUT",
-            f"/collections/{self.collection}",
-            payload={"vectors": {"size": dimensions, "distance": "Cosine"}},
-        )
+        size = _vector_size(info)
+        if size is not None and size != dimensions:
+            raise ConfigError(
+                f"qdrant collection {self.collection!r} is {size}-dimensional, "
+                f"but a {dimensions}-dimensional vector arrived"
+            )
+        self._dimensions = size if size is not None else dimensions
 
-    async def _collection_exists(self) -> bool:
+    async def _collection_info(self) -> dict[str, Any] | None:
         try:
-            await self.client.request("GET", f"/collections/{self.collection}")
-            return True
+            response = await self.client.request(
+                "GET", f"/collections/{self.collection}"
+            )
         except SourceError as exc:
             if exc.status_code == 404:
-                return False
+                return None
             raise
+        result = response.get("result")
+        return result if isinstance(result, dict) else {}
 
 
 __all__ = ["QdrantIndex"]

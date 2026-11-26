@@ -9,9 +9,10 @@ import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from ..errors import ConfigError
 from ..models import Chunk, SearchHit
 from .acl import acl_visible
-from .base import point_id
+from .base import check_dimensions, chunk_point_id
 from .keyword import bm25_scores, tokenize
 from .math import clamp, cosine_similarity
 
@@ -36,6 +37,7 @@ class SqliteIndex:
         self.path = path
         self._lock = threading.Lock()
         self._connection: sqlite3.Connection | None = None
+        self._dimensions: int | None = None
 
     def _connect(self) -> sqlite3.Connection:
         if self.path != ":memory:":
@@ -49,6 +51,23 @@ class SqliteIndex:
             self._connection = self._connect()
         return self._connection
 
+    def _check_dimensions_locked(
+        self,
+        connection: sqlite3.Connection,
+        vector: list[float],
+    ) -> None:
+        size = check_dimensions(self._dimensions, vector, backend="sqlite")
+        if self._dimensions is None:
+            row = connection.execute("SELECT vector FROM points LIMIT 1").fetchone()
+            if row is not None:
+                stored = len(json.loads(row[0]))
+                if stored != size:
+                    raise ConfigError(
+                        f"sqlite index is {stored}-dimensional, but a "
+                        f"{size}-dimensional vector arrived"
+                    )
+        self._dimensions = size
+
     async def upsert(
         self,
         chunk: Chunk,
@@ -57,11 +76,12 @@ class SqliteIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
-        pid = str(point_id(chunk.source_uri, chunk.text))
+        pid = str(chunk_point_id(chunk))
 
         def _write() -> None:
             connection = self._get_connection()
             with self._lock:
+                self._check_dimensions_locked(connection, vector)
                 connection.execute(
                     """
                     INSERT INTO points
@@ -122,13 +142,18 @@ class SqliteIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         def _read() -> list[tuple[float, str, str, dict[str, object]]]:
             connection = self._get_connection()
             with self._lock:
-                rows = connection.execute(
-                    "SELECT text, uri, metadata, vector FROM points"
-                ).fetchall()
+                self._check_dimensions_locked(connection, vector)
+                query = "SELECT text, uri, metadata, vector FROM points"
+                params: tuple[object, ...] = ()
+                if source_id is not None:
+                    query += " WHERE source_id = ?"
+                    params = (source_id,)
+                rows = connection.execute(query, params).fetchall()
             scored: list[tuple[float, str, str, dict[str, object]]] = []
             for text, uri, metadata_raw, vector_raw in rows:
                 metadata = json.loads(metadata_raw)
@@ -168,13 +193,17 @@ class SqliteIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         def _read() -> list[tuple[str, str, dict[str, object]]]:
             connection = self._get_connection()
             with self._lock:
-                rows = connection.execute(
-                    "SELECT text, uri, metadata FROM points"
-                ).fetchall()
+                query = "SELECT text, uri, metadata FROM points"
+                params: tuple[object, ...] = ()
+                if source_id is not None:
+                    query += " WHERE source_id = ?"
+                    params = (source_id,)
+                rows = connection.execute(query, params).fetchall()
             kept: list[tuple[str, str, dict[str, object]]] = []
             for row_text, uri, metadata_raw in rows:
                 metadata = json.loads(metadata_raw)

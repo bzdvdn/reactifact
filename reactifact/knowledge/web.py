@@ -20,13 +20,12 @@ extra.
 
 from __future__ import annotations
 
-import inspect
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from .docstore import DocStore
-from .indexes import Indexer
+from .indexes import CountableIndex, Indexer
 
 if TYPE_CHECKING:
     from fastapi import APIRouter, Request
@@ -42,8 +41,7 @@ def create_knowledge_router(
     """Build a read-only router over one knowledge `DocStore`.
 
     `index` is optional: when given, the status page shows its backend type and
-    point count (`MemoryIndex.count` property, `SqliteIndex.count()` /
-    `QdrantIndex.count()` coroutines).
+    point count for indexes implementing `CountableIndex`.
     """
     from .._extras import require_extra
 
@@ -61,14 +59,7 @@ def create_knowledge_router(
     async def _index_status() -> dict[str, Any]:
         if index is None:
             return {"type": None, "count": None}
-        value: int | None = None
-        count = getattr(index, "count", None)
-        if callable(count):
-            result = count()
-            resolved = await result if inspect.isawaitable(result) else result
-            value = int(cast(Any, resolved))
-        elif isinstance(count, int):
-            value = count
+        value = await index.count() if isinstance(index, CountableIndex) else None
         return {"type": type(index).__name__, "count": value}
 
     async def _status() -> dict[str, Any]:

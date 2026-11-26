@@ -20,11 +20,14 @@ class SourceRef(BaseModel):
 
     May be a search result: then score/title/excerpt are filled in
     (retrieval as a source capability, §8). Materialization is implemented
-    through `Source.resolve`.
+    through `Source.resolve`. `fragment` names a chunk/section inside
+    `locator` and participates in `stable_id`, so several chunks of one
+    document become distinct refs.
     """
 
     source_id: str
     locator: str
+    fragment: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
     score: float | None = None
     title: str = ""
@@ -33,6 +36,8 @@ class SourceRef(BaseModel):
 
     def stable_id(self) -> str:
         raw = f"{self.source_id}:{self.locator}"
+        if self.fragment:
+            raw = f"{raw}#{self.fragment}"
         return hashlib.sha1(raw.encode()).hexdigest()
 
 

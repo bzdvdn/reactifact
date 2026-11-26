@@ -66,6 +66,29 @@ harness needs no domain imports — the domain stays out of the framework.
 truth returns `None` and is reported as **skipped** (`EvalResult.skipped`), never
 as a silent zero.
 
+## Retrieval metrics
+
+Retrieval is scored before an answer exists. `reactifact.eval.retrieval` is
+knowledge-agnostic: it scores ranked identifiers against ground truth, and a
+`key` callable maps whatever the retriever returns to that identifier.
+
+```python
+from reactifact.eval import RetrievalCase, evaluate_retrieval
+
+report = await evaluate_retrieval(
+    [RetrievalCase("install", relevant=["install.md"])],
+    retrieve=lambda query, limit: pipeline.query(query, top_k=limit),
+    k=5,
+    key=lambda hit: hit.source_uri,
+)
+print(report.render())   # recall, precision, mrr, ndcg, hit_rate
+```
+
+`relevant` may be a list (binary) or a mapping `{id: gain}` for graded nDCG.
+Duplicate ids are collapsed, and a case without relevant ids is skipped.
+`reactifact.knowledge.eval.evaluate_pipeline` is the ready-made adapter with
+`document_key`/`chunk_key`.
+
 ## Dataset evaluation
 
 Beyond scoring one already-built `Context`, `reactifact.eval` runs a **dataset**

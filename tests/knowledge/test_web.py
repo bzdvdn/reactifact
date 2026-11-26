@@ -5,12 +5,18 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from reactifact.knowledge import Chunk, DocStore, MemoryIndex, RunRecord
+from reactifact.knowledge import (
+    Chunk,
+    DocStore,
+    JsonDocStore,
+    MemoryIndex,
+    RunRecord,
+)
 from reactifact.knowledge.web import create_knowledge_router
 
 
 def _store(tmp_path: Path) -> DocStore:
-    store = DocStore(tmp_path / "state.json")
+    store = JsonDocStore(tmp_path / "state.json")
     store.record_run(
         "docs",
         RunRecord(
@@ -77,7 +83,7 @@ def test_knowledge_page_renders(tmp_path: Path) -> None:
 
 
 def test_knowledge_page_without_runs(tmp_path: Path) -> None:
-    client = _client(DocStore(tmp_path / "empty.json"))
+    client = _client(JsonDocStore(tmp_path / "empty.json"))
     response = client.get("/knowledge/")
     assert response.status_code == 200
     assert "reactifact knowledge" in response.text

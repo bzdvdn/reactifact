@@ -68,6 +68,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   satisfied triggers, and `wakes=False`/`debounce`/`condition` work as on
   `Consume`. The approval, router, reflection and plan-finisher recipes use it
   to drop hand-written guards.
+- **Knowledge correctness.** Retrieval is scoped to the pipeline's `source_id`
+  (shared indexes no longer mix corpora); `content_hash` covers content type and
+  metadata, so ACL/title/tag-only changes re-index; `min_score` with
+  `hybrid=True` and hybrid on a dense-only index now raise `ConfigError`;
+  `KnowledgePipeline.aclose()` also closes the connector; `IngestStep` returns
+  an `IngestReportArtifact` instead of writing through `Effects`.
+- **Knowledge resilience.** `KnowledgePipeline.run(on_error="collect")` isolates
+  per-document extract/chunk failures, keeps the previous index version and
+  retries the document on the next incremental run; `IngestReport` now exposes
+  `documents_failed` / `failures`. `on_progress` emits `IngestProgress` stage
+  events, and `document_concurrency` parallelizes extraction with progress
+  reported per document. Concurrent runs are serialized per
+  `(state_path, source_id)` inside the process.
+- **Knowledge scale and guardrails.** `DocStore` is now a protocol with
+  `JsonDocStore` (default) and `SqliteDocStore` (transactional per-row state and
+  run ledger); the knowledge demo uses the SQLite store. Built-in indexes
+  validate vector dimensionality and raise `ConfigError` on a mismatch;
+  optional index capabilities (`keyword_search`, `upsert_batch`, `count`) are
+  runtime-checkable protocols instead of `getattr` probes, and pipeline
+  signatures ignore private index caches.
+- **Knowledge retrieval depth.** Hits now expose `dense_rank`, `keyword_rank`,
+  `rerank_rank`, `score_kind` and a stable `chunk_id`; point IDs include
+  `chunk_index` so duplicate bodies no longer collapse, and `SourceRef` gained
+  a `fragment` for distinct chunk refs. `MMR(lambda_=...)` adds diversity
+  before rerank, `IndexSource(expand="section"|"document")` resolves parent
+  text through the connector, and `reactifact.eval` gained recall/precision/
+  MRR/nDCG retrieval metrics with a knowledge adapter.
+- **Knowledge retrieval.** `max_per_document` caps chunks per document before
+  rerank; `query_by_vector` (module-level and on the pipeline) reuses a
+  precomputed vector, with `query_text` required for hybrid/rerank. Built-in
+  chunkers now add `section_index`/`chunk_index` citation coordinates.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.

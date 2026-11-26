@@ -23,6 +23,7 @@ from reactifact.knowledge import (
     IndexSource,
     KnowledgePipeline,
     SectionsChunker,
+    SqliteDocStore,
     SqliteIndex,
 )
 from reactifact.sources import SourceRef
@@ -111,7 +112,7 @@ def build_backend(
         embedder=embedder or HashEmbedder(dimensions=256),
         index=SqliteIndex(str(data / "knowledge.db")),
     )
-    docstore = DocStore(data / "state.json")
+    docstore = SqliteDocStore(data / "state.sqlite3")
     source = LazyKnowledgeSource(pipeline, docstore)
     return KnowledgeBackend(pipeline=pipeline, docstore=docstore, source=source)
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from ..models import Chunk, SearchHit
 from .acl import acl_visible
-from .base import point_id
+from .base import check_dimensions, chunk_point_id
 from .keyword import bm25_scores, tokenize
 from .math import clamp, cosine_similarity
 
@@ -31,6 +31,7 @@ class MemoryIndex:
     """Stores `(chunk, vector)` pairs in memory for the process lifetime."""
 
     points: dict[str, _Point] = field(default_factory=dict)
+    _dimensions: int | None = field(default=None, init=False, repr=False, compare=False)
 
     async def upsert(
         self,
@@ -40,7 +41,8 @@ class MemoryIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
-        pid = str(point_id(chunk.source_uri, chunk.text))
+        self._dimensions = check_dimensions(self._dimensions, vector, backend="memory")
+        pid = str(chunk_point_id(chunk))
         self.points[pid] = _Point(
             source_id=source_id,
             artifact_hash=artifact_hash,
@@ -65,8 +67,7 @@ class MemoryIndex:
         for pid in stale:
             del self.points[pid]
 
-    @property
-    def count(self) -> int:
+    async def count(self) -> int:
         return len(self.points)
 
     def entries(self) -> list[tuple[Chunk, list[float]]]:
@@ -79,11 +80,14 @@ class MemoryIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
+        check_dimensions(self._dimensions, vector, backend="memory")
         points = [
             point
             for point in self.points.values()
-            if _matches(point.chunk.metadata, filters)
+            if (source_id is None or point.source_id == source_id)
+            and _matches(point.chunk.metadata, filters)
             and acl_visible(point.chunk.metadata, principals)
         ]
         points.sort(
@@ -107,11 +111,13 @@ class MemoryIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         points = [
             point
             for point in self.points.values()
-            if _matches(point.chunk.metadata, filters)
+            if (source_id is None or point.source_id == source_id)
+            and _matches(point.chunk.metadata, filters)
             and acl_visible(point.chunk.metadata, principals)
         ]
         query_tokens = tokenize(text)

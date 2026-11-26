@@ -74,7 +74,10 @@ async def apply_rerank(
         ranked = await outcome
     else:
         ranked = outcome
-    return list(ranked)[:top_k]
+    return [
+        hit.model_copy(update={"rerank_rank": rank})
+        for rank, hit in enumerate(list(ranked)[:top_k], start=1)
+    ]
 
 
 def render_rerank_prompt(

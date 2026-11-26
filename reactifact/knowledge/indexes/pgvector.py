@@ -20,8 +20,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..._extras import require_extra
+from ..errors import ConfigError
 from ..models import Chunk, SearchHit
-from .base import point_id
+from .base import check_dimensions, chunk_point_id
 
 _UPSERT_BATCH_SIZE = 500
 
@@ -95,7 +96,7 @@ class PgVectorIndex:
         if self._dimensions is None:
             self._dimensions = dimensions
         elif self._dimensions != dimensions:
-            raise ValueError(
+            raise ConfigError(
                 f"pgvector table {self.table!r} is {self._dimensions}-"
                 f"dimensional, but a {dimensions}-dimensional vector arrived"
             )
@@ -150,6 +151,8 @@ class PgVectorIndex:
         if not items:
             return
         await self._ensure_table(len(items[0][1]))
+        for _, vector, _ in items:
+            check_dimensions(self._dimensions, vector, backend="pgvector")
         connection = await self._get_connection()
         for start in range(0, len(items), _UPSERT_BATCH_SIZE):
             batch = items[start : start + _UPSERT_BATCH_SIZE]
@@ -160,7 +163,7 @@ class PgVectorIndex:
             for chunk, vector, artifact_hash in batch:
                 params.extend(
                     (
-                        str(point_id(chunk.source_uri, chunk.text)),
+                        str(chunk_point_id(chunk)),
                         chunk.source_uri,
                         chunk.text,
                         source_id,
@@ -232,9 +235,11 @@ class PgVectorIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         if self._dimensions is None:
             return []
+        check_dimensions(self._dimensions, vector, backend="pgvector")
         await self._ensure_table(self._dimensions)
         literal = _vector_literal(vector)
         conditions: list[Any] = []
@@ -242,6 +247,9 @@ class PgVectorIndex:
         if filters:
             conditions.append(self._sql.SQL("metadata @> %s::jsonb"))
             params.append(json.dumps(dict(filters)))
+        if source_id is not None:
+            conditions.append(self._sql.SQL("source = %s"))
+            params.append(source_id)
         if principals is not None:
             conditions.append(
                 self._sql.SQL(
@@ -281,6 +289,7 @@ class PgVectorIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         if self._dimensions is None:
             return []
@@ -296,6 +305,9 @@ class PgVectorIndex:
         if filters:
             conditions.append(self._sql.SQL("metadata @> %s::jsonb"))
             where_params.append(json.dumps(dict(filters)))
+        if source_id is not None:
+            conditions.append(self._sql.SQL("source = %s"))
+            where_params.append(source_id)
         if principals is not None:
             conditions.append(
                 self._sql.SQL(

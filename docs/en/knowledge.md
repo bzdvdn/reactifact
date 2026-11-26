@@ -76,7 +76,8 @@ class DocsConnector:
 
 `RawDocument.from_text(...)` is the common code-first helper. Metadata
 (`documentId`, `sourceUrl`, `title`) is merged into every chunk, so citations
-survive retrieval.
+survive retrieval. Built-in chunkers also add `section_index`, `chunk_index`
+and `heading` coordinates, which is enough to render and highlight a citation.
 
 ## Query
 
@@ -92,9 +93,65 @@ for hit in hits:
     print(hit.source_uri, hit.score, hit.text[:80])
 ```
 
+Retrieval is scoped to the pipeline's `source_id`; in a shared index, another
+source's chunks never leak into the result. Pass `source_id=` to query a
+different source explicitly, or pass a bare index plus `embedder=` to
+`reactifact.knowledge.query(...)`.
+
 `min_score` filters dense cosine results only. Hybrid scores are rank-fusion
-scores, not similarities, so a cosine threshold would drop everything — leave
-`min_score` unset when `hybrid=True`.
+scores, not similarities, so `min_score` with `hybrid=True` raises `ConfigError`
+instead of silently dropping results. `hybrid=True` also requires an index with
+`keyword_search`; dense-only indexes must use `hybrid=False`.
+
+`max_per_document=N` keeps at most `N` chunks of the same document in the
+result, so one long document cannot crowd out everything else. Documents are
+identified by `document_id`/`documentId` metadata, falling back to
+`source_uri`. The cap is applied before `rerank`, so the reranker sees a
+diverse candidate set.
+
+`mmr=MMR(lambda_=0.3)` re-ranks over-fetched candidates by relevance **and**
+novelty (Maximal Marginal Relevance). `lambda_=1` is pure relevance, `0` is
+pure novelty; the pipeline embeds candidate texts with its own embedder, after
+`min_score`/`max_per_document` and before `rerank`. `query_by_vector` requires
+`embedder=` when MMR is used.
+
+Every hit carries retrieval provenance: `dense_rank`, `keyword_rank`,
+`rerank_rank`, `score_kind` (`"dense"` or `"rrf"`) and a stable `chunk_id`.
+`IndexSource` puts them under `SourceRef.metadata["retrieval"]` and uses the
+chunk id as the ref `fragment`, so two chunks of one document get distinct
+artifact ids.
+
+Already have a vector? `query_by_vector(...)` runs the same retrieval without
+embedding the text. Pass `query_text=` when using `hybrid=True` (BM25 needs
+the words) or `rerank=` (the reranker needs the query).
+
+## Retrieval metrics
+
+`reactifact.eval.retrieval` scores ranking quality without an answer:
+recall@k, precision@k, MRR, nDCG@k and hit rate. `reactifact.knowledge.eval`
+wires a pipeline to those metrics:
+
+```python
+from reactifact.eval import RetrievalCase
+from reactifact.knowledge import evaluate_pipeline
+
+report = await evaluate_pipeline(
+    pipeline,
+    [
+        RetrievalCase("how do I install?", relevant=["install.md"]),
+        RetrievalCase("refund policy", relevant={"refund.md": 2.0}),
+    ],
+    k=5,
+    hybrid=True,
+)
+print(report.render())
+report.assert_passed({"recall": 0.9})   # CI gate
+```
+
+`relevant` is a list (binary) or a mapping (graded gains). The default key
+compares documents (`documentId`, falling back to `source_uri`); pass
+`key=chunk_key` for chunk-level metrics. A case without relevant ids is
+skipped, never scored as zero.
 
 ## Rerank
 
@@ -199,11 +256,24 @@ rerank = llm_reranker(
 | `SqliteIndex` | one file | zero infrastructure, brute-force cosine; supports keyword search |
 | `QdrantIndex` | remote | raw REST client (no SDK); collection created on demand; hybrid narrows server-side then BM25-ranks locally |
 | `PgVectorIndex` | Postgres | `pg` extra; requires `CREATE EXTENSION vector`; cosine; server-side metadata/ACL filters and `tsvector` keyword search |
-| `ChromaIndex` | local dir / remote client | optional `chromadb` extra; cosine distance; dense only (hybrid degrades to dense); pass `client=` to reuse an existing Chroma client |
+| `ChromaIndex` | local dir / remote client | optional `chromadb` extra; cosine distance; dense only (`hybrid=True` raises `ConfigError`); pass `client=` to reuse an existing Chroma client |
 
 All backends implement deterministic point IDs, per-source `reconcile`,
-metadata filters and optional ACL visibility. Switching backends does not change
+metadata filters and optional ACL visibility. Point IDs include the chunker's
+`chunk_index`, so identical bodies in two sections stay distinct. Switching backends does not change
 the pipeline.
+
+Built-in indexes validate vector dimensionality: the first upsert pins the
+size, and a later vector of a different size raises `ConfigError` before
+anything is written. A changed embedding model therefore fails at the boundary
+instead of deep inside a database client. `ChromaIndex` additionally relies on
+Chroma's own collection check for existing data.
+
+Optional capabilities are runtime-checkable protocols, not `getattr` probes:
+`KeywordIndexer` (`keyword_search`), `BatchIndexer` (`upsert_batch`) and
+`CountableIndex` (`count`). An adapter implements only what it supports; the
+pipeline checks the protocol and uses the capability or raises a clear
+`ConfigError`.
 
 `PgVectorIndex` requires `pip install "reactifact[pg]"` and a database with the
 pgvector extension. Pass `dsn=` or `dsn_env=`; `text_search_config` defaults to
@@ -217,10 +287,65 @@ preserved under `__metadata` and returned in `SearchHit.metadata`.
 `run(incremental=True)` keeps `DocStore` state keyed by **source identity and
 a pipeline signature** (extraction, chunking, embedding settings). Changing
 chunk size or the embedding model invalidates fingerprints instead of leaving
-stale chunks. State is committed only after a successful run.
+stale chunks. The document hash covers content type and metadata as well as
+bytes, so an ACL/title/tag change re-indexes even when the text is unchanged.
+State is committed only after a successful run. Runs are serialized per
+`(state_path, source_id)` within the process; across processes the contract is
+one ingestion writer per source (use an external lock if you fan out).
 
 A connector failure aborts **before** reconciliation, so a transient outage
 never makes the corpus look deleted.
+
+### DocStore backends
+
+`DocStore` is a protocol. `JsonDocStore` (the default behind `state_path=`) is
+one JSON file rewritten on save — fine for small corpora. `SqliteDocStore`
+keeps the same fingerprints and run ledger in SQLite with transactional
+per-row writes:
+
+```python
+from reactifact.knowledge import SqliteDocStore
+
+docstore = SqliteDocStore(".reactifact/knowledge/state.sqlite3")
+await pipeline.run(docstore=docstore)
+```
+
+Both expose `entry`/`commit`/`save`/`record_run`/`runs`/`snapshot`, so the
+pipeline and the status router do not care which backend is used. Pass
+`docstore=` explicitly to choose SQLite; `state_path=` keeps using JSON.
+
+### Failure isolation, progress and concurrency
+
+By default a bad document aborts the run (`on_error="fail_fast"`). For large
+corpora, collect failures and keep going:
+
+```python
+from reactifact.knowledge import IngestProgress
+
+events: list[IngestProgress] = []
+report = await pipeline.run(
+    incremental=True,
+    on_error="collect",
+    on_progress=events.append,
+)
+report.documents_failed       # count
+report.failures               # [IngestFailure(uri, stage, error), ...]
+```
+
+A failed document is **not committed** to `DocStore`; its previous index points
+are kept and the next incremental run retries it. `on_progress` receives stage
+events (`start`, `fetch`, `extract`, `embed`, `index`, `reconcile`, `done`) plus
+per-document/failed events with counts.
+
+`document_concurrency` (default `1`) parallelizes extract/chunk across
+documents; progress events arrive as each document finishes. Connector fetching
+remains owned by the connector; `ProviderEmbedder` already batches/concurrently
+embeds.
+
+Without a `DocStore` (non-incremental runs) a failed document has no previous
+hash to restore, so `on_error="collect"` skips deletion reconciliation for that
+run: successful documents are still upserted, but nothing is deleted. Use
+`incremental=True` for the full keep-and-retry behavior.
 
 ## Bridge to the agent runtime
 
@@ -230,16 +355,23 @@ The two integrations are explicit and optional:
 from reactifact.knowledge import IndexSource, IngestStep
 
 # retrieval as a regular reactifact Source
-source = IndexSource(pipeline, hybrid=True, min_score=0.15)
+source = IndexSource(pipeline, hybrid=True)
 ctx = Context(resources=RuntimeResources(embedder=..., sources={"kb": source}))
 
 # ingestion as a step (when ingestion belongs to the reactive flow)
-step = IngestStep(pipeline)
+step = IngestStep(pipeline)  # returns an IngestReportArtifact
 ```
 
 For most services ingestion is a background job, not an agent step: call
 `pipeline.run(...)` directly from the scheduler/worker and only expose
 `IndexSource` to agents.
+
+`IndexSource(expand="section")` (or `"document"`) makes `resolve` return the
+parent section/document instead of the matched chunk: it re-fetches the source
+document and runs the same extractor, so parent text is never stored in the
+index. Expansion uses per-URI `fetch(uris=...)` for `ListingConnector`s and a
+full fetch for plain connectors; a missing document or section raises
+`KnowledgeError`, which `materialize_doc` reports through `on_error`.
 
 ## Custom connectors and indexes
 
@@ -265,8 +397,10 @@ There is no registry to extend — implement the protocol and pass an instance:
   `ListingConnector` (adds `list_documents()` and `fetch(uris=...)` for cheap
   incremental skips).
 - **Vector stores** satisfy `Indexer` (`upsert`, `reconcile`, `search`); add
-  `KeywordIndexer.keyword_search` for hybrid retrieval and
-  `BatchIndexer.upsert_batch` for bulk writes.
+  `KeywordIndexer.keyword_search` for hybrid retrieval,
+  `BatchIndexer.upsert_batch` for bulk writes and `CountableIndex.count` for
+  the status page. These are runtime-checkable protocols: implementing the
+  method is the whole registration step.
 
 `MemoryIndex`, `SqliteIndex`, `QdrantIndex`, `PgVectorIndex` and `ChromaIndex`
 are reference implementations of the same contract; a Milvus adapter is just

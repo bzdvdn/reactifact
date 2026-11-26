@@ -10,8 +10,9 @@ created. Pass an existing client for tests or remote Chroma deployments:
     # or: ChromaIndex(client=my_chroma_client, collection="knowledge")
 
 The collection is created with cosine distance. `KeywordIndexer` is not
-implemented; hybrid queries degrade to dense-only (the same documented
-fallback as any backend without keyword search).
+implemented, so `hybrid=True` raises `ConfigError`; use `hybrid=False`
+with this backend. Chroma also enforces the collection dimensionality
+itself; this adapter additionally fails fast when the size is known.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from typing import Any
 from ..._extras import require_extra
 from ..models import Chunk, SearchHit
 from .acl import acl_visible
-from .base import point_id
+from .base import check_dimensions, chunk_point_id
 from .math import clamp
 
 _UPSERT_BATCH_SIZE = 500
@@ -68,6 +69,7 @@ class ChromaIndex:
     ) -> None:
         self.path = path
         self.collection = collection
+        self._dimensions: int | None = None
         if client is None:
             chromadb = require_extra(
                 "knowledge.indexes.ChromaIndex",
@@ -106,13 +108,17 @@ class ChromaIndex:
     ) -> None:
         if not items:
             return
+        for _, vector, _ in items:
+            self._dimensions = check_dimensions(
+                self._dimensions, vector, backend="chroma"
+            )
         ids: list[str] = []
         embeddings: list[list[float]] = []
         documents: list[str] = []
         metadatas: list[dict[str, Any]] = []
         for chunk, vector, artifact_hash in items:
             self._validate_metadata(chunk.metadata)
-            ids.append(str(point_id(chunk.source_uri, chunk.text)))
+            ids.append(str(chunk_point_id(chunk)))
             embeddings.append(vector)
             documents.append(chunk.text)
             metadatas.append(self._metadata(chunk, source_id, artifact_hash))
@@ -157,10 +163,13 @@ class ChromaIndex:
         top_k: int = 5,
         filters: Mapping[str, str] | None = None,
         principals: Sequence[str] | None = None,
+        source_id: str | None = None,
     ) -> list[SearchHit]:
         available = int(self._collection.count())
         if available == 0:
             return []
+        if self._dimensions is not None:
+            check_dimensions(self._dimensions, vector, backend="chroma")
         over_fetch = top_k * _CANDIDATE_FACTOR if principals is not None else top_k
         n_results = min(max(1, over_fetch), available)
         kwargs: dict[str, Any] = {
@@ -168,8 +177,15 @@ class ChromaIndex:
             "n_results": n_results,
             "include": ["documents", "metadatas", "distances"],
         }
-        if filters:
-            kwargs["where"] = {str(key): value for key, value in filters.items()}
+        clauses: list[dict[str, Any]] = [
+            {str(key): value} for key, value in (filters or {}).items()
+        ]
+        if source_id is not None:
+            clauses.append({_PAYLOAD_SOURCE: source_id})
+        if len(clauses) == 1:
+            kwargs["where"] = clauses[0]
+        elif clauses:
+            kwargs["where"] = {"$and": clauses}
         result = self._collection.query(**kwargs)
         ids = _first(result.get("ids"))
         documents = _first(result.get("documents"))

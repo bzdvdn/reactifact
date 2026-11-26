@@ -33,8 +33,8 @@ class AutoChunker:
     async def chunk(self, document: Document) -> list[Chunk]:
         """Split a document's sections into token-budgeted chunks."""
         chunks: list[Chunk] = []
-        for section in document.sections:
-            text = _section_text(document, section)
+        for section_index, section in enumerate(document.sections):
+            text = section_text(document, section)
             for part in _split_text(text, self.max_tokens, self.overlap):
                 if not part.strip():
                     continue
@@ -42,10 +42,12 @@ class AutoChunker:
                     Chunk(
                         text=part,
                         source_uri=document.uri,
-                        metadata={
-                            "title": document.title,
-                            "heading": section.heading,
-                        },
+                        metadata=_chunk_metadata(
+                            document,
+                            section_index,
+                            section.heading,
+                            len(chunks),
+                        ),
                     )
                 )
         return chunks
@@ -69,8 +71,8 @@ class SectionsChunker:
     async def chunk(self, document: Document) -> list[Chunk]:
         """Produce one chunk per section, repeating the heading on continuations."""
         chunks: list[Chunk] = []
-        for section in document.sections:
-            text = _section_text(document, section)
+        for section_index, section in enumerate(document.sections):
+            text = section_text(document, section)
             for index, part in enumerate(
                 _split_text(text, self.max_tokens, self.overlap)
             ):
@@ -84,10 +86,12 @@ class SectionsChunker:
                     Chunk(
                         text=part,
                         source_uri=document.uri,
-                        metadata={
-                            "title": document.title,
-                            "heading": section.heading,
-                        },
+                        metadata=_chunk_metadata(
+                            document,
+                            section_index,
+                            section.heading,
+                            len(chunks),
+                        ),
                     )
                 )
         return chunks
@@ -107,23 +111,41 @@ class SizeChunker:
     async def chunk(self, document: Document) -> list[Chunk]:
         """Split each section into character-budgeted chunks with overlap."""
         chunks: list[Chunk] = []
-        for section in document.sections:
-            text = _section_text(document, section)
+        for section_index, section in enumerate(document.sections):
+            text = section_text(document, section)
             for part in _split_by_chars(text, self.max_chars, self.overlap_chars):
                 chunks.append(
                     Chunk(
                         text=part,
                         source_uri=document.uri,
-                        metadata={
-                            "title": document.title,
-                            "heading": section.heading,
-                        },
+                        metadata=_chunk_metadata(
+                            document,
+                            section_index,
+                            section.heading,
+                            len(chunks),
+                        ),
                     )
                 )
         return chunks
 
 
-def _section_text(document: Document, section: Section) -> str:
+def _chunk_metadata(
+    document: Document,
+    section_index: int,
+    heading: str,
+    chunk_index: int,
+) -> dict[str, object]:
+    """Stable citation coordinates merged into every chunk."""
+    return {
+        "title": document.title,
+        "heading": heading,
+        "section_index": section_index,
+        "chunk_index": chunk_index,
+    }
+
+
+def section_text(document: Document, section: Section) -> str:
+    """Render a section in the same shape the chunkers use."""
     if not section.body:
         return ""
     if not section.heading:

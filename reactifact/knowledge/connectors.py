@@ -16,12 +16,13 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from .errors import SourceError
 from .models import DocumentMeta, RawDocument
 
 
+@runtime_checkable
 class Connector(Protocol):
     """Produces raw documents for a pipeline run."""
 
@@ -32,6 +33,7 @@ class Connector(Protocol):
         ...
 
 
+@runtime_checkable
 class ListingConnector(Protocol):
     """A connector that can cheaply list fingerprints before fetching bodies."""
 
@@ -126,7 +128,7 @@ class FilesystemConnector:
 
 def has_listing(connector: object) -> bool:
     """Whether `connector` implements the cheap-listing capability."""
-    return callable(getattr(connector, "list_documents", None))
+    return isinstance(connector, ListingConnector)
 
 
 __all__ = [

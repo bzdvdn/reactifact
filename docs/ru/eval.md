@@ -66,6 +66,29 @@ suite overall: 1.000
 возвращает `None` и попадает в **skipped** (`EvalResult.skipped`), а не в тихий
 ноль.
 
+## Метрики retrieval
+
+Retrieval оценивается до появления ответа. `reactifact.eval.retrieval` не
+знает про knowledge: он сравнивает ранжированные id с грёд-трусом, а `key`
+превращает элемент выдачи в id.
+
+```python
+from reactifact.eval import RetrievalCase, evaluate_retrieval
+
+report = await evaluate_retrieval(
+    [RetrievalCase("install", relevant=["install.md"])],
+    retrieve=lambda query, limit: pipeline.query(query, top_k=limit),
+    k=5,
+    key=lambda hit: hit.source_uri,
+)
+print(report.render())   # recall, precision, mrr, ndcg, hit_rate
+```
+
+`relevant` — список (бинарная) или mapping `{id: gain}` для graded nDCG.
+Дубликаты схлопываются, кейс без релевантных id пропускается.
+`reactifact.knowledge.eval.evaluate_pipeline` — готовый адаптер с
+`document_key`/`chunk_key`.
+
 ## Оценка по датасету
 
 Кроме оценки одного готового `Context`, `reactifact.eval` прогоняет **датасет**
