@@ -66,6 +66,7 @@ class EvalResult:
     skipped: list[str] = field(default_factory=list)
 
     def overall(self) -> float:
+        """Weighted mean of this case's metrics."""
         metrics = self.metrics or ()
         weights = [m.weight for m in metrics]
         total_weight = sum(weights) or 1.0
@@ -85,6 +86,7 @@ class EvalReport:
     summary: list[Metric] = field(default_factory=list)
 
     def overall(self) -> float:
+        """Mean of the per-case overall scores."""
         if not self.results:
             return 0.0
         return sum(r.overall() for r in self.results) / len(self.results)
@@ -138,6 +140,7 @@ class EvalReport:
         return self
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the report for JSON endpoints."""
         return {
             "overall": round(self.overall(), 4),
             "aggregate": self.aggregate(),
@@ -170,6 +173,7 @@ class EvalReport:
         }
 
     def render(self) -> str:
+        """Human-readable report for logs and test failures."""
         lines = ["eval · multi-level report (§56)", ""]
         for r in self.results:
             lines.append(f"[{r.case}] overall {r.overall():.3f}")
@@ -213,6 +217,7 @@ def run_suite(
     cases: list[EvalCase],
     metrics: Mapping[str, MetricFn],
 ) -> EvalReport:
+    """Run every case and score it against the same metric set."""
     return EvalReport(results=[run_case(case, metrics) for case in cases])
 
 

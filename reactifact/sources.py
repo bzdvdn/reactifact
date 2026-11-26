@@ -35,6 +35,7 @@ class SourceRef(BaseModel):
     query_id: str = ""
 
     def stable_id(self) -> str:
+        """Stable id of the referenced object (locator plus optional fragment)."""
         raw = f"{self.source_id}:{self.locator}"
         if self.fragment:
             raw = f"{raw}#{self.fragment}"
@@ -42,6 +43,12 @@ class SourceRef(BaseModel):
 
 
 class Source(ABC):
+    """A query-time retrieval capability: search for refs, resolve them.
+
+    Subclasses provide synchronous `search` (lexical/in-memory sources) and
+    `resolve`; sources that need embeddings override the async `asearch`.
+    """
+
     def __init__(self, source_id: str):
         self.source_id = source_id
         # Sorting hint for aggregating search: preferred sources
@@ -107,6 +114,7 @@ class FileSystemSource(Source):
         self.scorer = scorer or _token_overlap_score
 
     def search(self, query: str, limit: int = 10) -> list[SourceRef]:
+        """Rank matching files by the configured scorer."""
         if not self.root.exists():
             return []
         results: list[SourceRef] = []
@@ -143,6 +151,7 @@ class FileSystemSource(Source):
         return await asyncio.to_thread(self.search, query, limit)
 
     async def resolve(self, ref: SourceRef) -> str:
+        """Read the referenced file as text."""
         full_path = self.root / ref.locator
         if not full_path.exists():
             raise FileNotFoundError(f"File not found: {full_path}")
@@ -211,6 +220,7 @@ class EmbeddingSource(Source):
         self._index: list[tuple[str, str, list[float]]] | None = None
 
     def search(self, query: str, limit: int = 10) -> list[SourceRef]:
+        """Embedding search is async; use `asearch`."""
         raise NotImplementedError(
             "EmbeddingSource requires async asearch (embedding is async)"
         )
@@ -256,6 +266,7 @@ class EmbeddingSource(Source):
         self._index = None
 
     async def asearch(self, query: str, limit: int = 10) -> list[SourceRef]:
+        """Embed the query and rank indexed chunks by cosine similarity."""
         await self._ensure_index()
         if not self._index:
             return []
@@ -280,6 +291,7 @@ class EmbeddingSource(Source):
         ]
 
     async def resolve(self, ref: SourceRef) -> str:
+        """Read the referenced file as text."""
         full_path = self.root / ref.locator
         if not full_path.exists():
             raise FileNotFoundError(f"File not found: {full_path}")
@@ -319,6 +331,7 @@ class CSVSource(Source):
             return [[(cell or "").strip() for cell in row] for row in csv.reader(fh)]
 
     def search(self, query: str, limit: int = 10) -> list[SourceRef]:
+        """Rank matching files by the configured scorer."""
         if not self.root.exists():
             return []
         results: list[SourceRef] = []
@@ -361,6 +374,7 @@ class CSVSource(Source):
         return await asyncio.to_thread(self.search, query, limit)
 
     async def resolve(self, ref: SourceRef) -> dict[str, Any]:
+        """Return the referenced CSV as `{"columns": ..., "rows": ...}`."""
         full_path = self.root / ref.locator
         if not full_path.exists():
             raise FileNotFoundError(f"File not found: {full_path}")
@@ -430,7 +444,7 @@ class WebSource(Source):
                 self.add_url(url)
 
     def add_url(self, url: str, title: str = "") -> None:
-        """Registers a URL to consider; the page is fetched lazily."""
+        """Register a URL to consider; the page is fetched lazily."""
         if not any(u == url for u, _ in self._urls):
             self._urls.append((url, title))
 
@@ -450,7 +464,7 @@ class WebSource(Source):
         return self._http.get()
 
     async def aclose(self) -> None:
-        """Closes the HTTP client (if one was created) on the current loop."""
+        """Close the HTTP client (if one was created) on the current loop."""
         await self._http.aclose()
 
     async def _fetch(self, url: str) -> str:
@@ -506,5 +520,6 @@ class WebSource(Source):
         return self.search(query, limit)
 
     async def resolve(self, ref: SourceRef) -> str:
+        """Return the fetched text of the referenced URL."""
         _, text = await self._ensure(ref.locator, ref.title)
         return text

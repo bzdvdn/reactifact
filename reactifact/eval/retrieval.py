@@ -124,6 +124,7 @@ class RetrievalCase:
     name: str = ""
 
     def gains(self) -> dict[str, float]:
+        """Normalize binary or graded relevance into `{id: gain}`."""
         if isinstance(self.relevant, Mapping):
             return {str(key): float(value) for key, value in self.relevant.items()}
         return {str(item): 1.0 for item in self.relevant}
@@ -137,9 +138,11 @@ class RetrievalReport(EvalReport):
     retrieved: dict[str, list[str]] = field(default_factory=dict)
 
     def render(self) -> str:
+        """Human-readable report, including the `k` used."""
         return f"retrieval · k={self.k}\n\n" + super().render()
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize metrics, `k` and the retrieved ids."""
         return {**super().to_dict(), "k": self.k, "retrieved": self.retrieved}
 
 

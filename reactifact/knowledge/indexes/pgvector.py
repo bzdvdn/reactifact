@@ -71,6 +71,7 @@ class PgVectorIndex:
 
     @property
     def signature(self) -> str:
+        """Pipeline fingerprint for this table and DSN."""
         digest = hashlib.sha256(self.dsn.encode("utf-8")).hexdigest()[:12]
         return f"pgvector:{self.table}:{digest}"
 
@@ -84,6 +85,7 @@ class PgVectorIndex:
             return self._connection
 
     async def aclose(self) -> None:
+        """Close the Postgres connection."""
         async with self._lock:
             if self._connection is not None and not self._connection.closed:
                 await self._connection.close()
@@ -140,6 +142,7 @@ class PgVectorIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
+        """Insert or replace one point."""
         await self.upsert_batch([(chunk, vector, artifact_hash)], source_id=source_id)
 
     async def upsert_batch(
@@ -148,6 +151,7 @@ class PgVectorIndex:
         *,
         source_id: str,
     ) -> None:
+        """Insert or replace a batch of points."""
         if not items:
             return
         await self._ensure_table(len(items[0][1]))
@@ -218,6 +222,7 @@ class PgVectorIndex:
         await connection.execute(statement, params)
 
     async def count(self) -> int:
+        """Number of stored points."""
         if self._dimensions is None:
             return 0
         await self._ensure_table(self._dimensions)
@@ -237,6 +242,7 @@ class PgVectorIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Dense similarity search with SQL-level filters."""
         if self._dimensions is None:
             return []
         check_dimensions(self._dimensions, vector, backend="pgvector")
@@ -291,6 +297,7 @@ class PgVectorIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Postgres full-text search over stored chunks."""
         if self._dimensions is None:
             return []
         await self._ensure_table(self._dimensions)

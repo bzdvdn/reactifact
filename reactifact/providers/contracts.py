@@ -36,23 +36,29 @@ class Message:
 
     @classmethod
     def system(cls, content: str) -> Message:
+        """A system/instruction message."""
         return cls(role="system", content=content)
 
     @classmethod
     def user(cls, content: str) -> Message:
+        """A user message."""
         return cls(role="user", content=content)
 
     @classmethod
     def assistant(cls, content: str) -> Message:
+        """An assistant message (history or few-shot)."""
         return cls(role="assistant", content=content)
 
     @classmethod
     def tool(cls, content: str) -> Message:
+        """A tool-result message."""
         return cls(role="tool", content=content)
 
 
 @dataclass
 class LLMRequest:
+    """One chat-completion request; `None` fields use the provider default."""
+
     messages: list[Message]
 
     # `None` means "use the provider's default" — the provider decides what to
@@ -72,6 +78,8 @@ class LLMRequest:
 
 @dataclass
 class LLMResponse:
+    """A completed response: text, raw payload, finish reason and usage."""
+
     text: str
     raw: Any = None
     finish_reason: str | None = None
@@ -80,6 +88,8 @@ class LLMResponse:
 
 @dataclass
 class LLMResponseChunk:
+    """One streamed diff; the terminal chunk may carry usage."""
+
     text: str
     finish_reason: str | None = None
     #: Token usage, when the provider reports it on a streaming chunk (usually
@@ -89,12 +99,19 @@ class LLMResponseChunk:
 
 
 class LLMProvider(ABC):
+    """Chat-completion provider contract (one request in, one response out)."""
+
     @abstractmethod
-    async def complete(self, request: LLMRequest) -> LLMResponse: ...
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        """Run one non-streaming completion."""
+        ...
+
+    @abstractmethod
+    def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]:
+        """Stream one completion as response chunks."""
+        ...
 
     # Deliberately not async: implementations are generators (yield), but the contract is an async iterator.
-    @abstractmethod
-    def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponseChunk]: ...
 
     async def structured(
         self,
@@ -176,8 +193,12 @@ class LLMProvider(ABC):
 
 
 class EmbeddingProvider(ABC):
+    """Text-embedding provider contract."""
+
     @abstractmethod
-    async def embed(self, texts: list[str]) -> list[list[float]]: ...
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Embed texts, preserving input order."""
+        ...
 
     async def embed_one(self, text: str) -> list[float]:
         """Convenience for the common single-text call."""

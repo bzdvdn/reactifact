@@ -62,14 +62,17 @@ class S3Connector:
         self._client: Any = resolved
 
     async def aclose(self) -> None:
+        """Close the S3 client when it exposes a `close` hook."""
         closer = getattr(self._client, "close", None)
         if callable(closer):
             await asyncio.to_thread(closer)
 
     async def list_documents(self) -> list[DocumentMeta]:
+        """List bucket objects with their ETag fingerprints."""
         return await asyncio.to_thread(self._list)
 
     async def fetch(self, *, uris: set[str] | None = None) -> list[RawDocument]:
+        """Download the requested keys (or every listed object)."""
         if uris is None:
             keys = [meta.uri for meta in await self.list_documents()]
         else:

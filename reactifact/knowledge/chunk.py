@@ -28,6 +28,7 @@ class AutoChunker:
 
     @property
     def signature(self) -> str:
+        """Pipeline fingerprint for this chunker configuration."""
         return f"auto:{self.max_tokens}:{self.overlap}"
 
     async def chunk(self, document: Document) -> list[Chunk]:
@@ -66,6 +67,7 @@ class SectionsChunker:
 
     @property
     def signature(self) -> str:
+        """Pipeline fingerprint for this chunker configuration."""
         return f"sections:{self.max_tokens}:{self.overlap}"
 
     async def chunk(self, document: Document) -> list[Chunk]:
@@ -106,6 +108,7 @@ class SizeChunker:
 
     @property
     def signature(self) -> str:
+        """Pipeline fingerprint for this chunker configuration."""
         return f"size:{self.max_chars}:{self.overlap_chars}"
 
     async def chunk(self, document: Document) -> list[Chunk]:

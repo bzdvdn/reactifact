@@ -42,9 +42,11 @@ class HashEmbedder:
         self.signature = f"default:{dimensions}"
 
     async def embed(self, chunk: Chunk) -> list[float]:
+        """Embed one chunk with the deterministic hash vector."""
         return (await self.embed_batch([chunk]))[0]
 
     async def embed_batch(self, chunks: Sequence[Chunk]) -> list[list[float]]:
+        """Embed chunks from token hashes, preserving input order."""
         vectors: list[list[float]] = []
         for chunk in chunks:
             vector = [0.0] * self.dimensions
@@ -95,9 +97,11 @@ class ProviderEmbedder:
         )
 
     async def embed(self, chunk: Chunk) -> list[float]:
+        """Embed one chunk through the provider."""
         return (await self.embed_batch([chunk]))[0]
 
     async def embed_batch(self, chunks: Sequence[Chunk]) -> list[list[float]]:
+        """Embed chunks with provider batching and bounded concurrency."""
         if not chunks:
             return []
         batches = [
@@ -117,6 +121,7 @@ class ProviderEmbedder:
         return vectors
 
     async def aclose(self) -> None:
+        """Close the provider's HTTP client, when it exposes `aclose`."""
         closer = aclose_of(self.provider)
         if closer is not None:
             await closer()
@@ -125,9 +130,13 @@ class ProviderEmbedder:
 class EmbeddingCache(Protocol):
     """Persists vectors by opaque string key."""
 
-    def get(self, key: str) -> list[float] | None: ...
+    def get(self, key: str) -> list[float] | None:
+        """Return a cached vector, or `None` on a miss."""
+        ...
 
-    def set(self, key: str, vector: list[float]) -> None: ...
+    def set(self, key: str, vector: list[float]) -> None:
+        """Store a vector under `key`."""
+        ...
 
 
 class InMemoryEmbeddingCache:
@@ -137,9 +146,11 @@ class InMemoryEmbeddingCache:
         self._store: dict[str, list[float]] = {}
 
     def get(self, key: str) -> list[float] | None:
+        """Return a cached vector from this process, or `None`."""
         return self._store.get(key)
 
     def set(self, key: str, vector: list[float]) -> None:
+        """Store a vector in this process."""
         self._store[key] = vector
 
 
@@ -159,17 +170,20 @@ class FileEmbeddingCache:
         return self._shelf
 
     def get(self, key: str) -> list[float] | None:
+        """Return a cached vector from the shelf, or `None`."""
         with _CACHE_GUARD:
             value = self._open().get(key)
             return None if value is None else list(value)
 
     def set(self, key: str, vector: list[float]) -> None:
+        """Persist a vector and sync the shelf."""
         with _CACHE_GUARD:
             shelf = self._open()
             shelf[key] = vector
             shelf.sync()
 
     def close(self) -> None:
+        """Close the underlying shelf, if it was opened."""
         with _CACHE_GUARD:
             if self._shelf is not None:
                 self._shelf.close()
@@ -192,9 +206,11 @@ class CachingEmbedder:
         self.signature = delegate.signature
 
     async def embed(self, chunk: Chunk) -> list[float]:
+        """Embed one chunk, using the cache when possible."""
         return (await self.embed_batch([chunk]))[0]
 
     async def embed_batch(self, chunks: Sequence[Chunk]) -> list[list[float]]:
+        """Serve cached vectors and embed only the misses."""
         keys = [cache_key(self.signature, chunk.text) for chunk in chunks]
         vectors: list[list[float] | None] = [None] * len(chunks)
         missing: list[int] = []
@@ -216,11 +232,13 @@ class CachingEmbedder:
         return [cast(list[float], vector) for vector in vectors]
 
     def close(self) -> None:
+        """Close the cache, when it exposes a sync `close`."""
         closer = close_of(self.cache)
         if closer is not None:
             closer()
 
     async def aclose(self) -> None:
+        """Close the cache and the wrapped embedder."""
         self.close()
         delegate_closer = aclose_of(self.delegate)
         if delegate_closer is not None:

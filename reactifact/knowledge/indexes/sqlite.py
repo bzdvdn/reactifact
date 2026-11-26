@@ -76,6 +76,7 @@ class SqliteIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
+        """Insert or replace one point in the SQLite table."""
         pid = str(chunk_point_id(chunk))
 
         def _write() -> None:
@@ -114,6 +115,8 @@ class SqliteIndex:
         source_id: str,
         current: Mapping[str, str],
     ) -> None:
+        """Delete points for this source that are no longer current."""
+
         def _run() -> None:
             connection = self._get_connection()
             with self._lock:
@@ -144,6 +147,8 @@ class SqliteIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Rank points by cosine similarity to `vector`."""
+
         def _read() -> list[tuple[float, str, str, dict[str, object]]]:
             connection = self._get_connection()
             with self._lock:
@@ -195,6 +200,8 @@ class SqliteIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Rank points by BM25 keyword score for `text`."""
+
         def _read() -> list[tuple[str, str, dict[str, object]]]:
             connection = self._get_connection()
             with self._lock:
@@ -235,6 +242,8 @@ class SqliteIndex:
         ]
 
     async def count(self) -> int:
+        """Number of stored points."""
+
         def _count() -> int:
             connection = self._get_connection()
             with self._lock:

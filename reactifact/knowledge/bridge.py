@@ -76,6 +76,7 @@ class IndexSource(Source):
         self.preferred = True
 
     def search(self, query: str, limit: int = 10) -> list[SourceRef]:
+        """Synchronous search is unsupported; use `asearch`."""
         raise NotImplementedError(
             "IndexSource requires async asearch (embedding is async)"
         )
@@ -129,6 +130,7 @@ class IndexSource(Source):
             self._hits.popitem(last=False)
 
     async def resolve(self, ref: SourceRef) -> str:
+        """Resolve a ref to chunk, section or document text (see `expand`)."""
         if self.expand == "chunk":
             cached = self._hits.get(ref.fragment or ref.locator)
             if cached is not None:
@@ -232,6 +234,8 @@ class IngestStep(Step[IngestReportArtifact]):
     async def run(
         self, request: IngestRequest, progress: Progress
     ) -> IngestReportArtifact:
+        """Run ingestion and return the report artifact."""
+
         def report_progress(event: IngestProgress) -> None:
             if event.stage == "document":
                 return

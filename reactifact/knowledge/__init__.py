@@ -175,6 +175,7 @@ __all__ = [
     "QdrantIndex",
     "RawDocument",
     "RunRecord",
+    "S3Connector",
     "SqliteDocStore",
     "SearchHit",
     "Section",

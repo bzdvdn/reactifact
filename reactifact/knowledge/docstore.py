@@ -117,26 +117,42 @@ class DocStore(Protocol):
 
     path: Path
 
-    def entry(self, source_id: str, signature: str, uri: str) -> DocEntry | None: ...
+    def entry(self, source_id: str, signature: str, uri: str) -> DocEntry | None:
+        """Return the stored fingerprint for `uri`, or `None`."""
+        ...
 
     def commit(
         self,
         source_id: str,
         signature: str,
         current: Mapping[str, DocEntry],
-    ) -> int: ...
+    ) -> int:
+        """Replace one source's state; return how many documents disappeared."""
+        ...
 
-    def save(self) -> None: ...
+    def save(self) -> None:
+        """Flush pending state (a no-op for transactional backends)."""
+        ...
 
-    def record_run(self, source_id: str, record: RunRecord) -> None: ...
+    def record_run(self, source_id: str, record: RunRecord) -> None:
+        """Append a run record and prune the per-source history."""
+        ...
 
-    def runs(self, source_id: str) -> list[RunRecord]: ...
+    def runs(self, source_id: str) -> list[RunRecord]:
+        """Recent runs for one source, newest first."""
+        ...
 
-    def last_run(self, source_id: str) -> RunRecord | None: ...
+    def last_run(self, source_id: str) -> RunRecord | None:
+        """The most recent run for one source."""
+        ...
 
-    def sources(self) -> list[tuple[str, dict[str, Any]]]: ...
+    def sources(self) -> list[tuple[str, dict[str, Any]]]:
+        """Stored sources and their documents, sorted by source id."""
+        ...
 
-    def snapshot(self, *, history: int = _RUN_HISTORY) -> list[dict[str, Any]]: ...
+    def snapshot(self, *, history: int = _RUN_HISTORY) -> list[dict[str, Any]]:
+        """Per-source status and recent runs, ready for a JSON endpoint."""
+        ...
 
 
 class JsonDocStore:
@@ -156,9 +172,11 @@ class JsonDocStore:
 
     @staticmethod
     def default_path() -> Path:
+        """Default JSON state path."""
         return Path(".reactifact") / "knowledge" / "state.json"
 
     def entry(self, source_id: str, signature: str, uri: str) -> DocEntry | None:
+        """Return the stored fingerprint for `uri`, or `None`."""
         entry = self._sources.get(source_id)
         if entry is None or entry.get("signature") != signature:
             return None
@@ -176,6 +194,7 @@ class JsonDocStore:
         signature: str,
         current: Mapping[str, DocEntry],
     ) -> int:
+        """Replace one source's state; return how many documents disappeared."""
         previous = self._sources.get(source_id, {}).get("documents", {})
         if not isinstance(previous, dict):
             previous = {}
@@ -193,6 +212,7 @@ class JsonDocStore:
         return deleted
 
     def save(self) -> None:
+        """Atomically rewrite the JSON file."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = (
             json.dumps(
@@ -215,19 +235,23 @@ class JsonDocStore:
         temporary.replace(self.path)
 
     def record_run(self, source_id: str, record: RunRecord) -> None:
+        """Append a run record, prune history, and save."""
         history = self._runs.setdefault(source_id, [])
         history.insert(0, record)
         del history[_RUN_HISTORY:]
         self.save()
 
     def runs(self, source_id: str) -> list[RunRecord]:
+        """Recent runs for one source, newest first."""
         return list(self._runs.get(source_id, []))
 
     def last_run(self, source_id: str) -> RunRecord | None:
+        """The most recent run for one source."""
         history = self._runs.get(source_id)
         return history[0] if history else None
 
     def sources(self) -> list[tuple[str, dict[str, Any]]]:
+        """Stored sources and their documents, sorted by source id."""
         return sorted(self._sources.items())
 
     def snapshot(self, *, history: int = _RUN_HISTORY) -> list[dict[str, Any]]:
@@ -294,9 +318,11 @@ class SqliteDocStore:
 
     @staticmethod
     def default_path() -> Path:
+        """Default SQLite state path."""
         return Path(".reactifact") / "knowledge" / "state.sqlite3"
 
     def entry(self, source_id: str, signature: str, uri: str) -> DocEntry | None:
+        """Return the stored fingerprint for `uri`, or `None`."""
         connection = self._get_connection()
         with self._lock:
             row = connection.execute(
@@ -318,6 +344,7 @@ class SqliteDocStore:
         signature: str,
         current: Mapping[str, DocEntry],
     ) -> int:
+        """Replace one source's state transactionally; return deletions."""
         connection = self._get_connection()
         with self._lock, connection:
             previous = {
@@ -351,6 +378,7 @@ class SqliteDocStore:
         """No-op: SQLite transactions are committed by `commit`/`record_run`."""
 
     def record_run(self, source_id: str, record: RunRecord) -> None:
+        """Insert a run record and prune the per-source history."""
         connection = self._get_connection()
         with self._lock, connection:
             connection.execute(
@@ -366,6 +394,7 @@ class SqliteDocStore:
             )
 
     def runs(self, source_id: str) -> list[RunRecord]:
+        """Recent runs for one source, newest first."""
         connection = self._get_connection()
         with self._lock:
             rows = connection.execute(
@@ -376,10 +405,12 @@ class SqliteDocStore:
         return [_run_from_row(row) for row in rows]
 
     def last_run(self, source_id: str) -> RunRecord | None:
+        """The most recent run for one source."""
         history = self.runs(source_id)
         return history[0] if history else None
 
     def sources(self) -> list[tuple[str, dict[str, Any]]]:
+        """Stored sources and their documents, sorted by source id."""
         connection = self._get_connection()
         with self._lock:
             rows = connection.execute(

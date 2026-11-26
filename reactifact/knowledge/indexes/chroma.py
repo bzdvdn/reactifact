@@ -88,6 +88,7 @@ class ChromaIndex:
 
     @property
     def signature(self) -> str:
+        """Pipeline fingerprint for this Chroma collection."""
         return f"chroma:{self.collection}:{self.path}"
 
     async def upsert(
@@ -98,6 +99,7 @@ class ChromaIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
+        """Insert or replace one point."""
         await self.upsert_batch([(chunk, vector, artifact_hash)], source_id=source_id)
 
     async def upsert_batch(
@@ -106,6 +108,7 @@ class ChromaIndex:
         *,
         source_id: str,
     ) -> None:
+        """Insert or replace a batch of points."""
         if not items:
             return
         for _, vector, _ in items:
@@ -165,6 +168,7 @@ class ChromaIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Dense similarity search over the Chroma collection."""
         available = int(self._collection.count())
         if available == 0:
             return []
@@ -214,9 +218,11 @@ class ChromaIndex:
         return hits
 
     async def count(self) -> int:
+        """Number of stored points."""
         return int(self._collection.count())
 
     async def aclose(self) -> None:
+        """Close the owned Chroma client."""
         if not self._owns_client:
             return
         closer = getattr(self._client, "close", None)

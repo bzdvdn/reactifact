@@ -58,15 +58,18 @@ class HttpConnector:
         self._resolved: list[str] | None = None
 
     async def aclose(self) -> None:
+        """Close the owned HTTP client."""
         if self._owns_client and self._client is not None:
             await self._client.aclose()
             self._client = None
 
     async def list_documents(self) -> list[DocumentMeta]:
+        """Return URL metadata with `ETag`/`Last-Modified` fingerprints."""
         urls = await self._resolve_urls()
         return await self._gather(urls, self._document_meta)
 
     async def fetch(self, *, uris: set[str] | None = None) -> list[RawDocument]:
+        """Fetch the requested URLs (or all URLs) as raw documents."""
         urls = sorted(uris) if uris is not None else await self._resolve_urls()
         return await self._gather(urls, self._document)
 

@@ -41,6 +41,7 @@ class MemoryIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
+        """Insert or replace one point (idempotent by deterministic id)."""
         self._dimensions = check_dimensions(self._dimensions, vector, backend="memory")
         pid = str(chunk_point_id(chunk))
         self.points[pid] = _Point(
@@ -55,6 +56,7 @@ class MemoryIndex:
         source_id: str,
         current: Mapping[str, str],
     ) -> None:
+        """Delete points for this source that are no longer current."""
         stale = [
             pid
             for pid, point in self.points.items()
@@ -68,9 +70,11 @@ class MemoryIndex:
             del self.points[pid]
 
     async def count(self) -> int:
+        """Number of stored points."""
         return len(self.points)
 
     def entries(self) -> list[tuple[Chunk, list[float]]]:
+        """Every stored chunk and vector (for inspection/tests)."""
         return [(point.chunk, point.vector) for point in self.points.values()]
 
     async def search(
@@ -82,6 +86,7 @@ class MemoryIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Rank points by cosine similarity to `vector`."""
         check_dimensions(self._dimensions, vector, backend="memory")
         points = [
             point
@@ -113,6 +118,7 @@ class MemoryIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Rank points by BM25 keyword score for `text`."""
         points = [
             point
             for point in self.points.values()

@@ -50,6 +50,7 @@ class Example:
             )
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the example to a JSON-ready mapping."""
         out: dict[str, Any] = {"id": self.id, "inputs": dict(self.inputs)}
         if self.reference_outputs is not None:
             out["reference_outputs"] = dict(self.reference_outputs)
@@ -110,6 +111,7 @@ class Dataset:
     def from_list(
         cls, rows: Iterable[Example | Mapping[str, Any]], *, name: str = ""
     ) -> Dataset:
+        """Build a dataset from `Example`s or raw mappings."""
         examples = [
             row if isinstance(row, Example) else Example.from_dict(row) for row in rows
         ]
@@ -130,6 +132,7 @@ class Dataset:
         return cls.from_list(data, name=file.stem)
 
     def to_list(self) -> list[dict[str, Any]]:
+        """Serialize every example to a JSON-ready list."""
         return [e.to_dict() for e in self.examples]
 
     def to_json(self, path: str | Path | None = None) -> str:

@@ -56,6 +56,7 @@ class FilesystemConnector:
         return path.relative_to(self.root).as_posix()
 
     async def list_documents(self) -> list[DocumentMeta]:
+        """Return one meta entry per matching file, with a content hash."""
         documents: list[DocumentMeta] = []
         for path in self._paths():
             uri = self._relative(path)
@@ -70,6 +71,7 @@ class FilesystemConnector:
         return documents
 
     async def fetch(self, *, uris: set[str] | None = None) -> list[RawDocument]:
+        """Read the requested files (or all files) as raw documents."""
         documents: list[RawDocument] = []
         for path in self._paths():
             uri = self._relative(path)

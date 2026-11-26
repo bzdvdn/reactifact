@@ -82,6 +82,7 @@ class QdrantIndex:
         )
 
     async def aclose(self) -> None:
+        """Close the HTTP client."""
         await self.client.aclose()
 
     async def upsert(
@@ -92,6 +93,7 @@ class QdrantIndex:
         source_id: str,
         artifact_hash: str,
     ) -> None:
+        """Insert or replace one point."""
         await self.upsert_batch([(chunk, vector, artifact_hash)], source_id=source_id)
 
     async def upsert_batch(
@@ -100,6 +102,7 @@ class QdrantIndex:
         *,
         source_id: str,
     ) -> None:
+        """Insert or replace a batch of points."""
         if not items:
             return
         for chunk, _, _ in items:
@@ -204,6 +207,7 @@ class QdrantIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """Dense similarity search with server-side filters."""
         if self._dimensions is None:
             info = await self._collection_info()
             if info is not None:
@@ -264,6 +268,7 @@ class QdrantIndex:
         principals: Sequence[str] | None = None,
         source_id: str | None = None,
     ) -> list[SearchHit]:
+        """BM25 keyword search over the stored text payload."""
         query_tokens = tokenize(text)
         if not query_tokens:
             return []
@@ -359,6 +364,7 @@ class QdrantIndex:
             raise
 
     async def count(self) -> int:
+        """Number of stored points."""
         response = await self.client.request(
             "GET",
             f"/collections/{self.collection}",
