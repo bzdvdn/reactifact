@@ -445,6 +445,7 @@ async def _fetch(state: _RunState) -> None:
                 if (
                     stored is not None
                     and stored.listing is not None
+                    and meta.fingerprint
                     and stored.listing == meta.fingerprint
                 ):
                     state.skipped += 1

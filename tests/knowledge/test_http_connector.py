@@ -205,6 +205,32 @@ def test_batch_size_is_validated() -> None:
         asyncio.run(pipeline.run(batch_size=0))
 
 
+def test_missing_validators_force_a_refetch(tmp_path) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "HEAD":
+            calls.append(("HEAD", str(request.url)))
+            return httpx.Response(200, headers={"content-type": "text/markdown"})
+        calls.append(("GET", str(request.url)))
+        return httpx.Response(200, content=b"# A\n\nrefund")
+
+    connector = HttpConnector([A], transport=httpx.MockTransport(handler))
+    pipeline = KnowledgePipeline(
+        connector,
+        embedder=HashEmbedder(dimensions=16),
+        index=MemoryIndex(),
+    )
+    state = f"{tmp_path}/state.json"
+
+    asyncio.run(pipeline.run(incremental=True, state_path=state))
+    second = asyncio.run(pipeline.run(incremental=True, state_path=state))
+
+    assert second.documents_skipped == 0
+    assert len([call for call in calls if call[0] == "GET"]) == 2
+    asyncio.run(connector.aclose())
+
+
 def test_http_connector_surfaces_http_errors() -> None:
     connector = HttpConnector(
         [A],
