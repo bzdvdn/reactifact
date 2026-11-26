@@ -14,6 +14,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   as their first argument. Use `llm.structured(...)` / `llm.reply(...)` when a
   provider is injected, or pass `context.resources.llm` explicitly. The
   `Context` union shim (and its `context=` keyword) is gone.
+- **Knowledge point IDs include `chunk_index`.** Existing knowledge indexes
+  need one full (non-incremental) reindex after upgrading; identical section
+  bodies no longer collapse into one point.
+- **`DocStore` is a protocol.** Instantiate `JsonDocStore` (default) or
+  `SqliteDocStore`; `state_path=` keeps using JSON.
+- **`MemoryIndex.count` is async.** Use `await index.count()`, matching the
+  other backends and the `CountableIndex` protocol.
+- **Hybrid retrieval fails loudly.** `min_score` with `hybrid=True` and
+  `hybrid=True` on a dense-only index now raise `ConfigError` instead of
+  silently degrading.
 
 ### Added
 

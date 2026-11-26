@@ -95,6 +95,59 @@ metric; the built-ins match artifact classes **by name**:
 | `answer_coverage()` / `calculation_correctness(values=…)` / `source_coverage()` | ground-truth comparisons |
 | `confidence_calibration()` | Brier score of `Claim.confidence` |
 
+## Retrieval metrics
+
+Retrieval is scored before an answer exists. `evaluate_retrieval` takes ranked
+ids (via a `key` callable), ground truth, and `k`; it computes recall,
+precision, MRR, nDCG and hit rate. A case without relevant ids is **skipped**,
+never a silent zero.
+
+```python
+import asyncio
+from reactifact.eval import RetrievalCase, evaluate_retrieval
+
+async def retrieve(query, limit):
+    return {
+        "refund": ["refund.md", "billing.md"],
+        "install": ["install.md", "refund.md"],
+    }[query][:limit]
+
+report = asyncio.run(
+    evaluate_retrieval(
+        [
+            RetrievalCase("refund", ["refund.md"]),
+            RetrievalCase("install", {"install.md": 2.0}),
+        ],
+        retrieve,
+        k=2,
+        key=str,
+    )
+)
+assert report.aggregate()["recall"] == 1.0
+report.assert_passed({"mrr": 0.7})
+```
+
+`relevant` is a list (binary) or a dict `{id: gain}` for graded nDCG. For a
+`reactifact.knowledge` pipeline use the ready-made adapter:
+
+```python
+# not-run
+from reactifact.eval import RetrievalCase
+from reactifact.knowledge import cases_from_dataset, chunk_key, evaluate_pipeline
+
+report = await evaluate_pipeline(
+    pipeline,
+    [RetrievalCase("refund policy", ["refund.md"])],
+    k=5,
+    hybrid=True,          # forwarded to pipeline.query
+)
+```
+
+`document_key` (default, by `documentId`/`source_uri`) and `chunk_key` choose
+the relevance unit; `cases_from_dataset(dataset)` reads `inputs["query"]` and
+`reference_outputs["relevant"]`. An offline baseline can use `HashEmbedder`,
+so CI needs no API key.
+
 ## Trajectory matching
 
 `trajectory_match` compares the **path** a run took against
@@ -160,6 +213,7 @@ for exact metrics/judges. Details in `references/online.md`.
 
 - `references/online.md` — scoring live runs from a `TraceStore` (sampling,
   trace vs rehydrated `Context`, tags, metrics, CLI/router).
-- `docs/en/eval.md` for the full harness.
+- `docs/en/eval.md` for the full harness; `docs/en/knowledge.md` for the
+  knowledge pipeline and its retrieval adapter.
 - Structure/behaviour tests (not quality) belong to the `reactifact-testing`
   skill.
