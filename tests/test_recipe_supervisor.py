@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     PendingQuestion,
     Runtime,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.recipes import ApprovalGate, Router
 
@@ -85,7 +85,7 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
 
 
 def make_runtime(ctx: Context) -> Runtime:
-    class Flow(Agent):
+    class Flow(StepGroup):
         consumes = [
             Consume(Request),
             Consume(Task),
@@ -99,7 +99,7 @@ def make_runtime(ctx: Context) -> Runtime:
             Step(PendingQuestion),
         ]
 
-    return Runtime(ctx, agents=[Flow()])
+    return Runtime(ctx, groups=[Flow()])
 
 
 def test_routes_via_llm_hook_then_waits_for_approval():

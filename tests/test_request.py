@@ -7,7 +7,7 @@ from reactifact import (
     Consume,
     Context,
     Runtime,
-    create_agent,
+    create_step_group,
     current_request,
     step,
 )
@@ -31,9 +31,9 @@ def test_call_request_is_available_inside_produces():
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_agent("a", consumes=[Consume(In)], produces=[p])
+    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
     ctx = Context()
-    runtime = Runtime(ctx, agents=[agent])
+    runtime = Runtime(ctx, groups=[agent])
     ctx.create(In(text="hi"))
     asyncio.run(runtime.arun(request={"user": "bob", "tenant": "acme"}))
 
@@ -50,9 +50,9 @@ def test_request_is_empty_when_not_passed_and_reset_after():
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_agent("a", consumes=[Consume(In)], produces=[p])
+    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
     ctx = Context()
-    runtime = Runtime(ctx, agents=[agent])
+    runtime = Runtime(ctx, groups=[agent])
     ctx.create(In(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -74,10 +74,10 @@ def test_chat_invoke_passes_request_to_produces(tmp_path):
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_agent("a", consumes=[Consume(In)], produces=[p])
+    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
     assistant = ChatAssistant(
         store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
-        agents=[agent],
+        groups=[agent],
         user_message=In,
         reply=lambda ctx, mid: {"reply": "ok"},
     )
@@ -109,7 +109,7 @@ def test_resources_factory_receives_session_and_request(tmp_path):
 
     assistant = ChatAssistant(
         store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
-        agents=[],
+        groups=[],
         user_message=Query,
         reply=lambda ctx, mid: {"reply": "ok"},
         resources=make_resources,
@@ -127,7 +127,7 @@ def _query_assistant(tmp_path, create_message):
     store = SessionStore(FileKVBackend(str(tmp_path / "sessions")))
     assistant = ChatAssistant(
         store=store,
-        agents=[],
+        groups=[],
         user_message=Query,
         reply=lambda ctx, mid: {"reply": "ok"},
         create_message=create_message,

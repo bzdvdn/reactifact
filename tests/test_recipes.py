@@ -5,7 +5,6 @@ from pathlib import Path
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Effects,
@@ -13,6 +12,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
     create_step_group,
 )
 from reactifact.artifacts import Artifact
@@ -65,12 +65,12 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
             call.effects.create(Job(query_id="job1", text="scouted"), id="marker:job1")
             return None
 
-    class Engine(Agent):
+    class Engine(StepGroup):
         consumes = (Consume(Job),)
         produces = [Scout(), Step(Job)]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
-    runtime = Runtime(ctx, agents=[Engine()])
+    runtime = Runtime(ctx, groups=[Engine()])
     ctx.create(Job(query_id="job1", status="pending"))
     asyncio.run(runtime.arun())
 
@@ -115,12 +115,12 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
             )
             return None
 
-    class Engine(Agent):
+    class Engine(StepGroup):
         consumes = [Consume(Job), Consume(SourceRef)]
         produces = [Scout(), Resolver()]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
-    runtime = Runtime(ctx, agents=[Engine()])
+    runtime = Runtime(ctx, groups=[Engine()])
     ctx.create(Job(query_id="q1", status="pending"))
     asyncio.run(runtime.arun())
 
@@ -150,14 +150,14 @@ class Survey(StatusMachine[Job]):
         return "done" if jobs and any(j.data.text for j in jobs) else None
 
 
-class Engine(Agent):
+class Engine(StepGroup):
     consumes = [Consume(Job)]
     produces = [Fill(), Survey()]
 
 
 def test_status_machine_advances_lifecycle():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Engine()])
+    runtime = Runtime(ctx, groups=[Engine()])
     ctx.create(Job(query_id="q1", status="pending"))
     asyncio.run(runtime.arun())
     job = ctx.list_artifacts(Job)[0]
@@ -219,14 +219,14 @@ class Cleanup(PrefixedEphemeralCleanup[Final]):
         return terminal_artifact_id[len("final:") :]
 
 
-class CleanupEngine(Agent):
+class CleanupEngine(StepGroup):
     consumes = [Consume(Question), Consume(Scratch), Consume(Final)]
     produces = [MakeScratch(), MakeFinal(), Cleanup()]
 
 
 def test_ephemeral_cleanup_deletes_scratch_once_terminal_exists():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[CleanupEngine()])
+    runtime = Runtime(ctx, groups=[CleanupEngine()])
     question = ctx.create(Question(text="hello"))
     asyncio.run(runtime.arun())
 
@@ -241,7 +241,7 @@ def test_ephemeral_cleanup_is_idempotent_when_scratch_already_gone():
     artifact created directly (skipping the scratch stage) is the simplest
     way to exercise that path."""
     ctx = Context()
-    runtime = Runtime(ctx, agents=[CleanupEngine()])
+    runtime = Runtime(ctx, groups=[CleanupEngine()])
     ctx.create(Final(text="DIRECT"), id="final:missing")
     asyncio.run(runtime.arun())
 
@@ -272,12 +272,12 @@ def test_seed_identity_writes_the_contextvar_value_as_an_artifact():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(Agent):
+    class IdentityAgent(StepGroup):
         consumes = [Consume(Question)]
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    runtime = Runtime(ctx, groups=[IdentityAgent()])
     token = identity_var.set(UserContext(uid="alice"))
     try:
         ctx.create(Question(text="hi"))
@@ -299,7 +299,7 @@ def test_seed_identity_extracts_from_a_richer_envelope():
         "identity", default=None
     )
 
-    class IdentityAgent(Agent):
+    class IdentityAgent(StepGroup):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(
@@ -311,7 +311,7 @@ def test_seed_identity_extracts_from_a_richer_envelope():
         ]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    runtime = Runtime(ctx, groups=[IdentityAgent()])
     token = identity_var.set(
         RequestIdentity(session_id="s1", user=UserContext(uid="bob"))
     )
@@ -331,7 +331,7 @@ def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(Agent):
+    class IdentityAgent(StepGroup):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(
@@ -343,7 +343,7 @@ def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
         ]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    runtime = Runtime(ctx, groups=[IdentityAgent()])
     # No identity_var.set(...) — the contextvar keeps its default (None).
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
@@ -358,12 +358,12 @@ def test_seed_identity_skips_the_write_when_unset_and_no_fallback():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(Agent):
+    class IdentityAgent(StepGroup):
         consumes = [Consume(Question)]
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[IdentityAgent()])
+    runtime = Runtime(ctx, groups=[IdentityAgent()])
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 

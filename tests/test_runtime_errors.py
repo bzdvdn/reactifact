@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, Step, StepCall
+from reactifact import Consume, Context, Patch, Runtime, Step, StepCall, StepGroup
 
 
 class Trigger(BaseModel):
@@ -17,7 +17,7 @@ class Explode(Step[Trigger]):
         raise RuntimeError("boom inside the agent")
 
 
-class ExplodeAgent(Agent):
+class ExplodeAgent(StepGroup):
     name = "explode"
     consumes = [Consume(Trigger)]
     produces = [Explode()]
@@ -25,7 +25,7 @@ class ExplodeAgent(Agent):
 
 def test_astream_propagates_agent_error():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[ExplodeAgent()])
+    runtime = Runtime(ctx, groups=[ExplodeAgent()])
     ctx.create(Trigger())
 
     async def collect():
@@ -41,7 +41,7 @@ def test_astream_propagates_agent_error():
 
 def test_arun_propagates_agent_error():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[ExplodeAgent()])
+    runtime = Runtime(ctx, groups=[ExplodeAgent()])
     ctx.create(Trigger())
     try:
         asyncio.run(runtime.arun())
@@ -65,7 +65,7 @@ class Survive(Step[Ok]):
         return None
 
 
-class SurviveAgent(Agent):
+class SurviveAgent(StepGroup):
     name = "survive"
     consumes = [Consume(Trigger)]
     produces = [Survive()]
@@ -78,7 +78,7 @@ def test_isolate_errors_lets_other_agents_finish():
     caught: list[Exception] = []
     runtime = Runtime(
         ctx,
-        agents=[ExplodeAgent(), SurviveAgent()],
+        groups=[ExplodeAgent(), SurviveAgent()],
         isolate_errors=True,
         on_agent_error=lambda agent, event, exc: caught.append(exc),
     )
@@ -96,7 +96,7 @@ def test_isolate_errors_lets_other_agents_finish():
 def test_isolate_errors_default_still_propagates():
     """isolate_errors defaults to False: existing fail-loud behavior is unchanged."""
     ctx = Context()
-    runtime = Runtime(ctx, agents=[ExplodeAgent()])
+    runtime = Runtime(ctx, groups=[ExplodeAgent()])
     ctx.create(Trigger())
     try:
         asyncio.run(runtime.arun())
@@ -125,7 +125,7 @@ class Flaky(Step[Done]):
         call.effects.create(Done())
 
 
-class FlakyAgent(Agent):
+class FlakyAgent(StepGroup):
     name = "flaky"
     consumes = [Consume(Trigger)]
     produces = [Flaky()]
@@ -141,7 +141,7 @@ def test_failed_generation_keeps_its_trigger_for_retry():
     """
     _attempts["n"] = 0
     ctx = Context()
-    runtime = Runtime(ctx, agents=[FlakyAgent()])
+    runtime = Runtime(ctx, groups=[FlakyAgent()])
     ctx.create(Trigger())
 
     try:
@@ -162,7 +162,7 @@ def test_failed_generation_keeps_its_trigger_for_retry():
 def test_arun_once_consumes_trigger_but_keeps_derived_event():
     """One generation: the trigger is consumed, its output's event is not."""
     ctx = Context()
-    runtime = Runtime(ctx, agents=[SurviveAgent()])
+    runtime = Runtime(ctx, groups=[SurviveAgent()])
     ctx.create(Trigger())
 
     runs = asyncio.run(runtime.arun_once())

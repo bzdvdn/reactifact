@@ -9,7 +9,6 @@ from typing import Annotated
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Depends,
@@ -19,6 +18,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
     tool,
 )
 from reactifact.tool_use import ToolAnswer, ToolUse
@@ -196,7 +196,7 @@ def test_tool_use_passes_resources_to_injected_tools():
     class Ask(BaseModel):
         text: str
 
-    class Agent_(Agent):
+    class Agent_(StepGroup):
         consumes = [Consume(Ask), Consume(ToolAnswer)]
         produces = [
             ToolUse(

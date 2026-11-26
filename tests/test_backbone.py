@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, EventType, Patch, Runtime, Trigger
+from reactifact import Consume, Context, EventType, Patch, Runtime, StepGroup, Trigger
 from reactifact.commit import Read, Write
 
 
@@ -17,7 +17,7 @@ class Answer(BaseModel):
     text: str
 
 
-class Researcher(Agent):
+class Researcher(StepGroup):
     consumes = [Consume(Question)]
     produces = []
 
@@ -28,7 +28,7 @@ class Researcher(Agent):
         return Patch().create(Evidence(content=q.data.text))
 
 
-class Answerer(Agent):
+class Answerer(StepGroup):
     consumes = [Consume(Evidence)]
     produces = []
 
@@ -41,7 +41,7 @@ class Answerer(Agent):
 
 def build_runtime():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Researcher(), Answerer()])
+    runtime = Runtime(ctx, groups=[Researcher(), Answerer()])
     question = ctx.create(Question(text="why"))
     asyncio.run(runtime.arun())
     return ctx, runtime, question
@@ -134,7 +134,7 @@ def test_reactive_doubling_provenance():
     class Number(BaseModel):
         value: int
 
-    class Doubler(Agent):
+    class Doubler(StepGroup):
         def __init__(self):
             super().__init__(
                 name="doubler",
@@ -148,7 +148,7 @@ def test_reactive_doubling_provenance():
             return Patch().update(art.id, Number(value=art.data.value * 2))
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Doubler()])
+    runtime = Runtime(ctx, groups=[Doubler()])
     number = ctx.create(Number(value=5))
     assert asyncio.run(runtime.arun()) == 1
 

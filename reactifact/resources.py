@@ -407,7 +407,7 @@ class ResourceScope(AbstractAsyncContextManager["RuntimeResources"]):
     they live and die with one loop:
 
         async with RuntimeResources.scope(build_resources) as resources:
-            runtime = Runtime(Context(resources=resources), agents=[...])
+            runtime = Runtime(Context(resources=resources), groups=[...])
             await runtime.arun(request={"user": "bob"})
 
     The factory may be sync or async. `resources.aclose()` runs on exit (and on

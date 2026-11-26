@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact.agents import create_agent
+from reactifact import create_step_group
 from reactifact.consume import Consume
 from reactifact.context import Context
 from reactifact.recipes.conversation import (
@@ -138,12 +138,12 @@ class _Echo:
 def test_memory_recipes_bound_a_conversation():
     """`role`/`text` is enough for `WindowPruner` to prune the thread."""
     ctx = Context()
-    memory = create_agent(
+    memory = create_step_group(
         "memory",
         consumes=[Consume(ConversationMessage)],
         produces=[WindowPruner(ConversationMessage, keep=2)],
     )
-    runtime = Runtime(ctx, agents=[memory])
+    runtime = Runtime(ctx, groups=[memory])
 
     async def build():
         for i in range(5):

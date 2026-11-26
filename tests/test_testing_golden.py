@@ -7,11 +7,11 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.audit import context_hash
 from reactifact.testing import ScenarioLab, assert_golden_file
@@ -98,7 +98,7 @@ class Doubler(Step[Out]):
         call.effects.create(Out(value=seed.data.n * 2), id="out")
 
 
-class DoublerAgent(Agent):
+class DoublerAgent(StepGroup):
     name = "doubler"
     consumes = [Consume(Seed)]
     produces = [Doubler()]

@@ -8,8 +8,15 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime, Step, StepCall
-from reactifact.agents import create_agent
+from reactifact import (
+    Consume,
+    Context,
+    Runtime,
+    Step,
+    StepCall,
+    StepGroup,
+    create_step_group,
+)
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 from reactifact.resources import RuntimeResources
 from reactifact.tracing.models import (
@@ -192,12 +199,14 @@ class Bump(Step[Number]):
 
 
 def test_metrics_tracer_runs_inside_a_runtime():
-    agent: Agent = create_agent("bump", consumes=[Consume(Number)], produces=[Bump()])
+    agent: StepGroup = create_step_group(
+        "bump", consumes=[Consume(Number)], produces=[Bump()]
+    )
     metrics = Metrics()
     ctx = Context(resources=RuntimeResources(metrics=metrics))
     ctx.create(Number(value=0))
 
-    asyncio.run(Runtime(ctx, agents=[agent], tracer=MetricsTracer(metrics)).arun())
+    asyncio.run(Runtime(ctx, groups=[agent], tracer=MetricsTracer(metrics)).arun())
 
     text = metrics.render()
     assert 'reactifact_runs_total{outcome="completed"} 1' in text

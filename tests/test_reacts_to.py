@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime, Step, step
+from reactifact import Consume, Context, Runtime, Step, StepGroup, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -44,7 +44,7 @@ class DirectFinalize(Step[DraftAnswer]):
         )
 
 
-class FinalAgent(Agent):
+class FinalAgent(StepGroup):
     consumes = [
         Consume(ResolvedDocuments),
         Consume.by_field(DecisionReply, "route_action", "final"),
@@ -54,7 +54,7 @@ class FinalAgent(Agent):
 
 def test_each_produce_only_runs_for_its_own_reacts_to_type():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[FinalAgent()])
+    runtime = Runtime(ctx, groups=[FinalAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -66,7 +66,7 @@ def test_each_produce_only_runs_for_its_own_reacts_to_type():
 
 def test_the_other_reacts_to_type_runs_the_other_produce_only():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[FinalAgent()])
+    runtime = Runtime(ctx, groups=[FinalAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="final", text="reply"))
     asyncio.run(runtime.arun())
@@ -86,14 +86,14 @@ class UnrestrictedRecorder(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q1", source="unrestricted"))
 
 
-class UnrestrictedAgent(Agent):
+class UnrestrictedAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [UnrestrictedRecorder()]
 
 
 def test_reacts_to_none_is_unrestricted_by_default():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[UnrestrictedAgent()])
+    runtime = Runtime(ctx, groups=[UnrestrictedAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -115,14 +115,14 @@ class SingleTypeReactor(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q1", source="single-type"))
 
 
-class SingleTypeAgent(Agent):
+class SingleTypeAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [SingleTypeReactor()]
 
 
 def test_consumes_accepts_a_bare_single_type_at_the_constructor():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[SingleTypeAgent()])
+    runtime = Runtime(ctx, groups=[SingleTypeAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="x", text="reply"))
     asyncio.run(runtime.arun())
@@ -138,14 +138,14 @@ def decorated_reactor(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
 
-class DecoratedAgent(Agent):
+class DecoratedAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [decorated_reactor]
 
 
 def test_produce_decorator_accepts_reacts_to():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[DecoratedAgent()])
+    runtime = Runtime(ctx, groups=[DecoratedAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="x", text="reply"))
     asyncio.run(runtime.arun())

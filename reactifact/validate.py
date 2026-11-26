@@ -6,7 +6,7 @@ either consumed or declared terminal, and that agents are reachable. It catches
 the common "I wired two agents but nothing wakes the second" bug without
 executing anything.
 
-    report = validate_agents(AGENTS, seeds=[Question], terminal=[Answer])
+    report = validate_contracts(groups=AGENTS, seeds=[Question], terminal=[Answer])
     report.raise_for_errors()
 """
 
@@ -279,23 +279,9 @@ def validate_contracts(
     return report
 
 
-def validate_agents(
-    agents: Iterable[StepGroup],
-    *,
-    seeds: Iterable[type | str] = (),
-    terminal: Iterable[type | str] = (),
-    budget: Budget | None = None,
-) -> ValidationReport:
-    """Deprecated 0.x alias for `validate_contracts(groups=...)`."""
-    return validate_contracts(
-        groups=list(agents), seeds=seeds, terminal=terminal, budget=budget
-    )
-
-
 __all__ = [
     "ValidationError",
     "ValidationIssue",
     "ValidationReport",
-    "validate_agents",
     "validate_contracts",
 ]

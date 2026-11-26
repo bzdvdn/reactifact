@@ -16,7 +16,7 @@ import pytest
 FROZEN: dict[str, frozenset[str]] = {
     "reactifact": frozenset(
         {
-            "Agent",
+            "StepGroup",
             "Artifact",
             "ArtifactConflict",
             "Budget",
@@ -87,7 +87,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "SessionStore",
             "Step",
             "StepCall",
-            "StepGroup",
             "SubflowResult",
             "Tool",
             "ToolError",
@@ -103,7 +102,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "When",
             "bind",
             "configure_logging",
-            "create_agent",
             "create_step_group",
             "current_request",
             "get_logger",
@@ -111,7 +109,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "run_subflow",
             "step",
             "tool",
-            "validate_agents",
             "validate_contracts",
         }
     ),

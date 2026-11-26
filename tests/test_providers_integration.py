@@ -2,12 +2,12 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Context,
     EventType,
     Patch,
     Runtime,
     RuntimeResources,
+    StepGroup,
     Trigger,
 )
 from reactifact.providers import FakeEmbedder
@@ -22,7 +22,7 @@ class EnrichedText(BaseModel):
     embedding: list[float]
 
 
-class TextProcessor(Agent):
+class TextProcessor(StepGroup):
     def __init__(self):
         super().__init__(
             "text_processor", triggers=[Trigger(EventType.ARTIFACT_CREATED, TextData)]
@@ -41,7 +41,7 @@ class TextProcessor(Agent):
 
 def test_agent_uses_embedder():
     ws = Context(resources=RuntimeResources(embedder=FakeEmbedder(dim=4)))
-    runtime = Runtime(ws, agents=[TextProcessor()])
+    runtime = Runtime(ws, groups=[TextProcessor()])
 
     ws.create(TextData(text="hello"))
     asyncio.run(runtime.arun())

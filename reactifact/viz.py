@@ -4,7 +4,7 @@ Pure functions returning Mermaid source strings (no rendering dependency).
 Render them anywhere Mermaid works (GitHub, Notion, mermaid.live), or view the
 trace diagram directly in the dashboard and the CLI:
 
-    python -m reactifact graph examples.knowledge.agents
+    python -m reactifact graph examples.knowledge.step_groups
     python -m reactifact context <sessions-db>
     python -m reactifact trace traces.db [run_id]
 

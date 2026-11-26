@@ -5,8 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import PendingAction, Step, StepCall
-from reactifact.agents import create_agent
+from reactifact import PendingAction, Step, StepCall, create_step_group
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
@@ -49,8 +48,10 @@ def test_chat_assistant_runs_the_outbox_dispatcher():
     store = SessionStore(InMemoryKVBackend())
     assistant = ChatAssistant(
         store=store,
-        agents=[
-            create_agent("notify", consumes=[Consume(_Msg)], produces=[_Notifier()])
+        groups=[
+            create_step_group(
+                "notify", consumes=[Consume(_Msg)], produces=[_Notifier()]
+            )
         ],
         user_message=_Msg,
         reply=_reply,

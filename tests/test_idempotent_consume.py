@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Emit, Runtime, Step
+from reactifact import Consume, Context, Emit, Runtime, Step, StepGroup
 from reactifact.consume import IdempotentConsume
 
 
@@ -26,7 +26,7 @@ class MakeDraft(Step[Draft]):
         return Emit(Draft(text=topic.data.text), id=f"draft:{topic.id}")
 
 
-class Flow(Agent):
+class Flow(StepGroup):
     consumes = [Consume(Topic)]
     produces = [MakeDraft()]
 
@@ -34,7 +34,7 @@ class Flow(Agent):
 def test_fires_while_the_target_is_absent():
     ctx = Context()
     topic = ctx.create(Topic(text="first"), id="topic:1")
-    asyncio.run(Runtime(ctx, agents=[Flow()]).arun())
+    asyncio.run(Runtime(ctx, groups=[Flow()]).arun())
 
     drafts = ctx.list_artifacts(Draft)
     assert len(drafts) == 1
@@ -45,7 +45,7 @@ def test_fires_while_the_target_is_absent():
 def test_does_not_fire_once_the_target_exists():
     ctx = Context()
     ctx.create(Topic(text="first"), id="topic:1")
-    runtime = Runtime(ctx, agents=[Flow()])
+    runtime = Runtime(ctx, groups=[Flow()])
     asyncio.run(runtime.arun())
 
     first = ctx.list_artifacts(Draft)[0]
@@ -72,13 +72,13 @@ def test_id_of_none_never_fires():
         async def run(self, call):
             return Emit(Draft(text="never"), id="draft:never")
 
-    class SkipFlow(Agent):
+    class SkipFlow(StepGroup):
         consumes = [Consume(Topic)]
         produces = [Skip()]
 
     ctx = Context()
     ctx.create(Topic(text="x"), id="topic:1")
-    asyncio.run(Runtime(ctx, agents=[SkipFlow()]).arun())
+    asyncio.run(Runtime(ctx, groups=[SkipFlow()]).arun())
 
     assert ctx.list_artifacts(Draft) == []
 
@@ -109,14 +109,14 @@ def test_condition_narrows_the_trigger():
             assert topic is not None
             return Emit(Draft(text=topic.data.text), id=f"draft:{topic.id}")
 
-    class ConditionalFlow(Agent):
+    class ConditionalFlow(StepGroup):
         consumes = [Consume(Topic)]
         produces = [Conditional()]
 
     ctx = Context()
     ctx.create(Topic(text="no"), id="topic:no")
     ctx.create(Topic(text="go"), id="topic:go")
-    asyncio.run(Runtime(ctx, agents=[ConditionalFlow()]).arun())
+    asyncio.run(Runtime(ctx, groups=[ConditionalFlow()]).arun())
 
     assert [d.id for d in ctx.list_artifacts(Draft)] == ["draft:topic:go"]
 

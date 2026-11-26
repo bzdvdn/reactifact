@@ -288,7 +288,7 @@ Incremental ingestion and retrieval. The narrative guide is [Knowledge base](../
 
 ::: reactifact.knowledge.mmr_select
 
-## Agent bridge
+## Step bridge
 
 ### `IndexSource`
 

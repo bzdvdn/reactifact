@@ -462,7 +462,7 @@ runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrenc
 - `max_runs`, `max_iterations`, `max_time_s`, tool-call caps — the runtime
   stops and reports `RunOutcome` (`completed` | `budget_exhausted` | …) with
   `RunStats`.
-- `Agent.concurrency_limit` (LLM-bound agents default to a lower cap) + the
+- `StepGroup.concurrency_limit` (LLM-bound agents default to a lower cap) + the
   runtime's global `max_concurrency` keep provider rate limits happy — the
   `medic-lab` demo runs a hypothesis laboratory with a LLM-limit of 2 inside a
   global cap of 6.

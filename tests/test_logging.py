@@ -11,12 +11,12 @@ from contextlib import contextmanager
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
+    StepGroup,
     configure_logging,
     get_logger,
 )
@@ -125,7 +125,7 @@ class _Answer(BaseModel):
     text: str
 
 
-class _Echo(Agent):
+class _Echo(StepGroup):
     consumes = [Consume(_Question)]
     produces = []
 
@@ -137,7 +137,7 @@ def test_runtime_emits_correlated_run_logs():
     with capture("reactifact.runtime") as records:
         context = Context(resources=RuntimeResources())
         context.create(_Question(text="hi"))
-        asyncio.run(Runtime(context, agents=[_Echo()]).arun())
+        asyncio.run(Runtime(context, groups=[_Echo()]).arun())
 
     finished = [r for r in records if r.getMessage() == "run finished"]
     assert finished, [r.getMessage() for r in records]

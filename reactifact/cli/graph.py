@@ -26,7 +26,9 @@ def cmd_graph(args: argparse.Namespace) -> int:
 
 def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     p_graph = sub.add_parser("graph", help="static agent blueprint")
-    p_graph.add_argument("agents", help='module path, e.g. "examples.knowledge.agents"')
+    p_graph.add_argument(
+        "agents", help='module path, e.g. "examples.knowledge.step_groups"'
+    )
     p_graph.add_argument("--title", default="reactifact blueprint")
     p_graph.add_argument(
         "--check",

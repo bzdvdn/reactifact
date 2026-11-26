@@ -60,9 +60,9 @@ def _run_with(redactor) -> tuple[Context, CapturingTracer]:
         _ = body
         return None
 
-    from reactifact import create_agent
+    from reactifact import create_step_group
 
-    agent = create_agent(
+    agent = create_step_group(
         "contact", consumes=[Consume(Question)], produces=[make_contact]
     )
     resources = RuntimeResources(
@@ -71,7 +71,7 @@ def _run_with(redactor) -> tuple[Context, CapturingTracer]:
     )
     ctx = Context(resources=resources)
     tracer = CapturingTracer()
-    runtime = Runtime(ctx, agents=[agent], tracer=tracer)
+    runtime = Runtime(ctx, groups=[agent], tracer=tracer)
     ctx.create(Question(text="ask a@secret.com"))
     asyncio.run(runtime.arun())
     return ctx, tracer

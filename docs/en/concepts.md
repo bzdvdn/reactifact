@@ -99,14 +99,13 @@ runtime compiles — atomicity is structural (§41).
 HITL is an `human.ask(...)` → `PendingQuestion`, answered via
 `human.resume(...)` (see [patterns](patterns.md)).
 
-## 4. StepGroup (optional; formerly Agent)
+## 4. StepGroup (optional container)
 
 Steps are the model. **`Runtime(ctx, steps=[...])`** wraps each step in an
 implicit group of one, so the common case needs no container at all. A
 **`StepGroup`** is the optional container for steps that must share something
 operational: one trigger, retry policy, timeout, priority, concurrency limit, or
-one atomic commit. `Runtime` accepts `steps=` and `groups=` together (steps
-first), and `agents=` remains the deprecated alias for `groups=`.
+one atomic commit. `Runtime` accepts `steps=` and `groups=` together (steps first).
 
 ```python
 from reactifact import StepGroup
@@ -138,7 +137,7 @@ class RepairFlow(StepGroup):
 
 `StepGroup.run(event, context) -> Patch | None` remains the low-level escape
 hatch for hand-assembling a `Patch`; it is not a third everyday style.
-`StepGroup` and `create_agent` are deprecated aliases kept for 0.x code.
+The 0.x `Agent`/`create_agent` aliases are removed in 0.24; use `StepGroup`/`create_step_group`.
 
 ## 5. Step
 
@@ -245,7 +244,7 @@ Why this matters:
   when an artifact's recorded dependency (§43-44) gets a newer version — opt
   in with `OnStale(Type)` (or the explicit `Consume(Type, event_types=[...])`).
 - **`Trigger`** — secondary enter conditions for a produce (e.g. a periodic or
-  timer-based wake), independent of the artifact consums. `context_condition`
+  timer-based wake), independent of the artifact consumes. `context_condition`
   is the two-artifact form (needed for joins/correlation); `debounce` is the
   hint `Runtime` reads to collapse repeat events into one run.
 - **`Session` / `SessionStore`** — durable, per-chat working memory across

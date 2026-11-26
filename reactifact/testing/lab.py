@@ -31,13 +31,13 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from reactifact.agents import StepGroup
 from reactifact.audit import context_hash
 from reactifact.budget import Budget, RunStats
 from reactifact.context import Context
 from reactifact.pricing import Pricer, cost_of
 from reactifact.resources import ResourceKey, RuntimeResources
 from reactifact.runtime import Runtime
+from reactifact.step import StepGroup
 from reactifact.streaming import ProgressEvent, QueueEvent
 from reactifact.tools import ToolOutput
 from reactifact.tracing.models import RunTrace
@@ -582,7 +582,7 @@ async def _execute_turn(
     tracer = _CapturingTracer()
     runtime = Runtime(
         context,
-        agents=list(agents),
+        groups=list(agents),
         budget=budget,
         max_concurrency=max_concurrency,
         tracer=tracer,

@@ -9,12 +9,17 @@
 Старые имена ещё импортируются в окне совместимости 0.20; ниже — замены и
 что запланировать к 0.23.0.
 
+!!! note "0.24 удалил старые имена агентов"
+    `Agent`, `create_agent`, `validate_agents`, ключ `agents=` и модуль
+    `reactifact.agents` удалены. Читайте `Agent` ниже как `StepGroup`
+    (`create_agent` как `create_step_group`, `agents=` как `groups=`).
+
 ## 1. Что изменилось
 
 | 0.1.x | 0.20.0 |
 | --- | --- |
 | `Produce` / `@produce` / `ProduceCall` | `Step` / `@step` / `StepCall` |
-| `Agent.produces=[...]` | `Agent.steps=[...]` |
+| `StepGroup.produces=[...]` | `StepGroup.steps=[...]` |
 | контракты размазаны между `StepGroup.consumes` и `Produce.reacts_to` | каждый шаг владеет `consumes` / `produces` |
 | `call.trigger` + ручные `isinstance`-проверки | типизированные входы `T` / `Artifact[T]` или `Consume(T)` |
 | ручной `context.get(stage_id(...))` | `scope=` / `Scope(...)` + типы или `Latest[T]` |
@@ -24,7 +29,7 @@
 | v1 session payload | v2 `blobs` + `data_ref`; v1 мигрирует при загрузке |
 | `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool` | `reactifact.tools.use`, `reactifact.tools.native`, `reactifact.tools.agent` |
 
-Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0; остальные мосты доступны до 0.24.0.
+Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0; старые имена `Agent` удалены в 0.24.0, остальные мосты доступны до 0.24.x.
 
 ## 2. Шаги и агенты
 
@@ -60,17 +65,17 @@ class Estimate(Step):
 Агент перечисляет шаги вместо produces:
 
 ```python
-agent = Agent(produces=[Estimate()])
+group = StepGroup(produces=[Estimate()])
 ```
 
 становится:
 
 ```python
-agent = Agent(steps=[Estimate()])
+group = StepGroup(steps=[Estimate()])
 ```
 
-`Agent.produces` остаётся свойством совместимости. Новый код использует
-`Agent.steps`; для интроспекции читайте `agent.steps`.
+`StepGroup.produces` остаётся свойством совместимости. Новый код использует
+`StepGroup.steps`; для интроспекции читайте `group.steps`.
 
 Функциональная форма меняет `@produce` на `@step`, а `self.effects` — на
 `call.effects`:
@@ -205,7 +210,7 @@ from reactifact.tools.agent import AgentAsTool
 | `reactifact.native_tool_use` | `reactifact.tools.native` |
 | `reactifact.agent_tool` | `reactifact.tools.agent` |
 
-Shims импортируются в окне совместимости 0.21 и сохраняются до 0.24.0.
+Shims импортируются в окне совместимости 0.21 и сохраняются до 0.24.x.
 
 ## 8. Удалённые примеры
 
@@ -220,7 +225,7 @@ Shims импортируются в окне совместимости 0.21 и 
 
 1. Замените `Produce` на `Step`, `ProduceCall` на `StepCall`, `@produce` на
    `@step`.
-2. Замените `Agent(produces=[...])` на `Agent(steps=[...])`; перенесите
+2. Замените `StepGroup(produces=[...])` на `StepGroup(steps=[...])`; перенесите
    контракты `StepGroup.consumes` на соответствующие шаги.
 3. Замените `self.effects.*` на инжектированный `effects` или `call.effects`
    в функциях.
@@ -247,9 +252,13 @@ Shims импортируются в окне совместимости 0.21 и 
 
 - `Produce`, `ProduceCall`, `@produce`
 
-Остаются deprecated-мостами до 0.24.0:
+Удалено в 0.24.0:
 
-- `Agent.produces`
+- `Agent`, `create_agent`, `validate_agents`, `agents=`, `reactifact.agents`
+
+Остаются deprecated-мостами до 0.24.x:
+
+- `StepGroup.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`
 

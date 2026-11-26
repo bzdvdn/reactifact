@@ -213,7 +213,7 @@ it's trimmed from.
   graph, why determinism, why versioned state.
 - [Comparison](comparison.md) — reactifact vs LangGraph/CrewAI, feature by
   feature, and when *not* to use reactifact.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, StepGroup.
 
 **Build with it**
 

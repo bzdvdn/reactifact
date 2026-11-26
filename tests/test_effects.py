@@ -4,7 +4,6 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Human,
@@ -12,6 +11,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.effects import Effects, Handle, current_effects
 from reactifact.patches import Create, Link, Update
@@ -113,13 +113,13 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
             call.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
-    class Refresher(Agent):
+    class Refresher(StepGroup):
         consumes = [Consume(Doc)]
         produces = [Refresh()]
 
     ctx = Context(resources=RuntimeResources())
     ctx.create(Note(text="v1"), id="note:1")
-    runtime = Runtime(ctx, agents=[Refresher()])
+    runtime = Runtime(ctx, groups=[Refresher()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -137,7 +137,7 @@ def test_effects_resume_answers_pending_question():
     from reactifact import PendingQuestion
     from reactifact.effects import current_effects
 
-    class Resumer(Agent):
+    class Resumer(StepGroup):
         consumes = [Consume(Doc)]
 
         async def run(self, event, context):
@@ -147,7 +147,7 @@ def test_effects_resume_answers_pending_question():
 
     ctx = Context(resources=RuntimeResources())
     question = ctx.create(PendingQuestion(question="Approve?", kind="approval"))
-    runtime = Runtime(ctx, agents=[Resumer()])
+    runtime = Runtime(ctx, groups=[Resumer()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -179,7 +179,7 @@ def test_effects_resume_accepts_typed_answer():
         approved: bool
         note: str = ""
 
-    class TypedResumer(Agent):
+    class TypedResumer(StepGroup):
         consumes = [Consume(Doc)]
 
         async def run(self, event, context):
@@ -197,7 +197,7 @@ def test_effects_resume_accepts_typed_answer():
             resolution_schema=Approval.model_json_schema(),
         )
     )
-    runtime = Runtime(ctx, agents=[TypedResumer()])
+    runtime = Runtime(ctx, groups=[TypedResumer()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -218,14 +218,14 @@ class Greeting(Step[Note]):
         return None
 
 
-class Greeter(Agent):
+class Greeter(StepGroup):
     consumes = [Consume(Doc)]
     produces = [Greeting()]
 
 
 def test_runtime_compiles_effects_into_one_commit():
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, agents=[Greeter()])
+    runtime = Runtime(ctx, groups=[Greeter()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 

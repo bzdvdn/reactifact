@@ -48,7 +48,6 @@ def _default_reply(
 def chat_agent(
     groups: Sequence[StepGroup] | None = None,
     *,
-    agents: Sequence[StepGroup] | None = None,
     steps: Sequence[Step] | None = None,
     store: SessionStore | str | Path | None = None,
     user_message: type[BaseModel] = Question,
@@ -62,8 +61,7 @@ def chat_agent(
 ) -> Chat:
     """A configured `Chat` — sessions, turns, history, out of the box.
 
-    `groups=` is the StepGroup sequence (the 0.x `agents=` keyword is a
-    deprecated alias; pass one, not both).
+    `groups=` is the StepGroup sequence.
 
     `store` may be a `SessionStore`, a directory path (`FileKVBackend`), or
     `None` for a process-local in-memory store (handy for tests/notebooks; use a
@@ -77,10 +75,10 @@ def chat_agent(
     a per-turn callable, …). The provider instance is shared across turns, not
     closed by the assistant.
     """
-    provided = [value for value in (groups, agents, steps) if value is not None]
+    provided = [value for value in (groups, steps) if value is not None]
     if len(provided) > 1:
-        raise ValueError("Pass only one of steps=, groups= or agents= (deprecated)")
-    resolved = groups if groups is not None else agents
+        raise ValueError("Pass only one of steps= or groups=")
+    resolved = groups
     if resolved is None and steps is None:
         raise TypeError("chat_agent requires steps= or groups=")
     if resources is None:

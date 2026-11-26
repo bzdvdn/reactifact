@@ -11,7 +11,7 @@ import asyncio
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Agent, Artifact, Consume, Context, Runtime, create_agent
+from reactifact import Artifact, Consume, Context, Runtime, StepGroup, create_step_group
 from reactifact.recipes import RollingDigestSummarizer, WindowPruner, WindowSummarizer
 
 
@@ -65,8 +65,8 @@ async def _own_render_digest(
     return f"{previous};{','.join(parts)}" if previous else ",".join(parts)
 
 
-def _flow(*, window: int = 4, every: int = 2, keep: int = 4) -> Agent:
-    return create_agent(
+def _flow(*, window: int = 4, every: int = 2, keep: int = 4) -> StepGroup:
+    return create_step_group(
         "memory",
         consumes=[Consume(Msg)],
         produces=[
@@ -86,7 +86,7 @@ def _flow(*, window: int = 4, every: int = 2, keep: int = 4) -> Agent:
 def _run(messages: list[str]) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, agents=[_flow()])
+        runtime = Runtime(ctx, groups=[_flow()])
         for i, text in enumerate(messages):
             ctx.create(Msg(role="user" if i % 2 == 0 else "assistant", text=text))
             await runtime.arun()
@@ -118,10 +118,10 @@ def test_pruner_keeps_only_the_window():
 def test_pruner_alone_bounds_messages_without_a_summarizer():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_agent(
+        agent = create_step_group(
             "prune-only", consumes=[Consume(Msg)], produces=[WindowPruner(Msg, keep=2)]
         )
-        runtime = Runtime(ctx, agents=[agent])
+        runtime = Runtime(ctx, groups=[agent])
         for i in range(5):
             ctx.create(Msg(role="user", text=f"m{i}"))
             await runtime.arun()
@@ -138,8 +138,8 @@ def test_no_summary_before_the_first_round_completes():
     assert ctx.list_artifacts(Summary) == []
 
 
-def _digest_flow(*, window: int = 4, trigger: int = 6) -> Agent:
-    return create_agent(
+def _digest_flow(*, window: int = 4, trigger: int = 6) -> StepGroup:
+    return create_step_group(
         "digest",
         consumes=[Consume(Msg)],
         produces=[
@@ -158,7 +158,7 @@ def _digest_flow(*, window: int = 4, trigger: int = 6) -> Agent:
 def _run_digest(messages: list[str], *, window: int = 4, trigger: int = 6) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, agents=[_digest_flow(window=window, trigger=trigger)])
+        runtime = Runtime(ctx, groups=[_digest_flow(window=window, trigger=trigger)])
         for i, text in enumerate(messages):
             ctx.create(Msg(role="user" if i % 2 == 0 else "assistant", text=text))
             await runtime.arun()
@@ -198,7 +198,7 @@ def test_no_digest_before_trigger_is_reached():
 def test_digest_merges_multiple_message_types_and_calls_own_render():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_agent(
+        agent = create_step_group(
             "digest-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             produces=[
@@ -212,7 +212,7 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
                 ),
             ],
         )
-        runtime = Runtime(ctx, agents=[agent])
+        runtime = Runtime(ctx, groups=[agent])
         for i in range(10):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))
@@ -234,12 +234,12 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
 def test_pruner_bounds_multiple_message_types():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_agent(
+        agent = create_step_group(
             "prune-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             produces=[WindowPruner([Question, FinalResponse], keep=4)],
         )
-        runtime = Runtime(ctx, agents=[agent])
+        runtime = Runtime(ctx, groups=[agent])
         for i in range(10):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))
@@ -256,7 +256,7 @@ def test_pruner_bounds_multiple_message_types():
 def test_summarizer_merges_multiple_message_types():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_agent(
+        agent = create_step_group(
             "summarize-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             produces=[
@@ -270,7 +270,7 @@ def test_summarizer_merges_multiple_message_types():
                 )
             ],
         )
-        runtime = Runtime(ctx, agents=[agent])
+        runtime = Runtime(ctx, groups=[agent])
         for i in range(4):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))

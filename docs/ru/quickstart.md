@@ -259,7 +259,7 @@ assistant = chat_agent(groups=[...], llm=provider)
 есть настоящий `StepGroup` и `Context` последнего запуска:
 
 ```python
-qa.agent      # реактивный Agent — можно смонтировать в свой Runtime
+qa.agent      # реактивный StepGroup — можно смонтировать в свой Runtime
 qa.context    # артефакты/провенанс последнего ask()
 ```
 
@@ -473,7 +473,7 @@ asyncio.run(main())
 извлечение evidence, верификация claim'ов, детерминированные вычисления,
 keyword-триггерный skill. Запуск: `.venv/bin/python examples/knowledge/chat.py`.
 
-## 3. Чат-бот с сохраняемыми сессиями
+## 3. Чат-бот с сохраняемыми сессиями {: #3-a-session-persisted-chat-bot }
 
 `Chat` сам владеет сессиями, циклом хода и восстановлением истории — ваше
 приложение поставляет только доменные модели и reply. Тот же объект работает

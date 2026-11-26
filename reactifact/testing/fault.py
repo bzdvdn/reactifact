@@ -44,8 +44,8 @@ from typing import TYPE_CHECKING, Any
 from reactifact.tools import Tool, ToolOutput
 
 if TYPE_CHECKING:
-    from reactifact.agents import StepGroup
     from reactifact.resources import RuntimeResources
+    from reactifact.step import StepGroup
 
 
 @dataclass

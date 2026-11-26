@@ -8,13 +8,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Budget,
     Consume,
     Context,
     Runtime,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.audit import context_hash
 
@@ -35,7 +35,7 @@ class Increment(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1), id="counter")
 
 
-class IncrementAgent(Agent):
+class IncrementAgent(StepGroup):
     name = "increment"
     consumes = [Consume(Number)]
     produces = [Increment()]
@@ -43,7 +43,7 @@ class IncrementAgent(Agent):
 
 def _built(max_runs: int = 6) -> Context:
     ctx = Context()
-    runtime = Runtime(ctx, agents=[IncrementAgent()], budget=Budget(max_runs=max_runs))
+    runtime = Runtime(ctx, groups=[IncrementAgent()], budget=Budget(max_runs=max_runs))
     ctx.create(Number(value=0))
     asyncio.run(runtime.arun())
     return ctx

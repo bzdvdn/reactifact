@@ -30,7 +30,9 @@ Changelog). При бампе версии:
   `demo --web`, pipeline tools и HITL/approval-рецепты. LLM-хелперы
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
   `StructuredLLM.call`) теперь принимают `LLMProvider` (или `None`), а не
-  `Context`.
+  `Context`. `Agent`, `create_agent`, `validate_agents`, `agents=` и модуль
+  `reactifact.agents` удалены; используйте `StepGroup`, `create_step_group`,
+  `validate_contracts(groups=...)` и `groups=`.
 - **0.23.0** — типизированный фасад `Chat` (`answer/traces/lifespan/test_client`),
   DI тулов через `Inject`/`Depends`, типизированные результаты и
   структурированные ошибки тулов, function-first `PlanExecute`/`ReflectionLoop`,
@@ -56,10 +58,10 @@ Changelog). При бампе версии:
   `Produce`; класс-шаги получают `effects: Effects` (`self.effects` удалён);
   `Artifact` — frozen handle поверх content-addressed version store; сессии
   используют v2-формат `blobs`/`data_ref`; старый набор примеров удалён.
-  `Produce`, `ProduceCall`, `@produce`, `Agent.produces`,
+  `Produce`, `ProduceCall`, `@produce`, `StepGroup.produces`,
   `Artifact.at/history/diff` и top-level shims инструментов остаются
   импортируемыми на окно совместимости 0.21; `Produce`/`ProduceCall`/`@produce`
-  больше не входят в top-level `__all__`; `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0, остальные мосты сохранены до 0.24.0.
+  больше не входят в top-level `__all__`; `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0, старые имена `Agent` удалены в 0.24.0, остальные мосты сохранены до 0.24.x.
 - **0.14.0** — поведенчески заметные (не ломающие) изменения:
   - `Budget.max_seconds` теперь **жёсткий** дедлайн хода: runtime отменяет
     генерацию в полёте, когда он истекает (зависший LLM-вызов действительно
@@ -92,7 +94,7 @@ Changelog). При бампе версии:
   [effects](effects.md)). `InterruptPatch`, `Patch.merge_existing_patch` и
   `Patch.to_dict` удалены.
 
-## Критерии релиза
+## Критерии релиза {: #release-checklist }
 
 Что должно быть верно перед выпуском — и конкретно планка выхода из pre-1.0 и
 релиза **1.0.0**:
@@ -124,25 +126,27 @@ Changelog). При бампе версии:
 ```bash
 # 1) проверки
 .venv/bin/python -m pytest && .venv/bin/python -m mypy \
-  && .venv/bin/python -m ruff check && .venv/bin/python -m ruff format --check
+  && .venv/bin/python -m ruff check && .venv/bin/python -m ruff format --check \
+  && .venv/bin/lint-imports && uv lock --check
 
 # 2) версия и чейджлог
 
-# 3) сборка
-uv build                         # dist/reactifact-0.20.0-py3-none-any.whl + sdist
+# 3) сборка (сначала очистите stale build/ + dist/: setuptools переиспользует build/lib)
+rm -rf build dist *.egg-info
+uv build                         # dist/reactifact-0.24.0-py3-none-any.whl + sdist
 
 # 4) проверка wheel в чистом venv (не workspace — чтобы не цеплял PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.20.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.24.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/reactifact --help          # console-скрипт на месте
-unzip -l dist/reactifact-0.20.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-0.24.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) тег
-git tag v0.20.0 && git push origin v0.20.0
+git tag v0.24.0 && git push origin v0.24.0
 
-# 6) публикация (токен PyPI в env)
-uv publish --publish-url https://upload.pypi.org/legacy/
+# 6) публикация только новых файлов, а не старого dist/ (токен PyPI в env)
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.24.0*
 ```
 
 ## Что входит в дистрибутив

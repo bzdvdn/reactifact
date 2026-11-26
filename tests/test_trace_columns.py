@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
+from reactifact import Consume, Context, Patch, Runtime, RuntimeResources, StepGroup
 from reactifact.tracing import RunTrace, TraceColumn, TraceLimits, Tracer, TraceStore
 from reactifact.tracing.columns import SpanArtifacts, extract_columns
 from reactifact.tracing.models import ArtifactRef
@@ -127,7 +127,7 @@ class Answer(BaseModel):
     sources: list[dict]
 
 
-class Producer(Agent):
+class Producer(StepGroup):
     name = "producer"
     consumes = [Consume(Question)]
 
@@ -140,7 +140,7 @@ class Producer(Agent):
 def _seed(tmp_path, **resources_kw):
     store = TraceStore(str(tmp_path / "traces.db"), max_runs=None)
     ctx = Context(resources=RuntimeResources(**resources_kw))
-    runtime = Runtime(ctx, agents=[Producer()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[Producer()], tracer=Tracer(store=store))
     ctx.create(Question(text="hello"))
     run(runtime.arun())
     return store
@@ -313,7 +313,7 @@ class BigAnswer(BaseModel):
     deep: dict[str, str]
 
 
-class BigProducer(Agent):
+class BigProducer(StepGroup):
     name = "producer"
     consumes = [Consume(Question)]
 
@@ -331,7 +331,7 @@ def test_trace_truncate_is_configurable(tmp_path):
         ctx = Context(resources=RuntimeResources())
         runtime = Runtime(
             ctx,
-            agents=[BigProducer()],
+            groups=[BigProducer()],
             tracer=Tracer(store=store, limits=TraceLimits(max_data_chars=truncate)),
         )
         ctx.create(Question(text="hello"))

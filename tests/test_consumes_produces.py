@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, Step
+from reactifact import Consume, Context, Patch, Runtime, Step, StepGroup
 
 
 class Input(BaseModel):
@@ -14,7 +14,7 @@ class Output(BaseModel):
 
 
 # --- Imperative agent (as before, run is overridden) ---
-class SimpleAgent(Agent):
+class SimpleAgent(StepGroup):
     consumes = [Consume(Input)]
     produces = [Step(Output)]
 
@@ -27,9 +27,9 @@ class SimpleAgent(Agent):
 
 def test_auto_triggers_from_consumes():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[SimpleAgent()])
+    runtime = Runtime(ctx, groups=[SimpleAgent()])
 
-    agent = runtime.agents[0]
+    agent = runtime.groups[0]
     assert len(agent.triggers) == 2  # created and updated
 
     ctx.create(Input(text="hello"))
@@ -84,12 +84,12 @@ class UndeclaredMultiCreateProduce(Step[Output]):
 
 
 def test_also_creates_widens_the_agents_allowed_create_types():
-    class MultiAgent(Agent):
+    class MultiAgent(StepGroup):
         consumes = [Consume(Input)]
         produces = [MultiCreateProduce()]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[MultiAgent()])
+    runtime = Runtime(ctx, groups=[MultiAgent()])
     ctx.create(Input(text="hello"))
     asyncio.run(runtime.arun())
 
@@ -98,12 +98,12 @@ def test_also_creates_widens_the_agents_allowed_create_types():
 
 
 def test_create_of_an_undeclared_type_is_rejected_even_without_also_creates():
-    class UndeclaredMultiAgent(Agent):
+    class UndeclaredMultiAgent(StepGroup):
         consumes = [Consume(Input)]
         produces = [UndeclaredMultiCreateProduce()]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[UndeclaredMultiAgent()])
+    runtime = Runtime(ctx, groups=[UndeclaredMultiAgent()])
     ctx.create(Input(text="hello"))
     with pytest.raises(ValueError, match="not declared in produces.*also_creates"):
         asyncio.run(runtime.arun())
@@ -125,7 +125,7 @@ class RecordMixed(Step[Output]):
         )
 
 
-class MixedAgent(Agent):
+class MixedAgent(StepGroup):
     consumes = [Consume(Input), Consume(Passive, wakes=False)]
     produces = [RecordMixed()]
 
@@ -133,11 +133,11 @@ class MixedAgent(Agent):
 def test_consume_wakes_false_feeds_inputs_without_triggering():
     """For the declarative style (`consumes`/`produces`), `Consume(wakes=False)`
     decouples "what wakes me" from "what I read" without reaching for
-    `Agent`'s separate `triggers=` override (still there, but meant for the
+    `StepGroup`'s separate `triggers=` override (still there, but meant for the
     imperative `run()`-override style with no `consumes` at all)."""
     ctx = Context()
-    runtime = Runtime(ctx, agents=[MixedAgent()])
-    agent = runtime.agents[0]
+    runtime = Runtime(ctx, groups=[MixedAgent()])
+    agent = runtime.groups[0]
 
     assert len(agent.triggers) == 2  # created+updated, from Input only
     assert all(t.artifact_type is Input for t in agent.triggers)
@@ -176,7 +176,7 @@ class MarkerChildB(MarkerBase):
     pass
 
 
-class BaseRecorder(Agent):
+class BaseRecorder(StepGroup):
     consumes = [Consume.by_base(MarkerBase)]
     produces = [Step(Output)]
 
@@ -189,7 +189,7 @@ class BaseRecorder(Agent):
 
 def test_consume_by_base_wakes_on_subclasses():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[BaseRecorder()])
+    runtime = Runtime(ctx, groups=[BaseRecorder()])
 
     ctx.create(MarkerChildA(text="a"))
     asyncio.run(runtime.arun())
@@ -203,7 +203,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
         consumes = [Consume(MarkerBase)]
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[ExactRecorder()])
+    runtime = Runtime(ctx, groups=[ExactRecorder()])
 
     ctx.create(MarkerChildA(text="a"))
     asyncio.run(runtime.arun())
@@ -212,7 +212,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
 
 
 def test_consume_by_base_reads_all_subclass_artifacts():
-    class Collector(Agent):
+    class Collector(StepGroup):
         consumes = [Consume.by_base(MarkerBase)]
         produces = [Step(Output)]
 
@@ -221,7 +221,7 @@ def test_consume_by_base_reads_all_subclass_artifacts():
             return Patch().create(Output(text=texts))
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Collector()])
+    runtime = Runtime(ctx, groups=[Collector()])
     ctx.create(MarkerChildA(text="a"))
     ctx.create(MarkerChildB(text="b"))
     asyncio.run(runtime.arun())

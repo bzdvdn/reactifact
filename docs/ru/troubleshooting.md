@@ -123,7 +123,7 @@ runtime решал, что запускать?**
   relation=...)` проходит в обратную сторону.
 - `context_to_mermaid()` / `trace_provenance_to_mermaid()` (`reactifact.viz`)
   рисуют весь граф связей или цепочку provenance трейса как диаграмму — см.
-  [comparison.md §3](comparison.md#3-провенанс-пристройка-сбоку-vs-встроенное)
+  [comparison.md §3](comparison.md#provenance)
   за разобранным примером.
 
 ## Детерминированное воспроизведение проблемы

@@ -3,13 +3,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     EventType,
     Patch,
     Runtime,
     Step,
+    StepGroup,
     Trigger,
 )
 
@@ -18,7 +18,7 @@ class Number(BaseModel):
     value: int
 
 
-class Doubler(Agent):
+class Doubler(StepGroup):
     def __init__(self):
         super().__init__(
             name="doubler", triggers=[Trigger(EventType.ARTIFACT_CREATED, Number)]
@@ -32,7 +32,7 @@ class Doubler(Agent):
         return Patch().update(artifact.id, Number(value=new_value))
 
 
-class Logger(Agent):
+class Logger(StepGroup):
     def __init__(self):
         super().__init__(
             name="logger", triggers=[Trigger(EventType.ARTIFACT_UPDATED, Number)]
@@ -45,7 +45,7 @@ class Logger(Agent):
         return None
 
 
-class ThresholdAgent(Agent):
+class ThresholdAgent(StepGroup):
     def __init__(self):
         super().__init__(
             name="threshold_agent",
@@ -66,7 +66,7 @@ class Marker(BaseModel):
     pass
 
 
-class AsyncDoubler(Agent):
+class AsyncDoubler(StepGroup):
     def __init__(self):
         super().__init__(
             name="async_doubler", triggers=[Trigger(EventType.ARTIFACT_CREATED, Number)]
@@ -82,7 +82,7 @@ class AsyncDoubler(Agent):
 
 def test_reactive_doubling():
     ws = Context()
-    runtime = Runtime(ws, agents=[Doubler(), Logger()])
+    runtime = Runtime(ws, groups=[Doubler(), Logger()])
     ws.create(Number(value=5))
     total_runs = runtime.run()  # synchronous wrapper
     assert total_runs == 2
@@ -93,7 +93,7 @@ def test_reactive_doubling():
 
 def test_trigger_condition():
     ws = Context()
-    runtime = Runtime(ws, agents=[ThresholdAgent()])
+    runtime = Runtime(ws, groups=[ThresholdAgent()])
 
     ws.create(Number(value=5))
     total_runs = runtime.run()
@@ -108,7 +108,7 @@ def test_trigger_condition():
 
 def test_async_group():
     ws = Context()
-    runtime = Runtime(ws, agents=[AsyncDoubler()])
+    runtime = Runtime(ws, groups=[AsyncDoubler()])
     ws.create(Number(value=7))
     total_runs = asyncio.run(runtime.arun())  # async run
     assert total_runs == 1
@@ -118,7 +118,7 @@ def test_async_group():
 
 def test_produces_validation_rejects_unknown_type():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[])
+    runtime = Runtime(ctx, groups=[])
 
     class WrongOutput(BaseModel):
         text: str
@@ -129,7 +129,7 @@ def test_produces_validation_rejects_unknown_type():
     class Output(BaseModel):
         text: str
 
-    class BadAgent(Agent):
+    class BadAgent(StepGroup):
         name = "bad_agent"
         consumes = [Consume(Input)]  # <-- now there are triggers
         produces = [Step(Output)]  # only Output declared

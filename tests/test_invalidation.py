@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime
+from reactifact import Consume, Context, Patch, Runtime, StepGroup
 from reactifact.events import EventType
 
 
@@ -18,7 +18,7 @@ class StalenessNotice(BaseModel):
     watched_id: str
 
 
-class Summarizer(Agent):
+class Summarizer(StepGroup):
     """Deterministic derived artifact: dependencies are visible through reads."""
 
     consumes = [Consume(Document)]
@@ -35,13 +35,13 @@ class Summarizer(Agent):
 
 def build_doc_pipeline():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Summarizer()])
+    runtime = Runtime(ctx, groups=[Summarizer()])
     doc = ctx.create(Document(title="T", content="hello world"))
     asyncio.run(runtime.arun())
     return ctx, runtime, doc
 
 
-class StaleWatcher(Agent):
+class StaleWatcher(StepGroup):
     """Reacts specifically to ARTIFACT_STALE — proves staleness is a live event,
     not just a `stale_artifacts()` poll."""
 
@@ -101,7 +101,7 @@ async def _test_staleness_survives_session_restart(tmp_path):
 
     store = SessionStore(FileKVBackend(str(tmp_path)))
     session = await store.open("inval", resources=RuntimeResources())
-    runtime = Runtime(session.context, agents=[Summarizer()], session=session)
+    runtime = Runtime(session.context, groups=[Summarizer()], session=session)
 
     doc = session.context.create(Document(title="T", content="v1"))
     await runtime.arun()
@@ -119,7 +119,7 @@ async def _test_staleness_survives_session_restart(tmp_path):
 
 def test_stale_event_is_reactive():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Summarizer(), StaleWatcher()])
+    runtime = Runtime(ctx, groups=[Summarizer(), StaleWatcher()])
     doc = ctx.create(Document(title="T", content="hello world"))
     asyncio.run(runtime.arun())
     summary = ctx.list_artifacts(DerivedSummary)[0]

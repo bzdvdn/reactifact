@@ -4,7 +4,6 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Budget,
     Consume,
     Context,
@@ -12,6 +11,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -42,7 +42,7 @@ class Pass(Step[Note]):
         return None
 
 
-class PassAgent(Agent):
+class PassAgent(StepGroup):
     name = "pass"
     consumes = [Consume(Seed)]
     produces = [Pass()]
@@ -53,7 +53,7 @@ async def _aran_session(tmp_path: str) -> tuple[SessionStore, str]:
     store = SessionStore(SQLiteKVBackend(tmp_path))
     ctx = Context(resources=RuntimeResources())
     ctx.create(Seed(text="go"))
-    runtime = Runtime(ctx, agents=[PassAgent()], budget=Budget(max_runs=5))
+    runtime = Runtime(ctx, groups=[PassAgent()], budget=Budget(max_runs=5))
     await runtime.arun()
     await store.save_session("demo", ctx)
     return store, "demo"

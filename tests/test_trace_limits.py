@@ -7,7 +7,7 @@ import warnings
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Context, RuntimeResources
+from reactifact import Context, RuntimeResources, StepGroup
 from reactifact.events import Event, EventType
 from reactifact.tracing import AgentSpan, RunTrace, TraceLimits, Tracer, TraceStore
 from reactifact.tracing.tracer import RunTracer
@@ -52,7 +52,7 @@ def test_write_time_span_cap_marks_trace_truncated(tmp_path):
     ctx = Context(resources=RuntimeResources())
     tracer = RunTracer(ctx, Tracer(store=store, limits=TraceLimits(max_spans=2)))
     tracer.begin_turn(session_id="s")
-    agent = Agent()
+    agent = StepGroup()
     event = Event(EventType.ARTIFACT_CREATED, Question, "q1")
     for _ in range(4):
         tracer.record_span(agent, event, [], 1.0)

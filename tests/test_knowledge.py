@@ -53,7 +53,7 @@ def build_runtime(extra_sources=None, replace=False):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        agents=[
+        groups=[
             Planner(),
             SearchScout(),
             ResolverGroup(),

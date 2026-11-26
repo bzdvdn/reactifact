@@ -1,15 +1,14 @@
-"""Static agent-contract validation (`validate_agents`)."""
+"""Static agent-contract validation (`validate_contracts`)."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Step,
+    StepGroup,
     ValidationError,
-    create_agent,
-    validate_agents,
+    create_step_group,
     validate_contracts,
 )
 from reactifact.consume import JoinConsume
@@ -43,17 +42,17 @@ class ConsumerStep(Step):
         return Final(text=item.text)
 
 
-def _producer() -> Agent:
-    return create_agent("producer", steps=[ProducerStep()])
+def _producer() -> StepGroup:
+    return create_step_group("producer", steps=[ProducerStep()])
 
 
-def _consumer() -> Agent:
-    return create_agent("consumer", steps=[ConsumerStep()])
+def _consumer() -> StepGroup:
+    return create_step_group("consumer", steps=[ConsumerStep()])
 
 
 def test_valid_contracts_are_clean():
-    report = validate_agents(
-        [_producer(), _consumer()],
+    report = validate_contracts(
+        groups=[_producer(), _consumer()],
         seeds=[Question],
         terminal=[Final],
     )
@@ -65,7 +64,9 @@ def test_valid_contracts_are_clean():
 
 
 def test_unknown_input_is_an_error():
-    report = validate_agents([_consumer()], seeds=[Question], terminal=[Final])
+    report = validate_contracts(
+        groups=[_consumer()], seeds=[Question], terminal=[Final]
+    )
 
     assert report.ok is False
     assert [issue.code for issue in report.errors] == ["unknown_input"]
@@ -75,18 +76,20 @@ def test_unknown_input_is_an_error():
 
 
 def test_dead_output_is_a_warning_unless_terminal():
-    report = validate_agents([_producer()], seeds=[Question], terminal=[])
+    report = validate_contracts(groups=[_producer()], seeds=[Question], terminal=[])
 
     assert report.ok is True
     assert any(issue.code == "dead_output" for issue in report.warnings)
 
-    clean = validate_agents([_producer()], seeds=[Question], terminal=[Middle])
+    clean = validate_contracts(
+        groups=[_producer()], seeds=[Question], terminal=[Middle]
+    )
     assert clean.warnings == []
 
 
 def test_duplicate_agent_names_are_errors():
-    report = validate_agents(
-        [_producer(), _producer()],
+    report = validate_contracts(
+        groups=[_producer(), _producer()],
         seeds=[Question],
         terminal=[Middle],
     )
@@ -103,9 +106,9 @@ def test_cycle_without_budget_is_a_warning():
         async def run(self, item: Middle) -> Question:
             return Question(text=item.text)
 
-    cycle = create_agent("cycle", steps=[CycleStep()])
-    report = validate_agents(
-        [_producer(), cycle],
+    cycle = create_step_group("cycle", steps=[CycleStep()])
+    report = validate_contracts(
+        groups=[_producer(), cycle],
         seeds=[Question],
         terminal=[Middle],
     )
@@ -121,9 +124,9 @@ def test_correlated_consume_requires_all_parts():
         async def run(self, item: Question) -> Final:
             return Final(text=item.text)
 
-    agent = create_agent("join", steps=[Join()])
-    report = validate_agents(
-        [agent],
+    agent = create_step_group("join", steps=[Join()])
+    report = validate_contracts(
+        groups=[agent],
         seeds=[Question, Middle],
         terminal=[Final],
     )
@@ -156,8 +159,3 @@ def test_validate_contracts_rejects_wrong_types():
         validate_contracts(steps=[_producer()])
     with pytest.raises(TypeError, match="groups= accepts StepGroup"):
         validate_contracts(groups=[ProducerStep()])
-
-
-def test_validate_agents_stays_as_the_deprecated_alias():
-    report = validate_agents([_producer()], seeds=[Question], terminal=[Middle])
-    assert report.ok is True

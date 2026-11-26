@@ -132,7 +132,6 @@ class Runtime:
     def __init__(
         self,
         context: Context,
-        agents: list[Any] | None = None,
         max_concurrency: int | None = None,
         session: "Session | None" = None,
         budget: Budget | None = None,
@@ -149,9 +148,8 @@ class Runtime:
     ):
         self.context = context
         #: The merged dispatch units. `steps=` wraps each step in an implicit
-        #: group of one; `groups=` adds explicit groups; `agents=` is the
-        #: deprecated 0.x alias for `groups=`.
-        self.agents = normalize_units(steps=steps, groups=groups, agents=agents)
+        #: group of one; `groups=` adds explicit groups.
+        self.groups = normalize_units(steps=steps, groups=groups)
         self.max_concurrency = max_concurrency
         self.session = session
         self.budget = budget
@@ -251,8 +249,8 @@ class Runtime:
     def _exit_turn(self) -> None:
         self._in_turn = False
 
-    def register(self, agent: StepGroup) -> None:
-        self.agents.append(agent)
+    def register(self, group: StepGroup) -> None:
+        self.groups.append(group)
 
     def request_stop(self) -> None:
         """Ask the run to stop at the next generation boundary (§59).
@@ -295,11 +293,6 @@ class Runtime:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
-
-    @property
-    def groups(self) -> list[StepGroup]:
-        """The merged dispatch units (`agents` is the deprecated alias)."""
-        return self.agents
 
     def _begin_turn(self, budget: Budget | None) -> None:
         # Per-turn budget/deadline/tracker and the LLM wrappers that fill them
@@ -430,7 +423,7 @@ class Runtime:
         # event is treated as non-debounced for that event — debouncing only
         # kicks in when nothing about the match demands immediacy.
         debounced: dict[StepGroup, tuple[Event, list[Read]]] = {}
-        ordered_agents = sorted(self.agents, key=lambda a: a.priority)
+        ordered_agents = sorted(self.groups, key=lambda a: a.priority)
         for event in events:
             if self._budget_exhausted():
                 break
@@ -800,7 +793,7 @@ class Runtime:
         latency = (time.monotonic() - started) * 1000
         if error is not None:
             if isinstance(error, MissingInputError):
-                error.annotate(_producer_index(self.agents))
+                error.annotate(_producer_index(self.groups))
             logger.warning(
                 "agent failed",
                 extra={
@@ -979,22 +972,22 @@ class Runtime:
         if self._no_runs_warned:
             return
         self._no_runs_warned = True
-        if not self.agents:
+        if not self.groups:
             return
         consumed = sorted(
             {
                 c.artifact_type.__name__
-                for agent in self.agents
+                for agent in self.groups
                 for c in (agent.consumes or [])
                 if c.artifact_type is not None
             }
         )
         hint = (
-            f" None of the {len(self.agents)} agents ran — nothing consumed the"
+            f" None of the {len(self.groups)} groups ran — nothing consumed the"
             " artifacts present."
         )
         if consumed:
-            hint += f" Agents consume: {', '.join(consumed)}."
+            hint += f" Groups consume: {', '.join(consumed)}."
         hint += " Check your Consume(...) target types or the create()'d artifact type."
         print(hint, file=sys.stderr)
 

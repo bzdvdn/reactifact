@@ -10,7 +10,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
 )
 from reactifact.authz import (
     AuthorizationError,
@@ -37,8 +37,10 @@ class Rewrite(Step[Note]):
 def _run(resources):
     ctx = Context(resources=resources)
     ctx.create(Question(text="hi"))
-    agent = create_agent("rewrite", consumes=[Consume(Question)], produces=[Rewrite()])
-    asyncio.run(Runtime(ctx, agents=[agent]).arun())
+    agent = create_step_group(
+        "rewrite", consumes=[Consume(Question)], produces=[Rewrite()]
+    )
+    asyncio.run(Runtime(ctx, groups=[agent]).arun())
     return ctx
 
 

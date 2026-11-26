@@ -10,7 +10,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
 )
 from reactifact.guardrails import (
     DenyListGuardrail,
@@ -40,13 +40,15 @@ class Rewrite(Step[Note]):
 
 
 def _group():
-    return create_agent("rewrite", consumes=[Consume(Question)], produces=[Rewrite()])
+    return create_step_group(
+        "rewrite", consumes=[Consume(Question)], produces=[Rewrite()]
+    )
 
 
 def _run(resources, text: str):
     ctx = Context(resources=resources)
     ctx.create(Question(text=text))
-    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
+    asyncio.run(Runtime(ctx, groups=[_group()]).arun())
     return ctx
 
 

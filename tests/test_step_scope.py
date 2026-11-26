@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Artifact, Consume, Context, Effects, Runtime, Scope
+from reactifact import Artifact, Consume, Context, Effects, Runtime, Scope, StepGroup
 from reactifact.step import Latest, Step
 
 
@@ -32,7 +32,7 @@ class Compose(Step):
         )
 
 
-class ComposeAgent(Agent):
+class ComposeAgent(StepGroup):
     steps = [Compose()]
 
 
@@ -44,7 +44,7 @@ def test_typed_inputs_are_scoped_to_the_trigger_query_id():
     context.create(Doc(query_id="q2", text="b"))
     context.create(Doc(query_id="q1", text="c"))
 
-    asyncio.run(Runtime(context, agents=[ComposeAgent()]).arun())
+    asyncio.run(Runtime(context, groups=[ComposeAgent()]).arun())
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
     assert answers["q1"] == "a+c"
@@ -66,7 +66,7 @@ class Related(Step):
         )
 
 
-class RelatedAgent(Agent):
+class RelatedAgent(StepGroup):
     steps = [Related()]
 
 
@@ -78,7 +78,7 @@ def test_related_returns_only_same_scope_artifacts():
     context.create(Doc(query_id="q2", text="b"))
     context.create(Doc(query_id="q1", text="c"))
 
-    asyncio.run(Runtime(context, agents=[RelatedAgent()]).arun())
+    asyncio.run(Runtime(context, groups=[RelatedAgent()]).arun())
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
     assert answers["q1"] == "a+c"
@@ -112,7 +112,7 @@ def test_latest_and_call_scope_are_correlated_to_the_trigger():
     context.create(Doc(query_id="q1", text="c"))
 
     asyncio.run(
-        Runtime(context, agents=[Agent(name="extract", steps=[Extract()])]).arun()
+        Runtime(context, groups=[StepGroup(name="extract", steps=[Extract()])]).arun()
     )
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
@@ -139,7 +139,7 @@ class CursorStep(Step):
 def test_call_cursor_exposes_input_versions():
     context = Context()
     question = context.create(Question(query_id="q1", text="one"))
-    runtime = Runtime(context, agents=[Agent(name="cursor", steps=[CursorStep()])])
+    runtime = Runtime(context, groups=[StepGroup(name="cursor", steps=[CursorStep()])])
 
     asyncio.run(runtime.arun())
     assert context.get("cursor-answer").data.text == "0"
@@ -170,7 +170,7 @@ class CollectDocs(Step):
         )
 
 
-class CollectAgent(Agent):
+class CollectAgent(StepGroup):
     steps = [CollectDocs()]
 
 
@@ -182,7 +182,7 @@ def test_typed_artifact_lists_are_scoped_to_the_trigger():
     context.create(Doc(query_id="q2", text="b"))
     context.create(Doc(query_id="q1", text="c"))
 
-    asyncio.run(Runtime(context, agents=[CollectAgent()]).arun())
+    asyncio.run(Runtime(context, groups=[CollectAgent()]).arun())
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
     assert answers["q1"] == "a+c"
@@ -213,7 +213,7 @@ class OwnerScoped(Step):
         )
 
 
-class OwnerScopedAgent(Agent):
+class OwnerScopedAgent(StepGroup):
     steps = [OwnerScoped()]
 
 
@@ -224,7 +224,7 @@ def test_scope_owner_matches_owner_artifact_by_id():
     context.create(Hypothesis(question_id=q1.id, text="h1"))
     context.create(Hypothesis(question_id=q2.id, text="h2"))
 
-    asyncio.run(Runtime(context, agents=[OwnerScopedAgent()]).arun())
+    asyncio.run(Runtime(context, groups=[OwnerScopedAgent()]).arun())
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
     assert answers[q1.id] == "one:h1"

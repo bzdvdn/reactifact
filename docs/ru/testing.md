@@ -154,6 +154,32 @@ result.assert_golden("scenarios/data/gpu.golden.json")
 print(result.explain())
 ```
 
+## Верификация внутри прогона
+
+`Verify` применяет ground-truth-free метрики `reactifact.eval` к *живому*
+`Answer` в той же генерации, что его создала (batch-eval скорит готовый
+`Context` постфактум). Добавьте его в `produces` и объявите артефакт
+эскалации:
+
+```python
+from reactifact import Consume, Context, PendingQuestion, RuntimeResources, Step, StepGroup
+from reactifact.verify import Verify
+
+class Answerer(StepGroup):
+    consumes = [Consume(Question)]
+    produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
+
+ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
+```
+
+`Verify(threshold=...)` переопределяет общий порог;
+`required_metrics=("provenance_grounded",)` проваливает ответ независимо от
+среднего; `on_fail="ask"` (дефолт) поднимает HITL
+`PendingQuestion(kind="approve")`, а `on_fail="retry"` создаёт
+`VerificationFailed` для агента, который перегенерирует ответ.
+`VerificationResult` хранит `overall`, `metrics`, `skipped`, `required_failed`
+и `answer_version` и связывается с ответом ребром `verifies`.
+
 ## Запуск тестов
 
 Под pytest подключите плагин, чтобы `async def`-сценарии шли без

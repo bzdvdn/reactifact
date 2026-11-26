@@ -7,8 +7,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Step, StepCall
-from reactifact.agents import create_agent
+from reactifact import Step, StepCall, create_step_group
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
@@ -36,7 +35,7 @@ class _Echo(Step[ConversationMessage]):
 
 
 def _echo_group():
-    return create_agent(
+    return create_step_group(
         "echo",
         consumes=[Consume(ConversationMessage)],
         produces=[_Echo()],
@@ -61,7 +60,7 @@ def _assistant(**memory_kwargs) -> tuple[ChatAssistant, SessionStore]:
     )
     assistant = ChatAssistant(
         store=store,
-        agents=[_echo_group()],
+        groups=[_echo_group()],
         user_message=ConversationMessage,
         reply=_reply,
         create_message=create_turn,
@@ -101,7 +100,7 @@ def test_chat_memory_compaction_only_adds_no_message_group():
 def test_chat_memory_keep_requires_a_message_type():
     assistant = ChatAssistant(
         store=SessionStore(InMemoryKVBackend()),
-        agents=[],
+        groups=[],
         user_message=ConversationMessage,
         reply=_reply,
         memory=ChatMemory(keep=5),  # no message_type
@@ -170,8 +169,8 @@ def _hetero_assistant(keep: int) -> tuple[ChatAssistant, SessionStore]:
     store = SessionStore(InMemoryKVBackend())
     assistant = ChatAssistant(
         store=store,
-        agents=[
-            create_agent(
+        groups=[
+            create_step_group(
                 "bot",
                 consumes=[Consume(_UserMsg)],
                 produces=[_Bot()],

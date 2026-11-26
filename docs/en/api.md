@@ -11,22 +11,23 @@ the docs site, rather than copied here by hand. Per-area pages:
 
 ## Stability
 
-reactifact is pre-1.0 (`0.23.0`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.24.0`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
-pins every `__all__` listed here, so a new export has to be added deliberately
-(and documented on this page), never by accident.
+pins `reactifact.__all__` and the core submodule exports (`reactifact.eval`,
+`reactifact.recipes`, `reactifact.providers`, `reactifact.tracing`), so a new
+export there has to be added deliberately (and documented), never by accident.
 
-- **Public API = every name in `reactifact.__all__`** (and each submodule's own
-  `__all__` — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
-  `reactifact.eval`, `reactifact.tracing`, `reactifact.quick`,
-  `reactifact.redaction`, `reactifact.audit`, …), which is exactly the set of
-  symbols documented on this page and pinned by the freeze test. If it's
+- **Public API = every name in `reactifact.__all__`** and the pinned submodule
+  `__all__` above. The optional `reactifact.knowledge`, `reactifact.viz`,
+  `reactifact.quick`, `reactifact.redaction` and `reactifact.audit` surfaces are
+  documented and semver-governed, but join the freeze test as part of the 1.0
+  checklist. If it's
   importable from `reactifact` but not in `__all__`, it's an internal detail with
   no compatibility guarantee — e.g. `reactifact.relations.RelationGraph` and
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.22.0` → `0.23.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.23.0` → `0.24.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
   patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
@@ -90,9 +91,9 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers. `Agent` is the deprecated alias |
-| `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=`. `create_agent` is the deprecated alias |
-| `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one; `agents=` is the deprecated alias for `groups=` and cannot be combined with the new keywords. |
+| `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
+| `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=` |
+| `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one. |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.answer(seed)` / `.aanswer(seed)` return the typed `answer_type`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()`. `.validate()` runs the static contract check; `.describe()` returns `ContractReport` with seed/answer JSON Schemas; `.router()` / `.http()` are the optional FastAPI adapters; `.as_tool()` exposes it as a `Tool`/MCP tool |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
@@ -101,7 +102,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | static consumes/produces/tools contract (Markdown or JSON); CLI `reactifact contracts <module> [--format md\|json]` |
-| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`). `validate_agents` is the deprecated alias |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
 | `Wakes(False)` / `Scope` / `Consume` / `IdempotentConsume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `IdempotentConsume(T, id_of=...)` wakes only while the derived id is absent; `wakes=False` reads as input without waking the agent (needed only when `consumes` is derived from the signature); `debounce=True` collapses several same-generation events into one run |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-specific `Consume` subclasses: wake only on create, update, delete or stale; `OnDelete` needs `event`/`Trigger` because the data is gone |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
@@ -151,7 +152,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `ChatAssistant` | the low-level engine behind `Chat`: sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
+| `ChatAssistant` | the low-level engine behind `Chat`: sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
 | `ChatMemory` | optional bounded memory for `Chat`/`ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |

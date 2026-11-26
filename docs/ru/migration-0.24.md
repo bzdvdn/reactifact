@@ -1,8 +1,57 @@
 # Переход на reactifact 0.24.0
 
-0.24 в основном аддитивна, но опциональный knowledge-слой получил несколько
-намеренных жёстких переломов, а core LLM-хелперы теперь принимают провайдера,
-а не `Context`.
+0.24 многое добавляет, но и закрывает запланированные на эту линию жёсткие
+переломы: старые имена `agents` удалены, core LLM-хелперы принимают провайдера,
+а не `Context`, а опциональный knowledge-слой ужесточил контракты. Шимов для
+пунктов ниже нет.
+
+## Старые имена `agents` удалены
+
+`Agent`, `create_agent`, `validate_agents`, ключ `agents=` и модуль
+`reactifact.agents` удалены. `Runtime.agents` теперь `Runtime.groups`.
+
+Было:
+
+```python
+from reactifact import Agent, Runtime, create_agent
+
+group = create_agent("qa", steps=[answer])
+runtime = Runtime(context, agents=[group])
+```
+
+Стало:
+
+```python
+from reactifact import Runtime, create_step_group
+
+group = create_step_group("qa", steps=[answer])
+runtime = Runtime(context, groups=[group])
+```
+
+Тот же ключ меняется в `ChatAssistant`, `run_subflow`, `swarm` и
+`quick.chat_agent`. `validate_agents(...)` становится
+`validate_contracts(groups=...)`.
+
+## `Artifact[T] | None` — это handle или `None`
+
+Опциональный артефактный параметр раньше проваливался в data-путь и возвращал
+модель. Теперь он возвращает `Artifact[T]` handle (или `None`). Используйте
+`T | None`, когда нужны опциональные данные; `Artifact[T]` и
+`list[Artifact[T]]` по-прежнему возвращают handle.
+
+## Опциональные provider-параметры резолвятся из ресурсов
+
+Параметр шага `LLMProvider | None` (и другие опциональные сервисы) теперь
+получает зарегистрированный провайдер, а не остаётся `None`. Если `None` был
+сигналом «провайдера нет, используй fallback», проверяйте `resources.has(...)`
+или сделайте параметр обязательным.
+
+## Pending HITL-ответы — `waiting: true`
+
+Когда есть `PendingQuestion`, `Chat` возвращает структурный `question` с
+`waiting: true`, а не обычный reply. Ветвитесь по `waiting`, а не считайте, что
+у каждого ответа есть `reply`; `Chat(resume_pending=True)` превращает следующий
+ход пользователя в ответ.
 
 ## LLM-хелперы
 
@@ -92,10 +141,12 @@ sqlite_store = SqliteDocStore(".reactifact/knowledge/state.sqlite3")
 
 Фабрика `consume(...)` дублировала `Consume(...)` и удалена. Используйте
 `Consume(Type, ...)` или lifecycle-подкласс (`OnCreate`, `OnUpdate`,
-`OnDelete`, `OnStale`) напрямую.
+`OnDelete`, `OnStale`) напрямую. Отдельного deprecation-релиза у неё не было;
+0.24 — осознанное исключение из правила одного минора.
 
 ## Аддитивные изменения
 
+- Lifecycle-классы `OnCreate`, `OnUpdate`, `OnDelete`, `OnStale`.
 - `Progress` — UI-статусы без `Context`.
 - Owned resources (`RuntimeResources.register(..., owned=True)`).
 - Pydantic resources и неявные read-only inputs.

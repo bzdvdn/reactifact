@@ -18,15 +18,27 @@ GitHub, Notion, or [mermaid.live](https://mermaid.live).
 
 ```bash
 python -m reactifact run app:pipeline "why is checkout down?"
-reactifact graph examples.knowledge.step_groups        # all agents of a module
+reactifact graph examples.knowledge.step_groups        # all groups of a module
 python -m reactifact graph examples.knowledge.step_groups:Planner # one agent
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 reactifact contracts examples.knowledge.step_groups          # Markdown contracts
 reactifact contracts examples.knowledge.step_groups --format json
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
+reactifact check app.pipeline:pipeline --scenarios app.scenarios
+reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60
+reactifact new agent my-agent
+reactifact dev app.main:app
+reactifact demo --web
 ```
 
+- `check` is the quality gate: static contracts, any number of `@scenario`
+  modules and an optional `Dataset` eval against a `Pipeline` (`--gate
+  KEY=VALUE`, `--overall`); it exits non-zero when a stage fails.
+- `daemon` runs a `Pipeline` on an interval (`--seed module:fn` seeds each
+  tick); `new agent` writes a minimal one-file pipeline; `dev` boots an ASGI
+  app with reload and prints the app/`/contracts`/`/traces` URLs; `demo --web`
+  serves the no-key demo in a browser.
 - `graph` instantiates every `StepGroup` subclass defined in the module (or a
   single one via `module:Attr`) and prints the blueprint. With `--check` it
   runs `validate_contracts` instead: unknown inputs are errors (exit 1), dead

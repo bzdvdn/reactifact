@@ -18,15 +18,28 @@ runtime выводит исполнение из изменений состоя
 
 ```bash
 python -m reactifact run app:pipeline "почему checkout недоступен?"
-reactifact graph examples.knowledge.step_groups        # все агенты модуля
+reactifact graph examples.knowledge.step_groups        # все группы модуля
 python -m reactifact graph examples.knowledge.step_groups:Planner # один агент
 python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
 python -m reactifact contracts examples.knowledge.step_groups  # контракты в Markdown
 python -m reactifact contracts examples.knowledge.step_groups --format json
+reactifact check app.pipeline:pipeline --scenarios app.scenarios
+reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60
+reactifact new agent my-agent
+reactifact dev app.main:app
+reactifact demo --web
 ```
 
+- `check` — единый quality-gate: статические контракты, любое число
+  `@scenario`-модулей и опциональный eval `Dataset` против `Pipeline`
+  (`--gate KEY=VALUE`, `--overall`); при провале стадии выходит с ненулевым
+  кодом.
+- `daemon` крутит `Pipeline` по интервалу (`--seed module:fn` сеет каждый тик);
+  `new agent` создаёт минимальный one-file pipeline; `dev` поднимает ASGI-апп
+  с reload и печатает URL приложения/`/contracts`/`/traces`; `demo --web`
+  показывает demo без ключей в браузере.
 - `graph` инстансирует каждый подкласс `StepGroup`, определённый в модуле (или один
   через `module:Attr`), и печатает blueprint. С `--check` вместо отрисовки
   запускает `validate_contracts`: неизвестные входы — errors (exit 1), dead

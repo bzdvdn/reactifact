@@ -150,7 +150,7 @@ class _A2AServer:
             context.resume(record.pending_id, text)
         else:
             record.seed_id = self._create_message(context, text)
-        runtime = Runtime(context, agents=list(self.agents), budget=self._budget)
+        runtime = Runtime(context, groups=list(self.agents), budget=self._budget)
         if on_event is None:
             await runtime.arun(max_iterations=self._max_iterations)
         else:

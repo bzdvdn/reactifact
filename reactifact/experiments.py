@@ -187,7 +187,7 @@ class Experiment:
                 await seeded
             runtime = Runtime(
                 branch,
-                agents=list(variant.agents),
+                groups=list(variant.agents),
                 budget=self.budget,
                 tracer=self.tracer,
             )

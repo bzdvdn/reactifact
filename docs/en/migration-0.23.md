@@ -89,22 +89,22 @@ async def per_turn(text, session_id, request):
 chat = Chat(..., per_turn=per_turn)
 ```
 
-`quick.chat_agent(...)` now returns `Chat`; it still accepts `groups=`/`steps=`
-and the deprecated `agents=` alias.
+`quick.chat_agent(...)` now returns `Chat`; it accepts `groups=`/`steps=`. The
+deprecated `agents=` alias was removed in 0.24.
 
 ## 2. Groups, steps and aliases
 
-`Runtime(ctx, agents=[...])` is a deprecated alias. Use the keyword that
-describes what you pass:
+`Runtime(ctx, agents=[...])` was a deprecated alias, removed in 0.24. Use the
+keyword that describes what you pass:
 
 ```python
 Runtime(ctx, groups=[MyGroup()])     # StepGroup instances
 Runtime(ctx, steps=[MyStep()])       # raw steps, wrapped in implicit groups
 ```
 
-`Agent`/`create_agent` remain deprecated aliases for `StepGroup`/
-`create_step_group`; new code should use the canonical names. `agents=` cannot
-be combined with `steps=`/`groups=`.
+`Agent`/`create_agent`/`validate_agents` and `agents=` were removed in 0.24;
+use `StepGroup`/`create_step_group`/`validate_contracts(groups=...)` and
+`groups=`/`steps=`.
 
 ## 3. Tools: injection, typed results, policies
 
@@ -203,10 +203,12 @@ See [observability](observability.md) for `RetentionPolicy` and sampling.
   `Human`/`Outbox` instead (`human.ask/resume`, `outbox.act`). These three had
   no separate deprecation release: 0.23 is the first release with their
   replacements, so this is a deliberate exception to the one-minor window.
-- `ChatAssistant`, `Agent`, `create_agent`, `agents=`, `Agent.produces` and
-  `Artifact.at/history/diff` remain deprecated bridges through 0.24.0. New
-  code should use `Chat`, `StepGroup`, `create_step_group`, `groups=`, `steps`
-  and `Context.version_history`/`artifact_version`/`version_diff`.
+- `Agent`, `create_agent`, `validate_agents`, `agents=` and the
+  `reactifact.agents` module are removed in 0.24.0.
+- `ChatAssistant`, `StepGroup.produces`, `Artifact.at/history/diff` remain
+  deprecated bridges through the 0.24.x line. New code should use `Chat`,
+  `StepGroup`, `StepGroup.steps` and
+  `Context.version_history`/`artifact_version`/`version_diff`.
 - The tool-module shims (`reactifact.tool_use`, `reactifact.native_tool_use`,
   `reactifact.agent_tool`) remain importable through this compatibility window;
   use `reactifact.tools.use`/`.native`/`.agent`.

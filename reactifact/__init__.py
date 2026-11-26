@@ -24,7 +24,6 @@ of the names you see by default even though they were always cheap to import
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 
-from .agents import Agent, create_agent
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
@@ -98,7 +97,6 @@ from .validate import (
     ValidationError,
     ValidationIssue,
     ValidationReport,
-    validate_agents,
     validate_contracts,
 )
 
@@ -108,7 +106,6 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
     __version__ = "0.0.0"
 
 __all__ = [
-    "Agent",
     "StepGroup",
     "Artifact",
     "ArtifactConflict",
@@ -195,7 +192,6 @@ __all__ = [
     "When",
     "bind",
     "configure_logging",
-    "create_agent",
     "create_step_group",
     "current_request",
     "get_logger",
@@ -203,6 +199,5 @@ __all__ = [
     "run_subflow",
     "step",
     "tool",
-    "validate_agents",
     "validate_contracts",
 ]

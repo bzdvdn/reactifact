@@ -13,7 +13,7 @@ import asyncio
 import httpx
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Step, create_agent
+from reactifact import Consume, Step, create_step_group
 from reactifact.a2a import create_a2a_router
 from reactifact.a2a.models import UserMessage
 
@@ -35,7 +35,9 @@ class Echo(Step[Answer]):
 
 
 def _app() -> FastAPI:
-    agent = create_agent("echo", consumes=[Consume(UserMessage)], produces=[Echo()])
+    agent = create_step_group(
+        "echo", consumes=[Consume(UserMessage)], produces=[Echo()]
+    )
     app = FastAPI()
     app.include_router(create_a2a_router([agent], name="interop-echo"))
     return app

@@ -2,12 +2,12 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Context,
     EventType,
     Patch,
     Runtime,
     RuntimeResources,
+    StepGroup,
     Trigger,
 )
 from reactifact.sources import Source, SourceRef
@@ -25,7 +25,7 @@ class Doc(BaseModel):
     content: str
 
 
-class RefToDoc(Agent):
+class RefToDoc(StepGroup):
     def __init__(self):
         super().__init__(
             "ref_to_doc", triggers=[Trigger(EventType.ARTIFACT_CREATED, SourceRef)]
@@ -45,7 +45,7 @@ class RefToDoc(Agent):
 
 def test_resolver_group():
     ws = Context(resources=RuntimeResources(sources={"mysource": MySource()}))
-    runtime = Runtime(ws, agents=[RefToDoc()])
+    runtime = Runtime(ws, groups=[RefToDoc()])
     ws.create(SourceRef(source_id="mysource", locator="abc"))
     asyncio.run(runtime.arun())
     docs = ws.list_artifacts(Doc)

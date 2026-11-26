@@ -93,7 +93,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
     Steps are the model; a `StepGroup` is the operational unit that answers
     "wake these together, retry them together, trace them under one name".
     `Runtime` accepts a list of groups, and `create_step_group` builds one
-    without subclassing. The 0.x name `Agent` remains as a deprecated alias.
+    without subclassing.
 
     If `run` is not overridden, the group collects inputs according to
     `consumes` and calls every step, merging the patches into one commit.
@@ -322,7 +322,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         and return None; the *runtime* compiles the effect slot into one
         atomic patch. This method
         only *runs* the produces — it does not build a patch. (`run` remains the
-        agent-level escape hatch for custom Agent subclasses that assemble a
+        group-level escape hatch for custom StepGroup subclasses that assemble a
         change-set by hand; the runtime merges its result after the effects.)
         """
         if not self.steps:
@@ -476,8 +476,8 @@ def create_step_group(
     )
     ```
 
-    `create_agent` is the deprecated 0.x alias. Pass `triggers` only for the
-    rare imperative style with no `consumes` at all (see
+    Pass `triggers` only for the rare imperative style with no `consumes` at
+    all (see
     `StepGroup.triggers`'s own docstring) — the ordinary declarative case
     should leave it unset and use `Consume(..., wakes=False)` instead.
     """
@@ -509,18 +509,13 @@ def normalize_units(
     *,
     steps: list[Any] | None = None,
     groups: list[Any] | None = None,
-    agents: list[Any] | None = None,
 ) -> list[StepGroup]:
     """Normalizes the constructor keywords into dispatch units.
 
     `steps=` accepts only `Step` and wraps each in a `StepGroup` of one,
-    copying `priority`/`concurrency_limit`; `groups=` accepts only `StepGroup`;
-    `agents=` is the deprecated alias for `groups=`. Result order is steps, then
-    groups, preserving each list. Mixing `agents=` with either new keyword is an
-    error because the two spellings describe the same list.
+    copying `priority`/`concurrency_limit`; `groups=` accepts only `StepGroup`.
+    Result order is steps, then groups, preserving each list.
     """
-    if agents is not None and (groups is not None or steps is not None):
-        raise ValueError("Pass either agents= (deprecated) or steps=/groups=, not both")
 
     def check_groups(items: list[Any], keyword: str) -> list[StepGroup]:
         checked: list[StepGroup] = []
@@ -555,6 +550,4 @@ def normalize_units(
             merged.append(group)
     if groups is not None:
         merged.extend(check_groups(groups, "groups"))
-    if agents is not None:
-        merged.extend(check_groups(agents, "agents"))
     return merged

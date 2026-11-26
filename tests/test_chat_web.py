@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Consume, SessionStore, create_agent, step
+from reactifact import Consume, SessionStore, create_step_group, step
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.web import create_chat_router
@@ -26,7 +26,7 @@ async def make_answer(call):
 
 
 ASSISTANT_PROD = step(A)(make_answer)
-ANSWER_AGENT = create_agent("a", consumes=[Consume(Q)], produces=[ASSISTANT_PROD])
+ANSWER_AGENT = create_step_group("a", consumes=[Consume(Q)], produces=[ASSISTANT_PROD])
 
 
 def make_assistant(tmp_path: str) -> ChatAssistant:
@@ -38,7 +38,7 @@ def make_assistant(tmp_path: str) -> ChatAssistant:
 
     return ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=reply,
         max_concurrency=1,
@@ -78,7 +78,7 @@ def test_history_keeps_every_user_message_with_append_backend(tmp_path):
 
     assistant = ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=reply,
         max_concurrency=1,
@@ -203,11 +203,11 @@ def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[agent],
+        groups=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -243,11 +243,11 @@ def test_web_router_async_request_factory_is_awaited(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[agent],
+        groups=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -281,11 +281,11 @@ def test_web_router_without_request_factory_has_no_request(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_agent("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[agent],
+        groups=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -312,7 +312,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     """
     import contextlib
 
-    from reactifact import Agent, Step
+    from reactifact import Step, StepGroup
 
     state = {"started": False, "cancelled": False}
 
@@ -325,7 +325,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
                 state["cancelled"] = True
                 raise
 
-    class SlowAgent(Agent):
+    class SlowAgent(StepGroup):
         name = "slow"
         consumes = [Consume(Q)]
         produces = [Slow()]
@@ -333,7 +333,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[SlowAgent()],
+        groups=[SlowAgent()],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "done", "waiting": False},
         max_concurrency=1,
@@ -374,7 +374,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     for mod in [m for m in sys.modules if m == "fastapi" or m.startswith("fastapi.")]:
         monkeypatch.delitem(sys.modules, mod)
     monkeypatch.setattr(builtins, "__import__", blocked)
-    from reactifact import Consume, create_agent, step
+    from reactifact import Consume, create_step_group, step
     from reactifact.chat import ChatAssistant
 
     class _Q(BaseModel):
@@ -384,12 +384,12 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     async def _m(call):
         return None
 
-    agent = create_agent("a", consumes=[Consume(_Q)], produces=[step(_Q)(_m)])
+    agent = create_step_group("a", consumes=[Consume(_Q)], produces=[step(_Q)(_m)])
     with pytest.raises(ImportError, match=r"reactifact\[web\]"):
         create_chat_router(
             ChatAssistant(
                 store=None,
-                agents=[agent],
+                groups=[agent],
                 user_message=_Q,
                 reply=lambda ctx, mid: {},
             )
@@ -399,13 +399,13 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
 def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     """A crashing produce must not escape as an exception from stream()."""
 
-    from reactifact import Agent, Step
+    from reactifact import Step, StepGroup
 
     class Boom(Step[A]):
         async def run(self, call):
             raise RuntimeError("boom inside the agent")
 
-    class BoomAgent(Agent):
+    class BoomAgent(StepGroup):
         name = "boom"
         consumes = [Consume(Q)]
         produces = [Boom()]
@@ -413,7 +413,7 @@ def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[BoomAgent()],
+        groups=[BoomAgent()],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "should not reach", "waiting": False},
         max_concurrency=1,
@@ -438,7 +438,7 @@ def test_reply_hook_crash_degrades_to_fallback(tmp_path, caplog):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=boom_reply,
         max_concurrency=1,
@@ -502,7 +502,7 @@ def test_callable_resources_closed_after_each_turn(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=fresh_resources,
@@ -538,7 +538,7 @@ def test_callable_resources_closed_when_session_open_fails(tmp_path):
 
     assistant = ChatAssistant(
         store=BoomStore(),
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "never", "waiting": False},
         resources=fresh_resources,
@@ -564,7 +564,7 @@ def test_shared_resources_instance_not_closed(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=shared,
@@ -589,7 +589,7 @@ def test_history_does_not_build_per_turn_resources(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=fresh_resources,
@@ -619,7 +619,7 @@ def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):
 
     assistant = ChatAssistant(
         store=BoomStore(),
-        agents=[ANSWER_AGENT],
+        groups=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "never", "waiting": False},
         max_concurrency=1,
@@ -648,7 +648,7 @@ def test_typed_transcript_keeps_dialog_order_after_append_reload(tmp_path):
 
         return ChatAssistant(
             store=SessionStore(SQLiteKVBackend(str(db))),
-            agents=[ANSWER_AGENT],
+            groups=[ANSWER_AGENT],
             user_message=Q,
             reply=reply,
             session_state=lambda ctx: transcript.state(ctx),

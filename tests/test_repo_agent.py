@@ -14,7 +14,7 @@ from reactifact import Budget, Context, PendingQuestion, Runtime, RuntimeResourc
 
 def _context(script: list[str]) -> tuple[Context, Runtime]:
     context = Context(resources=RuntimeResources(llm=ScriptedLLM(script)))
-    runtime = Runtime(context, agents=[RepoAgent()], budget=Budget(max_runs=20))
+    runtime = Runtime(context, groups=[RepoAgent()], budget=Budget(max_runs=20))
     return context, runtime
 
 

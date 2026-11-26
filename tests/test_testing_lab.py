@@ -12,13 +12,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Patch,
     ResourceKey,
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
     step,
     tool,
 )
@@ -90,7 +90,7 @@ class BuildReport(Step[Report]):
         return None
 
 
-class K8sAgent(Agent):
+class K8sAgent(StepGroup):
     name = "k8s"
     consumes = [Consume(Problem), Consume(ToolAnswer)]
     produces = [
@@ -323,7 +323,7 @@ async def run_dynamic_tools(call: StepCall) -> None:
     return None
 
 
-class DynamicToolsAgent(Agent):
+class DynamicToolsAgent(StepGroup):
     name = "dynamic"
     consumes = [Consume(Problem)]
     produces = [run_dynamic_tools]

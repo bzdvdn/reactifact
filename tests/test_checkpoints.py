@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Patch, Runtime, SessionStore
+from reactifact import Consume, Patch, Runtime, SessionStore, StepGroup
 from reactifact.checkpoints import FileKVBackend
 from reactifact.commit import ContextCheckpoint
 from reactifact.replay import replay_context
@@ -20,7 +20,7 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Agent):
+class Answerer(StepGroup):
     consumes = [Consume(Question)]
 
     async def run(self, event, context):
@@ -33,7 +33,7 @@ class Answerer(Agent):
 async def _seeded(tmp_path, session_id: str = "s1"):
     store = SessionStore(FileKVBackend(str(tmp_path / "sessions")))
     session = await store.open(session_id)
-    runtime = Runtime(session.context, agents=[Answerer()], session=session)
+    runtime = Runtime(session.context, groups=[Answerer()], session=session)
     session.context.create(Question(text="hello"))
     await runtime.arun()
     return session, runtime, store

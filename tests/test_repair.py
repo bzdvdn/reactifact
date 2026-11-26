@@ -99,7 +99,7 @@ def build(tmp_path, llm):
     resources.register(Catalog, catalog)
     resources.register(ImageRenderSettings, ImageRenderSettings(), owned=True)
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
+    runtime = Runtime(ctx, groups=[RepairFlow()], budget=Budget(max_runs=200))
     return ctx, runtime
 
 
@@ -266,7 +266,7 @@ def test_design_previews_rendered_and_attached(tmp_path):
     )
 
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
+    runtime = Runtime(ctx, groups=[RepairFlow()], budget=Budget(max_runs=200))
     query = ctx.create(UserMsg(text="ванная 5 м² бюджет 50000", session_id="s"))
     asyncio.run(runtime.arun())
 
@@ -407,7 +407,7 @@ def test_slow_image_preview_does_not_hang(tmp_path):
     )
 
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
+    runtime = Runtime(ctx, groups=[RepairFlow()], budget=Budget(max_runs=200))
     import time as _time
 
     start = _time.monotonic()
@@ -504,7 +504,7 @@ def test_image_retry_recovers_preview(tmp_path):
     )
 
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
+    runtime = Runtime(ctx, groups=[RepairFlow()], budget=Budget(max_runs=200))
     ctx.create(UserMsg(text="детская 12 м² бюджет 300000", session_id="s"))
     asyncio.run(runtime.arun())
 

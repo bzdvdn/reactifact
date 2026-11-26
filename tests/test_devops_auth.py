@@ -41,7 +41,7 @@ def build_runtime(resources, dispatcher=MemoryStore.dispatch):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        agents=[
+        groups=[
             RouteGroup(),
             K8sAgent(),
             GitlabAgent(),

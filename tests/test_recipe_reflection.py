@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime
+from reactifact import Consume, Context, Runtime, StepGroup
 from reactifact.recipes import ReflectionLoop
 
 
@@ -59,11 +59,11 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
 
 
 def make_runtime(ctx: Context) -> Runtime:
-    class Flow(Agent):
+    class Flow(StepGroup):
         consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
         produces = MyLoop().produces()
 
-    return Runtime(ctx, agents=[Flow()])
+    return Runtime(ctx, groups=[Flow()])
 
 
 def test_reflection_accepts_after_one_rewrite_round():

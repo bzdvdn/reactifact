@@ -14,24 +14,25 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
-`tests/test_public_api.py` фиксирует каждый `__all__`, перечисленный здесь,
-поэтому новый экспорт добавляется осознанно (и документируется на этой
-странице), а не случайно.
+`tests/test_public_api.py` фиксирует `reactifact.__all__` и экспорты core-
+подмодулей (`reactifact.eval`, `reactifact.recipes`, `reactifact.providers`,
+`reactifact.tracing`), поэтому новый экспорт там добавляется осознанно (и
+документируется), а не случайно.
 
-- **Публичный API = каждое имя в `reactifact.__all__`** (и в `__all__` каждого
-  подмодуля — `reactifact.recipes`, `reactifact.providers`, `reactifact.viz`,
-  `reactifact.eval`, `reactifact.tracing`, `reactifact.quick`,
-  `reactifact.redaction`, `reactifact.audit`, …) — это ровно тот набор символов,
-  что задокументирован на этой странице и зафиксирован freeze-тестом. Если
+- **Публичный API = каждое имя в `reactifact.__all__`** и в запиненных
+  подмодулях выше. Опциональные поверхности `reactifact.knowledge`,
+  `reactifact.viz`, `reactifact.quick`, `reactifact.redaction` и
+  `reactifact.audit` документированы и следуют semver, но попадают в
+  freeze-тест по чек-листу 1.0. Если
   что-то импортируется из `reactifact`, но не входит в `__all__` — это
   внутренняя деталь без гарантий совместимости. Например,
   `reactifact.relations.RelationGraph` и `reactifact.commit_log.CommitLog`
   существуют потому, что `Context` разбили на модули поменьше ради
   читаемости, но ни один из них не экспортируется: поддерживаемая
   поверхность — это `Context`, а не они.
-- **SemVer в pre-1.0-стиле**: минорный бамп (`0.22.0` → `0.23.0`) может добавить
+- **SemVer в pre-1.0-стиле**: минорный бамп (`0.23.0` → `0.24.0`) может добавить
   символы или, в редких случаях, изменить поведение так, что `CHANGELOG.md`
   явно пометит это `Breaking` — минорные релизы до 1.0 всё ещё позволяют
   reactifact исправить архитектурную ошибку. Патч (`0.14.0` → `0.14.1`) никогда
@@ -46,7 +47,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 - **Любое ломающее изменение помечено в `CHANGELOG.md` заголовком
   `### Breaking`**, даже в pre-1.0 релизе — см. [release.md](release.md). Если
   перед апгрейдом читать только один раздел — читайте этот.
-- **1.0 означает, что эта страница замирает**: [критерии релиза](release.md#критерии-релиза) —
+- **1.0 означает, что эта страница замирает**: [критерии релиза](release.md#release-checklist) —
   это планка выхода из pre-1.0; после него действует SemVer 1.x (никаких
   ломающих изменений в миноре).
 - Всё, что находится под `reactifact.cli.*` за пределами задокументированных
@@ -96,9 +97,9 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов. `Agent` — deprecated-алиас |
-| `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=`. `create_agent` — deprecated-алиас |
-| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного; `agents=` — deprecated-алиас для `groups=`, его нельзя сочетать с новыми ключами. |
+| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов |
+| `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=` |
+| `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного. |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()`. `.validate()` — статическая проверка контрактов; `.describe()` — `ContractReport` со схемами seed/answer; `.router()` / `.http()` — опциональные FastAPI-адаптеры; `.as_tool()` — представление как `Tool`/MCP-инструмент |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | цикл по интервалу над Pipeline: `seed_source(tick)` может быть sync/async и вернуть `None`, чтобы пропустить тик; graceful SIGINT/SIGTERM, изоляция ошибок тика. `Daemon(tick=fn)` — форма для готовой tick-функции (шаблон daemon) |
@@ -107,7 +108,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | статический контракт consumes/produces/tools (Markdown или JSON); CLI `reactifact contracts <module> [--format md\|json]` |
-| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`). `validate_agents` — deprecated-алиас |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`) |
 | `Wakes(False)` / `Scope` / `Consume` / `IdempotentConsume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `IdempotentConsume(T, id_of=...)` будит, только пока производного id нет; `wakes=False` — читать как вход, не будя агента (нужно только когда `consumes` выводится из подписи); `debounce=True` схлопывает несколько событий одного поколения в один запуск |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-подклассы `Consume`: будить только на create/update/delete/stale; `OnDelete` требует `event`/`Trigger`, потому что данных уже нет |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
@@ -157,7 +158,7 @@ reactifact всё ещё pre-1.0 (`0.23.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
-| `ChatAssistant` | низкоуровневый движок под `Chat`: сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `agents`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
+| `ChatAssistant` | низкоуровневый движок под `Chat`: сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
 | `ChatMemory` | необязательная ограниченная память для `Chat`/`ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |

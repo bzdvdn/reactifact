@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Context, Runtime, RuntimeResources, Step, create_agent, tool
+from reactifact import Context, Runtime, RuntimeResources, Step, create_step_group, tool
 from reactifact.providers import FakeLLM, LLMRequest, Message
 from reactifact.replay import (
     RecordingToolRecorder,
@@ -86,14 +86,18 @@ def test_runtime_replay_run_replays_tools(tmp_path):
             resources=RuntimeResources(tool_recorder=RecordingToolRecorder(recording))
         )
         context.create(Question(text="tool"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[ToolStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[ToolStep()])]
+        )
         await runtime.arun()
         return context.list_artifacts(Answer)[0].data.text
 
     async def replay():
         context = Context()
         context.create(Question(text="tool"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[ToolStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[ToolStep()])]
+        )
         await runtime.replay_run(tool_recording=recording)
         return context.list_artifacts(Answer)[0].data.text
 
@@ -129,14 +133,18 @@ def test_runtime_replay_run_replays_llm(tmp_path):
             )
         )
         context.create(Question(text="question"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[LLMStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[LLMStep()])]
+        )
         await runtime.arun()
         return context.list_artifacts(Answer)[0].data.text
 
     async def replay():
         context = Context(resources=RuntimeResources(llm=FakeLLM("live")))
         context.create(Question(text="question"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[LLMStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[LLMStep()])]
+        )
         await runtime.replay_run(llm_recording=recording, model="fake")
         return context.list_artifacts(Answer)[0].data.text
 
@@ -145,7 +153,7 @@ def test_runtime_replay_run_replays_llm(tmp_path):
 
 
 def test_runtime_replay_run_requires_a_recording():
-    runtime = Runtime(Context(), agents=[])
+    runtime = Runtime(Context(), groups=[])
 
     with pytest.raises(ValueError, match="llm_recording"):
         asyncio.run(runtime.replay_run())
@@ -175,7 +183,7 @@ def test_direct_tool_execute_is_traced():
     tracer = SpanTracer()
     runtime = Runtime(
         context,
-        agents=[create_agent("agent", steps=[DirectStep()])],
+        groups=[create_step_group("agent", steps=[DirectStep()])],
         tracer=tracer,
     )
 
@@ -193,7 +201,7 @@ def test_execute_tool_does_not_double_trace():
     tracer = SpanTracer()
     runtime = Runtime(
         context,
-        agents=[create_agent("agent", steps=[ToolStep()])],
+        groups=[create_step_group("agent", steps=[ToolStep()])],
         tracer=tracer,
     )
 
@@ -211,14 +219,18 @@ def test_direct_tool_execute_records_and_replays(tmp_path):
             resources=RuntimeResources(tool_recorder=RecordingToolRecorder(recording))
         )
         context.create(Question(text="direct"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[DirectStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[DirectStep()])]
+        )
         await runtime.arun()
         return context.list_artifacts(Answer)[0].data.text
 
     async def replay():
         context = Context()
         context.create(Question(text="direct"), id="question:1")
-        runtime = Runtime(context, agents=[create_agent("agent", steps=[DirectStep()])])
+        runtime = Runtime(
+            context, groups=[create_step_group("agent", steps=[DirectStep()])]
+        )
         await runtime.replay_run(tool_recording=recording)
         return context.list_artifacts(Answer)[0].data.text
 

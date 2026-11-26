@@ -21,7 +21,7 @@ def _offline_store(tmp_path, texts):
         context = Context(resources=RuntimeResources())
         context.create(UserMsg(text=text))
         asyncio.run(
-            Runtime(context, agents=[RouteGroup()], tracer=Tracer(store=store)).arun()
+            Runtime(context, groups=[RouteGroup()], tracer=Tracer(store=store)).arun()
         )
     return store
 

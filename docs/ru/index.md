@@ -215,7 +215,7 @@ print("supported_by:", evidence.data.text)  # провенанс, который
   без графа, почему детерминизм, почему версионируемое состояние.
 - [Сравнение](comparison.md) — reactifact vs LangGraph/CrewAI по пунктам, и когда
   reactifact *не* стоит использовать.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, StepGroup.
 
 **Строить на этом**
 

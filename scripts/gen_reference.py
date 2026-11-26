@@ -42,7 +42,7 @@ _KNOWLEDGE_ORDER = (
     ("reactifact.knowledge.indexes", "Indexes"),
     ("reactifact.knowledge.rerank", "Rerank"),
     ("reactifact.knowledge.diversity", "Diversity"),
-    ("reactifact.knowledge.bridge", "Agent bridge"),
+    ("reactifact.knowledge.bridge", "Step bridge"),
     ("reactifact.knowledge.eval", "Retrieval evaluation"),
     ("reactifact.knowledge.errors", "Errors"),
 )

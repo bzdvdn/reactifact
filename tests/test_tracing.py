@@ -6,14 +6,14 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    StepGroup,
+    create_step_group,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -59,7 +59,7 @@ class ReplyLLM(LLMProvider):
         yield LLMResponse(text="")
 
 
-class Greeter(Agent):
+class Greeter(StepGroup):
     consumes = [Consume(Question)]
 
     async def run(self, event, context):
@@ -83,7 +83,7 @@ class Note(BaseModel):
     text: str
 
 
-class Linker(Agent):
+class Linker(StepGroup):
     """Writes two artifacts and a provenance edge via the patch."""
 
     consumes = [Consume(Question)]
@@ -143,7 +143,7 @@ def test_trace_store_roundtrip(tmp_path):
 def test_trace_records_branch_and_parent_from_metadata(tmp_path):
     store = TraceStore(str(tmp_path / "traces.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=Tracer(store=store))
     ctx.create(Question(text="hi"))
     runtime.run(
         request={"trace_metadata": {"branch": "k8s", "parent_run_id": "root-run"}}
@@ -210,7 +210,7 @@ def test_runtime_records_spans_and_trace(tmp_path):
     store = TraceStore(str(tmp_path / "traces.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     tracer = Tracer(store=store)
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=tracer)
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=tracer)
     ctx.create(Question(text="привет"))
     asyncio.run(runtime.arun())
 
@@ -251,12 +251,12 @@ def test_runtime_records_which_produce_ran(tmp_path):
         async def run(self, call):
             call.effects.create(Answer(text="nope"))
 
-    agent = create_agent(
+    agent = create_step_group(
         "writer", consumes=[Consume(Question)], produces=[Emit(), NeverRuns()]
     )
     store = TraceStore(str(tmp_path / "produce.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[agent], tracer=Tracer(store=store))
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -282,11 +282,11 @@ def test_runtime_records_a_produce_that_raised(tmp_path):
             call.effects.create(Answer(text="partial"))
             raise RuntimeError("boom")
 
-    agent = create_agent("writer", consumes=[Consume(Question)], produces=[Boom()])
+    agent = create_step_group("writer", consumes=[Consume(Question)], produces=[Boom()])
     store = TraceStore(str(tmp_path / "boom.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
-        ctx, agents=[agent], tracer=Tracer(store=store), isolate_errors=True
+        ctx, groups=[agent], tracer=Tracer(store=store), isolate_errors=True
     )
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
@@ -320,7 +320,7 @@ def test_runtime_records_llm_calls(tmp_path):
     class AnswerBody(BaseModel):
         text: str
 
-    class LlamAgent(Agent):
+    class LlamAgent(StepGroup):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):
@@ -331,7 +331,7 @@ def test_runtime_records_llm_calls(tmp_path):
 
     store = TraceStore(str(tmp_path / "llm.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[LlamAgent()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[LlamAgent()], tracer=Tracer(store=store))
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -369,7 +369,7 @@ def test_runtime_attributes_llm_call_to_its_step(tmp_path):
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
         ctx,
-        agents=[create_agent("stepper", steps=[LlamStep()])],
+        groups=[create_step_group("stepper", steps=[LlamStep()])],
         tracer=Tracer(store=store),
     )
     ctx.create(Question(text="hi"))
@@ -383,7 +383,7 @@ def test_runtime_attributes_llm_call_to_its_step(tmp_path):
 
 def test_runtime_without_tracer_still_works():
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()])
+    runtime = Runtime(ctx, groups=[Greeter()])
     ctx.create(Question(text="привет"))
     asyncio.run(runtime.arun())
     assert ctx.list_artifacts(Answer)
@@ -395,7 +395,7 @@ def test_composite_tracer_fans_out(tmp_path):
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
         ctx,
-        agents=[Greeter()],
+        groups=[Greeter()],
         tracer=[Tracer(store=store_a), Tracer(store=store_b)],
     )
     ctx.create(Question(text="привет"))
@@ -425,7 +425,7 @@ def test_failing_sink_does_not_break_the_run():
     """An unreachable sink is skipped; the run and healthy sinks still proceed."""
     ok = CapturingSink()
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(sinks=[BoomSink(), ok]))
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=Tracer(sinks=[BoomSink(), ok]))
     ctx.create(Question(text="привет"))
 
     assert asyncio.run(runtime.arun()) >= 1
@@ -448,7 +448,7 @@ class BoomTracer(Tracer):
 
 def test_failing_custom_tracer_does_not_break_the_run():
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=BoomTracer())
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=BoomTracer())
     ctx.create(Question(text="привет"))
 
     assert asyncio.run(runtime.arun()) >= 1
@@ -459,7 +459,7 @@ def test_composite_tracer_isolates_a_failing_member():
     ok = CapturingSink()
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
-        ctx, agents=[Greeter()], tracer=[BoomTracer(), Tracer(sinks=[ok])]
+        ctx, groups=[Greeter()], tracer=[BoomTracer(), Tracer(sinks=[ok])]
     )
     ctx.create(Question(text="привет"))
 
@@ -512,7 +512,7 @@ def test_trace_memoizes_artifact_dump(tmp_path):
     """Two agents read one artifact — model_dump is called once (memo)."""
     CountingQuestion.dumps = 0
 
-    class Greeter2(Agent):
+    class Greeter2(StepGroup):
         consumes = [Consume(CountingQuestion)]
 
         async def run(self, event, context):
@@ -520,7 +520,7 @@ def test_trace_memoizes_artifact_dump(tmp_path):
 
     store = TraceStore(str(tmp_path / "memo.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter2(), Greeter2()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[Greeter2(), Greeter2()], tracer=Tracer(store=store))
     ctx.create(CountingQuestion(text="q"))
     CountingQuestion.dumps = 0  # content-addressing hashed it at create time
     asyncio.run(runtime.arun())
@@ -949,7 +949,7 @@ def test_trace_run_page_embeds_provenance_graph(tmp_path):
 def test_runtime_records_provenance_relations(tmp_path):
     store = TraceStore(str(tmp_path / "rels.db"))
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, agents=[Linker()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[Linker()], tracer=Tracer(store=store))
     ctx.create(Question(text="link me"))
     asyncio.run(runtime.arun())
 
@@ -1082,7 +1082,7 @@ def test_runtime_sets_span_start_within_the_run():
         async def export(self, trace: RunTrace) -> None:
             captured.append(trace)
 
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(sinks=[Sink()]))
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=Tracer(sinks=[Sink()]))
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -1097,7 +1097,7 @@ def test_runtime_sets_span_start_within_the_run():
 def test_trace_duration_is_in_milliseconds():
     """`RunTrace.duration_ms` must be ms, not the raw `time.monotonic()` seconds."""
 
-    class Sleeper(Agent):
+    class Sleeper(StepGroup):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):
@@ -1111,7 +1111,7 @@ def test_trace_duration_is_in_milliseconds():
             captured.append(trace)
 
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Sleeper()], tracer=Tracer(sinks=[Sink()]))
+    runtime = Runtime(ctx, groups=[Sleeper()], tracer=Tracer(sinks=[Sink()]))
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -1267,12 +1267,12 @@ def test_runtime_records_tool_runs(tmp_path):
             await execute_tool(lookup, {"q": "x"})
             call.effects.create(Answer(text="ok"))
 
-    agent = create_agent(
+    agent = create_step_group(
         "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
     )
     store = TraceStore(str(tmp_path / "tools.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[agent], tracer=Tracer(store=store))
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -1303,14 +1303,14 @@ def test_tool_args_are_opt_in_and_redacted(tmp_path):
             await execute_tool(lookup, {"q": "bob@example.com"})
             call.effects.create(Answer(text="ok"))
 
-    agent = create_agent(
+    agent = create_step_group(
         "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
     )
 
     def _span(resources):
         store = TraceStore(str(tmp_path / f"{id(resources)}.db"))
         ctx = Context(resources=resources)
-        runtime = Runtime(ctx, agents=[agent], tracer=Tracer(store=store))
+        runtime = Runtime(ctx, groups=[agent], tracer=Tracer(store=store))
         ctx.create(Question(text="hi"))
         asyncio.run(runtime.arun())
         trace = run(store.get(run(store.query())["items"][0]["id"]))
@@ -1542,7 +1542,7 @@ def test_runtime_records_streamed_llm_calls(tmp_path):
     )
     runtime = Runtime(
         ctx,
-        agents=[create_agent("streamer", steps=[StreamStep()])],
+        groups=[create_step_group("streamer", steps=[StreamStep()])],
         tracer=Tracer(store=store),
     )
     ctx.create(Question(text="hi"))
@@ -1608,7 +1608,7 @@ def test_runtime_emits_lifecycle_hooks_in_order():
     ctx = Context()
     runtime = Runtime(
         ctx,
-        agents=[create_agent("tooler", steps=[ToolStep()])],
+        groups=[create_step_group("tooler", steps=[ToolStep()])],
         tracer=tracer,
     )
     ctx.create(Question(text="hi"))
@@ -1632,7 +1632,7 @@ def test_lifecycle_hook_error_does_not_fail_the_run():
             raise RuntimeError("observer is down")
 
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=BoomTracer())
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=BoomTracer())
     ctx.create(Question(text="hi"))
 
     assert asyncio.run(runtime.arun()) >= 1
@@ -1673,7 +1673,7 @@ def test_trace_scope_and_metadata_roundtrip(tmp_path):
 def test_runtime_stamps_scope_and_metadata_from_request(tmp_path):
     store = TraceStore(str(tmp_path / "runtime-scope.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
-    runtime = Runtime(ctx, agents=[Greeter()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, groups=[Greeter()], tracer=Tracer(store=store))
     ctx.create(Question(text="hi"))
 
     asyncio.run(
@@ -1696,7 +1696,7 @@ def test_runtime_explicit_trace_scope_wins(tmp_path):
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
         ctx,
-        agents=[Greeter()],
+        groups=[Greeter()],
         tracer=Tracer(store=store),
         trace_scope="ws-explicit",
     )

@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, create_agent, step
+from reactifact import Consume, Context, Runtime, create_step_group, step
 from reactifact.audit import (
     build_report,
     context_hash,
@@ -57,9 +57,9 @@ def _build() -> Context:
     ctx = Context()
     runtime = Runtime(
         ctx,
-        agents=[
-            create_agent("g", consumes=[Consume(Question)], produces=[gather]),
-            create_agent("a", consumes=[Consume(Evidence)], produces=[answer]),
+        groups=[
+            create_step_group("g", consumes=[Consume(Question)], produces=[gather]),
+            create_step_group("a", consumes=[Consume(Evidence)], produces=[answer]),
         ],
     )
     ctx.create(Question(text="q"), id="q")

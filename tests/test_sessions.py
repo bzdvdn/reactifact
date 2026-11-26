@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, SessionStore
+from reactifact import Consume, Context, Patch, Runtime, SessionStore, StepGroup
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 
 
@@ -13,7 +13,7 @@ class Answer(BaseModel):
     text: str
 
 
-class SimpleAnswerer(Agent):
+class SimpleAnswerer(StepGroup):
     consumes = [Consume(Question)]
     produces = []
 
@@ -33,7 +33,7 @@ async def make_session(tmp_path, session_id="alice", backend_kind="file"):
         backend = SQLiteKVBackend(str(tmp_path / "sessions.db"))
     store = SessionStore(backend)
     session = await store.open(session_id, resources=RuntimeResources())
-    runtime = Runtime(session.context, agents=[SimpleAnswerer()], session=session)
+    runtime = Runtime(session.context, groups=[SimpleAnswerer()], session=session)
     return session, runtime, store
 
 
@@ -157,7 +157,7 @@ class Echoed(BaseModel):
     text: str
 
 
-class Echo(Agent):
+class Echo(StepGroup):
     """Reacts to `Answer` — chains a second commit within the same `arun()`
     turn, so per_commit vs. per_turn save counts actually differ."""
 
@@ -198,7 +198,7 @@ async def _test_session_save_policy_per_commit_is_the_default(tmp_path):
         tmp_path, "erin", "per_commit"
     )
     runtime = Runtime(
-        session.context, agents=[SimpleAnswerer(), Echo()], session=session
+        session.context, groups=[SimpleAnswerer(), Echo()], session=session
     )
 
     session.context.create(Question(text="hi"))
@@ -224,7 +224,7 @@ async def _test_session_save_policy_per_turn_saves_once_for_a_multi_commit_turn(
     session, store, calls = await _make_counting_session(tmp_path, "dave", "per_turn")
     runtime = Runtime(
         session.context,
-        agents=[SimpleAnswerer(), Echo()],
+        groups=[SimpleAnswerer(), Echo()],
         session=session,
         session_save_policy="per_turn",
     )
@@ -271,7 +271,7 @@ async def _test_session_restores_pending_events_after_restart(tmp_path):
     session2 = await store.open("resume")
     assert session2.context.list_artifacts(Answer) == []
 
-    runtime = Runtime(session2.context, agents=[SimpleAnswerer()], session=session2)
+    runtime = Runtime(session2.context, groups=[SimpleAnswerer()], session=session2)
     runs = await runtime.arun()
 
     assert runs >= 1
@@ -289,13 +289,13 @@ async def _test_settled_run_does_not_replay_on_restart(tmp_path):
     backend = FileKVBackend(str(tmp_path / "sessions"))
     store = SessionStore(backend)
     session = await store.open("settled", resources=RuntimeResources())
-    runtime = Runtime(session.context, agents=[SimpleAnswerer()], session=session)
+    runtime = Runtime(session.context, groups=[SimpleAnswerer()], session=session)
     session.context.create(Question(text="once"))
     await runtime.arun()
     assert len(session.context.list_artifacts(Answer)) == 1
 
     session2 = await store.open("settled")
-    runtime2 = Runtime(session2.context, agents=[SimpleAnswerer()], session=session2)
+    runtime2 = Runtime(session2.context, groups=[SimpleAnswerer()], session=session2)
     runs = await runtime2.arun()
 
     assert runs == 0

@@ -31,6 +31,9 @@ frameworks):
   `demo --web`, pipeline tools and HITL/approval recipes. The LLM helpers
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
   `StructuredLLM.call`) now take an `LLMProvider` (or `None`), not a `Context`.
+  `Agent`, `create_agent`, `validate_agents`, `agents=` and the
+  `reactifact.agents` module are removed; use `StepGroup`, `create_step_group`,
+  `validate_contracts(groups=...)` and `groups=`.
 - **0.23.0** — the typed `Chat` facade (`answer/traces/lifespan/test_client`),
   `Inject`/`Depends` tool DI, typed tool results and structured tool errors,
   function-first `PlanExecute`/`ReflectionLoop`, tail trace sampling and
@@ -56,7 +59,7 @@ frameworks):
   surface; class steps take `effects: Effects` (`self.effects` is gone);
   `Artifact` is a frozen handle over a content-addressed version store; sessions
   use the v2 `blobs`/`data_ref` format; and the legacy example set was removed.
-  `Produce`, `ProduceCall`, `@produce`, `Agent.produces`, `Artifact.at/history/
+  `Produce`, `ProduceCall`, `@produce`, `StepGroup.produces`, `Artifact.at/history/
   diff` and the top-level tool-module shims remain importable for the 0.21
   compatibility window; `Produce`/`ProduceCall`/`@produce` are no longer part of
   the top-level `__all__`; `Produce`/`ProduceCall`/`@produce` are removed in 0.23.0, while the other bridges are kept through 0.24.0.
@@ -154,27 +157,30 @@ leaving pre-1.0 and shipping **1.0.0**:
 .venv/bin/python -m mypy
 .venv/bin/python -m ruff check
 .venv/bin/python -m ruff format --check
+.venv/bin/lint-imports
+uv lock --check
 
 # 2) version + changelog (see above)
 
-# 3) build artifacts
-uv build                     # dist/reactifact-0.20.0-py3-none-any.whl + sdist
+# 3) build artifacts (clean stale build/ + dist/ first; setuptools reuses build/lib)
+rm -rf build dist *.egg-info
+uv build                     # dist/reactifact-0.24.0-py3-none-any.whl + sdist
 
 # 4) verify the wheel in a scratch venv (not the workspace, so no PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.20.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.24.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.step_groups 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
 # confirm the wheel contains reactifact + tracing templates and NOT examples/tests:
-unzip -l dist/reactifact-0.20.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates" 
+unzip -l dist/reactifact-0.24.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) tag
-git tag v0.20.0
-git push origin v0.20.0
+git tag v0.24.0
+git push origin v0.24.0
 
-# 6) publish (PyPI token in env)
-uv publish --publish-url https://upload.pypi.org/legacy/
+# 6) publish (PyPI token in env); publish only the new files, not an old dist/
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.24.0*
 ```
 
 ## What ships

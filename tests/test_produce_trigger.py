@@ -1,7 +1,16 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Event, EventType, Runtime, Step, step
+from reactifact import (
+    Consume,
+    Context,
+    Event,
+    EventType,
+    Runtime,
+    Step,
+    StepGroup,
+    step,
+)
 
 
 class ResolvedDocuments(BaseModel):
@@ -64,14 +73,14 @@ class BestEffortReactor(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q", source=source))
 
 
-class FinalAgent(Agent):
+class FinalAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments)]
     produces = [FinalizeWithDocuments()]
 
 
 def test_reacts_to_with_trigger_needs_no_guard():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[FinalAgent()])
+    runtime = Runtime(ctx, groups=[FinalAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -82,14 +91,14 @@ def test_reacts_to_with_trigger_needs_no_guard():
     assert drafts[0].data.source == "documents"
 
 
-class TwoTypeAgent(Agent):
+class TwoTypeAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [TwoTypeReactor()]
 
 
 def test_reacts_to_with_several_types_resolves_whichever_fired():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[TwoTypeAgent()])
+    runtime = Runtime(ctx, groups=[TwoTypeAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -100,14 +109,14 @@ def test_reacts_to_with_several_types_resolves_whichever_fired():
     assert drafts == {"q1": "ResolvedDocuments", "q2": "DecisionReply"}
 
 
-class BestEffortAgent(Agent):
+class BestEffortAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments)]
     produces = [BestEffortReactor()]
 
 
 def test_trigger_without_reacts_to_is_best_effort_not_gating():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[BestEffortAgent()])
+    runtime = Runtime(ctx, groups=[BestEffortAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -133,7 +142,7 @@ class DeletionAware(Step[Marker]):
 # The remaining two cases — an agent run with no event at all (the
 # scheduler-driven path), and an event whose artifact was deleted earlier in
 # the same generation (the race `Trigger.matches()` documents) — are
-# exercised directly against `Agent._resolve_produce_call`. Both need a
+# exercised directly against `StepGroup._resolve_produce_call`. Both need a
 # `Context`/`Event` combination that a normal sequential `Runtime.arun()`
 # can't produce on its own (patches within one generation only apply once
 # every agent in it has finished), and neither needs the full effects/patch
@@ -145,7 +154,7 @@ def test_resolve_produce_call_trigger_is_none_without_event():
     with no specific triggering event) — nothing to resolve `trigger` from,
     but a produce with no `reacts_to` still runs."""
     ctx = Context()
-    runs, trigger = Agent._resolve_produce_call(BestEffortReactor(), None, ctx)
+    runs, trigger = StepGroup._resolve_produce_call(BestEffortReactor(), None, ctx)
     assert runs is True
     assert trigger is None
 
@@ -160,7 +169,7 @@ def test_resolve_produce_call_skips_when_the_artifact_was_deleted_meanwhile():
     ctx.delete(doc.id)
     stale_event = Event(EventType.ARTIFACT_CREATED, ResolvedDocuments, doc.id)
 
-    runs, trigger = Agent._resolve_produce_call(
+    runs, trigger = StepGroup._resolve_produce_call(
         FinalizeWithDocuments(), stale_event, ctx
     )
     assert runs is False
@@ -176,7 +185,7 @@ def test_resolve_produce_call_deleted_event_still_runs_with_trigger_none():
     ctx.delete(marker.id)
     deleted_event = Event(EventType.ARTIFACT_DELETED, Marker, marker.id)
 
-    runs, trigger = Agent._resolve_produce_call(DeletionAware(), deleted_event, ctx)
+    runs, trigger = StepGroup._resolve_produce_call(DeletionAware(), deleted_event, ctx)
     assert runs is True
     assert trigger is None
 
@@ -186,14 +195,14 @@ def decorated_with_trigger(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
 
-class DecoratedAgent(Agent):
+class DecoratedAgent(StepGroup):
     consumes = [Consume(ResolvedDocuments)]
     produces = [decorated_with_trigger]
 
 
 def test_produce_decorator_accepts_trigger():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[DecoratedAgent()])
+    runtime = Runtime(ctx, groups=[DecoratedAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())

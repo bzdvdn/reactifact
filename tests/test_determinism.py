@@ -8,7 +8,7 @@ from reactifact import (
     Context,
     Runtime,
     RuntimeResources,
-    create_agent,
+    create_step_group,
     step,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -41,13 +41,13 @@ async def random_data_produce(call):
 
 
 def _agent(produce_obj) -> object:
-    return create_agent("a", consumes=[Consume(Q)], produces=[produce_obj])
+    return create_step_group("a", consumes=[Consume(Q)], produces=[produce_obj])
 
 
 async def _build(agent, resources):
     context = Context(resources=resources)
     context.create(Q(text="q"))  # also auto-id
-    await Runtime(context, agents=[agent]).arun()
+    await Runtime(context, groups=[agent]).arun()
     return context
 
 

@@ -12,7 +12,7 @@ from reactifact import (
     Context,
     Effects,
     Runtime,
-    create_agent,
+    create_step_group,
     step,
 )
 
@@ -50,7 +50,7 @@ def explicit(input: Artifact[Input], effects: Effects) -> None:
 
 def run(agents, seed: list[tuple[str, int]]) -> Context:
     context = Context()
-    runtime = Runtime(context, agents=agents, budget=Budget(max_runs=10))
+    runtime = Runtime(context, groups=agents, budget=Budget(max_runs=10))
     for artifact_id, value in seed:
         context.create(Input(value=value), id=artifact_id)
     asyncio.run(runtime.arun())
@@ -67,28 +67,28 @@ def edges(context: Context, artifact_type: type[BaseModel]) -> list[tuple[str, s
 
 
 def test_provenance_points_at_the_input_the_step_resolved():
-    context = run([create_agent("a", steps=[auto])], [("in", 1)])
+    context = run([create_step_group("a", steps=[auto])], [("in", 1)])
     assert edges(context, Output) == [("derived_from", "in")]
 
 
 def test_provenance_off_by_default():
-    context = run([create_agent("a", steps=[manual])], [("in", 1)])
+    context = run([create_step_group("a", steps=[manual])], [("in", 1)])
     assert edges(context, Output) == []
 
 
 def test_provenance_accepts_a_relation_constant():
-    context = run([create_agent("a", steps=[named_relation])], [("in", 1)])
+    context = run([create_step_group("a", steps=[named_relation])], [("in", 1)])
     assert edges(context, Output) == [("supported_by", "in")]
 
 
 def test_provenance_uses_the_latest_match_not_every_input():
     context = run(
-        [create_agent("a", steps=[auto])],
+        [create_step_group("a", steps=[auto])],
         [("old", 1), ("new", 2)],
     )
     assert edges(context, Output) == [("derived_from", "new")]
 
 
 def test_explicit_link_wins_over_provenance():
-    context = run([create_agent("a", steps=[explicit])], [("in", 1)])
+    context = run([create_step_group("a", steps=[explicit])], [("in", 1)])
     assert edges(context, Output) == [("custom", "in")]

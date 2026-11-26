@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime
+from reactifact import Consume, Context, Runtime, StepGroup
 from reactifact.recipes import PlanExecute
 
 
@@ -48,11 +48,11 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
 
 
 def make_runtime(ctx: Context) -> Runtime:
-    class FlowAgent(Agent):
+    class FlowAgent(StepGroup):
         consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
         produces = Flow().produces()
 
-    return Runtime(ctx, agents=[FlowAgent()])
+    return Runtime(ctx, groups=[FlowAgent()])
 
 
 def test_plan_execute_runs_steps_in_order_and_finishes():

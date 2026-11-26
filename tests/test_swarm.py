@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Context, Effects, Step, create_agent
+from reactifact import Context, Effects, Step, create_step_group
 from reactifact.recipes.swarm import (
     Handoff,
     SwarmCycle,
@@ -48,14 +48,14 @@ class BillingStep(Step):
 
 
 def _agent(name: str, step: Step):
-    return create_agent(name, steps=[step])
+    return create_step_group(name, steps=[step])
 
 
 def test_swarm_hands_off_and_records_provenance():
     async def go():
         return await swarm(
             Context(),
-            agents={
+            groups={
                 "triage": _agent("triage", TriageStep()),
                 "billing": _agent("billing", BillingStep()),
             },
@@ -98,7 +98,7 @@ def test_swarm_rejects_a_cycle_by_default():
     async def go():
         await swarm(
             Context(),
-            agents={
+            groups={
                 "a": _agent("a", LoopAStep()),
                 "b": _agent("b", LoopBStep()),
             },
@@ -115,7 +115,7 @@ def test_swarm_honours_max_hops_when_repeats_allowed():
     async def go():
         await swarm(
             Context(),
-            agents={
+            groups={
                 "a": _agent("a", LoopAStep()),
                 "b": _agent("b", LoopBStep()),
             },
@@ -140,7 +140,7 @@ def test_swarm_rejects_unknown_target():
     async def go():
         await swarm(
             Context(),
-            agents={"a": _agent("a", MissingStep())},
+            groups={"a": _agent("a", MissingStep())},
             start="a",
             input=Question(text="x"),
         )
@@ -160,7 +160,7 @@ def test_swarm_requires_a_final_output():
     async def go():
         await swarm(
             Context(),
-            agents={"a": _agent("a", NoteStep())},
+            groups={"a": _agent("a", NoteStep())},
             start="a",
             input=Question(text="x"),
             final_type=Answer,

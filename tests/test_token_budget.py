@@ -8,7 +8,6 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Budget,
     Consume,
     Context,
@@ -17,6 +16,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -61,7 +61,7 @@ class Chatty(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1))
 
 
-class ChattyAgent(Agent):
+class ChattyAgent(StepGroup):
     name = "chatty"
     consumes = [Consume(Number)]
     produces = [Chatty()]
@@ -98,7 +98,7 @@ class Streaming(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1))
 
 
-class StreamingAgent(Agent):
+class StreamingAgent(StepGroup):
     name = "streaming"
     consumes = [Consume(Number)]
     produces = [Streaming()]
@@ -109,14 +109,14 @@ def _price(model: str, prompt: int, completion: int) -> float:
 
 
 def _run(
-    agent: Agent,
+    agent: StepGroup,
     budget: Budget,
     llm: LLMProvider,
     *,
     pricer: object = None,
 ) -> Runtime:
     ctx = Context(resources=RuntimeResources(llm=llm, pricer=pricer))  # type: ignore[arg-type]
-    runtime = Runtime(ctx, agents=[agent], budget=budget)
+    runtime = Runtime(ctx, groups=[agent], budget=budget)
     ctx.create(Number(value=0))
     asyncio.run(runtime.arun())
     return runtime
@@ -174,7 +174,7 @@ def test_streaming_usage_counts_toward_the_token_budget():
 def test_llm_wrapper_is_restored_after_the_turn():
     llm = UsageLLM()
     ctx = Context(resources=RuntimeResources(llm=llm))
-    runtime = Runtime(ctx, agents=[ChattyAgent()], budget=Budget(max_tokens=1))
+    runtime = Runtime(ctx, groups=[ChattyAgent()], budget=Budget(max_tokens=1))
     ctx.create(Number(value=0))
 
     asyncio.run(runtime.arun())
@@ -190,9 +190,9 @@ def test_shared_resources_survive_concurrent_turns():
     shared = RuntimeResources(llm=llm)
     ctx1 = Context(resources=shared)
     ctx2 = Context(resources=shared)
-    rt1 = Runtime(ctx1, agents=[ChattyAgent()], budget=Budget(max_tokens=1))
+    rt1 = Runtime(ctx1, groups=[ChattyAgent()], budget=Budget(max_tokens=1))
     rt2 = Runtime(
-        ctx2, agents=[ChattyAgent()], budget=Budget(max_tokens=1000, max_runs=2)
+        ctx2, groups=[ChattyAgent()], budget=Budget(max_tokens=1000, max_runs=2)
     )
     ctx1.create(Number(value=0))
     ctx2.create(Number(value=0))
@@ -216,7 +216,7 @@ def test_shared_resources_are_not_wrapped_by_tracing():
     shared = RuntimeResources(llm=llm)
     ctx = Context(resources=shared)
     runtime = Runtime(
-        ctx, agents=[ChattyAgent()], budget=Budget(max_runs=1), tracer=Tracer()
+        ctx, groups=[ChattyAgent()], budget=Budget(max_runs=1), tracer=Tracer()
     )
     ctx.create(Number(value=0))
 

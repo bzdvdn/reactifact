@@ -2,12 +2,12 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
+    StepGroup,
 )
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -24,7 +24,7 @@ class TypedDoc(BaseModel):
     content: str
 
 
-class SearchScout(Agent):
+class SearchScout(StepGroup):
     """Fan-out across sources: each source searches in its own way (§8)."""
 
     consumes = [Consume(Question)]
@@ -42,7 +42,7 @@ class SearchScout(Agent):
         return patch
 
 
-class TypedResolver(Agent):
+class TypedResolver(StepGroup):
     """Materializes a lazy reference into a typed artifact."""
 
     consumes = [Consume(SourceRef)]
@@ -81,7 +81,7 @@ def build_multisource(tmp_path):
         "cost-docs": FileSystemSource(str(docs_b), source_id="cost-docs"),
     }
     ctx = Context(resources=RuntimeResources(sources=sources))
-    runtime = Runtime(ctx, agents=[SearchScout(), TypedResolver()])
+    runtime = Runtime(ctx, groups=[SearchScout(), TypedResolver()])
     return ctx, runtime
 
 
@@ -149,7 +149,7 @@ def test_patch_create_idempotent_by_id():
 
     from reactifact import EventType, Trigger
 
-    class Counter(Agent):
+    class Counter(StepGroup):
         def __init__(self):
             super().__init__(
                 name="counter",
@@ -160,7 +160,7 @@ def test_patch_create_idempotent_by_id():
             return Patch().create(Number(value=42), id="the-number")
 
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Counter()])
+    runtime = Runtime(ctx, groups=[Counter()])
 
     ctx.create(Question(text="a"))
     asyncio.run(runtime.arun())

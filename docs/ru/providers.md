@@ -75,7 +75,7 @@ llm = from_env(max_tokens=2048)  # openrouter_llm(...) или llm_from_env(...) 
   соединения, таймаут) повторяются с экспоненциальным backoff; 4xx никогда
   не повторяется. Работает только для `complete()`, не для `stream()`
   (стрим, упавший на середине, нельзя безопасно повторить без дублирования
-  уже отданных чанков) — см. [Надёжность](#надёжность) ниже.
+  уже отданных чанков) — см. [Надёжность](#reliability) ниже.
 - `stream` для посимвольных `LLMResponseChunk`.
 
 11 из вендорных `*_llm` фабрик ниже (Cerebras, DeepSeek, Fireworks, GitHub
@@ -144,7 +144,7 @@ IMAGE_PROVIDER=openrouter
 IMAGE_MODEL=google/gemini-2.0-flash-exp:free
 ```
 
-## Надёжность
+## Надёжность {: #reliability }
 
 **Ретраи.** У каждого провайдера (`OpenAICompatProvider`/`Embedder`,
 `AnthropicProvider`, `GeminiProvider`, `OpenAICompatImageProvider`,

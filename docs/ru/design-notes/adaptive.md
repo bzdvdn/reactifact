@@ -65,7 +65,7 @@ runtime = Runtime(
 )
 ```
 
-`Agent.capabilities` (§25) — метаданные, которые политика и LLM-разруливание
+`StepGroup.capabilities` (§25) — метаданные, которые политика и LLM-разруливание
 используют для описания кандидатов; сами по себе они ничего не меняют.
 
 `reactifact.scheduler.relation_balance_metric` — встроенная uncertainty-driven
@@ -93,7 +93,7 @@ runtime = Runtime(
 
 - `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
   `relation_balance_metric`, типы.
-- Хук в runtime (параметр `scheduler=`), `Agent.capabilities`.
+- Хук в runtime (параметр `scheduler=`), `StepGroup.capabilities`.
 - `examples/medic_lab` — `medic_lab_scheduler()` подключает
   `relation_balance_metric` и в консольный (`chat.py`), и в веб (`api/chat.py`)
   вход.

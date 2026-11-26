@@ -363,7 +363,7 @@ class ChatAssistant:
     """Session-persisted chat over the runtime, for the canonical contract.
 
     Configure with hooks — the assistant owns sessions, the turn loop and
-    history. `agents`/`resources` accept values or callables (resolved per
+    history. `groups`/`resources` accept values or callables (resolved per
     request, so a fresh `RuntimeResources` can replace providers).
 
     A callable `resources=` is assumed to build a fresh, turn-scoped
@@ -404,7 +404,7 @@ class ChatAssistant:
 
         assistant = ChatAssistant(
             store=store,
-            agents=ALL_AGENTS,
+            groups=ALL_AGENTS,
             user_message=UserQuery,
             reply=knowledge_reply,
             resources=lambda: build_resources(),
@@ -417,7 +417,6 @@ class ChatAssistant:
         self,
         *,
         store: SessionStore,
-        agents: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
         groups: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
         steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
@@ -437,21 +436,19 @@ class ChatAssistant:
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
-        provided = [value for value in (agents, groups, steps) if value is not None]
+        provided = [value for value in (groups, steps) if value is not None]
         if len(provided) > 1:
-            raise ValueError("Pass only one of steps=, groups= or agents= (deprecated)")
+            raise ValueError("Pass only one of steps= or groups=")
         if steps is not None:
             resolved: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] = (
                 normalize_units(steps=list(steps))
             )
         elif groups is not None:
             resolved = groups
-        elif agents is not None:
-            resolved = agents
         else:
             raise TypeError("ChatAssistant requires steps= or groups=")
         self.store = store
-        self._agents = resolved
+        self._groups = resolved
         self._user_message = user_message
         self._reply = reply
         self._session_state = session_state
@@ -572,7 +569,7 @@ class ChatAssistant:
     def _build_runtime(self, session: Session) -> Runtime:
         return Runtime(
             session.context,
-            agents=[*_resolve(self._agents), *self._memory_agents()],
+            groups=[*_resolve(self._groups), *self._memory_agents()],
             session=session,
             budget=self._budget,
             max_concurrency=self._max_concurrency,

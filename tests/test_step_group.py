@@ -1,4 +1,4 @@
-"""StepGroup is the name; Agent is a compatibility alias."""
+"""StepGroup is the aggregate; steps are the model."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Artifact,
     Budget,
     Consume,
@@ -17,7 +16,6 @@ from reactifact import (
     RetryPolicy,
     Runtime,
     StepGroup,
-    create_agent,
     create_step_group,
     step,
 )
@@ -48,11 +46,6 @@ def named(question: Question) -> Answer:
     return Answer(text=question.text)
 
 
-def test_agent_is_an_alias_for_step_group() -> None:
-    assert Agent is StepGroup
-    assert create_agent is create_step_group
-
-
 def test_create_step_group_builds_a_group() -> None:
     group = create_step_group("qa", consumes=[Consume(Question)], steps=[answer])
     assert isinstance(group, StepGroup)
@@ -74,7 +67,7 @@ def test_runtime_accepts_groups_keyword() -> None:
     group = create_step_group("qa", steps=[answer])
     context = Context()
     runtime = Runtime(context, groups=[group], budget=Budget(max_runs=5))
-    assert runtime.agents == [group]
+    assert runtime.groups == [group]
 
 
 def test_runtime_accepts_raw_steps_and_wraps_each_one() -> None:
@@ -84,7 +77,6 @@ def test_runtime_accepts_raw_steps_and_wraps_each_one() -> None:
     runtime.run()
     assert context.latest(Answer) is not None
     assert [group.name for group in runtime.groups] == ["answer"]
-    assert runtime.groups is runtime.agents
 
 
 def test_runtime_merges_steps_and_groups_in_order() -> None:
@@ -100,16 +92,6 @@ def test_runtime_rejects_wrong_types_with_a_useful_message() -> None:
         Runtime(Context(), steps=[group])
     with pytest.raises(TypeError, match="groups= accepts StepGroup"):
         Runtime(Context(), groups=[answer])
-    with pytest.raises(TypeError, match="agents= accepts StepGroup"):
-        Runtime(Context(), agents=[answer])
-
-
-def test_runtime_rejects_agents_together_with_new_keywords() -> None:
-    group = create_step_group("g", steps=[answer])
-    with pytest.raises(ValueError, match="not both"):
-        Runtime(Context(), agents=[group], steps=[answer])
-    with pytest.raises(ValueError, match="not both"):
-        Runtime(Context(), agents=[group], groups=[group])
 
 
 def test_step_name_and_policy_are_copied_to_the_implicit_group() -> None:

@@ -26,7 +26,7 @@ async def _arun(
     budget: Budget | None,
     tracer: Any,
 ) -> None:
-    await Runtime(context, agents=list(agents), budget=budget, tracer=tracer).arun()
+    await Runtime(context, groups=list(agents), budget=budget, tracer=tracer).arun()
 
 
 def _default_resources(

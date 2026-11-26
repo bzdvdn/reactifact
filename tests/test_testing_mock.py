@@ -16,7 +16,7 @@ import time
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Consume, ResourceKey, RuntimeResources, step, tool
+from reactifact import Consume, ResourceKey, RuntimeResources, StepGroup, step, tool
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioError, ScenarioLab
 from reactifact.testing.mock import ResourceFault, ResourceFaultInstaller, _FailingProxy
@@ -261,7 +261,7 @@ async def kubectl(resource: str) -> str:
     return f"status {resource}: ok"
 
 
-class K8sAgent(Agent):
+class K8sAgent(StepGroup):
     name = "k8s"
     consumes = [Consume(Problem), Consume(ToolAnswer)]
     produces = [ToolUse(name="k8s", system="Use the kubectl tool.", tools=[kubectl])]
@@ -366,7 +366,7 @@ async def use_catalog(call):
     return None
 
 
-class CatalogAgent(Agent):
+class CatalogAgent(StepGroup):
     name = "catalog"
     consumes = [Consume(Problem)]
     produces = [use_catalog]

@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
     StepCall,
+    StepGroup,
 )
 from reactifact.agent_tool import AgentAsTool, SubTask
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
@@ -77,7 +77,7 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, agents=[MainAgent()])
+    runtime = Runtime(ctx, groups=[MainAgent()])
     ctx.create(Question(text="сколько будет?"))
     asyncio.run(runtime.arun())
 
@@ -91,7 +91,7 @@ def test_agent_as_tool_isolated_from_parent_history():
     seen_inputs = []
 
     def sub_factory():
-        class RecordingSubAgent(Agent):
+        class RecordingSubAgent(StepGroup):
             consumes = [Consume(SubTask)]
             produces = []
 
@@ -138,7 +138,7 @@ def test_agent_as_tool_isolated_from_parent_history():
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, agents=[MainAgent()])
+    runtime = Runtime(ctx, groups=[MainAgent()])
     ctx.create(Question(text="parent question"))
     asyncio.run(runtime.arun())
 
@@ -189,7 +189,7 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, agents=[MainAgent()])
+    runtime = Runtime(ctx, groups=[MainAgent()])
     ctx.create(Question(text="почисти под"))
     asyncio.run(runtime.arun())
 

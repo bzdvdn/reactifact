@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Effects, create_agent, step
+from reactifact import Consume, Context, Effects, create_step_group, step
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.providers import FakeLLM, LLMProvider, LLMRequest, LLMResponse
 from reactifact.quick import Answer, Question, agent, chat_agent, rag, tools_agent
@@ -248,7 +248,9 @@ async def echo_reply(call):
 
 
 def test_chat_agent_in_memory_session_and_history():
-    agents = [create_agent("echo", consumes=[Consume(Question)], produces=[echo_reply])]
+    agents = [
+        create_step_group("echo", consumes=[Consume(Question)], produces=[echo_reply])
+    ]
     assistant = chat_agent(agents, llm=FakeLLM())
 
     first = asyncio.run(assistant.invoke("hi", session_id="s1"))
@@ -278,7 +280,9 @@ async def llm_chat_reply(call):
 
 def test_chat_agent_passes_provider_to_the_turn():
     agents = [
-        create_agent("llm", consumes=[Consume(Question)], produces=[llm_chat_reply])
+        create_step_group(
+            "llm", consumes=[Consume(Question)], produces=[llm_chat_reply]
+        )
     ]
     assistant = chat_agent(agents, llm=ScriptedLLM(['{"text":"from provider"}']))
 
@@ -309,7 +313,7 @@ def test_in_memory_kv_backend_roundtrip_and_isolation():
 
 
 def test_quick_agent_composes_in_a_plain_runtime():
-    """The graduation path: `.agent` is an ordinary reactive Agent."""
+    """The graduation path: `.agent` is an ordinary reactive StepGroup."""
     from reactifact import Runtime
 
     llm = ScriptedLLM(['{"text":"ok"}'])
@@ -317,7 +321,7 @@ def test_quick_agent_composes_in_a_plain_runtime():
 
     ctx = Context(resources=RuntimeResources(llm=llm))
     ctx.create(Question(text="hello"))
-    asyncio.run(Runtime(ctx, agents=[qa.agent]).arun())
+    asyncio.run(Runtime(ctx, groups=[qa.agent]).arun())
     assert ctx.latest(AnswerBody) is not None
 
 

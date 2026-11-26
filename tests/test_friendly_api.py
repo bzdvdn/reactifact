@@ -5,7 +5,7 @@ from reactifact import (
     Consume,
     Context,
     Runtime,
-    create_agent,
+    create_step_group,
     step,
 )
 
@@ -26,8 +26,8 @@ async def echo(call):
     return None
 
 
-def test_create_agent_builds_container_without_subclass():
-    agent = create_agent(
+def test_create_step_group_builds_container_without_subclass():
+    agent = create_step_group(
         name="echo",
         consumes=[Consume(Input)],
         produces=[echo],
@@ -37,10 +37,11 @@ def test_create_agent_builds_container_without_subclass():
     assert agent.matches.__self__ is agent
 
 
-def test_create_agent_reacts():
+def test_create_step_group_reacts():
     ctx = Context()
     runtime = Runtime(
-        ctx, agents=[create_agent("echo", consumes=[Consume(Input)], produces=[echo])]
+        ctx,
+        groups=[create_step_group("echo", consumes=[Consume(Input)], produces=[echo])],
     )
     ctx.create(Input(text="hello"))
     asyncio.run(runtime.arun())
@@ -70,12 +71,12 @@ def test_warn_no_runs_once(capsys):
     ctx.create(Input(text="quiet"))
     runtime = Runtime(
         ctx,
-        agents=[create_agent("echo", consumes=[Consume(Output)], produces=[echo])],
+        groups=[create_step_group("echo", consumes=[Consume(Output)], produces=[echo])],
     )
     asyncio.run(runtime.arun())
 
     err = capsys.readouterr().err
-    assert "None of the 1 agents ran" in err
+    assert "None of the 1 groups ran" in err
     assert "consume" in err
 
     asyncio.run(runtime.arun())

@@ -4,10 +4,17 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
-## [Unreleased]
+## [0.24.0] — 2026-11-27
 
 ### Breaking
 
+- **The 0.x `agents` surface is gone.** `Agent`, `create_agent`,
+  `validate_agents`, the `reactifact.agents` module and the `agents=` keyword on
+  `Runtime`/`ChatAssistant`/`run_subflow`/`swarm`/`chat_agent` are removed.
+  Use `StepGroup`, `create_step_group`, `validate_contracts(groups=...)`,
+  `groups=` and `reactifact.step`; `Runtime.agents` is now `Runtime.groups`.
+  The canonical names have been available since 0.21, so 0.24 completes the
+  compatibility window.
 - **LLM helpers take an `LLMProvider`, not a `Context`.**
   `structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete`,
   `chat_complete_full` and `StructuredLLM.call` now accept `LLMProvider | None`
@@ -15,7 +22,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   provider is injected, or pass `context.resources.llm` explicitly. The
   `Context` union shim (and its `context=` keyword) is gone.
 - **`consume()` removed.** Use `Consume(...)` or `OnCreate`/`OnUpdate`/
-  `OnDelete`/`OnStale` directly; the factory duplicated the constructor.
+  `OnDelete`/`OnStale` directly; the factory duplicated the constructor. It
+  had no separate deprecation release — 0.24 is the deliberate exception to
+  the one-minor window, like 0.23's `Effects.ask/resume/act`.
+- **`Artifact[T] | None` now resolves to a handle.** It previously fell into
+  the data path and returned the model. Use `T | None` for optional data and
+  `Artifact[T]` (or `list[Artifact[T]]`) for handles.
+- **Optional provider parameters resolve from resources.** A parameter typed
+  `LLMProvider | None` (and other optional services) now receives the
+  registered provider instead of silently staying `None`; check
+  `resources.has(...)` or make the parameter required if `None` was your
+  fallback signal.
+- **Pending HITL replies are `waiting: true`.** `Chat` now returns a structured
+  `question` payload instead of an ordinary reply while a `PendingQuestion`
+  exists; branch on `waiting` instead of assuming every reply has `reply`.
 - **Knowledge point IDs include `chunk_index`.** Existing knowledge indexes
   need one full (non-incremental) reindex after upgrading; identical section
   bodies no longer collapse into one point.
@@ -36,8 +56,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `StepCall.progress` mirrors it for the legacy single-`call` form. Steps that
   only announce and then work with an LLM, tools or domain logic no longer need
   `Context`; `Context.announce` remains for code that already holds one.
-  Optional service parameters (`llm: LLMProvider | None`) now resolve from
-  `RuntimeResources` instead of silently becoming `None`.
 - **Owned resources.** `RuntimeResources.register(..., owned=True)` hands a
   typed resource to the container: `await resources.aclose()` closes owned
   resources in reverse registration order (before `llm`/`embedder`) via an
@@ -60,10 +78,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   inputs. When `consumes` is derived from the signature, triggers and inputs
   still come from the signature, and `Wakes(False)`/`Latest` remain available.
   `Artifact[T]` parameters now derive their consume type in both modes.
-- **Optional artifact handles.** `Artifact[T] | None` now resolves to the
-  `Artifact[T]` handle or `None` (it previously fell into the data path and
-  returned the model). `Artifact[T]` and `list[Artifact[T]]` keep returning
-  handles; `T | None` keeps returning data.
+- **Lifecycle consume subclasses.** `OnCreate`, `OnUpdate`, `OnDelete` and
+  `OnStale` narrow `Consume` to one event type and inherit `condition=`,
+  `wakes=`, `debounce=` and `include_subclasses=`. `OnDelete` takes
+  `event`/`Trigger` because the artifact data is already gone.
 - **`Ensure` return primitive.** `return Ensure(Model(...), id=...)` mirrors
   `Effects.create_once`; `source=` + `prefix=` mirror `create_once_from`. It is
   a no-op (including links) when the artifact already exists. `Emit` with an
@@ -179,6 +197,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   non-streaming `POST /chat`, `/chat/history`, `/chat/clear` (GET/POST method)
   and keeps sessions/history in the `Chat` store. `Chat.validate()` and
   `.describe()` mirror the Pipeline surface.
+
+### Fixed
+
+- **Tool runs and HITL edge cases.** `ToolOutput(error_info=...)`-only results
+  count as failures, dict `tool_calls` arguments and malformed native payloads
+  are handled, sync `DeferredToolGroup` loaders work, unknown message roles map
+  to `user`, and approval questions no longer consume `max_asks`.
+- **Typed input resolution.** Parameters named `context`/`progress`/`event` no
+  longer shadow collaborators; `trigger`/`inputs` stay reserved; `Annotated`
+  is normalized before shape checks and `Latest` handles every union member.
+- **Verification.** `Verify` validates threshold/on_fail/required metrics,
+  copies metrics, records skipped metrics and `answer_version`, links results
+  to the answer with a `verifies` edge, and uses an English configurable
+  question.
 
 ## [0.23.0] — 2026-11-25
 

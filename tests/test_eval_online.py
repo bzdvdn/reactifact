@@ -11,7 +11,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
 )
 from reactifact.cli import main
 from reactifact.eval import (
@@ -47,13 +47,15 @@ class Answerer(Step[Answer]):
 
 
 def _group():
-    return create_agent("answerer", consumes=[Consume(Question)], produces=[Answerer()])
+    return create_step_group(
+        "answerer", consumes=[Consume(Question)], produces=[Answerer()]
+    )
 
 
 def _run_once() -> Context:
     ctx = Context(resources=RuntimeResources())
     ctx.create(Question(text="hello"))
-    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
+    asyncio.run(Runtime(ctx, groups=[_group()]).arun())
     return ctx
 
 
@@ -63,7 +65,7 @@ def _store_with_runs(tmp_path, count=3) -> TraceStore:
     for _ in range(count):
         ctx = Context(resources=RuntimeResources())
         ctx.create(Question(text="hello"))
-        asyncio.run(Runtime(ctx, agents=[_group()], tracer=Tracer(store=store)).arun())
+        asyncio.run(Runtime(ctx, groups=[_group()], tracer=Tracer(store=store)).arun())
     return store
 
 

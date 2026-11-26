@@ -153,6 +153,32 @@ test's output or a quick `print()`:
 print(result.explain())
 ```
 
+## Verification inside a run
+
+`Verify` applies `reactifact.eval`'s ground-truth-free metrics to a *live*
+`Answer`, in the generation that produced it (batch eval scores a finished
+`Context` after the fact). Add it to `produces` and declare the escalation
+artifact:
+
+```python
+from reactifact import Consume, Context, PendingQuestion, RuntimeResources, Step, StepGroup
+from reactifact.verify import Verify
+
+class Answerer(StepGroup):
+    consumes = [Consume(Question)]
+    produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
+
+ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
+```
+
+`Verify(threshold=...)` overrides the resource-wide bar;
+`required_metrics=("provenance_grounded",)` fails regardless of the weighted
+average; `on_fail="ask"` (default) raises a HITL
+`PendingQuestion(kind="approve")`, while `on_fail="retry"` emits a
+`VerificationFailed` marker for an agent that regenerates. `VerificationResult`
+records `overall`, `metrics`, `skipped`, `required_failed` and
+`answer_version`, and is linked to the answer with a `verifies` edge.
+
 ## Running tests
 
 Under pytest, opt in to the plugin so `async def` scenarios run without

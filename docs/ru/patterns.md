@@ -465,7 +465,7 @@ runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrenc
 - `max_runs`, `max_iterations`, `max_time_s`, лимиты вызовов инструментов — runtime
   останавливается и сообщает `RunOutcome` (`completed` | `budget_exhausted` | …)
   вместе с `RunStats`.
-- `Agent.concurrency_limit` (у LLM-агентов по умолчанию ниже) + глобальный
+- `StepGroup.concurrency_limit` (у LLM-агентов по умолчанию ниже) + глобальный
   `max_concurrency` runtime держат лимиты провайдеров: демо `medic-lab` — лаборатория
   гипотез с лимитом LLM = 2 внутри глобального лимита 6.
 - По умолчанию исключение одного агента пробрасывается из `arun()`/`astream()`

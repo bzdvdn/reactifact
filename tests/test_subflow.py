@@ -6,7 +6,6 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
-    Agent,
     Artifact,
     Budget,
     Consume,
@@ -14,7 +13,8 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    StepGroup,
+    create_step_group,
     run_subflow,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, Message
@@ -45,7 +45,7 @@ class ChildStep(Step):
         return Answer(text=question.text.upper())
 
 
-class ChildAgent(Agent):
+class ChildAgent(StepGroup):
     consumes = [Consume(Question)]
 
     def __init__(self) -> None:
@@ -59,7 +59,7 @@ class ParentStep(Step):
     async def run(self, context: Context, trigger: Artifact[Question]) -> Final:
         result = await run_subflow(
             context,
-            agents=[ChildAgent()],
+            groups=[ChildAgent()],
             input=trigger,
             output_type=Answer,
             link="supported_by",
@@ -80,7 +80,7 @@ def test_subflow_returns_child_output_and_links_provenance():
     question = context.create(Question(text="hello"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("parent", steps=[ParentStep()])],
+        groups=[create_step_group("parent", steps=[ParentStep()])],
         tracer=Tracer(),
     )
 
@@ -127,7 +127,7 @@ class LLMParentStep(Step):
     async def run(self, context: Context, trigger: Artifact[Question]) -> Final:
         result = await run_subflow(
             context,
-            agents=[create_agent("child", steps=[LLMChildStep()])],
+            groups=[create_step_group("child", steps=[LLMChildStep()])],
             input=trigger,
             output_type=Answer,
         )
@@ -147,7 +147,7 @@ def test_subflow_adds_child_usage_to_parent_budget():
     context.create(Question(text="hello"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("parent", steps=[LLMParentStep()])],
+        groups=[create_step_group("parent", steps=[LLMParentStep()])],
         budget=Budget(max_tokens=100),
         tracer=Tracer(),
     )
@@ -180,7 +180,7 @@ class BranchParentStep(Step):
     async def run(self, context: Context, trigger: Artifact[Question]) -> Final:
         result = await run_subflow(
             context,
-            agents=[create_agent("child", steps=[ReadNoteStep()])],
+            groups=[create_step_group("child", steps=[ReadNoteStep()])],
             input=trigger,
             output_type=Answer,
             isolate=False,
@@ -201,7 +201,7 @@ def test_subflow_with_isolate_false_sees_parent_state():
     context.create(Question(text="go"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[create_agent("parent", steps=[BranchParentStep()])],
+        groups=[create_step_group("parent", steps=[BranchParentStep()])],
         tracer=Tracer(),
     )
 

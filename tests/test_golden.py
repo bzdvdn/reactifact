@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, create_agent, step
+from reactifact import Consume, Context, Runtime, create_step_group, step
 from reactifact.testing import (
     AssertionFailure,
     assert_golden,
@@ -36,7 +36,9 @@ def _run() -> Context:
     context = Context()
     runtime = Runtime(
         context,
-        agents=[create_agent("a", consumes=[Consume(Question)], produces=[answer])],
+        groups=[
+            create_step_group("a", consumes=[Consume(Question)], produces=[answer])
+        ],
     )
     context.create(Question(text="q"), id="q")
     asyncio.run(runtime.arun())

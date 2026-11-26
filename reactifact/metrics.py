@@ -7,7 +7,7 @@ already produces the operational numbers with no extra plumbing:
     from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 
     metrics = Metrics()
-    runtime = Runtime(ctx, agents=AGENTS, tracer=MetricsTracer(metrics))
+    runtime = Runtime(ctx, groups=AGENTS, tracer=MetricsTracer(metrics))
     app.include_router(create_metrics_router(metrics))   # GET /metrics
 
 Counters: `reactifact_runs_total{outcome}`,

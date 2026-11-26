@@ -28,9 +28,9 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.Patch
 
-### Agent
+### StepGroup
 
-::: reactifact.Agent
+::: reactifact.StepGroup
 
 ### Consume
 

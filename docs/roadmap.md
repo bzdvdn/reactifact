@@ -10,8 +10,9 @@ for what's already shipped, release by release.
 - **Finish the Step-era API.** The reactive core is being consolidated around
   `Step`/`@step`, step-owned `consumes`/`produces`, explicit `effects:
   Effects`, typed inputs (`Artifact[T]`, `list[Artifact[T]]`,
-  `Annotated[T, When(...)]`, `Latest[T]`) and `Agent.steps`. The goal is one
-  obvious way to write a unit of work.
+  `Annotated[T, When(...)]`, `Latest[T]`) and `StepGroup.steps`. 0.24 removed
+  the last 0.x `Agent` aliases; the goal is one obvious way to write a unit of
+  work.
 - **Content-addressed artifact state.** `Artifact` is a frozen handle over an
   append-only `ArtifactStore`; `Context.artifact_version` /
   `version_history` / `find_versions` are canonical, persistence is v2
@@ -29,7 +30,7 @@ for what's already shipped, release by release.
   and close out breaking changes before they accumulate further. The surface
   has three stability tiers:
   - **Core** (frozen hardest): `Context`/`Artifact` (frozen handle + version
-    store)/`Effects`/`Patch`/`Step`/`Agent`/`Source`/`Provenance`/HITL
+    store)/`Effects`/`Patch`/`Step`/`StepGroup`/`Source`/`Provenance`/HITL
     (`PendingQuestion`, `human.ask`/`resume`), plus `RuntimeResources`'s own
     extension points — `context_builder` (`reactifact.context_builder`) and
     `verification_threshold` (`reactifact.verify`) count as core because

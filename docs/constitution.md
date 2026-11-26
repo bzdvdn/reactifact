@@ -1,8 +1,13 @@
 # Constitution of the Artifact-Driven Agent Runtime
 
-> **Status:** Foundational design document, aligned with the public `reactifact` release
-> **Version:** 0.2
+> **Status:** Foundational design document, aligned with `reactifact` 0.24.0
+> **Version:** 0.3
 > **Purpose:** Define the architectural philosophy, invariants, terminology, design rules, examples, and decision criteria for a new agent framework based on evolving typed artifacts and context rather than explicit execution graphs.
+>
+> **Terminology:** this document uses *agent* for the conceptual state
+> transformer. In the public API the container is `StepGroup` (a group of
+> `Step`s that share triggers/retry/timeout); the old `Agent` name and the
+> `agents=` keyword were removed in 0.24.
 
 ---
 
@@ -161,7 +166,7 @@ The framework therefore should not make the developer encode the exact execution
 The canonical model is:
 
 ```text
-Agent(Context) → Effects      # effects.create/update/link/ask
+Agent(Context) → Effects      # effects.create/update/delete/link/upsert
                    │
                    ▼  runtime compiles (§24)
                Patch (atomic) → Context v+1
@@ -188,9 +193,9 @@ class Researcher(Step):
     consumes = (Task,)
     produces = (Evidence,)
 
-    async def run(self, task: Task, effects: Effects) -> None:
+    async def run(self, task: Artifact[Task], effects: Effects) -> None:
         effects.create(Evidence(...))
-        effects.update(task_id, status="researching")
+        effects.update(task, status="researching")
         # nothing applied until the runtime compiles the effects
 ```
 
@@ -615,9 +620,12 @@ into a `Patch`.
 Minimal conceptual interface:
 
 ```python
-class Agent:
+class StepGroup:
     steps: list[Step]
 ```
+
+The conceptual "agent" of this document is the public `StepGroup`; an agent is
+therefore a group of steps, not a second execution primitive.
 
 An Agent may use:
 
@@ -667,7 +675,7 @@ class Researcher(Step):
 An `Agent` groups these steps:
 
 ```python
-class ResearchFlow(Agent):
+class ResearchFlow(StepGroup):
     steps = [Researcher(), Verifier(), Analyst()]
 ```
 
@@ -680,10 +688,11 @@ They are not necessarily a rigid execution graph.
 # 12. Patch
 
 A Patch is the *compiled* change-set the runtime applies. The authoring
-surface is `effects` (§24): a step writes `create/update/link/ask` and
-returns `None`; the runtime compiles the effect set into one atomic `Patch`
+surface is `effects` (§24): a step writes
+`create/update/delete/link/upsert` (or returns `Emit`/`Ensure`/`Edit`/`Drop`/
+`Relate`) and the runtime compiles the effect set into one atomic `Patch`
 (commit, events, validation, trace). `Patch` is transport — applications rarely
-build one directly (exceptions: the `Agent.run` escape hatch and advanced
+build one directly (exceptions: the `StepGroup.run` escape hatch and advanced
 assembly).
 
 The compiled operations:
@@ -2556,20 +2565,20 @@ The UI may still render a concise answer.
 
 # 71. Initial Python API
 
-The primary programming model, as shipped:
+The primary programming model, as shipped in 0.24:
 
 ```python
 from pydantic import BaseModel
 
 from reactifact import (
-    Agent,
+    Artifact,
     Budget,
-    Consume,
     Context,
-    Patch,
+    Effects,
     Runtime,
-    Step,
     RuntimeResources,
+    Step,
+    StepGroup,
 )
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -2587,8 +2596,8 @@ ctx.create(Question(text="How is authentication implemented?"))
 ```
 
 Agents are thin containers (§48): all logic lives in `Step` classes that write
-`effects.create/update/link/ask` (or return a model); the runtime compiles the
-effects into one `Patch`. `consumes`/`produces` on each step are the artifact
+`effects.create/update/delete/link/upsert` (or return a model); the runtime
+compiles the effects into one `Patch`. `consumes`/`produces` on each step are the artifact
 contracts that drive the scheduler:
 
 ```python
@@ -2599,7 +2608,7 @@ class Researcher(Step):
     async def run(
         self, question: Question, ref: Artifact[SourceRef], effects: Effects
     ) -> None:
-        ...  # writes effects.create/update/link/ask
+        ...  # writes effects.create/update/delete/link/upsert
 
 
 class Verifier(Step):
@@ -2618,14 +2627,14 @@ class Answerer(Step):
         ...
 
 
-class ResearcherAgent(Agent):
+class ResearcherAgent(StepGroup):
     name = "researcher"
     steps = [Researcher(), Verifier(), Answerer()]
 
 
 runtime = Runtime(
     ctx,
-    agents=[ResearcherAgent(), VerifierAgent(), AnswererAgent()],
+    groups=[ResearcherAgent(), VerifierAgent(), AnswererAgent()],
     budget=Budget(max_runs=80),
 )
 runtime.run()
@@ -2654,7 +2663,7 @@ session = SessionStore(FileKVBackend("./sessions")).open("knowledge", resources=
 
 runtime = Runtime(
     session.context,
-    agents=[
+    groups=[
         Planner(), SearchScout(), ResolverAgent(), TableResolver(),
         EvidenceBuilder(), VerifierAgent(), CalculatorAgent(),
         ProgressEvaluator(), AnswerBuilder(),
@@ -2763,20 +2772,20 @@ connectors**: application code on top of the `Source` API (typically under
 
 ---
 
-## Phase 3 — Agent contract
+## Phase 3 — Step / StepGroup contract
 
 Implement:
 
 ```python
 Step.run(...) -> Model | None             # writes effects.*; runtime compiles
-# Effects(create/update/link/ask) -▶ Patch: the atomic, validated change
-# plus the thin Agent container: a list of Steps
+# Effects(create/update/delete/link/upsert) -▶ Patch: the atomic change
+# plus the thin StepGroup container: a list of Steps
 ```
 
 Add:
 
 ```text
-Agent.steps
+StepGroup.steps
 Step.consumes
 Step.produces
 ```
@@ -3160,38 +3169,40 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 
 # Appendix — Implementation Status
 
-State of the public `reactifact` codebase, aligned with this constitution (current pre-1.0 tree).
-Verification: 1120 tests (+6 skipped, env-dependent); mypy (strict), pyright and ruff clean.
+State of the public `reactifact` codebase at **0.24.0** (pre-1.0).
+Verification: ~1600 tests (optional-dependency skips in a bare venv); mypy
+strict, ruff, import-linter and the docs build are clean.
 
 | Area | Section(s) | Status |
 |---|---|---|
 | Context / Artifact / Patch / Revision (git-like) | §4, §12, §14 | implemented — `Artifact` is a frozen handle over an append-only `ArtifactStore`; `artifact_version`/`version_history`/`find_versions` are canonical; `create/update/delete/link`, diff, checkout/snapshot; v2 persistence (`blobs` + version index + commit `data_ref`); `Context` composes `RelationGraph`, `ArtifactStore` and `CommitLog` |
 | Relations & provenance edges | §15, §33-§34, §36 | implemented (`Link`, `derived_from`, `supported_by`, `contradicted_by`) |
 | Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
-| Reference sources (filesystem / CSV / vector) | §7-§9, §74 P2 | implemented in core |
-| Knowledge ingestion / retrieval layer | §7-§9, §9.1 | implemented — optional `reactifact.knowledge`: code-first `Connector -> RawDocument -> Document -> Chunk -> Index`, incremental `DocStore`, BM25/RRF hybrid retrieval, `MemoryIndex`/`SqliteIndex`/`QdrantIndex`, `IndexSource`/`IngestStep` bridges; reuses core `EmbeddingProvider`s, no YAML/CLI/plugin registry |
-| GitLab / Confluence / S3 connectors | §74 P2 | domain examples, not core (planned as `examples/` connectors) |
-| Agent contract (Step / Consume containers) | §10-§13, §63 | implemented — `Agent.steps`; each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, `Annotated[T, Wakes(False)]` reads without waking, `Scope(field, owner=Type, key=fn)` correlates by field/id/custom key; `Consume(..., debounce=True)` collapses same-generation events; `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` correlate across types |
+| Reference sources (filesystem / CSV / web / vector) | §7-§9, §74 P2 | implemented in core |
+| Knowledge ingestion / retrieval layer | §7-§9, §9.1 | implemented — optional `reactifact.knowledge`: code-first `Connector -> RawDocument -> Document -> Chunk -> Index`, `DocStore` protocol (`JsonDocStore`/`SqliteDocStore`), BM25/RRF hybrid retrieval, `MemoryIndex`/`SqliteIndex`/`QdrantIndex`/`ChromaIndex`/`PgVectorIndex`, MMR diversity, dense/keyword/rerank ranks, retrieval metrics in `reactifact.eval`, `IndexSource`/`IngestStep` bridges; no YAML/CLI/plugin registry |
+| Knowledge connectors and extractors | §74 P2 | implemented — `HttpConnector` (URLs/sitemap with `ETag`/`Last-Modified`) and `S3Connector` (`knowledge-s3`); dependency-free CSV/JSON extractors and optional PDF/DOCX (`knowledge-pdf`/`knowledge-office`); GitLab/Confluence stay domain examples |
+| CLI, daemon, HTTP/MCP/A2A adapters | §23, §52-§53 | implemented — `reactifact run/dev/demo/check/new/daemon/trace/graph/contracts`; `Daemon` interval loop; `Pipeline.router()/http()/as_tool()` and `Chat.http()`; MCP server/client and A2A interop (official SDK) |
+| StepGroup / Step / Consume contract | §10-§13, §63 | implemented — `StepGroup.steps` (the 0.x `Agent` name is gone); each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, explicit `consumes` plus automatic read-only inputs, `Annotated[T, Wakes(False)]`/`Consume(..., wakes=False)`, `Scope(field, owner=Type, key=fn)`; `Consume(..., debounce=True)`; lifecycle `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale`; `IdempotentConsume`, `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
-| HITL (approvals, questions) | §60 | implemented (`PendingQuestion`, `InterruptPatch`) |
+| HITL (approvals, questions) | §60 | implemented — `human.ask`/`human.resume` with `PendingQuestion`, the approval recipe, `Chat(resume_pending=True)`, and `on_fail="ask"` in `Verify` |
 | Knowledge chat: Evidence → Claim → Verification → Answer | §16-§19, §34-§36 | implemented (`examples/knowledge`, English) |
 | Structured-data calculation | §29, §33, §67 | implemented (`CSVSource → Spreadsheet → Calculation`) |
 | Confidence / contradictions as state | §35-§36 | implemented (deterministic, §67) |
-| Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)` folds the "already done" guard into the call; `effects.upsert(id=...)` names the create-or-refresh case explicitly |
+| Idempotency (stable ids, create-or-refresh) | §42 | implemented — `effects.create_once(id=...)`/`Ensure` folds the "already done" guard into the call; `effects.upsert(id=...)`/`Emit(id=...)` names the create-or-refresh case explicitly |
 | Outbound side effects (outbox) | §42, §55, §60 | implemented — `outbox.act(kind=..., key=..., payload=...)` records a `PendingAction` intent under a stable id; `Runtime(dispatcher=...)` performs it after the commit, once per id, and records `dispatched`/`failed` as state; `runtime.flush_pending_actions()` drains after a `merge()`; replay reconstructs the record without re-sending; `replay` CLI reports dispatched/pending/failed |
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent steps); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented for updates (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`). `delete()` currently emits `ARTIFACT_DELETED` only; dependents are not auto-staled — use an explicit deletion-reactive step until delete→stale lands |
-| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/link/ask` compile into one atomic `Patch`; class `run()` and `@step` functions both accept typed inputs + `effects: Effects` (or a legacy `call: StepCall`). `Wakes`/`When`/`Scope` annotations and `Consume.by_*` select inputs; `.trigger` is live for `consumes`-matched CREATED/UPDATED/STALE events; `Agent.run()` is a low-level escape hatch |
+| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/delete/link/upsert` and return-style `Emit`/`Ensure`/`Edit`/`Drop`/`Relate` compile into one atomic `Patch`; class `run()` and `@step` functions both accept typed inputs + `effects: Effects` (or a legacy `call: StepCall`). `Wakes`/`When`/`Scope` annotations and `Consume.by_*` select inputs; `.trigger` is live for `consumes`-matched CREATED/UPDATED/DELETED/STALE events; `StepGroup.run()` is a low-level escape hatch |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |
 | Tracing / observability | §54 | implemented — `reactifact.tracing`: `AgentSpan`/`LLMCall`/`RunTrace`, SQLite/Postgres stores, prefix-aware dashboard, Langfuse + vendor-neutral OTLP sinks; a span records the consumed `event_artifact_type` and which step(s) ran (`AgentSpan.produces`: `StepRun` entries with name/operations/latency, including a step that raised), shown as a `Consume → Step` flow in the dashboard and as child observations in Langfuse |
 | Replay (§55) | §55 | implemented — `ReplayLLM` record/replay, state replay + `python -m reactifact replay` |
 | Evaluation harness | §56 | implemented — `reactifact.eval`: multi-level metrics (evidence/claim/provenance/calc/answer/sources) over the final state |
-| Security / access control | §57 | planned — no built-in authorization primitive; the host application is responsible for gating which step/agent may create/update which artifact types (this includes the MCP server, §mcp: it exposes `Context` as read-only resources, but any connected tool-calling LLM can still invoke mutating `Tool`s) |
+| Security / access control | §57 | implemented — `reactifact.authz` (`Principal`, `PermissionPolicy`, `AuthorizationError`) gates `run`/`create`/`update`/`delete`/`execute` via `RuntimeResources(principal=, authorizer=)`; `reactifact.guardrails` covers PII/injection/deny-list/size checks, with quota/redaction/audit alongside. MCP exposes `Context` as read-only resources by default; any connected tool-calling LLM can still invoke mutating `Tool`s unless the host authorizes them |
 | Adaptive / uncertainty-driven scheduling | §26, §24 | implemented — hybrid scheduler (`reactifact.scheduler`: rule filters + deterministic rank + optional LLM tie-break + `rank_limit`); `relation_balance_metric` is the built-in uncertainty-driven `Metric` — ranks a candidate by supports/contradicts relation balance on its artifact (the structural signal `examples/medic_lab` used to compute by hand for reporting only, now generic and wired into `medic_lab`'s own `Runtime(scheduler=...)` so it drives execution order, not just the report) |
 | Behavioral testing harness | §69 | implemented — `reactifact.testing` (`ScenarioLab`/`Scenario`, tool/resource fault **and stub** injection, record/replay, `reactifact scenario` CLI); provenance assertions (`ArtifactAssertions.linked`, `result.relations`), sync `run_sync`/`turn_sync`, golden snapshots (`assert_golden_file`), `result.explain()`, and an opt-in pytest plugin (`reactifact.testing.pytest_plugin`) |
 | MCP integration | — (post-constitution addition) | implemented — `reactifact.mcp`: `mcp_stdio_tools`/`mcp_http_tools` (HTTP with optional auth `headers=`) consume an external server's tools as ordinary `Tool`s; `create_mcp_server` exposes reactifact `Tool`s and, with `context=`, read-only `Context` resources, as an MCP server. Verified over the real protocol (in-memory transport) |
@@ -3209,12 +3220,19 @@ Demos shipped in the repo (not in the wheel):
   comments are English.
 - `examples/forklab` — branch/merge state exploration (§39-40).
 - `examples/fintech_audit` — auditable CSV answer with content hashes.
+- `examples/knowledge_base` — code-first connector → chunks → index ingestion
+  and hybrid retrieval over a real corpus.
+- `examples/code_review` — deterministic diff rules plus optional LLM findings.
+- `examples/outbox` — committed side effects, retry and replay.
+- `examples/repo_agent` — a destructive tool behind an approval gate.
 - `examples/starter_app` — copy-pasteable FastAPI app over the quick cases.
 - `examples/chat` — minimal offline multi-turn chat.
+- `examples/tour` — small scenes for the framework primitives.
+- `examples/approval_gate.py` — a standalone approval-intent walkthrough.
 
 The full catalog is in [Examples](en/examples.md).
 
-Roadmap direction: domain connectors as examples, the evidence graph is now in
-the trace UI (§34, §54), an evaluation harness landed (§56), the testing
-harness and MCP integration landed since (rows above), and stronger
-adaptive scheduling.
+Roadmap direction: the 0.24 line lands the CLI/daemon/HTTP adapters, knowledge
+connectors and lifecycle consumes; next is the 1.0 surface freeze (no new
+breaking changes), stronger adaptive scheduling, and more `Source`
+integrations (SQL, keyword search) as the concrete gaps.

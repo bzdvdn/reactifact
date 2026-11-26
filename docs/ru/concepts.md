@@ -99,14 +99,14 @@ async def run(self, effects: Effects) -> None:
 HITL — это `human.ask(...)` → `PendingQuestion`, ответ через
 `human.resume(...)` (см. [patterns](patterns.md)).
 
-## 4. StepGroup (опционально; бывший Agent)
+## 4. StepGroup (опциональный контейнер)
 
 Модель — это шаги. **`Runtime(ctx, steps=[...])`** оборачивает каждый шаг в
 неявную группу из одного, так что в обычном случае контейнер не нужен вовсе.
 **`StepGroup`** — необязательный контейнер для шагов, которым нужно что-то
 общее: один триггер, retry-политика, timeout, priority, лимит параллельности
 или один атомарный коммит. `Runtime` принимает `steps=` и `groups=` вместе
-(сначала шаги), а `agents=` остаётся deprecated-алиасом для `groups=`.
+(сначала шаги).
 
 ```python
 from reactifact import StepGroup
@@ -138,7 +138,7 @@ class RepairFlow(StepGroup):
 
 `StepGroup.run(event, context) -> Patch | None` остаётся низкоуровневым escape
 hatch для ручной сборки `Patch`; это не третий повседневный стиль.
-`StepGroup` и `create_agent` — deprecated-алиасы для кода на 0.x.
+Алиасы `Agent`/`create_agent` удалены в 0.24; используйте `StepGroup`/`create_step_group`.
 
 ## 5. Step
 

@@ -9,12 +9,17 @@ the runtime and the commit DAG are the same, while the authoring surface gains
 explicit types. The old names remain importable through the 0.20 compatibility
 window; this page shows the replacements and what to plan for 0.23.0.
 
+!!! note "0.24 removed the old agent names"
+    `Agent`, `create_agent`, `validate_agents`, the `agents=` keyword and the
+    `reactifact.agents` module are gone. Read every `Agent` below as
+    `StepGroup` (`create_agent` as `create_step_group`, `agents=` as `groups=`).
+
 ## 1. What changed
 
 | 0.1.x | 0.20.0 |
 | --- | --- |
 | `Produce` / `@produce` / `ProduceCall` | `Step` / `@step` / `StepCall` |
-| `Agent.produces=[...]` | `Agent.steps=[...]` |
+| `StepGroup.produces=[...]` | `StepGroup.steps=[...]` |
 | contracts split between `StepGroup.consumes` and `Produce.reacts_to` | each step owns `consumes` / `produces` |
 | `call.trigger` + manual `isinstance` guards | typed `T` / `Artifact[T]` inputs, or `Consume(T)` |
 | manual `context.get(stage_id(...))` | `scope=` / `Scope(...)` + typed inputs, or `Latest[T]` |
@@ -26,8 +31,8 @@ window; this page shows the replacements and what to plan for 0.23.0.
 
 Everything marked as a bridge remains importable in 0.21.x, but the
 top-level `Produce`/`ProduceCall`/`@produce` are no longer in `__all__`.
-`Produce`/`ProduceCall`/`@produce` are removed in 0.23.0; the other bridges
-remain available through 0.24.0.
+`Produce`/`ProduceCall`/`@produce` are removed in 0.23.0; the old `Agent`
+names are removed in 0.24.0, and the remaining bridges stay through 0.24.x.
 
 ## 2. Steps and agents
 
@@ -63,17 +68,17 @@ class Estimate(Step):
 The agent lists steps instead of produces:
 
 ```python
-agent = Agent(produces=[Estimate()])
+group = StepGroup(produces=[Estimate()])
 ```
 
 becomes:
 
 ```python
-agent = Agent(steps=[Estimate()])
+group = StepGroup(steps=[Estimate()])
 ```
 
-`Agent.produces` remains a compatibility property. New code should use
-`Agent.steps`; read `agent.steps` when introspecting an agent.
+`StepGroup.produces` remains a compatibility property. New code should use
+`StepGroup.steps`; read `group.steps` when introspecting a group.
 
 The function form changes `@produce` to `@step`, and `call.effects` replaces
 `self.effects`:
@@ -226,7 +231,7 @@ API.
 
 1. Replace `Produce` with `Step`, `ProduceCall` with `StepCall`, and
    `@produce` with `@step`.
-2. Replace `Agent(produces=[...])` with `Agent(steps=[...])`; move
+2. Replace `StepGroup(produces=[...])` with `StepGroup(steps=[...])`; move
    `StepGroup.consumes` contracts onto the relevant steps.
 3. Replace `self.effects.*` with the injected `effects` argument, or
    `call.effects` in function steps.
@@ -253,9 +258,13 @@ Removed in 0.23.0:
 
 - `Produce`, `ProduceCall`, `@produce`
 
-Kept as deprecated bridges through 0.24.0:
+Removed in 0.24.0:
 
-- `Agent.produces`
+- `Agent`, `create_agent`, `validate_agents`, `agents=`, `reactifact.agents`
+
+Kept as deprecated bridges through 0.24.x:
+
+- `StepGroup.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`
 

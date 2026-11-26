@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime
+from reactifact import Consume, Context, Patch, Runtime, StepGroup
 from reactifact.streaming import EventHub, ProgressEvent
 
 
@@ -14,7 +14,7 @@ class Done(BaseModel):
     text: str
 
 
-class Announcer(Agent):
+class Announcer(StepGroup):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):
@@ -23,7 +23,7 @@ class Announcer(Agent):
         return Patch().create(Done(text="ok"))
 
 
-class Slow(Agent):
+class Slow(StepGroup):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):
@@ -31,7 +31,7 @@ class Slow(Agent):
         return Patch().create(Done(text="ok"))
 
 
-class Stubborn(Agent):
+class Stubborn(StepGroup):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):
@@ -48,7 +48,7 @@ async def collect_events(runtime):
 
 def test_astream_yields_status_and_run_end():
     ctx = Context()
-    runtime = Runtime(ctx, agents=[Announcer()])
+    runtime = Runtime(ctx, groups=[Announcer()])
     ctx.create(UserMsg(text="привет"))
 
     events = asyncio.run(collect_events(runtime))
@@ -78,7 +78,7 @@ def test_astream_leaves_no_pending_tasks_after_consuming():
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, agents=[Announcer()])
+        runtime = Runtime(ctx, groups=[Announcer()])
         ctx.create(UserMsg(text="привет"))
         async for _ in runtime.astream():
             pass
@@ -94,7 +94,7 @@ def test_astream_close_while_waiting_leaves_no_pending_tasks():
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, agents=[Slow()])
+        runtime = Runtime(ctx, groups=[Slow()])
         ctx.create(UserMsg(text="привет"))
         agen = runtime.astream()
         assert (await agen.__anext__()).kind == "run_start"
@@ -145,7 +145,7 @@ def test_astream_close_is_bounded_when_runner_ignores_cancel(monkeypatch):
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, agents=[Stubborn()])
+        runtime = Runtime(ctx, groups=[Stubborn()])
         ctx.create(UserMsg(text="привет"))
         agen = runtime.astream()
         assert (await agen.__anext__()).kind == "run_start"

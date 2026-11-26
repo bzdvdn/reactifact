@@ -26,7 +26,7 @@ Examples:
     reactifact new daemon my-worker
     reactifact demo
     reactifact doctor
-    reactifact graph examples.knowledge.agents
+    reactifact graph examples.knowledge.step_groups
     reactifact context examples/knowledge/sessions/traces.sqlite3
     reactifact trace traces.db
     reactifact skills install --target both

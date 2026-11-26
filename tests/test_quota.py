@@ -11,7 +11,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
 )
 from reactifact.authz import Principal
 from reactifact.providers.contracts import (
@@ -105,14 +105,16 @@ def _resources(quota: QuotaTracker) -> RuntimeResources:
 
 
 def _group():
-    return create_agent("classify", consumes=[Consume(Question)], produces=[Classify()])
+    return create_step_group(
+        "classify", consumes=[Consume(Question)], produces=[Classify()]
+    )
 
 
 def test_runtime_counts_then_stops_on_quota():
     tracker = QuotaTracker(Quota(max_calls=1))
     ctx = Context(resources=_resources(tracker))
     ctx.create(Question(text="first"))
-    runtime = Runtime(ctx, agents=[_group()])
+    runtime = Runtime(ctx, groups=[_group()])
     asyncio.run(runtime.arun())
 
     assert tracker.usage("acme").calls == 1
@@ -127,7 +129,7 @@ def test_runtime_counts_then_stops_on_quota():
 def test_runtime_without_quota_is_unaffected():
     ctx = Context(resources=RuntimeResources(llm=FakeLLM('{"label": "ok"}')))
     ctx.create(Question(text="hi"))
-    runtime = Runtime(ctx, agents=[_group()])
+    runtime = Runtime(ctx, groups=[_group()])
     asyncio.run(runtime.arun())
     assert runtime.outcome == RunOutcome.COMPLETED
     assert len(ctx.list_artifacts(Sentiment)) == 1

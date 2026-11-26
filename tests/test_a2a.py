@@ -16,7 +16,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_agent,
+    create_step_group,
 )
 from reactifact.a2a import (
     A2AAgentTool,
@@ -72,7 +72,7 @@ class AskOrAnswer(Step[Answer]):
 
 
 def _echo_group():
-    return create_agent("echo", consumes=[Consume(UserMessage)], produces=[Echo()])
+    return create_step_group("echo", consumes=[Consume(UserMessage)], produces=[Echo()])
 
 
 def _app(agents):
@@ -192,7 +192,7 @@ def test_server_stream_cancels_run_when_the_client_disconnects():
     from reactifact.a2a.models import MessageSendParams
     from reactifact.a2a.server import _A2AServer, default_create_message, default_reply
 
-    slow = create_agent("slow", consumes=[Consume(UserMessage)], produces=[Slow()])
+    slow = create_step_group("slow", consumes=[Consume(UserMessage)], produces=[Slow()])
     server = _A2AServer(
         [slow],
         context_factory=Context,
@@ -220,7 +220,7 @@ def test_server_stream_cancels_run_when_the_client_disconnects():
 
 
 def test_hitl_input_required_then_resume():
-    agent = create_agent(
+    agent = create_step_group(
         "asker",
         consumes=[Consume(UserMessage), Consume(PendingQuestion)],
         produces=[AskOrAnswer()],
@@ -363,7 +363,7 @@ def test_remote_agent_runs_as_a_local_node():
         try:
             ctx = Context(resources=RuntimeResources())
             ctx.create(Question(text="hello"))
-            await Runtime(ctx, agents=[node]).arun()
+            await Runtime(ctx, groups=[node]).arun()
             answer = ctx.latest(Answer)
             assert answer is not None
             assert answer.data.text == "HELLO"
@@ -374,7 +374,7 @@ def test_remote_agent_runs_as_a_local_node():
 
 
 def test_remote_agent_maps_input_required_to_hitl():
-    asker = create_agent(
+    asker = create_step_group(
         "asker",
         consumes=[Consume(UserMessage), Consume(PendingQuestion)],
         produces=[AskOrAnswer()],
@@ -387,7 +387,7 @@ def test_remote_agent_maps_input_required_to_hitl():
         try:
             ctx = Context(resources=RuntimeResources())
             ctx.create(Question(text="please help"))
-            runtime = Runtime(ctx, agents=[node])
+            runtime = Runtime(ctx, groups=[node])
             await runtime.arun()
 
             questions = list(ctx.pending_questions())

@@ -1,7 +1,57 @@
 # Migrating to reactifact 0.24.0
 
-0.24 is mostly additive, but the optional knowledge layer gets a few deliberate
-hard breaks, and core LLM helpers now take a provider instead of a context.
+0.24 adds a lot, but it also finishes the hard breaks planned for this line:
+the old `agents` names are gone, core LLM helpers take a provider instead of a
+context, and the optional knowledge layer tightens its contracts. There is no
+compatibility shim for the items below.
+
+## The 0.x `agents` names are removed
+
+`Agent`, `create_agent`, `validate_agents`, the `agents=` keyword and the
+`reactifact.agents` module are gone. `Runtime.agents` is now `Runtime.groups`.
+
+Before:
+
+```python
+from reactifact import Agent, Runtime, create_agent
+
+group = create_agent("qa", steps=[answer])
+runtime = Runtime(context, agents=[group])
+```
+
+After:
+
+```python
+from reactifact import Runtime, create_step_group
+
+group = create_step_group("qa", steps=[answer])
+runtime = Runtime(context, groups=[group])
+```
+
+The same keyword change applies to `ChatAssistant`, `run_subflow`, `swarm` and
+`quick.chat_agent`. `validate_agents(...)` becomes
+`validate_contracts(groups=...)`.
+
+## `Artifact[T] | None` now means "handle or `None`"
+
+An optional artifact parameter used to fall through to the data path and return
+the model. It now returns the `Artifact[T]` handle (or `None`). Use `T | None`
+when you want optional data; `Artifact[T]` and `list[Artifact[T]]` still return
+handles.
+
+## Optional provider parameters resolve from resources
+
+A step parameter typed `LLMProvider | None` (and other optional services) now
+receives the registered provider instead of silently staying `None`. If `None`
+was your "no provider, use a fallback" signal, check `resources.has(...)` or
+make the parameter required.
+
+## Pending HITL replies are `waiting: true`
+
+When a `PendingQuestion` exists, `Chat` returns a structured `question` payload
+with `waiting: true` instead of an ordinary reply. Branch on `waiting` rather
+than assuming every reply has `reply`; `Chat(resume_pending=True)` turns the
+next user message into the answer.
 
 ## LLM helpers
 
@@ -92,10 +142,12 @@ ids. Stored refs without a fragment keep their old ids (`fragment` defaults to
 
 The lowercase `consume(...)` factory duplicated `Consume(...)` and is gone.
 Use `Consume(Type, ...)` or a lifecycle subclass (`OnCreate`, `OnUpdate`,
-`OnDelete`, `OnStale`) directly.
+`OnDelete`, `OnStale`) directly. It had no separate deprecation release; 0.24
+is a deliberate exception to the one-minor window.
 
 ## Additive highlights
 
+- Lifecycle consume classes: `OnCreate`, `OnUpdate`, `OnDelete`, `OnStale`.
 - `Progress` collaborator for UI statuses without `Context`.
 - Owned resources (`RuntimeResources.register(..., owned=True)`).
 - Pydantic resources and implicit read-only inputs.

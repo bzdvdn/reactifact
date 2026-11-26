@@ -18,7 +18,7 @@ Plus two correctness guards baked in:
 - **No-starvation fallback** — if filtering would empty the candidate set, the
   policy keeps the original list (the only path to progress must survive).
 
-    runtime = Runtime(ctx, agents=[...], scheduler=uncertainty_policy(
+    runtime = Runtime(ctx, groups=[...], scheduler=uncertainty_policy(
         rules=[not_legacy, not_refuted],
         metric=support_split,
         llm_tie_break=0.05,

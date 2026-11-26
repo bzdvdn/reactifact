@@ -89,22 +89,22 @@ async def per_turn(text, session_id, request):
 chat = Chat(..., per_turn=per_turn)
 ```
 
-`quick.chat_agent(...)` теперь возвращает `Chat`; он по-прежнему принимает
-`groups=`/`steps=` и deprecated-алиас `agents=`.
+`quick.chat_agent(...)` теперь возвращает `Chat`; он принимает
+`groups=`/`steps=`. Deprecated-алиас `agents=` удалён в 0.24.
 
 ## 2. Группы, шаги и алиасы
 
-`Runtime(ctx, agents=[...])` — deprecated-алиас. Используйте ключ, который
-описывает то, что вы передаёте:
+`Runtime(ctx, agents=[...])` был deprecated-алиасом и удалён в 0.24.
+Используйте ключ, который описывает то, что вы передаёте:
 
 ```python
 Runtime(ctx, groups=[MyGroup()])     # StepGroup-инстансы
 Runtime(ctx, steps=[MyStep()])       # голые шаги, оборачиваются в группы
 ```
 
-`Agent`/`create_agent` остаются deprecated-алиасами для `StepGroup`/
-`create_step_group`; новый код использует канонические имена. `agents=` нельзя
-сочетать со `steps=`/`groups=`.
+`Agent`/`create_agent`/`validate_agents` и `agents=` удалены в 0.24;
+используйте `StepGroup`/`create_step_group`/`validate_contracts(groups=...)`
+и `groups=`/`steps=`.
 
 ## 3. Тулы: инъекция, типизированные результаты, политики
 
@@ -203,10 +203,12 @@ reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag
   `Human`/`Outbox` (`human.ask/resume`, `outbox.act`). Отдельного
   deprecation-релиза у них не было: 0.23 — первый релиз с заменой, поэтому это
   осознанное исключение из правила одного минора.
-- `ChatAssistant`, `Agent`, `create_agent`, `agents=`, `Agent.produces` и
-  `Artifact.at/history/diff` остаются deprecated-мостами до 0.24.0. Новый
-  код использует `Chat`, `StepGroup`, `create_step_group`, `groups=`, `steps`
-  и `Context.version_history`/`artifact_version`/`version_diff`.
+- `Agent`, `create_agent`, `validate_agents`, `agents=` и модуль
+  `reactifact.agents` удалены в 0.24.0.
+- `ChatAssistant`, `StepGroup.produces`, `Artifact.at/history/diff` остаются
+  deprecated-мостами на линии 0.24.x. Новый код использует `Chat`,
+  `StepGroup`, `StepGroup.steps` и
+  `Context.version_history`/`artifact_version`/`version_diff`.
 - Shim-модули тулов (`reactifact.tool_use`, `reactifact.native_tool_use`,
   `reactifact.agent_tool`) импортируются в этом окне совместимости;
   канонические пути — `reactifact.tools.use`/`.native`/`.agent`.

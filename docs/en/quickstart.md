@@ -259,7 +259,7 @@ This is **sugar over the same primitives**, not a second framework. Every
 object exposes the real `StepGroup` and the `Context` the run produced:
 
 ```python
-qa.agent      # the reactive Agent — mount it on your own Runtime
+qa.agent      # the reactive StepGroup — mount it on your own Runtime
 qa.context    # the artifacts/provenance of the last ask()
 ```
 

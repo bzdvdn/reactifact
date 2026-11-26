@@ -32,7 +32,7 @@ def build():
     )
     ctx = Context(resources=resources)
     runtime = Runtime(
-        ctx, agents=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
     )
     return ctx, runtime
 
@@ -181,7 +181,7 @@ def test_topic_agnostic_hypotheses_from_llm(tmp_path):
     )
     ctx = Context(resources=resources)
     runtime = Runtime(
-        ctx, agents=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
     )
     run_until_report(ctx, runtime, ["stop"])
 
@@ -236,7 +236,7 @@ def test_deepen_uses_model_queries_and_report_synthesis(tmp_path):
         )
     )
     runtime = Runtime(
-        ctx, agents=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
     )
     run_until_report(ctx, runtime, ["1", "stop"])
 

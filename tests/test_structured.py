@@ -94,7 +94,7 @@ class ReportGenerator(StructuredGenerateAgent):
 def test_structured_generate_agent_uses_llm():
     llm = ScriptedLLM(['{"title": "Т", "body": "Б"}'])
     ctx = Context(resources=RuntimeResources(llm=llm))
-    runtime = Runtime(ctx, agents=[ReportGenerator()])
+    runtime = Runtime(ctx, groups=[ReportGenerator()])
     ctx.create(Article(content="статья про отчёты"))
     asyncio.run(runtime.arun())
 
@@ -108,7 +108,7 @@ def test_structured_generate_agent_uses_llm():
 def test_structured_generate_fallback_on_llm_failure():
     llm = ScriptedLLM(["не валидный json", "тоже не валидный"])
     ctx = Context(resources=RuntimeResources(llm=llm))
-    runtime = Runtime(ctx, agents=[ReportGenerator()])
+    runtime = Runtime(ctx, groups=[ReportGenerator()])
     ctx.create(Article(content="очень длинная статья"))
     asyncio.run(runtime.arun())
 
