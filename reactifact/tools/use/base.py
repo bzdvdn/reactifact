@@ -22,7 +22,8 @@ from pydantic import BaseModel, Field
 from ...context import Context
 from ...provenance import DERIVED_FROM
 from ...step import Step
-from ..base import Tool, execute_tool
+from ..base import Tool
+from ..runlog import execute_tool
 
 
 class ToolAnswer(BaseModel):
@@ -121,13 +122,14 @@ class _ToolLoopBase(Step[ToolAnswer]):
             output = await execute_tool(tool, args, resources=context.resources)
         except Exception as exc:  # noqa: BLE001 — tool failure is returned to the LLM
             return f"Tool '{tool_id}' failed: {exc}"
-        if output.error:
+        if not output.ok:
             info = output.error_info
+            error = output.error or (str(info) if info is not None else "tool failed")
             if info is None:
-                return output.error
+                return error
             code = f" [{info.code}]" if info.code else ""
             retryable = " (retryable)" if info.retryable else ""
-            return f"Tool '{tool_id}' failed{code}{retryable}: {output.error}"
+            return f"Tool '{tool_id}' failed{code}{retryable}: {error}"
         return (
             output.text if output.text else json.dumps(output.data, ensure_ascii=False)
         )

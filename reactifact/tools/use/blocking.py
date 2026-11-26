@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import json
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from pydantic import BaseModel
@@ -18,6 +19,8 @@ from .base import (
     _ToolLoopBase,
     _ToolUseStep,
 )
+
+ToolLoader = Callable[[], Sequence[Tool] | Awaitable[Sequence[Tool]]]
 
 
 class DeferredToolGroup(BaseModel):
@@ -53,7 +56,7 @@ class DeferredToolGroup(BaseModel):
     display_name: str
     description: str
     tool_names: Sequence[str]
-    loader: Callable[[], Any]
+    loader: ToolLoader
 
 
 class ToolUse(_ToolLoopBase):
@@ -188,7 +191,10 @@ class ToolUse(_ToolLoopBase):
                 f"result: Unknown tool group. Available: {available}"
             )
         if group_id not in loaded_groups:
-            loaded_groups[group_id] = {t.name: t for t in await group.loader()}
+            loaded = group.loader()
+            if inspect.isawaitable(loaded):
+                loaded = await loaded
+            loaded_groups[group_id] = {t.name: t for t in loaded}
         pool = loaded_groups[group_id]
         requested = args.get("tool_names") or list(pool)
         schemas = "\n".join(

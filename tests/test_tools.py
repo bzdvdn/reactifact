@@ -13,9 +13,19 @@ from reactifact import (
     StepCall,
     tool,
 )
+from reactifact.effects import Effects
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.tool_use import DeferredToolGroup, ToolAnswer, ToolUse
+from reactifact.tool_use import DeferredToolGroup, ToolAnswer, ToolUse, ToolUseHITL
+from reactifact.tools import (
+    Tool,
+    ToolError,
+    ToolOutput,
+    begin_tool_runs,
+    end_tool_runs,
+    execute_tool,
+    tool_runs,
+)
 
 
 class K8sProblems(BaseModel):
@@ -689,3 +699,90 @@ def test_max_approvals_caps_repeated_destructive_calls():
     assert calls["delete_pod"] == [{"name": "web-1"}]
     assert len(ctx.list_artifacts(PendingQuestion)) == 1
     assert ctx.list_artifacts(K8sReport)[0].data.text == "готово"
+
+
+class ErrorInfoTool(Tool):
+    name = "broken"
+    description = "returns only a typed error"
+    schema = {}
+
+    async def execute(self, args):
+        return ToolOutput(
+            error_info=ToolError(code="E_BROKEN", message="boom", retryable=True)
+        )
+
+
+def test_error_info_only_failure_is_recorded_and_returned() -> None:
+    token = begin_tool_runs()
+    try:
+        output = asyncio.run(execute_tool(ErrorInfoTool(), {}))
+        runs = tool_runs()
+    finally:
+        end_tool_runs(token)
+
+    assert output.ok is False
+    assert runs[-1].ok is False
+    assert runs[-1].error is not None
+    assert "boom" in runs[-1].error
+
+
+def test_tool_use_reports_error_info_only_failure() -> None:
+    step = ToolUse("report failures", [ErrorInfoTool()])
+    context = Context(resources=RuntimeResources())
+
+    result = asyncio.run(
+        step._run_tool(
+            step.tools,
+            "broken",
+            {},
+            context=context,
+        )
+    )
+
+    assert "E_BROKEN" in result
+    assert "boom" in result
+
+
+def test_deferred_tool_group_accepts_a_sync_loader() -> None:
+    @tool
+    async def extra_tool(x: str) -> str:
+        """An extra tool."""
+        return x
+
+    group = DeferredToolGroup(
+        group_id="sync",
+        display_name="Sync",
+        description="sync loader",
+        tool_names=["extra_tool"],
+        loader=lambda: [extra_tool],
+    )
+    step = ToolUse("tools", [], deferred_tool_groups=[group])
+    loaded: dict[str, dict[str, Tool]] = {}
+
+    message = asyncio.run(step._load_tool_group(loaded, {"group_id": "sync"}))
+
+    assert "Loaded" in message
+    assert "extra_tool" in loaded["sync"]
+
+
+def test_approval_questions_do_not_consume_max_asks() -> None:
+    context = Context(resources=RuntimeResources())
+    context.create(
+        PendingQuestion(
+            question="Approve?",
+            kind="approve",
+            notes={"query_id": "q1"},
+        )
+    )
+    step = ToolUseHITL("ask", [], max_asks=1)
+    effects = Effects(context)
+
+    step._handle_ask(context, effects, "q1", [], "What namespace?")
+
+    created = [
+        operation.data
+        for operation in effects.operations
+        if isinstance(operation.data, PendingQuestion)
+    ]
+    assert [question.question for question in created] == ["What namespace?"]
+    assert created[0].kind == "clarify"

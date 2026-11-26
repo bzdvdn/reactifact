@@ -83,23 +83,40 @@ def parse_tool_calls(response: LLMResponse) -> list[ToolCall]:
     if not isinstance(response.raw, dict):
         return []
     choices = response.raw.get("choices") or []
-    if not choices:
+    if not choices or not isinstance(choices[0], dict):
         return []
     message = choices[0].get("message") or {}
+    if not isinstance(message, dict):
+        return []
     calls = message.get("tool_calls") or []
+    if not isinstance(calls, list):
+        return []
     parsed: list[ToolCall] = []
     for call in calls:
+        if not isinstance(call, dict):
+            continue
         function = call.get("function") or {}
+        if not isinstance(function, dict):
+            continue
         raw_args = function.get("arguments") or "{}"
-        try:
-            args = json.loads(raw_args)
-        except ValueError:
-            logger.debug(
-                "native_tool_use: malformed tool_call arguments: %.160r", raw_args
-            )
-            args = {}
+        if isinstance(raw_args, dict):
+            args = raw_args
+        else:
+            try:
+                decoded = json.loads(raw_args)
+            except (TypeError, ValueError):
+                logger.debug(
+                    "native_tool_use: malformed tool_call arguments: %.160r",
+                    raw_args,
+                )
+                decoded = {}
+            args = decoded if isinstance(decoded, dict) else {}
         parsed.append(
-            ToolCall(id=call.get("id", ""), name=function.get("name", ""), args=args)
+            ToolCall(
+                id=str(call.get("id", "")),
+                name=str(function.get("name", "")),
+                args=args,
+            )
         )
     return parsed
 
@@ -267,12 +284,14 @@ async def native_complete(
     if payload_tools:
         extra["tools"] = payload_tools
         extra["tool_choice"] = "auto"
-    typed_messages = [
-        Message(
-            role=cast(Role, m.get("role", "user")), content=str(m.get("content") or "")
+    typed_messages = []
+    for message in messages:
+        role = str(message.get("role", "user"))
+        if role not in {"system", "user", "assistant", "tool"}:
+            role = "user"  # e.g. OpenAI's newer "developer" role
+        typed_messages.append(
+            Message(role=cast(Role, role), content=str(message.get("content") or ""))
         )
-        for m in messages
-    ]
     request = LLMRequest(
         messages=typed_messages,
         temperature=temperature,

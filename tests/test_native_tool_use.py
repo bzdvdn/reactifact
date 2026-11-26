@@ -190,3 +190,66 @@ def test_native_complete_returns_none_on_provider_error():
         native_complete(ctx, messages=[{"role": "user", "content": "hi"}])
     )
     assert response is None
+
+
+def test_parse_tool_calls_accepts_dict_arguments() -> None:
+    response = LLMResponse(
+        text="",
+        raw={
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "check_pods",
+                                    "arguments": {"namespace": "checkout"},
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    )
+    assert parse_tool_calls(response) == [
+        ToolCall(id="call_1", name="check_pods", args={"namespace": "checkout"})
+    ]
+
+
+def test_parse_tool_calls_ignores_non_dict_payloads() -> None:
+    response = LLMResponse(
+        text="",
+        raw={
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            "not-a-call",
+                            {
+                                "id": "call_2",
+                                "function": {"name": "x", "arguments": ["not", "json"]},
+                            },
+                        ]
+                    }
+                }
+            ]
+        },
+    )
+    assert parse_tool_calls(response) == [ToolCall(id="call_2", name="x", args={})]
+
+
+def test_native_complete_maps_unknown_roles_to_user() -> None:
+    llm = ScriptedRawLLM({"choices": [{"message": {"content": "ok"}}]})
+    ctx = Context(resources=RuntimeResources(llm=llm))
+
+    asyncio.run(
+        native_complete(
+            ctx,
+            messages=[{"role": "developer", "content": "be nice"}],
+        )
+    )
+
+    assert llm.last_messages is not None
+    assert llm.last_messages[0].role == "user"

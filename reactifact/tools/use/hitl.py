@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from ...artifacts import Artifact
 from ...context import Context
@@ -19,6 +20,13 @@ from .base import (
     _ToolLoopBase,
     _ToolUseStepHITL,
 )
+
+
+@dataclass(frozen=True)
+class _Resume:
+    query_id: str
+    kind: Literal["start", "continue", "resume", "resume_approve"]
+    extra: str = ""
 
 
 class ToolUseHITL(_ToolLoopBase):
@@ -77,59 +85,21 @@ class ToolUseHITL(_ToolLoopBase):
         event: Event | None,
         trigger: Artifact[Any] | None,
     ) -> None:
-        resolved = self._resolve(context, event)
-        if resolved is None:
+        resume = self._resolve(context, event)
+        if resume is None:
             return None
-        qid, kind, extra = resolved
-        goal = self._goal(context, qid)
+        qid = resume.query_id
         history = self._history(context, qid)
+        goal = self._goal(context, qid)
 
-        if kind == "resume":
-            # human answer to a clarify → user observation, continue.
-            # Status from the app (kind="status"): text authored by the app.
-            if self.resume_announce is not None:
-                context.announce(
-                    self.resume_announce(extra), kind="status", agent=self.name
-                )
-            effects.create(
-                Observation(
-                    query_id=qid,
-                    step=len(history) + 1,
-                    text=extra,
-                    source="user",
-                    agent=self.name,
-                )
+        if resume.kind == "resume":
+            self._resume_clarification(context, effects, qid, history, resume.extra)
+            return None
+        if resume.kind == "resume_approve":
+            await self._resume_approval(
+                context, effects, qid, history, trigger, resume.extra
             )
             return None
-
-        if kind == "resume_approve":
-            question = trigger
-            notes = question.data.notes if question is not None else {}
-            tool_id = notes.get("tool_id", "")
-            args = notes.get("args", {})
-            approved = (
-                question.data.approved()
-                if question is not None
-                else extra.strip().lower()
-                in ("yes", "y", "approve", "approved", "true")
-            )
-            if approved:
-                result = await self._run_tool(
-                    self.tools, tool_id, args, context=context, allow_destructive=True
-                )
-            else:
-                result = f"Tool '{tool_id}' call was not approved by the user."
-            effects.create(
-                Observation(
-                    query_id=qid,
-                    step=len(history) + 1,
-                    text=result,
-                    source="tool",
-                    agent=self.name,
-                )
-            )
-            return None
-
         if len(history) >= self.max_steps:
             await self._forced_answer(context, qid, goal, history, effects)
             return None
@@ -149,210 +119,265 @@ class ToolUseHITL(_ToolLoopBase):
             self._answer(qid, decision.text, effects)
             return None
         if decision.type == "ask":
-            if not decision.text:
-                self._answer(qid, "Question not specified.", effects)
-                return None
-            asked = [
-                q
-                for q in context.list_artifacts(PendingQuestion)
-                if q.data.notes.get("query_id") == qid
-                and q.data.question == decision.text
-            ]
-            if asked:
-                answers = [q.data.answer_text() for q in asked if q.data.answered]
-                if not answers:
-                    # the same question was already asked and awaits an answer
-                    return None
-                # LLM asks the same thing again — nudge it to continue
-                effects.create(
-                    Observation(
-                        query_id=qid,
-                        step=len(history) + 1,
-                        text=(
-                            f"You already asked '{decision.text}' and the user "
-                            f"answered: {answers[-1]}. Use that answer and "
-                            "proceed to a final answer."
-                        ),
-                        source="tool",
-                        agent=self.name,
-                    )
-                )
-                return None
-            asked_count = len(
-                [
-                    q
-                    for q in context.list_artifacts(PendingQuestion)
-                    if q.data.notes.get("query_id") == qid
-                ]
-            )
-            if asked_count >= self.max_asks:
-                # no more questions — continue with what we have
-                effects.create(
-                    Observation(
-                        query_id=qid,
-                        step=len(history) + 1,
-                        text=(
-                            "You have already asked enough clarifying questions. "
-                            "Proceed with the tool call using the available values; "
-                            "if a value is missing, use a reasonable default and "
-                            "note it in the final answer."
-                        ),
-                        source="tool",
-                        agent=self.name,
-                    )
-                )
-                return None
-            Human(effects).ask(
-                decision.text,
-                kind="clarify",
-                notes={"query_id": qid, "agent": self.name},
-            )
+            self._handle_ask(context, effects, qid, history, decision.text)
             return None
         if not decision.tool:
             self._answer(qid, "Tool not specified.", effects)
             return None
-
-        target_tool = self.tools.get(decision.tool)
-        if target_tool is not None and target_tool.destructive:
-            step = len(history) + 1
-            prior = [
-                q
-                for q in context.list_artifacts(PendingQuestion)
-                if q.data.notes.get("query_id") == qid
-                and q.data.kind == "approve"
-                and q.data.notes.get("tool_id") == decision.tool
-                and q.data.notes.get("args") == decision.args
-            ]
-            if prior:
-                pending = [q for q in prior if not q.data.answered]
-                if pending:
-                    return None  # awaiting the human's decision
-                last_approved = prior[-1].data.approved()
-                text = (
-                    f"You already asked to run '{decision.tool}' with these args and "
-                    f"the user {'approved' if last_approved else 'denied'} it. "
-                ) + (
-                    "Use the result already recorded and proceed."
-                    if last_approved
-                    else "Do not ask again; proceed without it."
-                )
-                effects.create(
-                    Observation(
-                        query_id=qid,
-                        step=step,
-                        text=text,
-                        source="tool",
-                        agent=self.name,
-                    )
-                )
-                return None
-            approvals_asked = len(
-                [
-                    q
-                    for q in context.list_artifacts(PendingQuestion)
-                    if q.data.notes.get("query_id") == qid and q.data.kind == "approve"
-                ]
-            )
-            if approvals_asked >= self.max_approvals:
-                effects.create(
-                    Observation(
-                        query_id=qid,
-                        step=step,
-                        text=(
-                            f"Approval limit ({self.max_approvals}) reached; cannot "
-                            f"run destructive tool '{decision.tool}'. Proceed without it."
-                        ),
-                        source="tool",
-                        agent=self.name,
-                    )
-                )
-                return None
-            Human(effects).ask(
-                f"Approve running destructive tool '{decision.tool}' with args "
-                f"{json.dumps(decision.args, ensure_ascii=False)}? (yes/no)",
-                kind="approve",
-                notes={
-                    "query_id": qid,
-                    "agent": self.name,
-                    "tool_id": decision.tool,
-                    "args": decision.args,
-                },
-            )
+        if self._handle_destructive(context, effects, qid, history, decision):
             return None
+        await self._handle_tool_call(context, effects, qid, history, decision)
 
-        tool_history = [o for o in history if o.source == "tool"]
+    def _observe(
+        self,
+        effects: Effects,
+        qid: str,
+        step: int,
+        text: str,
+        *,
+        source: str = "tool",
+    ) -> None:
+        effects.create(
+            Observation(
+                query_id=qid,
+                step=step,
+                text=text,
+                source=source,
+                agent=self.name,
+            )
+        )
+
+    def _pending(
+        self,
+        context: Context,
+        qid: str,
+        *,
+        kind: str | None = None,
+    ) -> list[Artifact[PendingQuestion]]:
+        return [
+            question
+            for question in context.list_artifacts(PendingQuestion)
+            if question.data.notes.get("query_id") == qid
+            and (kind is None or question.data.kind == kind)
+        ]
+
+    def _resume_clarification(
+        self,
+        context: Context,
+        effects: Effects,
+        qid: str,
+        history: list[Observation],
+        answer: str,
+    ) -> None:
+        if self.resume_announce is not None:
+            context.announce(
+                self.resume_announce(answer), kind="status", agent=self.name
+            )
+        self._observe(effects, qid, len(history) + 1, answer, source="user")
+
+    async def _resume_approval(
+        self,
+        context: Context,
+        effects: Effects,
+        qid: str,
+        history: list[Observation],
+        trigger: Artifact[Any] | None,
+        answer: str,
+    ) -> None:
+        question = trigger
+        notes = question.data.notes if question is not None else {}
+        tool_id = notes.get("tool_id", "")
+        args = notes.get("args", {})
+        approved = (
+            question.data.approved()
+            if question is not None
+            else answer.strip().lower() in ("yes", "y", "approve", "approved", "true")
+        )
+        if approved:
+            result = await self._run_tool(
+                self.tools,
+                tool_id,
+                args,
+                context=context,
+                allow_destructive=True,
+            )
+        else:
+            result = f"Tool '{tool_id}' call was not approved by the user."
+        self._observe(effects, qid, len(history) + 1, result)
+
+    def _handle_ask(
+        self,
+        context: Context,
+        effects: Effects,
+        qid: str,
+        history: list[Observation],
+        text: str,
+    ) -> None:
+        if not text:
+            self._answer(qid, "Question not specified.", effects)
+            return
+        asked = [
+            question
+            for question in self._pending(context, qid, kind="clarify")
+            if question.data.question == text
+        ]
+        step = len(history) + 1
+        if asked:
+            answers = [q.data.answer_text() for q in asked if q.data.answered]
+            if not answers:
+                return  # the same question was already asked and awaits an answer
+            self._observe(
+                effects,
+                qid,
+                step,
+                (
+                    f"You already asked '{text}' and the user answered: "
+                    f"{answers[-1]}. Use that answer and proceed to a final answer."
+                ),
+            )
+            return
+        if len(self._pending(context, qid, kind="clarify")) >= self.max_asks:
+            self._observe(
+                effects,
+                qid,
+                step,
+                (
+                    "You have already asked enough clarifying questions. "
+                    "Proceed with the tool call using the available values; "
+                    "if a value is missing, use a reasonable default and "
+                    "note it in the final answer."
+                ),
+            )
+            return
+        Human(effects).ask(
+            text,
+            kind="clarify",
+            notes={"query_id": qid, "agent": self.name},
+        )
+
+    def _handle_destructive(
+        self,
+        context: Context,
+        effects: Effects,
+        qid: str,
+        history: list[Observation],
+        decision: _ToolUseStepHITL,
+    ) -> bool:
+        target = self.tools.get(decision.tool)
+        if target is None or not target.destructive:
+            return False
+        step = len(history) + 1
+        prior = [
+            question
+            for question in self._pending(context, qid, kind="approve")
+            if question.data.notes.get("tool_id") == decision.tool
+            and question.data.notes.get("args") == decision.args
+        ]
+        if prior:
+            pending = [q for q in prior if not q.data.answered]
+            if pending:
+                return True  # awaiting the human's decision
+            last_approved = prior[-1].data.approved()
+            text = (
+                f"You already asked to run '{decision.tool}' with these args and "
+                f"the user {'approved' if last_approved else 'denied'} it. "
+            ) + (
+                "Use the result already recorded and proceed."
+                if last_approved
+                else "Do not ask again; proceed without it."
+            )
+            self._observe(effects, qid, step, text)
+            return True
+        if len(self._pending(context, qid, kind="approve")) >= self.max_approvals:
+            self._observe(
+                effects,
+                qid,
+                step,
+                (
+                    f"Approval limit ({self.max_approvals}) reached; cannot "
+                    f"run destructive tool '{decision.tool}'. Proceed without it."
+                ),
+            )
+            return True
+        Human(effects).ask(
+            f"Approve running destructive tool '{decision.tool}' with args "
+            f"{json.dumps(decision.args, ensure_ascii=False)}? (yes/no)",
+            kind="approve",
+            notes={
+                "query_id": qid,
+                "agent": self.name,
+                "tool_id": decision.tool,
+                "args": decision.args,
+            },
+        )
+        return True
+
+    async def _handle_tool_call(
+        self,
+        context: Context,
+        effects: Effects,
+        qid: str,
+        history: list[Observation],
+        decision: _ToolUseStepHITL,
+    ) -> None:
+        step = len(history) + 1
         budget = context.resources.budget
         max_tool_calls = budget.max_tool_calls if budget is not None else None
         tracker = context.resources.budget_tracker
         if tracker is not None and tracker.exhausted(budget) is not None:
-            effects.create(
-                Observation(
-                    query_id=qid,
-                    step=len(history) + 1,
-                    text=(
-                        "Token/cost budget exhausted; "
-                        "answer based on the available data."
-                    ),
-                    source="tool",
-                    agent=self.name,
-                )
+            self._observe(
+                effects,
+                qid,
+                step,
+                "Token/cost budget exhausted; answer based on the available data.",
             )
-            return None
+            return
+        tool_history = [
+            observation for observation in history if observation.source == "tool"
+        ]
         if max_tool_calls is not None and len(tool_history) >= max_tool_calls:
-            effects.create(
-                Observation(
-                    query_id=qid,
-                    step=len(history) + 1,
-                    text=(
-                        f"Tool budget ({max_tool_calls}) exhausted; "
-                        "answer based on the available data."
-                    ),
-                    source="tool",
-                    agent=self.name,
-                )
+            self._observe(
+                effects,
+                qid,
+                step,
+                (
+                    f"Tool budget ({max_tool_calls}) exhausted; "
+                    "answer based on the available data."
+                ),
             )
-            return None
+            return
         context.announce(
             f"Calling tool '{decision.tool}'…", kind="agent", tool=decision.tool
         )
         result = await self._run_tool(
             self.tools, decision.tool, decision.args, context=context
         )
-        effects.create(
-            Observation(
-                query_id=qid,
-                step=len(history) + 1,
-                text=result,
-                source="tool",
-                agent=self.name,
-            )
-        )
-        return None
+        self._observe(effects, qid, step, result)
 
     def _answer(self, qid: str, text: str, effects: Effects) -> None:
         effects.create(ToolAnswer(agent=self.name, query_id=qid, text=text))
 
-    def _resolve(
-        self, context: Context, event: Event | None
-    ) -> tuple[str, str, str] | None:
+    def _resolve(self, context: Context, event: Event | None) -> _Resume | None:
         """(query_id, kind, extra): start / continue / resume (human answer)."""
         artifact = context.get(event.artifact_id) if event is not None else None
         if artifact is None:
             return None
         data = artifact.data
         if isinstance(data, Observation):
-            return data.query_id, "continue", ""
+            return _Resume(data.query_id, "continue")
         if isinstance(data, PendingQuestion):
             if not data.answered:
                 return None  # waiting for the human answer
             qid = data.notes.get("query_id")
             if not qid:
                 return None
-            resume_kind = "resume_approve" if data.kind == "approve" else "resume"
-            return qid, resume_kind, data.answer_text()
+            resume_kind: Literal["resume", "resume_approve"] = (
+                "resume_approve" if data.kind == "approve" else "resume"
+            )
+            return _Resume(qid, resume_kind, data.answer_text())
         if isinstance(data, ToolAnswer):
             return None  # final answer is handled by user produces
-        return artifact.id, "start", ""
+        return _Resume(artifact.id, "start")
 
     @staticmethod
     def _goal(context: Context, qid: str) -> str:

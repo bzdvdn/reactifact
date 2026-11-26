@@ -1,4 +1,4 @@
-"""reactifact.agent_tool — a sub-agent as a `Tool` (delegation, §46).
+"""reactifact.tools.agent — a sub-agent as a `Tool` (delegation, §46).
 
 `AgentAsTool` lets an `LLMAgent`/`HITLLMAgent` loop call another agent as an
 ordinary tool: "delegate to X" runs a fresh, isolated nested `Runtime` to
@@ -39,7 +39,8 @@ from ..context import Context
 from ..resources import RuntimeResources
 from ..runtime import Runtime
 from ..step import StepGroup
-from .base import Tool, ToolOutput
+from .base import Tool
+from .contracts import ToolOutput
 from .use import ToolAnswer
 
 
@@ -90,7 +91,7 @@ class AgentAsTool(Tool):
         sub_context = Context(resources=self.resources)
         sub_agent = self.agent_factory()
         sub_runtime = Runtime(
-            sub_context, agents=[sub_agent], budget=Budget(max_runs=self.max_runs)
+            sub_context, groups=[sub_agent], budget=Budget(max_runs=self.max_runs)
         )
         sub_context.create(self.input_type(text=query))
         await sub_runtime.arun()
