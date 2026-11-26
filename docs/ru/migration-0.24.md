@@ -88,6 +88,12 @@ sqlite_store = SqliteDocStore(".reactifact/knowledge/state.sqlite3")
 разные id артефактов. Сохранённые рефы без fragment сохраняют старые id
 (`fragment` по умолчанию `""`).
 
+## `consume()` удалён
+
+Фабрика `consume(...)` дублировала `Consume(...)` и удалена. Используйте
+`Consume(Type, ...)` или lifecycle-подкласс (`OnCreate`, `OnUpdate`,
+`OnDelete`, `OnStale`) напрямую.
+
 ## Аддитивные изменения
 
 - `Progress` — UI-статусы без `Context`.

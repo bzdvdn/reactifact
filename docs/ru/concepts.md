@@ -245,8 +245,8 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 - **`Event` / `EventType`** — формат «что-то изменилось»; агентов будят события
   создания/обновления артефактов, а announce порождает `status`-события на пути
   к UI. `ARTIFACT_STALE` возникает автоматически, когда учтённая зависимость
-  артефакта (§43-44) получает новую версию — подписка явная:
-  `Consume(Type, event_types=[EventType.ARTIFACT_STALE])`.
+  артефакта (§43-44) получает новую версию — подписка через `OnStale(Type)`
+  (или явный `Consume(Type, event_types=[...])`).
 - **`Trigger`** — вторичное условие входа для produce (периодический или таймерый
   запуск), независимое от потребляемых артефактов. `context_condition` —
   форма с двумя артефактами (нужна для join/корреляции); `debounce` — флаг,
@@ -273,6 +273,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Что нужно | Что использовать |
 | --- | --- |
 | Реакция на тип | `Consume(Type)` |
+| Только одно lifecycle-событие | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
 | Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `consumes` (автоматически), `Annotated[T, Wakes(False)]`, когда `consumes` выводится, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
 | Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |

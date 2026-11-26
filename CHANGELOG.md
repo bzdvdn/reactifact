@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   as their first argument. Use `llm.structured(...)` / `llm.reply(...)` when a
   provider is injected, or pass `context.resources.llm` explicitly. The
   `Context` union shim (and its `context=` keyword) is gone.
+- **`consume()` removed.** Use `Consume(...)` or `OnCreate`/`OnUpdate`/
+  `OnDelete`/`OnStale` directly; the factory duplicated the constructor.
 - **Knowledge point IDs include `chunk_index`.** Existing knowledge indexes
   need one full (non-incremental) reindex after upgrading; identical section
   bodies no longer collapse into one point.

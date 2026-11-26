@@ -30,7 +30,14 @@ from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .chat import Chat
 from .commit import ContextCheckpoint
-from .consume import Consume, IdempotentConsume, consume
+from .consume import (
+    Consume,
+    IdempotentConsume,
+    OnCreate,
+    OnDelete,
+    OnStale,
+    OnUpdate,
+)
 from .context import Context, ProvenanceLink, View
 from .daemon import Daemon
 from .di import Depends, Inject
@@ -111,6 +118,10 @@ __all__ = [
     "Consume",
     "Context",
     "IdempotentConsume",
+    "OnCreate",
+    "OnDelete",
+    "OnStale",
+    "OnUpdate",
     "ProvenanceLink",
     "ContextCheckpoint",
     "Create",
@@ -184,7 +195,6 @@ __all__ = [
     "When",
     "bind",
     "configure_logging",
-    "consume",
     "create_agent",
     "create_step_group",
     "current_request",

@@ -88,6 +88,12 @@ chunk id as their fragment, so chunks of one document now get distinct artifact
 ids. Stored refs without a fragment keep their old ids (`fragment` defaults to
 `""`).
 
+## `consume()` removed
+
+The lowercase `consume(...)` factory duplicated `Consume(...)` and is gone.
+Use `Consume(Type, ...)` or a lifecycle subclass (`OnCreate`, `OnUpdate`,
+`OnDelete`, `OnStale`) directly.
+
 ## Additive highlights
 
 - `Progress` collaborator for UI statuses without `Context`.

@@ -243,7 +243,7 @@ Why this matters:
   woken by artifacts' create/update events, and the announce mechanism emits
   `status` events on the way to the UI. `ARTIFACT_STALE` fires automatically
   when an artifact's recorded dependency (§43-44) gets a newer version — opt
-  in with `Consume(Type, event_types=[EventType.ARTIFACT_STALE])`.
+  in with `OnStale(Type)` (or the explicit `Consume(Type, event_types=[...])`).
 - **`Trigger`** — secondary enter conditions for a produce (e.g. a periodic or
   timer-based wake), independent of the artifact consums. `context_condition`
   is the two-artifact form (needed for joins/correlation); `debounce` is the
@@ -270,6 +270,7 @@ when the task actually needs it.
 | Need | Use |
 | --- | --- |
 | React to a type | `Consume(Type)` |
+| Only one lifecycle event | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Conditional edge | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
 | Read without waking / latest / scoped lookup | a typed param missing from explicit `consumes` (automatic), `Annotated[T, Wakes(False)]` when `consumes` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
 | Periodic/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
