@@ -1,13 +1,13 @@
-# Auto-generated reference
+# Core API
 
 Every entry below is rendered straight from its docstring in the source —
 signature, type hints, and the actual rationale text, not a hand-maintained
-copy of it. If this page and [api.md](en/api.md) or a docstring ever
+copy of it. If this page and [api.md](../en/api.md) or a docstring ever
 disagree, the docstring is the truth; open an issue.
 
-Grouped the same way as [the roadmap's API-stability tiers](roadmap.md#next):
+Grouped the same way as [the roadmap's API-stability tiers](../roadmap.md#next):
 Core first, then "in the box". Recipes stay documented by example in
-[recipes.md](en/recipes.md) rather than duplicated here — a recipe's value
+[recipes.md](../en/recipes.md) rather than duplicated here — a recipe's value
 is in how it's used, not its bare signature.
 
 ## Core
@@ -43,10 +43,6 @@ is in how it's used, not its bare signature.
 ### RuntimeResources
 
 ::: reactifact.RuntimeResources
-
-### Source
-
-::: reactifact.sources.Source
 
 ### PendingQuestion (HITL)
 

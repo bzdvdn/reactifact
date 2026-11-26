@@ -1,4 +1,7 @@
-# Evaluation harness (§56)
+# Evaluation
+
+The deterministic metrics and experiment layer are rendered in the
+[evaluation API reference](../reference/eval.md). harness (§56)
 
 Because state is structured, evaluation is **multi-level** — not just
 `answer == expected`:

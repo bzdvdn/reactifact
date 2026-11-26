@@ -1,4 +1,7 @@
-# Knowledge base (optional layer)
+# Knowledge base
+
+Every class and function on this page is rendered from its docstring in the
+[knowledge API reference](../reference/knowledge.md). (optional layer)
 
 `reactifact.knowledge` turns heterogeneous documents into a searchable index
 without adding a second agent framework. It is **code-first**: a connector is

@@ -1,5 +1,7 @@
 # Sources
 
+The full source and `SourceRef` reference is [rendered from docstrings](../reference/sources.md).
+
 A **Source** is a retrieval capability. Vector search is one strategy, not
 *the* strategy — the filesystem, CSV, and the web (`WebSource`) are equally
 first-class today, and **embeddings are optional**. The `Source` protocol

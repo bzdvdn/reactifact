@@ -1,6 +1,7 @@
 # Привязка к конституции: оценка (§56)
 
-Состояние структурировано, поэтому оценка **многоуровневая** — не только
+Детерминированные метрики и experiment layer отрисованы в
+[evaluation API reference](../reference/eval.md). Состояние структурировано, поэтому оценка **многоуровневая** — не только
 `answer == expected`:
 
 > Качество доказательств · Проверка утверждений · Калибровка уверенности ·
@@ -89,7 +90,10 @@ print(report.render())   # recall, precision, mrr, ndcg, hit_rate
 `reactifact.knowledge.eval.evaluate_pipeline` — готовый адаптер с
 `document_key`/`chunk_key`.
 
-## Оценка по датасету
+## Оценка
+
+Детерминированные метрики и experiment layer отрисованы в
+[evaluation API reference](../reference/eval.md). по датасету
 
 Кроме оценки одного готового `Context`, `reactifact.eval` прогоняет **датасет**
 через **target** и оценивает каждый пример — офлайн-цикл оценки, без hosted-

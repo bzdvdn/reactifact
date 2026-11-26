@@ -2,10 +2,15 @@
 
 Символы верхнего уровня, экспортируемые `reactifact` (см. `reactifact/__init__.py`).
 Формат по группам: имя — роль в одну строку. Детали — в док-строках модулей —
-см. [автосгенерированный референс](../reference.md) (только на английском,
+см. [автосгенерированный референс](../reference/index.md) (только на английском,
 докстринги в коде не переведены): сигнатуры, типы и полный текст докстринга
 рендерятся прямо из исходников на сайте документации, а не копируются сюда
 вручную.
+
+Страницы по областям: [Knowledge](../reference/knowledge.md),
+[Evaluation](../reference/eval.md), [Sources](../reference/sources.md),
+[Providers](../reference/providers.md), [Recipes](../reference/recipes.md),
+[Tracing](../reference/tracing.md).
 
 ## Стабильность
 

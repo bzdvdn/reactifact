@@ -2,9 +2,12 @@
 
 Top-level symbols exported by `reactifact` (see `reactifact/__init__.py`). The format
 for each group: name — one-line role. Details live in the doc-strings of the
-modules — see [the auto-generated reference](../reference.md) for those
+modules — see [the auto-generated reference](../reference/index.md) for those
 rendered directly from source (signatures, types, full docstring text) on
-the docs site, rather than copied here by hand.
+the docs site, rather than copied here by hand. Per-area pages:
+[Knowledge](../reference/knowledge.md), [Evaluation](../reference/eval.md),
+[Sources](../reference/sources.md), [Providers](../reference/providers.md),
+[Recipes](../reference/recipes.md), [Tracing](../reference/tracing.md).
 
 ## Stability
 
