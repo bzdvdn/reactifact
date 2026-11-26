@@ -9,6 +9,7 @@ from examples.tour.scenes import (
     run_events,
     run_experiment_scene,
     run_hitl,
+    run_knowledge_scene,
     run_map_reduce_scene,
     run_memory_scene,
     run_model,
@@ -193,3 +194,12 @@ def test_memory_scene_is_namespaced_and_searchable() -> None:
     assert report["team_hits"] == ["escalation"]
     assert report["cross_namespace"] == []
     assert report["forgotten"] == 2
+
+
+def test_knowledge_scene_retrieves_and_scores() -> None:
+    report = asyncio.run(run_knowledge_scene())
+
+    assert report["documents"] == 3
+    assert "refund.md" in report["hits"]
+    assert report["score_kind"] == "rrf"
+    assert report["recall"] == 1.0

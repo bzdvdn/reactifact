@@ -1,4 +1,4 @@
-# tour — the framework primitives in sixteen small scenes
+# tour — the framework primitives in seventeen small scenes
 
 The domain examples show complete applications. This one is the compact
 counterpart: each scene isolates a primitive that is easy to miss when reading a
@@ -18,6 +18,7 @@ Scenes:
 | `model` | an optional LLM step through `llm_reply`, with an offline fallback |
 | `resilience` | `Agent.retry` with `RetryPolicy`, `Step.timeout` |
 | `hitl` | `human.ask(..., schema=Model)` + typed `context.resume(...)` |
+| `knowledge` | offline ingestion, hybrid retrieval, diagnostics and retrieval metrics |
 | `time_travel` | `context.checkpoints()`, `context.at(checkpoint)`, `SessionStore.fork` |
 | `events` | `Runtime.astream_events` with all `stream_mode`s |
 | `conflicts` | `effects.update(expected_version=...)`, `ArtifactConflict`, merge policy |
@@ -38,6 +39,7 @@ Run one scene:
 .venv/bin/python -m examples.tour.main --scene model
 .venv/bin/python -m examples.tour.main --scene resilience
 .venv/bin/python -m examples.tour.main --scene hitl
+.venv/bin/python -m examples.tour.main --scene knowledge
 .venv/bin/python -m examples.tour.main --scene time_travel
 .venv/bin/python -m examples.tour.main --scene events
 .venv/bin/python -m examples.tour.main --scene conflicts

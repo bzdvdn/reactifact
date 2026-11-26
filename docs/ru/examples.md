@@ -68,10 +68,11 @@ CSV-расчёт (`Spreadsheet` → `Calculation`). Веб-приложение 
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + трейс-дашборд
 uv run python ./examples/knowledge/chat.py   # интерактивный CLI
+uv run python -m examples.knowledge.eval    # метрики retrieval без API-ключа
 ```
 
 Ключевые файлы: `steps/` (common, router, search, evidence, calc, lifecycle),
-`agents.py`, `web.py`.
+`step_groups.py`, `web.py`.
 
 ## `knowledge_base` — code-first индексация и поиск
 
@@ -83,6 +84,7 @@ Index`, инкрементальное состояние `DocStore` и hybrid-�
 
 ```bash
 uv run python examples/knowledge_base/build.py --docs docs/en --query "sources"
+uv run python examples/knowledge_base/build.py --docs docs/en --store sqlite
 uv run python examples/knowledge_base/build.py --docs docs/en --qdrant-url http://localhost:6333
 ```
 
@@ -247,7 +249,7 @@ at-least-once-контракт и app-owned drain/retry-политика.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — примитивы фреймворка в шестнадцати маленьких сценах
+## `tour` — примитивы фреймворка в семнадцати маленьких сценах
 
 **Что показывает:** то, что легко пропустить в большом приложении:
 типизированные артефакты с `version_history` / `diff` / `compact`;
@@ -260,15 +262,17 @@ optimistic-конфликт записи, разрешённый merge-поли�
 Context с trace-ссылкой на родительский run; MapReduce fan-out/reduce,
 peer-to-peer swarm handoff, tool record/replay через `Runtime.replay_run`, A/B
 эксперимент с выбором победителя, статическую проверку контрактов и
-namespaced long-term memory. Все сцены по умолчанию офлайн, а `model` идёт через
+namespaced long-term memory и офлайн knowledge-пайплайн с hybrid-retrieval и
+метриками. Все сцены по умолчанию офлайн, а `model` идёт через
 провайдера только с `--llm`.
 
 ```bash
-uv run python -m examples.tour.main                 # все девять сцен, офлайн
+uv run python -m examples.tour.main                 # все сцены, офлайн
 uv run python -m examples.tour.main --scene state   # версии + компакция
 uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
 uv run python -m examples.tour.main --scene resilience
 uv run python -m examples.tour.main --scene hitl
+uv run python -m examples.tour.main --scene knowledge
 uv run python -m examples.tour.main --scene time_travel
 uv run python -m examples.tour.main --scene events
 uv run python -m examples.tour.main --scene conflicts

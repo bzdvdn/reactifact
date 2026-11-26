@@ -1,6 +1,6 @@
 """tour — a compact feature tour of reactifact.
 
-Sixteen independent scenes, all runnable offline:
+Seventeen independent scenes, all runnable offline:
 
 - `state`      — typed artifacts, version history, diff, compaction;
 - `reactive`   — typed inputs, `Latest`, `Wakes`, debounced fan-out;
@@ -9,6 +9,7 @@ Sixteen independent scenes, all runnable offline:
                  deterministic fallback when no provider is configured;
 - `resilience` — agent retry policy and a per-step deadline;
 - `hitl`       — schema-backed question, typed `context.resume`;
+- `knowledge`  — offline ingestion, hybrid retrieval and metrics;
 - `time_travel`— checkpoints, snapshot, session fork;
 - `events`     — typed `Runtime.astream_events` modes;
 - `conflicts`  — optimistic `expected_version` conflict + merge policy;
@@ -43,6 +44,7 @@ from .scenes import (
     run_events,
     run_experiment_scene,
     run_hitl,
+    run_knowledge_scene,
     run_map_reduce_scene,
     run_memory_scene,
     run_model,
@@ -67,6 +69,7 @@ SCENES = (
     "model",
     "resilience",
     "hitl",
+    "knowledge",
     "time_travel",
     "events",
     "conflicts",
@@ -129,6 +132,14 @@ def _print_hitl(report: dict[str, Any]) -> None:
     print(f"  approved:             {report['approved']}")
     print(f"  note:                 {report['note']!r}")
     print(f"  final:                {report['final']}")
+
+
+def _print_knowledge(report: dict[str, Any]) -> None:
+    print("knowledge — offline ingestion, hybrid retrieval and metrics")
+    print(f"  documents/chunks:     {report['documents']} / {report['chunks']}")
+    print(f"  top hits:             {', '.join(report['hits'])}")
+    print(f"  score kind:           {report['score_kind']}")
+    print(f"  recall / MRR:         {report['recall']:.2f} / {report['mrr']:.2f}")
 
 
 def _print_time_travel(report: dict[str, Any]) -> None:
@@ -240,6 +251,8 @@ async def _run(args: argparse.Namespace) -> int:
             _print_resilience(await run_resilience())
         if args.scene in ("all", "hitl"):
             _print_hitl(await run_hitl())
+        if args.scene in ("all", "knowledge"):
+            _print_knowledge(await run_knowledge_scene())
         if args.scene in ("all", "time_travel"):
             _print_time_travel(await run_time_travel())
         if args.scene in ("all", "events"):

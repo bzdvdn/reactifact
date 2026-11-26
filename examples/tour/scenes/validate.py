@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Step, create_step_group, validate_agents
+from reactifact import Step, create_step_group, validate_contracts
 
 
 class Question(BaseModel):
@@ -40,13 +40,13 @@ def run_validate_scene() -> dict[str, Any]:
     producer = create_step_group("producer", steps=[MiddleProducer()])
     finisher = create_step_group("finisher", steps=[Finish()])
 
-    good = validate_agents(
-        [producer, finisher],
+    good = validate_contracts(
+        groups=[producer, finisher],
         seeds=[Question],
         terminal=[Final],
     )
-    bad = validate_agents(
-        [finisher],
+    bad = validate_contracts(
+        groups=[finisher],
         seeds=[Question],
         terminal=[Final],
     )

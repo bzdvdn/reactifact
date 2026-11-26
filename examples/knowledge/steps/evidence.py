@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Edit, Emit, Relate, Step
+from reactifact import (
+    Artifact,
+    Context,
+    Edit,
+    Emit,
+    LLMProvider,
+    Progress,
+    Relate,
+    Step,
+)
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -24,17 +33,17 @@ class ExtractEvidence(Step):
 
     async def run(
         self,
-        context: Context,
         doc_artifact: Artifact[TypedDoc],
+        progress: Progress,
+        llm: LLMProvider | None,
     ) -> Emit:
         doc = doc_artifact.data
-        context.announce(
+        progress(
             f"Extracting key facts from «{doc.path}»...",
-            kind="status",
             path=doc.path,
         )
         body = await structured_llm(
-            context.resources.llm,
+            llm,
             schema=AnswerBody,
             user=f"Extract a short factual digest from the document:\n{doc.content}",
         )

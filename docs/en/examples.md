@@ -68,10 +68,11 @@ with Question/Answer columns), `/contracts` (static consumes/produces/tools) and
 ```bash
 uv run python ./examples/knowledge/web.py    # FastAPI/SSE + trace dashboard
 uv run python ./examples/knowledge/chat.py   # interactive CLI
+uv run python -m examples.knowledge.eval    # offline retrieval metrics
 ```
 
 Key files: `steps/` (common, router, search, evidence, calc, lifecycle),
-`agents.py`, `web.py`.
+`step_groups.py`, `web.py`.
 
 ## `knowledge_base` — code-first ingestion and retrieval
 
@@ -83,6 +84,7 @@ the index without changing the pipeline.
 
 ```bash
 uv run python examples/knowledge_base/build.py --docs docs/en --query "sources"
+uv run python examples/knowledge_base/build.py --docs docs/en --store sqlite
 uv run python examples/knowledge_base/build.py --docs docs/en --qdrant-url http://localhost:6333
 ```
 
@@ -245,7 +247,7 @@ The provider is scripted, so the demo is offline and deterministic.
 uv run python -m examples.repo_agent.main
 ```
 
-## `tour` — the framework primitives in sixteen small scenes
+## `tour` — the framework primitives in seventeen small scenes
 
 **What it shows:** the parts that are easy to miss when reading a full app:
 typed artifacts with `version_history` / `diff` / `compact`; typed inputs with
@@ -258,15 +260,17 @@ question resumed with a Pydantic model; checkpoints/forks; the typed
 merge policy; and a subflow on an isolated Context with a parent-run trace link,
 plus a MapReduce fan-out/reduce, a peer-to-peer swarm handoff, tool
 record/replay via `Runtime.replay_run`, an A/B experiment with a winner, a static
-contract validation, and namespaced long-term memory. Every scene is offline by
+contract validation, namespaced long-term memory, and an offline knowledge
+pipeline with hybrid retrieval and metrics. Every scene is offline by
 default, and the `model` scene runs with a provider only when `--llm` is passed.
 
 ```bash
-uv run python -m examples.tour.main                 # all eight scenes, offline
+uv run python -m examples.tour.main                 # all scenes, offline
 uv run python -m examples.tour.main --scene state   # versions + compaction
 uv run python -m examples.tour.main --scene durable --db /tmp/tour.sqlite3
 uv run python -m examples.tour.main --scene resilience
 uv run python -m examples.tour.main --scene hitl
+uv run python -m examples.tour.main --scene knowledge
 uv run python -m examples.tour.main --scene time_travel
 uv run python -m examples.tour.main --scene events
 uv run python -m examples.tour.main --scene conflicts

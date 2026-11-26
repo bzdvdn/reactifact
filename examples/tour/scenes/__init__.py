@@ -5,6 +5,7 @@ from .durable import run_durable
 from .events import run_events
 from .experiment import run_experiment_scene
 from .hitl import run_hitl
+from .knowledge import run_knowledge_scene
 from .map_reduce import run_map_reduce_scene
 from .memory import run_memory_scene
 from .model import run_model
@@ -23,6 +24,7 @@ __all__ = [
     "run_events",
     "run_experiment_scene",
     "run_hitl",
+    "run_knowledge_scene",
     "run_map_reduce_scene",
     "run_memory_scene",
     "run_model",

@@ -18,9 +18,10 @@ deterministic — not text.
 knowledge/
 ├── chat.py           # CLI + build_resources (knowledge + CSV + skills + env LLM)
 ├── index.py          # reactifact.knowledge backend (pipeline, DocStore, IndexSource)
+├── eval.py            # offline retrieval metrics (no API key)
 ├── web.py            # FastAPI/SSE app + traces + /knowledge status
 ├── models.py         # artifact types (Question, Evidence, Claim, Answer, …)
-├── agents.py         # thin containers + the shared GROUPS list
+├── step_groups.py    # thin containers + the shared GROUPS list
 ├── steps/            # staged pipeline (each Step is its concern):
 │   ├── common.py     #   routing regexes, chat memory, claim/verdict helpers
 │   ├── router.py     #   greeting / direct reply vs research
@@ -57,6 +58,7 @@ asked, all without a model:
 ```bash
 .venv/bin/python examples/knowledge/chat.py
 .venv/bin/python examples/knowledge/web.py     # SSE UI on :8000
+.venv/bin/python -m examples.knowledge.eval    # offline retrieval metrics
 # http://127.0.0.1:8000/           — chat UI
 # http://127.0.0.1:8000/traces     — agent traces (question/answer columns)
 # http://127.0.0.1:8000/knowledge/ — ingestion status (sources, counts, errors)

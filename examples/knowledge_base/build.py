@@ -6,6 +6,7 @@ to `embedder_from_env()`; pass `--qdrant-url` to use Qdrant instead of SQLite.
 
     python examples/knowledge_base/build.py --docs ./docs/en
     python examples/knowledge_base/build.py --docs ./docs/en --query "sources"
+    python examples/knowledge_base/build.py --docs ./docs/en --store sqlite
     python examples/knowledge_base/build.py --docs ./docs/en --qdrant-url http://localhost:6333
 """
 
@@ -17,13 +18,16 @@ from pathlib import Path
 
 from reactifact.knowledge import (
     CachingEmbedder,
+    DocStore,
     FileEmbeddingCache,
     FilesystemConnector,
     HashEmbedder,
+    JsonDocStore,
     KnowledgePipeline,
     ProviderEmbedder,
     QdrantIndex,
     SectionsChunker,
+    SqliteDocStore,
     SqliteIndex,
 )
 from reactifact.knowledge.embed import Embedder
@@ -55,13 +59,18 @@ def build_pipeline(args: argparse.Namespace) -> KnowledgePipeline:
     )
 
 
+def build_docstore(args: argparse.Namespace) -> DocStore:
+    path = Path(args.state) if args.state else None
+    if args.store == "sqlite":
+        return SqliteDocStore(path or SqliteDocStore.default_path())
+    return JsonDocStore(path or JsonDocStore.default_path())
+
+
 async def _run(args: argparse.Namespace) -> None:
     pipeline = build_pipeline(args)
+    store = build_docstore(args)
     try:
-        report = await pipeline.run(
-            incremental=True,
-            state_path=args.state,
-        )
+        report = await pipeline.run(docstore=store)
         print(
             f"{pipeline.source_id}: {report.documents_ingested} documents, "
             f"{report.chunks_indexed} chunks indexed"
@@ -85,7 +94,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docs", default="docs/en", help="directory of .md files")
     parser.add_argument("--db", default=".reactifact/knowledge.db")
-    parser.add_argument("--state", default=".reactifact/knowledge/state.json")
+    parser.add_argument(
+        "--state",
+        default="",
+        help="state path (defaults by --store)",
+    )
+    parser.add_argument(
+        "--store",
+        choices=("json", "sqlite"),
+        default="json",
+        help="DocStore backend",
+    )
     parser.add_argument("--cache", default=".reactifact/knowledge/embeddings")
     parser.add_argument("--query", default="")
     parser.add_argument("--top-k", type=int, default=5)
