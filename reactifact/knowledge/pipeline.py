@@ -126,7 +126,9 @@ class _RunState:
     on_error: str = "fail_fast"
     on_progress: Callable[[IngestProgress], None] | None = None
     document_concurrency: int = 1
+    batch_size: int | None = None
     use_listing: bool = False
+    wanted: set[str] = field(default_factory=set)
     uri_by_meta: dict[str, DocumentMeta] = field(default_factory=dict)
     artifacts: list[RawDocument] = field(default_factory=list)
     current: dict[str, str] = field(default_factory=dict)
@@ -228,6 +230,7 @@ class KnowledgePipeline:
         docstore: DocStore | None = None,
         on_error: Literal["fail_fast", "collect"] = "fail_fast",
         on_progress: Callable[[IngestProgress], None] | None = None,
+        batch_size: int | None = None,
     ) -> IngestReport:
         """Run the pipeline once.
 
@@ -241,9 +244,16 @@ class KnowledgePipeline:
         `IngestReport.failures`. `"fail_fast"` (default) preserves the old
         abort-on-first-error behavior. `on_progress` receives `IngestProgress`
         events for long ingestion jobs.
+
+        `batch_size` processes documents in bounded batches (fetch, extract,
+        embed, upsert) instead of holding every chunk and vector in memory; it
+        is most effective with a `ListingConnector`, which can fetch one batch
+        of URIs at a time. State is still committed once, after the whole run.
         """
         if on_error not in {"fail_fast", "collect"}:
             raise ConfigError("on_error must be 'fail_fast' or 'collect'")
+        if batch_size is not None and batch_size < 1:
+            raise ConfigError("batch_size must be >= 1")
         store = docstore
         if store is None and incremental:
             path = Path(state_path) if state_path else JsonDocStore.default_path()
@@ -252,7 +262,13 @@ class KnowledgePipeline:
             started = time.monotonic()
             signature = self.signature()
             try:
-                report = await self._execute(store, signature, on_error, on_progress)
+                report = await self._execute(
+                    store,
+                    signature,
+                    on_error,
+                    on_progress,
+                    batch_size,
+                )
             except Exception as exc:
                 if store is not None:
                     store.record_run(
@@ -356,6 +372,7 @@ class KnowledgePipeline:
         signature: str,
         on_error: str,
         on_progress: Callable[[IngestProgress], None] | None,
+        batch_size: int | None,
     ) -> IngestReport:
         state = _RunState(
             source_id=self.source_id,
@@ -370,16 +387,15 @@ class KnowledgePipeline:
             on_error=on_error,
             on_progress=on_progress,
             document_concurrency=self.document_concurrency,
+            batch_size=batch_size,
         )
         _progress(state, "start")
         await _fetch(state)
         _progress(state, "fetch")
-        await _extract(state)
-        _progress(state, "extract")
-        await _embed(state)
-        _progress(state, "embed")
-        await _upsert(state)
-        _progress(state, "index")
+        if batch_size is not None:
+            await _process_batches(state)
+        else:
+            await _run_batch(state)
         await _reconcile(state)
         _progress(state, "reconcile")
         _commit(state)
@@ -437,7 +453,11 @@ async def _fetch(state: _RunState) -> None:
                 else:
                     state.changed += 1
                     wanted.add(meta.uri)
-            state.artifacts = await listing.fetch(uris=wanted) if wanted else []
+            state.wanted = wanted
+            if wanted and state.batch_size is None:
+                state.artifacts = await listing.fetch(uris=wanted)
+            else:
+                state.artifacts = []
         else:
             state.artifacts = await connector.fetch()
     except SourceError:
@@ -454,6 +474,38 @@ async def _fetch(state: _RunState) -> None:
             )
             for artifact in state.artifacts
         ]
+
+
+async def _run_batch(state: _RunState) -> None:
+    """Extract, embed and upsert the current `state.artifacts` batch."""
+    state.pending.clear()
+    state.vectors.clear()
+    await _extract(state)
+    _progress(state, "extract")
+    await _embed(state)
+    _progress(state, "embed")
+    await _upsert(state)
+    _progress(state, "index")
+    state.pending.clear()
+    state.vectors.clear()
+
+
+async def _process_batches(state: _RunState) -> None:
+    """Process the run in bounded batches (listing fetch or artifact slices)."""
+    assert state.batch_size is not None
+    if state.use_listing:
+        listing = cast(ListingConnector, state.connector)
+        uris = sorted(state.wanted)
+        for start in range(0, len(uris), state.batch_size):
+            state.artifacts = await listing.fetch(
+                uris=set(uris[start : start + state.batch_size])
+            )
+            await _run_batch(state)
+        return
+    artifacts = state.artifacts
+    for start in range(0, len(artifacts), state.batch_size):
+        state.artifacts = artifacts[start : start + state.batch_size]
+        await _run_batch(state)
 
 
 async def _extract(state: _RunState) -> None:
@@ -866,6 +918,7 @@ def run(
     docstore: DocStore | None = None,
     on_error: Literal["fail_fast", "collect"] = "fail_fast",
     on_progress: Callable[[IngestProgress], None] | None = None,
+    batch_size: int | None = None,
 ) -> IngestReport:
     """Synchronous convenience wrapper around `KnowledgePipeline.run`."""
     return asyncio.run(
@@ -875,6 +928,7 @@ def run(
             docstore=docstore,
             on_error=on_error,
             on_progress=on_progress,
+            batch_size=batch_size,
         )
     )
 

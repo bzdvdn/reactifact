@@ -1251,3 +1251,39 @@ def test_index_source_expansion_fails_explicitly(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="expand"):
         IndexSource(pipeline, expand="page")  # type: ignore[arg-type]
+
+
+def test_index_source_applies_principals_and_require_principals() -> None:
+    def acl_doc(uri: str, acl: list[str] | None) -> RawDocument:
+        metadata = {"documentId": uri}
+        if acl is not None:
+            metadata["acl"] = acl
+        return _doc(uri, "# A\n\nrefund policy").model_copy(
+            update={"metadata": metadata}
+        )
+
+    pipeline = KnowledgePipeline(
+        DictConnector(
+            {
+                "public.md": acl_doc("public.md", None),
+                "ops.md": acl_doc("ops.md", ["ops"]),
+            }
+        ),
+        embedder=HashEmbedder(dimensions=32),
+        index=MemoryIndex(),
+    )
+    asyncio.run(pipeline.run())
+
+    public = asyncio.run(IndexSource(pipeline, principals=["eng"]).asearch("refund"))
+    assert {ref.locator for ref in public} == {"public.md"}
+
+    ops = asyncio.run(IndexSource(pipeline, principals=["ops"]).asearch("refund"))
+    assert {ref.locator for ref in ops} == {"public.md", "ops.md"}
+
+    dynamic = asyncio.run(
+        IndexSource(pipeline, principals=lambda: ["ops"]).asearch("refund")
+    )
+    assert {ref.locator for ref in dynamic} == {"public.md", "ops.md"}
+
+    with pytest.raises(ConfigError, match="principals"):
+        asyncio.run(IndexSource(pipeline, require_principals=True).asearch("refund"))

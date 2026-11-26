@@ -9,6 +9,7 @@ a reactive pipeline.
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from typing import Literal
 
 from pydantic import BaseModel
@@ -49,6 +50,8 @@ class IndexSource(Source):
         rerank: RerankFn | None = None,
         max_per_document: int | None = None,
         mmr: MMR | None = None,
+        principals: Sequence[str] | Callable[[], Sequence[str]] | None = None,
+        require_principals: bool = False,
         expand: Literal["chunk", "section", "document"] = "chunk",
         max_hits: int = 256,
         max_documents: int = 64,
@@ -63,6 +66,8 @@ class IndexSource(Source):
         self.rerank = rerank
         self.max_per_document = max_per_document
         self.mmr = mmr
+        self.principals = principals
+        self.require_principals = require_principals
         self.expand = expand
         self.max_hits = max(1, max_hits)
         self.max_documents = max(1, max_documents)
@@ -76,6 +81,12 @@ class IndexSource(Source):
         )
 
     async def asearch(self, query: str, limit: int = 10) -> list[SourceRef]:
+        principals = self.principals() if callable(self.principals) else self.principals
+        if principals is None and self.require_principals:
+            raise ConfigError(
+                "IndexSource.require_principals is set, but no principals "
+                "were resolved for this search"
+            )
         hits = await self.pipeline.query(
             query,
             top_k=limit or self.top_k,
@@ -84,6 +95,7 @@ class IndexSource(Source):
             rerank=self.rerank,
             max_per_document=self.max_per_document,
             mmr=self.mmr,
+            principals=principals,
         )
         refs: list[SourceRef] = []
         for hit in hits:
@@ -190,6 +202,7 @@ class IngestRequest(BaseModel):
     incremental: bool = True
     state_path: str | None = None
     on_error: Literal["fail_fast", "collect"] = "fail_fast"
+    batch_size: int | None = None
 
 
 class IngestReportArtifact(BaseModel):
@@ -233,6 +246,7 @@ class IngestStep(Step[IngestReportArtifact]):
             state_path=request.state_path,
             on_error=request.on_error,
             on_progress=report_progress,
+            batch_size=request.batch_size,
         )
         return _artifact(self.pipeline, report)
 

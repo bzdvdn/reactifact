@@ -32,7 +32,12 @@ from .bridge import (
     IngestStep,
 )
 from .chunk import AutoChunker, Chunker, SectionsChunker, SizeChunker
-from .connectors import Connector, FilesystemConnector, ListingConnector
+from .connectors import (
+    Connector,
+    FilesystemConnector,
+    HttpConnector,
+    ListingConnector,
+)
 from .diversity import MMR, mmr_select
 from .docstore import (
     DocEntry,
@@ -52,8 +57,22 @@ from .embed import (
     cache_key,
 )
 from .errors import ConfigError, KnowledgeError, PipelineError, SourceError
-from .eval import chunk_key, document_key, evaluate_pipeline
-from .extract import AutoExtractor, Extractor, HtmlExtractor, MarkdownExtractor
+from .eval import (
+    cases_from_dataset,
+    chunk_key,
+    document_key,
+    evaluate_pipeline,
+)
+from .extract import (
+    AutoExtractor,
+    CsvExtractor,
+    DocxExtractor,
+    Extractor,
+    HtmlExtractor,
+    JsonExtractor,
+    MarkdownExtractor,
+    PdfExtractor,
+)
 from .indexes import (
     BatchIndexer,
     ChromaIndex,
@@ -104,6 +123,7 @@ __all__ = [
     "CountableIndex",
     "CCT_SCHEMA_VERSION",
     "CachingEmbedder",
+    "CsvExtractor",
     "ChromaIndex",
     "Chunk",
     "Chunker",
@@ -115,6 +135,7 @@ __all__ = [
     "JsonDocStore",
     "Document",
     "DocumentMeta",
+    "DocxExtractor",
     "Embedder",
     "EmbeddingCache",
     "Extractor",
@@ -122,6 +143,7 @@ __all__ = [
     "FileEmbeddingCache",
     "HashEmbedder",
     "HtmlExtractor",
+    "HttpConnector",
     "InMemoryEmbeddingCache",
     "IndexSource",
     "Indexer",
@@ -131,6 +153,7 @@ __all__ = [
     "IngestReportArtifact",
     "IngestRequest",
     "IngestStep",
+    "JsonExtractor",
     "KeywordIndexer",
     "KnowledgeError",
     "KnowledgePipeline",
@@ -141,6 +164,7 @@ __all__ = [
     "MemoryIndex",
     "PipelineError",
     "PgVectorIndex",
+    "PdfExtractor",
     "PipelineResult",
     "ProviderEmbedder",
     "RERANK_OUTPUT_CONTRACT",
@@ -161,6 +185,7 @@ __all__ = [
     "cache_key",
     "llm_reranker",
     "content_hash",
+    "cases_from_dataset",
     "chunk_key",
     "document_key",
     "evaluate_pipeline",

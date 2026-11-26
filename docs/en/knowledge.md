@@ -150,8 +150,9 @@ report.assert_passed({"recall": 0.9})   # CI gate
 
 `relevant` is a list (binary) or a mapping (graded gains). The default key
 compares documents (`documentId`, falling back to `source_uri`); pass
-`key=chunk_key` for chunk-level metrics. A case without relevant ids is
-skipped, never scored as zero.
+`key=chunk_key` for chunk-level metrics. `cases_from_dataset(dataset)` builds
+cases from `inputs["query"]` and `reference_outputs["relevant"]`. A case
+without relevant ids is skipped, never scored as zero.
 
 ## Rerank
 
@@ -342,6 +343,12 @@ documents; progress events arrive as each document finishes. Connector fetching
 remains owned by the connector; `ProviderEmbedder` already batches/concurrently
 embeds.
 
+`run(..., batch_size=N)` bounds ingestion memory: with a `ListingConnector`
+only one batch of bodies is fetched, extracted, embedded and upserted at a
+time, and per-batch pending chunks/vectors are released. State is still
+committed once at the end; a fail-fast error leaves earlier batches indexed but
+unreconciled, so the next run repairs them.
+
 Without a `DocStore` (non-incremental runs) a failed document has no previous
 hash to restore, so `on_error="collect"` skips deletion reconciliation for that
 run: successful documents are still upserted, but nothing is deleted. Use
@@ -373,6 +380,11 @@ index. Expansion uses per-URI `fetch(uris=...)` for `ListingConnector`s and a
 full fetch for plain connectors; a missing document or section raises
 `KnowledgeError`, which `materialize_doc` reports through `on_error`.
 
+`IndexSource(principals=["alice"])` (or a callable returning principals)
+applies ACL filtering to every search, so RAG cannot silently query without an
+identity. `require_principals=True` turns a missing identity into a
+`ConfigError` instead of an unfiltered search.
+
 ## Custom connectors and indexes
 
 The built-in `FilesystemConnector` covers the common local-docs case:
@@ -390,6 +402,35 @@ pipeline = KnowledgePipeline(
 It provides content fingerprints and `fetch(uris=...)`, so incremental runs
 skip unchanged files. A missing root raises `SourceError` instead of treating
 the corpus as empty and reconciling it away.
+
+### Built-in connectors and extractors
+
+| Connector | Notes |
+| --- | --- |
+| `FilesystemConnector` | text files under a directory; content hashes; per-URI fetch |
+| `HttpConnector` | explicit URLs or a sitemap; `ETag`/`Last-Modified` fingerprints; `httpx` is a core dependency |
+
+| Extractor | Input | Extra |
+| --- | --- | --- |
+| `MarkdownExtractor` | Markdown / plain text | — |
+| `HtmlExtractor` | static HTML | — |
+| `CsvExtractor` | CSV → Markdown table sections | — |
+| `JsonExtractor` | JSON objects/arrays → sections | — |
+| `PdfExtractor` | one section per PDF page | `knowledge-pdf` (`pypdf`) |
+| `DocxExtractor` | DOCX headings, paragraphs, tables | `knowledge-office` (`python-docx`) |
+
+`AutoExtractor` dispatches by content type, then by URI suffix. Optional
+extractors are imported lazily and the error names the extra to install.
+
+```python
+from reactifact.knowledge import HttpConnector
+
+pipeline = KnowledgePipeline(
+    HttpConnector(sitemap="https://docs.example/sitemap.xml"),
+    embedder=embedder,
+    index=index,
+)
+```
 
 There is no registry to extend — implement the protocol and pass an instance:
 

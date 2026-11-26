@@ -81,6 +81,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   events, and `document_concurrency` parallelizes extraction with progress
   reported per document. Concurrent runs are serialized per
   `(state_path, source_id)` inside the process.
+- **Knowledge connectors and extractors.** Connectors are now a package;
+  `HttpConnector` handles explicit URLs or a sitemap with `ETag`/`Last-Modified`
+  listing. `CsvExtractor`/`JsonExtractor` are dependency-free, and optional
+  `PdfExtractor` (`knowledge-pdf`) / `DocxExtractor` (`knowledge-office`) cover
+  PDF and DOCX. `run(batch_size=...)` bounds ingestion memory, and
+  `IndexSource(principals=..., require_principals=True)` makes ACL filtering
+  explicit. `cases_from_dataset` feeds retrieval metrics from eval datasets.
 - **Knowledge scale and guardrails.** `DocStore` is now a protocol with
   `JsonDocStore` (default) and `SqliteDocStore` (transactional per-row state and
   run ledger); the knowledge demo uses the SQLite store. Built-in indexes

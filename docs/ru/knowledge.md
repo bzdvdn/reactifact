@@ -150,8 +150,9 @@ report.assert_passed({"recall": 0.9})   # CI-гейт
 
 `relevant` — список (бинарная) или mapping (graded gains). Ключ по умолчанию
 сравнивает документы (`documentId`, иначе `source_uri`); передайте
-`key=chunk_key` для метрик на уровне чанков. Кейс без релевантных id
-пропускается, а не получает ноль.
+`key=chunk_key` для метрик на уровне чанков. `cases_from_dataset(dataset)`
+строит кейсы из `inputs["query"]` и `reference_outputs["relevant"]`. Кейс без
+релевантных id пропускается, а не получает ноль.
 
 ## Rerank
 
@@ -344,6 +345,12 @@ report.failures               # [IngestFailure(uri, stage, error), ...]
 Fetch остаётся за коннектором; `ProviderEmbedder` уже батчит и ограничивает
 конкурентность эмбеддингов.
 
+`run(..., batch_size=N)` ограничивает память ingestion: с `ListingConnector`
+за раз скачивается, извлекается, эмбеддится и пишется только один батч тел, а
+pending-чанки и векторы освобождаются после каждого батча. State всё равно
+коммитится один раз в конце; ошибка fail-fast оставляет предыдущие батчи
+записанными, но без reconcile — следующий запуск это исправит.
+
 Без `DocStore` (неинкрементальный запуск) у упавшего документа нет прежнего
 хэша для восстановления, поэтому `on_error="collect"` пропускает reconcile
 удалений за этот запуск: успешные документы всё равно upsert-ятся, но ничего
@@ -376,6 +383,11 @@ step = IngestStep(pipeline)  # возвращает IngestReportArtifact
 документ или секция даёт `KnowledgeError`, который `materialize_doc` передаёт
 в `on_error`.
 
+`IndexSource(principals=["alice"])` (или callable, возвращающий principals)
+применяет ACL-фильтрацию к каждому поиску, чтобы RAG не мог молча запросить
+без identity. `require_principals=True` превращает отсутствие identity в
+`ConfigError`, а не в нефильтрованный поиск.
+
 ## Свои коннекторы и индексы
 
 Встроенный `FilesystemConnector` закрывает обычный случай локальных документов:
@@ -393,6 +405,35 @@ pipeline = KnowledgePipeline(
 Он даёт content-отпечатки и `fetch(uris=...)`, поэтому инкрементальные запуски
 пропускают неизменившиеся файлы. Отсутствующий root поднимает `SourceError`,
 а не трактует корпус как пустой и не удаляет его при reconcile.
+
+### Встроенные коннекторы и экстракторы
+
+| Коннектор | Особенности |
+| --- | --- |
+| `FilesystemConnector` | текстовые файлы в каталоге; content-хэши; fetch по URI |
+| `HttpConnector` | явные URL или sitemap; отпечатки `ETag`/`Last-Modified`; `httpx` — core-зависимость |
+
+| Экстрактор | Вход | Extra |
+| --- | --- | --- |
+| `MarkdownExtractor` | Markdown / plain text | — |
+| `HtmlExtractor` | статический HTML | — |
+| `CsvExtractor` | CSV → секции Markdown-таблиц | — |
+| `JsonExtractor` | JSON-объекты/массивы → секции | — |
+| `PdfExtractor` | одна секция на страницу PDF | `knowledge-pdf` (`pypdf`) |
+| `DocxExtractor` | заголовки, абзацы и таблицы DOCX | `knowledge-office` (`python-docx`) |
+
+`AutoExtractor` выбирает по content type, затем по суффиксу URI. Опциональные
+экстракторы импортируются лениво, а ошибка называет нужный extra.
+
+```python
+from reactifact.knowledge import HttpConnector
+
+pipeline = KnowledgePipeline(
+    HttpConnector(sitemap="https://docs.example/sitemap.xml"),
+    embedder=embedder,
+    index=index,
+)
+```
 
 Реестра расширений нет — реализуйте протокол и передайте экземпляр:
 

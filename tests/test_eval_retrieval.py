@@ -4,7 +4,9 @@ import asyncio
 
 import pytest
 from reactifact.eval import (
+    Dataset,
     EvalFailure,
+    Example,
     RetrievalCase,
     evaluate_retrieval,
     hit_rate_at_k,
@@ -13,6 +15,7 @@ from reactifact.eval import (
     recall_at_k,
     reciprocal_rank,
 )
+from reactifact.knowledge.eval import cases_from_dataset
 
 
 def test_retrieval_metrics_deduplicate_and_cut_at_k() -> None:
@@ -71,3 +74,20 @@ def test_evaluate_retrieval_accepts_a_sync_retriever() -> None:
         evaluate_retrieval([case], lambda query, limit: ["b", "a"], k=2, key=str)
     )
     assert report.aggregate()["mrr"] == 0.5
+
+
+def test_cases_from_dataset_reads_queries_and_relevance() -> None:
+    dataset = Dataset(
+        [
+            Example(
+                inputs={"query": "refund"},
+                reference_outputs={"relevant": ["refund.md"]},
+            ),
+            Example(inputs={"query": "no ground truth"}),
+        ]
+    )
+    cases = cases_from_dataset(dataset)
+
+    assert len(cases) == 1
+    assert cases[0].query == "refund"
+    assert cases[0].gains() == {"refund.md": 1.0}

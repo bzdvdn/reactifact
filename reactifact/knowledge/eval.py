@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from ..eval.dataset import Dataset
 from ..eval.retrieval import (
     RetrievalCase,
     RetrievalReport,
@@ -33,6 +34,33 @@ def chunk_key(hit: SearchHit) -> str:
     return hit.chunk_id
 
 
+def cases_from_dataset(
+    dataset: Dataset,
+    *,
+    query_key: str = "query",
+    relevant_key: str = "relevant",
+) -> list[RetrievalCase]:
+    """Build retrieval cases from dataset examples.
+
+    Each example supplies `inputs[query_key]` and
+    `reference_outputs[relevant_key]`; examples without either are skipped.
+    """
+    cases: list[RetrievalCase] = []
+    for example in dataset:
+        query = example.inputs.get(query_key)
+        relevant = (example.reference_outputs or {}).get(relevant_key)
+        if query is None or relevant is None:
+            continue
+        cases.append(
+            RetrievalCase(
+                query=str(query),
+                relevant=relevant,
+                name=example.id,
+            )
+        )
+    return cases
+
+
 async def evaluate_pipeline(
     pipeline: KnowledgePipeline,
     cases: Sequence[RetrievalCase],
@@ -54,4 +82,9 @@ async def evaluate_pipeline(
     return await evaluate_retrieval(cases, retrieve, k=k, key=key)
 
 
-__all__ = ["chunk_key", "document_key", "evaluate_pipeline"]
+__all__ = [
+    "cases_from_dataset",
+    "chunk_key",
+    "document_key",
+    "evaluate_pipeline",
+]
