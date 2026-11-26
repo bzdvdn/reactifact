@@ -49,14 +49,17 @@ class S3Connector:
             if extensions is not None
             else None
         )
+        resolved: Any
         if client is None:
             boto3 = require_extra("S3Connector", "boto3", "knowledge-s3")
-            client = boto3.client(
+            resolved = boto3.client(
                 "s3",
                 region_name=region_name,
                 endpoint_url=endpoint_url,
             )
-        self._client = client
+        else:
+            resolved = client
+        self._client: Any = resolved
 
     async def aclose(self) -> None:
         closer = getattr(self._client, "close", None)
