@@ -1,6 +1,6 @@
 ---
 name: reactifact-rag
-description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web, embeddings), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings or a scout/resolver step.
+description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web, embeddings), use the reactifact.knowledge ingestion/retrieval layer (connectors, extractors, hybrid search, MMR, metrics), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings, knowledge ingestion or a scout/resolver step.
 ---
 
 # Retrieval and recipes in reactifact
@@ -119,6 +119,91 @@ It creates the document with a stable id and links it `materialized_from →
 SourceRef` (configurable relation). A missing source or resolve failure is a
 `None`, not a crash.
 
+## Knowledge layer (`reactifact.knowledge`)
+
+Use `reactifact.knowledge` when retrieval is over a maintained document corpus
+rather than a handful of rows: it owns ingestion (`Connector -> RawDocument ->
+Document -> Chunk -> Embedder -> Index`), incremental fingerprints, hybrid
+search, ACLs and retrieval metrics. It is imported lazily and adds no runtime
+dependencies.
+
+```python
+import asyncio
+from reactifact.eval import RetrievalCase
+from reactifact.knowledge import (
+    HashEmbedder, KnowledgePipeline, MemoryIndex, RawDocument,
+    evaluate_pipeline,
+)
+
+class DictConnector:
+    source_id = "docs"
+    def __init__(self, docs):
+        self.docs = docs
+    async def fetch(self):
+        return [
+            RawDocument.from_text(step_id=uri, uri=uri, text=text, title=uri)
+            for uri, text in self.docs.items()
+        ]
+
+pipeline = KnowledgePipeline(
+    DictConnector({
+        "guide.md": "# Install\n\nRun pip install reactifact.\n\n"
+                    "# Refunds\n\nRefunds within 30 days.",
+    }),
+    embedder=HashEmbedder(dimensions=64),
+    index=MemoryIndex(),
+)
+report = asyncio.run(pipeline.run())
+hits = asyncio.run(pipeline.query("refund", top_k=2, hybrid=True))
+assert report.chunks_indexed > 0
+assert hits and hits[0].chunk_id
+assert all(hit.score_kind == "rrf" for hit in hits)
+
+metrics = asyncio.run(
+    evaluate_pipeline(
+        pipeline,
+        [RetrievalCase("refund", ["guide.md"])],
+        k=1,
+    )
+)
+assert metrics.aggregate()["mrr"] == 1.0
+```
+
+### Ingestion
+
+| Built-in | Notes |
+| --- | --- |
+| `FilesystemConnector` | text files under a directory; content hashes |
+| `HttpConnector` | explicit URLs or a sitemap; `ETag`/`Last-Modified` |
+| `S3Connector` | one bucket; `ETag`; optional `knowledge-s3` |
+
+`AutoExtractor` handles Markdown/HTML/CSV/JSON out of the box; PDF and DOCX
+need `knowledge-pdf` (`pypdf`) and `knowledge-office` (`python-docx`).
+
+`run(incremental=True, state_path=...)` keeps fingerprints in `DocStore`
+(`JsonDocStore` by default, `SqliteDocStore` for scale). For large corpora use
+`run(batch_size=N)` to bound memory and `on_error="collect"` to isolate bad
+documents; `on_progress` receives `IngestProgress` events.
+
+### Query
+
+`query(text, ...)` supports `hybrid=True`, `filters`, `principals` (ACL),
+`max_per_document`, `mmr=MMR(lambda_=0.3)` and `rerank`. Hits carry retrieval
+provenance: `dense_rank`, `keyword_rank`, `rerank_rank`, `score_kind` and a
+stable `chunk_id`. `query_by_vector` reuses a precomputed query vector; MMR
+then needs `embedder=`.
+
+### Bridging into agents
+
+`IndexSource(pipeline, expand="section", principals=["alice"],
+require_principals=True)` exposes the index as a regular `Source` for
+`fan_out_sources` / `materialize_doc`. `expand` returns the parent
+section/document on `resolve`; `principals` applies ACL filtering to every
+search, and `require_principals` turns a missing identity into an error.
+
+`reactifact.eval` ships retrieval metrics (recall, precision, MRR, nDCG, hit
+rate) and `cases_from_dataset` for dataset-driven retrieval evals.
+
 ## Recipes (ready-made patterns)
 
 `reactifact.recipes` ships the recurring agent shapes so you do not re-derive
@@ -146,5 +231,5 @@ LLM calls.
 ## Where to look
 
 - `references/sources.md` — every source, `SourceRef`, and `fan_out_sources`.
-- `docs/en/sources.md`, `docs/en/recipes.md`.
+- `docs/en/sources.md`, `docs/en/recipes.md`, `docs/en/knowledge.md`.
 - Examples: `examples/knowledge`, `examples/fintech_audit`.
