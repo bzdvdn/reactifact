@@ -5,7 +5,8 @@ from __future__ import annotations
 import inspect
 import types
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Union, cast, get_args, get_origin, get_type_hints
+from dataclasses import dataclass
+from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
 
@@ -58,7 +59,7 @@ class MissingInputError(TypeError):
         return self
 
     def _render(self) -> str:
-        expected = ", ".join(self.expected)
+        expected = ", ".join(self.expected) or "any artifact"
         step = f" in step {self.step_name!r}" if self.step_name else ""
         message = (
             f"Missing input{step}: parameter {self.parameter!r} expects {expected}, "
@@ -95,6 +96,12 @@ def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
             seen.add(artifact.id)
 
 
+def _strip_annotated(annotation: Any) -> Any:
+    while get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
+    return annotation
+
+
 def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     """Resolve a non-artifact service parameter (`LLMProvider`, `X | None`, …).
 
@@ -108,9 +115,13 @@ def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     """
     origin = get_origin(annotation)
     if origin in (types.UnionType, Union):
-        candidates = [arg for arg in get_args(annotation) if arg is not type(None)]
+        candidates = [
+            _strip_annotated(arg)
+            for arg in get_args(annotation)
+            if arg is not type(None)
+        ]
     else:
-        candidates = [annotation]
+        candidates = [_strip_annotated(annotation)]
     for candidate in candidates:
         if not isinstance(candidate, type):
             continue
@@ -124,12 +135,21 @@ def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     return None
 
 
-def _artifact_shape(annotation: Any) -> tuple[list[type], bool, bool] | None:
+_MISSING = object()
+
+
+def _untyped(annotation: Any) -> bool:
+    return annotation is inspect.Parameter.empty or annotation is Any
+
+
+def _handles_shape(annotation: Any) -> tuple[list[type], bool, bool] | None:
     """(types, is_list, optional) when the annotation yields artifact handles.
 
-    `Artifact[T]`, `Artifact[T | None]` and `list[Artifact[T]]` qualify; the
-    data forms (`T`, `T | None`, `list[T]`) do not.
+    `Artifact[T]`, `Artifact[T] | None`, `Annotated[Artifact[T], ...]` and
+    `list[Artifact[T]]` qualify; the data forms (`T`, `T | None`, `list[T]`)
+    do not.
     """
+    annotation = _strip_annotated(annotation)
     origin = get_origin(annotation)
     if origin is Artifact:
         return _annotation_types(annotation)
@@ -137,7 +157,196 @@ def _artifact_shape(annotation: Any) -> tuple[list[type], bool, bool] | None:
         args = get_args(annotation)
         if args and get_origin(args[0]) is Artifact:
             return _annotation_types(annotation)
+    if origin in (types.UnionType, Union):
+        args = get_args(annotation)
+        members = [arg for arg in args if arg is not type(None)]
+        optional = len(members) != len(args)
+        if len(members) == 1:
+            inner = _handles_shape(members[0])
+            if inner is not None:
+                types_, is_list, inner_optional = inner
+                return types_, is_list, optional or inner_optional
     return None
+
+
+def _scoped_inputs(
+    call: StepCall,
+    types_: list[type],
+    scope: Scope | str | None,
+    scope_value: Any,
+) -> list[Artifact[Any]]:
+    found: list[Artifact[Any]] = []
+    seen: set[str] = set()
+    for artifact in call.inputs:
+        if type(artifact.data) not in types_ or artifact.id in seen:
+            continue
+        if not _scope_matches(scope, scope_value, artifact):
+            continue
+        found.append(artifact)
+        seen.add(artifact.id)
+    return found
+
+
+def _scoped_trigger(
+    call: StepCall,
+    types_: list[type],
+    scope: Scope | str | None,
+    scope_value: Any,
+) -> Artifact[Any] | None:
+    trigger = call.trigger
+    if trigger is None or type(trigger.data) not in types_:
+        return None
+    if not _scope_matches(scope, scope_value, trigger):
+        return None
+    return trigger
+
+
+def _with_trigger(
+    artifacts: list[Artifact[Any]],
+    trigger: Artifact[Any] | None,
+) -> list[Artifact[Any]]:
+    if trigger is None or any(item.id == trigger.id for item in artifacts):
+        return artifacts
+    return [*artifacts, trigger]
+
+
+def _missing(
+    call: StepCall,
+    name: str,
+    types_: list[type],
+    step_name: str,
+) -> MissingInputError:
+    available = {type(a.data).__name__ for a in call.context.list_artifacts()}
+    return MissingInputError(
+        name,
+        [type_.__name__ for type_ in types_],
+        available,
+        step_name=step_name,
+    )
+
+
+@dataclass(frozen=True)
+class _Selection:
+    """Artifacts matching one parameter's annotation in this call."""
+
+    types: list[type]
+    is_list: bool
+    optional: bool
+    trigger: Artifact[Any] | None
+    artifacts: list[Artifact[Any]]
+
+
+def _select(
+    call: StepCall,
+    types_: list[type],
+    is_list: bool,
+    optional: bool,
+    scope: Scope | str | None,
+    scope_value: Any,
+) -> _Selection:
+    return _Selection(
+        types=types_,
+        is_list=is_list,
+        optional=optional,
+        trigger=_scoped_trigger(call, types_, scope, scope_value),
+        artifacts=_scoped_inputs(call, types_, scope, scope_value),
+    )
+
+
+def _resolve_selected(
+    call: StepCall,
+    name: str,
+    selected: _Selection,
+    step_name: str,
+    *,
+    handles: bool,
+) -> Any:
+    if not selected.types and not handles:
+        return None if selected.optional else call.trigger
+    if selected.is_list:
+        artifacts = _with_trigger(selected.artifacts, selected.trigger)
+        _use(call, *artifacts)
+        return artifacts if handles else [artifact.data for artifact in artifacts]
+    chosen = selected.trigger
+    if chosen is None and selected.artifacts:
+        chosen = selected.artifacts[-1]
+    if chosen is not None:
+        _use(call, chosen)
+        return chosen if handles else chosen.data
+    if selected.optional:
+        return None
+    raise _missing(call, name, selected.types, step_name)
+
+
+def _resolve_latest(
+    call: StepCall,
+    annotation: Any,
+    scope: Scope | str | None,
+    scope_value: Any,
+) -> Any:
+    """Read a context query; a missing value is `None`, never an error."""
+    args = get_args(annotation)
+    inner = args[0] if args else Any
+    handles = _handles_shape(inner)
+    types_, is_list, _ = handles or _annotation_types(inner)
+    artifacts = (
+        [
+            artifact
+            for artifact in call.context.list_artifacts()
+            if type(artifact.data) in types_
+            and _scope_matches(scope, scope_value, artifact)
+        ]
+        if types_
+        else []
+    )
+    if is_list:
+        _use(call, *artifacts)
+        return artifacts if handles is not None else [a.data for a in artifacts]
+    if not artifacts:
+        return None
+    latest = artifacts[-1]
+    _use(call, latest)
+    return latest if handles is not None else latest.data
+
+
+def _optional_base(annotation: Any) -> Any:
+    """Unwrap `T | None` / `Optional[T]` to `T` when there is one member."""
+    annotation = _strip_annotated(annotation)
+    if get_origin(annotation) in (types.UnionType, Union):
+        args = get_args(annotation)
+        members = [_strip_annotated(arg) for arg in args if arg is not type(None)]
+        if len(members) == 1:
+            return members[0]
+    return annotation
+
+
+def _resolve_injected(name: str, annotation: Any, call: StepCall) -> Any:
+    """Collaborators injected by type, or by name for untyped legacy steps."""
+    base = _optional_base(annotation)
+    untyped = _untyped(annotation) or _untyped(base)
+    if base is StepCall or (untyped and name in {"call", "step_call"}):
+        return call
+    if base is Context or (untyped and name == "context"):
+        return call.context
+    if base is Effects or (untyped and name == "effects"):
+        return call.effects
+    if base is Human or (untyped and name == "human"):
+        return Human(call.effects)
+    if base is Outbox or (untyped and name == "outbox"):
+        return Outbox(call.effects)
+    if base is Progress or (untyped and name == "progress"):
+        return Progress(call.context.announce)
+    if base is Event or (untyped and name == "event"):
+        return call.event
+    # `trigger`/`inputs` are reserved pseudo-parameters: steps often annotate
+    # them as `Artifact[Any] | None` / a list, so keep the name fallback.
+    if name == "trigger":
+        if call.trigger is not None:
+            _use(call, call.trigger)
+        return call.trigger
+    if name == "inputs":
+        return call.inputs
+    return _MISSING
 
 
 def _resolve_arg(
@@ -149,139 +358,23 @@ def _resolve_arg(
     *,
     step_name: str = "",
 ) -> Any:
-    if name in {"call", "step_call"} or annotation is StepCall:
-        return call
-    if annotation is Context or name == "context":
-        return call.context
-    if annotation is Effects or name == "effects":
-        return call.effects
-    if annotation is Human or name == "human":
-        return Human(call.effects)
-    if annotation is Outbox or name == "outbox":
-        return Outbox(call.effects)
-    if annotation is Progress or name == "progress":
-        return Progress(call.context.announce)
+    """Resolve one parameter from collaborators, services or artifacts."""
+    annotation = _strip_annotated(annotation)
+    injected = _resolve_injected(name, annotation, call)
+    if injected is not _MISSING:
+        return injected
     if (service := _resolve_service(call, annotation)) is not None:
         return service
-    if annotation is Event or name == "event":
-        return call.event
-    if annotation is StepCall:
-        return call
-    if name == "trigger":
-        if call.trigger is not None:
-            _use(call, call.trigger)
-        return call.trigger
-    if name == "inputs":
-        return call.inputs
 
-    def _matches(expected: list[type]) -> list[Artifact[Any]]:
-        found: list[Artifact[Any]] = []
-        seen: set[str] = set()
-        for artifact in call.inputs:
-            if type(artifact.data) not in expected or artifact.id in seen:
-                continue
-            if not _scope_matches(scope, scope_value, artifact):
-                continue
-            found.append(artifact)
-            seen.add(artifact.id)
-        if (
-            call.trigger is not None
-            and type(call.trigger.data) in expected
-            and call.trigger.id not in seen
-            and _scope_matches(scope, scope_value, call.trigger)
-        ):
-            found.append(call.trigger)
-        return found
-
-    def _trigger_matches(expected: list[type]) -> bool:
-        return (
-            call.trigger is not None
-            and type(call.trigger.data) in expected
-            and _scope_matches(scope, scope_value, call.trigger)
-        )
-
-    def _artifact_value(types_: list[type], is_list: bool, optional: bool) -> Any:
-        found = _matches(types_)
-        if is_list:
-            _use(call, *found)
-            return found
-        if _trigger_matches(types_):
-            assert call.trigger is not None
-            _use(call, call.trigger)
-            return call.trigger
-        if found:
-            _use(call, found[-1])
-            return found[-1]
-        if optional:
-            return None
-        available = {type(a.data).__name__ for a in call.context.list_artifacts()}
-        raise MissingInputError(
-            name,
-            [type_.__name__ for type_ in types_],
-            available,
-            step_name=step_name,
-        )
-
-    origin = get_origin(annotation)
-    shape = _artifact_shape(annotation)
+    shape = _handles_shape(annotation)
     if shape is not None:
-        return _artifact_value(*shape)
-    if origin in (types.UnionType, Union):
-        members = [arg for arg in get_args(annotation) if arg is not type(None)]
-        optional = len(members) != len(get_args(annotation))
-        if len(members) == 1:
-            shape = _artifact_shape(members[0])
-            if shape is not None:
-                types_, is_list, inner_optional = shape
-                return _artifact_value(types_, is_list, optional or inner_optional)
-    if origin is Latest:
-        args = get_args(annotation)
-        inner_types, is_list, optional = _annotation_types(args[0] if args else Any)
-        artifacts: list[Artifact[Any]] = (
-            call.context.list_artifacts(inner_types[0]) if inner_types else []
-        )
-        if scope is not None and scope_value is not None:
-            artifacts = [
-                artifact
-                for artifact in artifacts
-                if _scope_matches(scope, scope_value, artifact)
-            ]
-        if is_list:
-            _use(call, *artifacts)
-            return [artifact.data for artifact in artifacts]
-        if artifacts:
-            _use(call, artifacts[-1])
-            return artifacts[-1].data
-        if optional:
-            return None
-        return None
+        selected = _select(call, *shape, scope, scope_value)
+        return _resolve_selected(call, name, selected, step_name, handles=True)
+    if get_origin(annotation) is Latest:
+        return _resolve_latest(call, annotation, scope, scope_value)
 
-    types_, is_list, optional = _annotation_types(annotation)
-    if not types_:
-        if optional:
-            return None
-        return call.trigger
-    found = _matches(types_)
-    if is_list:
-        _use(call, *found)
-        return [artifact.data for artifact in found]
-    if _trigger_matches(types_):
-        assert call.trigger is not None
-        _use(call, call.trigger)
-        return call.trigger.data
-    if found:
-        _use(call, found[-1])
-        return found[-1].data
-    for type_ in types_:
-        service = call.context.resources.resolve(type_)
-        if service is not None:
-            return service
-    if optional:
-        return None
-    available = {type(a.data).__name__ for a in call.context.list_artifacts()}
-    raise MissingInputError(
-        name, [type_.__name__ for type_ in types_], available, step_name=step_name
-    )
+    selected = _select(call, *_annotation_types(annotation), scope, scope_value)
+    return _resolve_selected(call, name, selected, step_name, handles=False)
 
 
 async def _call_target(target: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -295,8 +388,13 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
     """Calls a step's run/function with either a `StepCall` or typed inputs.
 
     A single `call: StepCall` parameter keeps the 0.1.x shape. Any other
-    signature is Celery-style: parameter annotations are artifact types (or
-    `list[T]`/`Optional[T]`/`T | None`), resolved from this run's inputs.
+    signature is Celery-style: parameters may be artifact data (`T`,
+    `list[T]`, `T | None`), artifact handles (`Artifact[T]`,
+    `list[Artifact[T]]`, `Artifact[T] | None`), `Latest[T]` context queries or
+    collaborators (`Context`, `Effects`, `Progress`, `Human`, `Outbox`,
+    `Event`, plus runtime services). `Annotated[...]` wrappers are unwrapped.
+    `trigger` and `inputs` are reserved names: they always receive the event
+    artifact and this call's input list.
     """
     func = getattr(step, "_func", None)
     if func is None and type(step).run is Step.run:
@@ -305,8 +403,6 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
     target = func if func is not None else step.run
     signature = inspect.signature(target)
     params = list(signature.parameters.values())
-    if func is None:
-        params = [p for p in params if p.name != "self"]
     if not params:
         return await _call_target(cast(Any, target))
     if len(params) == 1 and (
