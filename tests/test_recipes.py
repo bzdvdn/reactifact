@@ -8,6 +8,7 @@ from reactifact import (
     Agent,
     Consume,
     Context,
+    Effects,
     Runtime,
     RuntimeResources,
     Step,
@@ -20,6 +21,8 @@ from reactifact.recipes import (
     StatusMachine,
     fan_out_sources,
     materialize_doc,
+    search_sources,
+    source_ref_id,
 )
 from reactifact.sources import FileSystemSource, Source, SourceRef
 
@@ -613,3 +616,28 @@ def test_status_machine_advances_the_latest_target_for_a_key():
 
     assert ctx.get(first.id).data.status == "pending"
     assert ctx.get(second.id).data.status == "done"
+
+
+def test_search_sources_is_pure(tmp_path):
+    ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
+
+    refs = asyncio.run(search_sources(ctx, "vitamin D", owner_id="job1", limit=2))
+
+    assert refs
+    assert all(ref.metadata.get("owner_id") == "job1" for ref in refs)
+    assert ctx.list_artifacts(SourceRef) == []  # no effects written
+
+
+def test_source_ref_id_is_stable(tmp_path):
+    ref = SourceRef(source_id="papers", locator="a.md")
+    assert source_ref_id(ref, "job1") == f"ref:{ref.stable_id()}:job1"
+
+
+def test_fan_out_sources_accepts_an_explicit_effect_slot(tmp_path):
+    ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
+    slot = Effects(ctx)
+
+    refs = asyncio.run(fan_out_sources(ctx, "vitamin D", owner_id="job1", effects=slot))
+
+    assert refs
+    assert slot.operations  # the refs were queued in the explicit slot

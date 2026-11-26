@@ -274,9 +274,9 @@ current event loop**, so one provider instance stays usable across repeated
 
 | Symbol | Role |
 | --- | --- |
-| `find(inputs, Model)` / `find_all(inputs, Model)` | typed lookup in a step's `inputs` without `next(... isinstance ...)` |
-| `fan_out_sources(context, query, owner_id, …, as_artifacts=False)` | idempotent fan-out search → refs + patch; `as_artifacts=True` returns planned handles |
-| `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=…)` | lazy ref → document with provenance; accepts an artifact, `SourceRef` or handle |
+| `find(inputs, Model)` / `find_all(inputs, Model)` / `correlation_id_of(artifact, field, owner=)` | typed lookup in a step's `inputs`; `correlation_id_of` pulls a loop key (or the artifact id for its owner type) |
+| `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` is pure (ranked, scoped refs); `fan_out_sources` also writes create-or-refresh refs (`source_ref_id`) into the effect slot (or an explicit `effects=`) |
+| `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | lazy ref → document with provenance; accepts an artifact, `SourceRef` or handle; `effects=` selects an explicit slot |
 | `StatusMachine` / `StatusState` | deterministic artifact lifecycle: `next_status(state)` over key-scoped inputs (`all`/`any`/`latest`), `terminal`, `on_transition` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count; `message_type` may be a sequence of types |
 | `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful; `message_type` may be a sequence of types |

@@ -19,7 +19,23 @@ question = find(inputs, Question)          # Artifact[Question] | None
 evidence = find_all(inputs, Evidence)       # list[Artifact[Evidence]]
 ```
 
-## `fan_out_sources` — реактивный поиск
+## `search_sources` / `fan_out_sources` — реактивный поиск
+
+`search_sources` — чистая часть: рассылает запрос и возвращает
+ранжированные refs, не трогая эффект-слот. Удобно, когда шаг сам создаёт
+артефакты и возвращает `Emit`:
+
+```python
+from reactifact import Emit
+from reactifact.recipes import search_sources, source_ref_id
+
+refs = await search_sources(context, question, owner_id=query_id, limit=5)
+return [Emit(ref, id=source_ref_id(ref, query_id)) for ref in refs]
+```
+
+`fan_out_sources` — обёртка над эффект-слотом: делает тот же поиск и пишет
+каждый ref как create-or-refresh артефакт. Передайте `effects=`, чтобы
+использовать явный слот вместо текущего produce.
 
 ```python
 from reactifact.recipes import fan_out_sources

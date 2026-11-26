@@ -61,7 +61,14 @@ keep reappearing across agent codebases and the bundled examples:
 - `Skill` / `load_skills` / `match_skills` — keyword-triggered instruction
   snippets (Claude-Skills-shaped: name/description frontmatter + body) loaded
   into a prompt when their description matches the situation — see
-  `recipes.skills`.
+  `recipes.skills`;
+- `map_reduce` / `MapTask` / `MapResult` / `MapReduced` — fan out independent
+  map work, then reduce once all results are in — see `recipes.map_reduce`;
+- `swarm` / `Handoff` — peer-to-peer handoff loop with a terminal answer or a
+  bounded cycle — see `recipes.swarm`;
+- `run_tool_loop` / `ToolLoopResult` — an opt-in native tool-calling loop over
+  `reactifact.tools.native`, with mandatory-tool nudges and observations — see
+  `recipes.tool_loop`.
 
 Deterministic where it can be, LLM-free by design; expose the domain hook.
 Extend by adding a module here (the package stays import-surface-flat).
@@ -97,7 +104,7 @@ from .conversation import (
     turn_count,
 )
 from .identity import SeedIdentity
-from .inputs import find, find_all
+from .inputs import correlation_id_of, find, find_all
 from .map_reduce import (
     MapPlan,
     MapReduced,
@@ -118,7 +125,7 @@ from .plan_execute import PlanExecute
 from .reflection import ReflectionLoop
 from .resolve import materialize_doc
 from .rollback import changed_fields, downstream_fields, earliest_stage
-from .search import fan_out_sources
+from .search import fan_out_sources, search_sources, source_ref_id
 from .skills import Skill, load_skills, match_skills
 from .status import StatusMachine, StatusState
 from .supervisor import ApprovalGate, Router
@@ -127,6 +134,7 @@ from .text import EN_STOPWORDS, keyword_score, stem, stem_words
 from .tool_loop import ToolLoopResult, ToolObservation, run_tool_loop
 
 __all__ = [
+    # approval
     "Approval",
     "ApprovalDecision",
     "ApprovalFlow",
@@ -134,63 +142,74 @@ __all__ = [
     "ApprovalIntent",
     "ApprovalPolicy",
     "ClarifyApproval",
-    "Conversation",
     "InterpretApproval",
     "classify_approval",
-    "ConversationMessage",
-    "EN_STOPWORDS",
+    # inputs, cleanup, identity
+    "SeedIdentity",
     "EphemeralCleanup",
-    "Handoff",
+    "PrefixedEphemeralCleanup",
+    "correlation_id_of",
+    "find",
+    "find_all",
+    # search / resolve
+    "fan_out_sources",
+    "materialize_doc",
+    "search_sources",
+    "source_ref_id",
+    # status / rollback
+    "StatusMachine",
+    "StatusState",
+    "changed_fields",
+    "downstream_fields",
+    "earliest_stage",
+    # plan / reflection / routing
+    "PlanExecute",
+    "ReflectionLoop",
+    "Router",
+    # memory / conversation
+    "Conversation",
+    "ConversationMessage",
     "MessageSpec",
+    "MemoryHit",
+    "MemoryRecord",
+    "MemoryStore",
+    "RollingDigestSummarizer",
+    "Transcript",
+    "WindowPruner",
+    "WindowSummarizer",
+    "add_message",
+    "conversation_state",
+    "create_turn",
+    "llm_digest_summarizer",
+    "llm_summarizer",
+    "transcript",
+    "turn_count",
+    # map-reduce / swarm
+    "Handoff",
     "MapPlan",
     "MapReduceResult",
     "MapReduced",
     "MapResult",
     "MapTask",
-    "MemoryHit",
-    "MemoryRecord",
-    "MemoryStore",
-    "PlanExecute",
-    "PrefixedEphemeralCleanup",
-    "ReflectionLoop",
-    "RollingDigestSummarizer",
-    "Router",
-    "SeedIdentity",
-    "Skill",
-    "StatusMachine",
-    "StatusState",
     "SwarmCycle",
     "SwarmError",
     "SwarmLimit",
     "SwarmResult",
-    "ToolLoopResult",
-    "ToolObservation",
-    "Transcript",
-    "WindowPruner",
-    "WindowSummarizer",
-    "add_message",
-    "changed_fields",
-    "conversation_state",
-    "create_turn",
-    "downstream_fields",
-    "earliest_stage",
-    "fan_out_sources",
-    "find",
-    "find_all",
-    "keyword_score",
-    "llm_digest_summarizer",
-    "llm_summarizer",
-    "load_skills",
-    "looks_like_tool_markup",
     "map_reduce",
-    "parse_textual_tool_calls",
-    "parse_tool_calls_with_textual",
+    "swarm",
+    # text / skills
+    "EN_STOPWORDS",
+    "Skill",
+    "keyword_score",
+    "load_skills",
     "match_skills",
-    "materialize_doc",
-    "run_tool_loop",
     "stem",
     "stem_words",
-    "swarm",
-    "transcript",
-    "turn_count",
+    # tool loop
+    "ToolLoopResult",
+    "ToolObservation",
+    "looks_like_tool_markup",
+    "parse_textual_tool_calls",
+    "parse_tool_calls_with_textual",
+    "run_tool_loop",
 ]

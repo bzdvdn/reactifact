@@ -46,8 +46,8 @@ from pydantic import BaseModel
 from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
-from ..effects import Effects
-from ..step import Step, StepGroup, create_step_group
+from ..step import Emit, Step, StepGroup, create_step_group
+from .inputs import correlation_id_of
 
 if TYPE_CHECKING:
     from ..pipeline import Pipeline
@@ -181,10 +181,6 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
         ]
         return sorted(steps, key=lambda s: getattr(s.data, self.index_field))
 
-    def _goal_id_of(self, artifact: Artifact[Any]) -> str | None:
-        value = getattr(artifact.data, self.goal_field, None)
-        return value if isinstance(value, str) else None
-
 
 class _FuncPlanExecute(PlanExecute[GoalT, StepT, ResultT, FinalT]):
     """`PlanExecute.from_funcs` adapter: delegates each hook to a callable."""
@@ -246,8 +242,8 @@ class _Planner(Step[Any]):
         super().__init__(artifact_type=owner.step_type)
 
     async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+        self, context: Context, trigger: Artifact[Any] | None
+    ) -> list[Emit] | None:
         owner = self.owner
         goal = trigger
         if goal is None or not isinstance(goal.data, owner.goal_type):
@@ -255,13 +251,16 @@ class _Planner(Step[Any]):
         if owner._ordered_steps(context, goal.id):
             return None  # already planned (§42)
         steps = await owner.plan(context, goal)
-        for index, step_data in enumerate(steps):
-            stamped = step_data.model_copy(
-                update={owner.goal_field: goal.id, owner.index_field: index}
+        return [
+            Emit(
+                step_data.model_copy(
+                    update={owner.goal_field: goal.id, owner.index_field: index}
+                ),
+                id=owner._step_id(goal.id, index),
+                links=(("from_goal", goal.id),),
             )
-            handle = effects.create(stamped, id=owner._step_id(goal.id, index))
-            handle.link("from_goal", goal.id)
-        return None
+            for index, step_data in enumerate(steps)
+        ]
 
 
 class _Executor(Step[Any]):
@@ -269,14 +268,12 @@ class _Executor(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.result_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        goal_id = owner._goal_id_of(artifact)
+        goal_id = correlation_id_of(artifact, owner.goal_field)
         if goal_id is None:
             return None
         steps = owner._ordered_steps(context, goal_id)
@@ -294,9 +291,11 @@ class _Executor(Step[Any]):
                     owner.index_field: getattr(step.data, owner.index_field),
                 }
             )
-            handle = effects.create(stamped, id=result_id)
-            handle.link("executes", step)
-            return None  # one step per generation; the new result re-triggers this
+            return Emit(
+                stamped,
+                id=result_id,
+                links=(("executes", step),),
+            )  # one step per generation; the new result re-triggers this
         return None
 
 
@@ -305,14 +304,12 @@ class _Finisher(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        goal_id = owner._goal_id_of(artifact)
+        goal_id = correlation_id_of(artifact, owner.goal_field)
         if goal_id is None:
             return None
         if context.get(owner._final_id(goal_id)) is not None:
@@ -330,7 +327,8 @@ class _Finisher(Step[Any]):
         final_data = await owner.finish(context, goal, results)
         if hasattr(final_data, owner.goal_field):
             final_data = final_data.model_copy(update={owner.goal_field: goal_id})
-        handle = effects.create(final_data, id=owner._final_id(goal_id))
-        for result in results:
-            handle.link("supported_by", result)
-        return None
+        return Emit(
+            final_data,
+            id=owner._final_id(goal_id),
+            links=tuple(("supported_by", result) for result in results),
+        )

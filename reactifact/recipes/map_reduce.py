@@ -29,9 +29,8 @@ from ..artifacts import Artifact
 from ..budget import RunStats
 from ..consume import Consume
 from ..context import Context
-from ..effects import Effects
 from ..runtime import Runtime
-from ..step import Step, create_step_group
+from ..step import Emit, Step, create_step_group
 
 MapFn = Any  # (item, index) -> model/mapping, sync or async
 ReduceFn = Any  # (successful_payloads) -> model/mapping, sync or async
@@ -97,7 +96,7 @@ class MapWorker(Step):
         self.fn = fn
         self.on_error = on_error
 
-    async def run(self, task: MapTask, effects: Effects) -> None:
+    async def run(self, task: MapTask) -> Emit:
         try:
             value = await _maybe_await(self.fn(task.payload, task.index))
             payload = _payload(value)
@@ -107,7 +106,7 @@ class MapWorker(Step):
                 raise
             payload = {}
             error = f"{type(exc).__name__}: {exc}"
-        effects.create(
+        return Emit(
             MapResult(
                 key=task.key,
                 index=task.index,
@@ -128,13 +127,13 @@ class ReduceStep(Step):
         self.plan_id = plan_id
         self.key = key
 
-    async def run(self, context: Context, result: MapResult, effects: Effects) -> None:
+    async def run(self, context: Context) -> Emit | None:
         plan = context.get(self.plan_id)
         if plan is None or not isinstance(plan.data, MapPlan):
-            return
+            return None
         reduced_id = f"map-reduced:{self.key}"
         if context.get(reduced_id) is not None:
-            return
+            return None
         results = [
             artifact
             for artifact in context.list_artifacts(MapResult)
@@ -142,12 +141,12 @@ class ReduceStep(Step):
         ]
         results.sort(key=lambda artifact: artifact.data.index)
         if len(results) < plan.data.total:
-            return
+            return None
         successful = [
             artifact.data.payload for artifact in results if not artifact.data.error
         ]
         value = await _maybe_await(self.fn(successful))
-        effects.create(
+        return Emit(
             MapReduced(
                 key=self.key,
                 payload=_payload(value),

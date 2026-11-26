@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable, Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -18,7 +18,10 @@ from ..context import Context
 from ..effects import Handle
 from ..provenance import MATERIALIZED_FROM
 from ..sources import SourceRef
-from .search import _active_effects
+from ._effects import require_effects
+
+if TYPE_CHECKING:
+    from ..effects import Effects
 
 DocT = TypeVar("DocT", bound=BaseModel)
 
@@ -74,6 +77,7 @@ async def materialize_doc(
     relation: str = MATERIALIZED_FROM,
     refresh: bool = True,
     on_error: Callable[[SourceRef, BaseException | None], None] | None = None,
+    effects: Effects | None = None,
 ) -> DocT | None:
     """Resolve a ref into a document with provenance (§6, §34).
 
@@ -90,9 +94,10 @@ async def materialize_doc(
     `MATERIALIZED_FROM`) in the current effect slot. An existing
     `resolved:{ref_id}` document is reused with `refresh=False`; a missing
     source or a resolve failure is reported to `on_error(ref, exc)` and returns
-    `None`, never a crash.
+    `None`, never a crash. Pass `effects=` to use an explicit slot instead of
+    the current produce's.
     """
-    effects = _active_effects(context)
+    slot = require_effects(context, effects)
 
     if isinstance(ref, SourceRef):
         ref_data = ref
@@ -125,7 +130,7 @@ async def materialize_doc(
         return None
 
     if target is None:
-        target = effects.create(ref_data, id=ref_id)
+        target = slot.create(ref_data, id=ref_id)
 
     if doc_factory is not None:
         doc = doc_factory(context, target, content)
@@ -140,7 +145,7 @@ async def materialize_doc(
     else:
         raise TypeError("materialize_doc requires doc_factory= or doc_type=")
 
-    handle = effects.create(doc, id=doc_id)
+    handle = slot.create(doc, id=doc_id)
     handle.link(relation, target)
     return doc
 

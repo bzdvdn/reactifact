@@ -10,8 +10,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact, ArtifactType
 from ..context import Context
-from ..effects import Effects
-from ..step import Step
+from ..step import Edit, Step
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 T = TypeVar("T", bound=BaseModel)
@@ -135,10 +134,9 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
     async def run(
         self,
         context: Context,
-        effects: Effects,
         trigger: Artifact[Any] | None,
         inputs: list[Artifact[Any]],
-    ) -> None:
+    ) -> Edit | None:
         artifact = trigger
         if artifact is None:
             return None
@@ -173,8 +171,8 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         if expected is None or expected == current:
             return None
         self.on_transition(context, key, str(current), expected)
-        effects.update(target, **{self.status_field: expected})
-        return None
+        fields: dict[str, Any] = {self.status_field: expected}
+        return Edit(target, **fields)
 
 
 class _FuncStatusMachine(StatusMachine[StatusT]):

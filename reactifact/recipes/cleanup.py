@@ -28,8 +28,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact, ArtifactType
 from ..context import Context
-from ..effects import Effects
-from ..step import Step
+from ..step import Drop, Step
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
@@ -66,18 +65,19 @@ class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
         that exact shape pre-built)."""
 
     async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+        self, context: Context, trigger: Artifact[Any] | None
+    ) -> list[Drop] | None:
         terminal = trigger
         if terminal is None:
             return None
         correlation_id = self.correlation_of(terminal.id)
         if not correlation_id:
             return None
-        for artifact_id in self.scratch_ids(correlation_id):
-            if context.get(artifact_id) is not None:
-                effects.delete(artifact_id)
-        return None
+        return [
+            Drop(artifact_id)
+            for artifact_id in self.scratch_ids(correlation_id)
+            if context.get(artifact_id) is not None
+        ]
 
 
 class PrefixedEphemeralCleanup(EphemeralCleanup[TerminalT], Generic[TerminalT]):

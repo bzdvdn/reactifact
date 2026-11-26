@@ -47,9 +47,9 @@ to fill them in — the recipe stamps the real values on every create.
 Kept as an inert placeholder (not `produces=`) because
 none of the three real produces above is uniquely "the one that creates
 `PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
-own HITL machinery calls `Human(effects).ask(...)` at runtime. `also_creates` is the
+own HITL machinery calls `human.ask(...)` at runtime. `also_creates` is the
 better fit when a *single* produce's own body is the one writing the extra
-type (`effects.create(Bar(...))` inside an `artifact_type = Foo`
+type (`Emit(Bar(...))` inside an `artifact_type = Foo`
 produce) — declare it there directly instead of adding a placeholder here.
 """
 
@@ -62,10 +62,9 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
-from ..effects import Effects
 from ..interaction import Human
 from ..interrupt import PendingQuestion
-from ..step import Step
+from ..step import Emit, Step
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 TaskT = TypeVar("TaskT", bound=BaseModel)
@@ -137,12 +136,6 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
     def _final_id(self, thread_id: str) -> str:
         return f"final:{thread_id}"
 
-    def _report_of(self, context: Context, thread_id: str) -> Artifact[ReportT] | None:
-        for report in context.list_artifacts(self.report_type):
-            if getattr(report.data, self.thread_field, None) == thread_id:
-                return report
-        return None
-
     def _thread_id_of(self, artifact: Artifact[Any]) -> str | None:
         if isinstance(artifact.data, self.report_type):
             value = getattr(artifact.data, self.thread_field, None)
@@ -155,15 +148,19 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
             return value if isinstance(value, str) else None
         return None
 
+    def _report_of(self, context: Context, thread_id: str) -> Artifact[ReportT] | None:
+        for report in context.list_artifacts(self.report_type):
+            if getattr(report.data, self.thread_field, None) == thread_id:
+                return report
+        return None
+
 
 class _RouteStep(Step[Any]):
     def __init__(self, owner: Router[Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.task_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
         request = trigger
         if request is None or not isinstance(request.data, owner.request_type):
@@ -177,9 +174,11 @@ class _RouteStep(Step[Any]):
         task_data = owner.build_task(context, request, route).model_copy(
             update={owner.thread_field: request.id, owner.route_field: route}
         )
-        handle = effects.create(task_data, id=task_id)
-        handle.link("for_request", request.id)
-        return None
+        return Emit(
+            task_data,
+            id=task_id,
+            links=(("for_request", request.id),),
+        )
 
 
 class _ApprovalStep(Step[Any]):
@@ -188,8 +187,11 @@ class _ApprovalStep(Step[Any]):
         super().__init__(artifact_type=owner.final_type)
 
     async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+        self,
+        context: Context,
+        human: Human,
+        trigger: Artifact[Any] | None,
+    ) -> Emit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
@@ -211,7 +213,7 @@ class _ApprovalStep(Step[Any]):
             if q.data.kind == "approve" and q.data.notes.get("thread") == thread_id
         ]
         if not thread_questions:
-            Human(effects).ask(
+            human.ask(
                 owner.approval_question(context, report),
                 kind="approve",
                 notes={"thread": thread_id},
@@ -228,6 +230,8 @@ class _ApprovalStep(Step[Any]):
         )
         if hasattr(final_data, owner.thread_field):
             final_data = final_data.model_copy(update={owner.thread_field: thread_id})
-        handle = effects.create(final_data, id=owner._final_id(thread_id))
-        handle.link("based_on", report)
-        return None
+        return Emit(
+            final_data,
+            id=owner._final_id(thread_id),
+            links=(("based_on", report),),
+        )

@@ -278,9 +278,9 @@ OTLP/Langfuse-приёмников.
 
 | Символ | Роль |
 | --- | --- |
-| `find(inputs, Model)` / `find_all(inputs, Model)` | типизированный поиск в `inputs` шага без `next(... isinstance ...)` |
-| `fan_out_sources(context, query, owner_id, …, as_artifacts=False)` | идемпотентный поиск fan-out → рефы + патч; `as_artifacts=True` возвращает planned-handles |
-| `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=…)` | ленивый реф → документ с провенансом; принимает артефакт, `SourceRef` или handle |
+| `find(inputs, Model)` / `find_all(inputs, Model)` / `correlation_id_of(artifact, field, owner=)` | типизированный поиск в `inputs` шага; `correlation_id_of` достаёт ключ цикла (или id артефакта для owner-типа) |
+| `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` — чистый поиск (ранжированные refs); `fan_out_sources` дополнительно пишет create-or-refresh refs (`source_ref_id`) в эффект-слот (или явный `effects=`) |
+| `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | ленивый реф → документ с провенансом; принимает артефакт, `SourceRef` или handle; `effects=` задаёт явный слот |
 | `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), `terminal`, `on_transition` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений; `message_type` может быть последовательностью типов |
 | `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов |

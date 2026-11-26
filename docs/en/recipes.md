@@ -18,7 +18,25 @@ question = find(inputs, Question)          # Artifact[Question] | None
 evidence = find_all(inputs, Evidence)       # list[Artifact[Evidence]]
 ```
 
-## `fan_out_sources` — reactive search
+## `search_sources` / `fan_out_sources` — reactive search
+
+`search_sources` is the pure part: it fans out and returns ranked, scoped refs
+without touching the effect slot. Use it when the step wants to create the refs
+itself (for example, return a list of `Emit`s):
+
+```python
+from reactifact import Emit
+from reactifact.recipes import search_sources, source_ref_id
+
+refs = await search_sources(context, question, owner_id=query_id, limit=5)
+return [
+    Emit(ref, id=source_ref_id(ref, query_id)) for ref in refs
+]
+```
+
+`fan_out_sources` is the effect-slot wrapper: it does the same search and also
+writes each ref as a create-or-refresh artifact. Pass `effects=` to target an
+explicit slot instead of the current produce's.
 
 ```python
 from reactifact.recipes import fan_out_sources
@@ -35,7 +53,7 @@ refs = await fan_out_sources(
     on_count=lambda source, n: context.announce(
         f"{source}: {n} hits", kind="status"
     ),
-)  # each SourceRef is created in the current produce's effects (effects)
+)  # each SourceRef is created in the current produce's effects (or effects=)
 ```
 
 Pass `as_artifacts=True` to get the planned `Handle`s instead of the data — the

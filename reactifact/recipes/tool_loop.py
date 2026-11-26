@@ -20,7 +20,7 @@ caller can record which documents/tools were read.
         tools=[search_knowledge, read_source],
         mandatory="read_source",
     )
-    call.effects.create(Answer(text=result.text))
+    return Answer(text=result.text)
 """
 
 from __future__ import annotations

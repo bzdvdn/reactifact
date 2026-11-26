@@ -8,7 +8,7 @@ judgement — `draft`, `critique`, `rewrite` — plus `finish`.
 
 Unlike `PlanExecute` (immutable, indexed step artifacts), the working state
 here is *one mutable draft artifact per topic*, updated in place each round
-— matching the ported example's own model (`effects.update(draft, ...)`,
+— matching the ported example's own model (`Edit(draft, ...)`,
 not a new artifact per round); `Review` artifacts still accumulate one per
 round, as an audit trail the loop itself never re-reads past the latest one.
 
@@ -50,8 +50,8 @@ from pydantic import BaseModel
 from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
-from ..effects import Effects
-from ..step import Step, StepGroup, create_step_group
+from ..step import Edit, Emit, Step, StepGroup, create_step_group
+from .inputs import correlation_id_of
 
 if TYPE_CHECKING:
     from ..pipeline import Pipeline
@@ -268,14 +268,14 @@ class _Draft(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        topic_id = owner._topic_id_of(artifact)
+        topic_id = correlation_id_of(
+            artifact, owner.topic_field, owner=owner.topic_type
+        )
         if topic_id is None:
             return None
         draft_id = owner._draft_id(topic_id)
@@ -292,9 +292,11 @@ class _Draft(Step[Any]):
                 owner.status_field: owner.draft_status,
             }
         )
-        handle = effects.create(stamped, id=draft_id)
-        handle.link("from_topic", topic_id)
-        return None
+        return Emit(
+            stamped,
+            id=draft_id,
+            links=(("from_topic", topic_id),),
+        )
 
 
 class _Critic(Step[Any]):
@@ -303,13 +305,15 @@ class _Critic(Step[Any]):
         super().__init__(artifact_type=owner.review_type)
 
     async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+        self, context: Context, trigger: Artifact[Any] | None
+    ) -> list[Emit | Edit] | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        topic_id = owner._topic_id_of(artifact)
+        topic_id = correlation_id_of(
+            artifact, owner.topic_field, owner=owner.topic_type
+        )
         if topic_id is None:
             return None
         draft = context.get(owner._draft_id(topic_id))
@@ -332,11 +336,13 @@ class _Critic(Step[Any]):
         stamped = review_data.model_copy(
             update={owner.round_field: round_, owner.topic_field: topic_id}
         )
-        handle = effects.create(stamped, id=review_id)
-        handle.link("reviews", draft)
+        results: list[Emit | Edit] = [
+            Emit(stamped, id=review_id, links=(("reviews", draft),))
+        ]
         if score >= owner.accept_at:
-            effects.update(draft, **{owner.status_field: owner.accepted_status})
-        return None
+            fields: dict[str, Any] = {owner.status_field: owner.accepted_status}
+            results.append(Edit(draft, **fields))
+        return results
 
 
 class _Rewrite(Step[Any]):
@@ -344,14 +350,14 @@ class _Rewrite(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.draft_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Edit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        topic_id = owner._topic_id_of(artifact)
+        topic_id = correlation_id_of(
+            artifact, owner.topic_field, owner=owner.topic_type
+        )
         if topic_id is None:
             return None
         draft = context.get(owner._draft_id(topic_id))
@@ -370,8 +376,7 @@ class _Rewrite(Step[Any]):
         update_fields[owner.round_field] = round_ + 1
         update_fields[owner.status_field] = owner.draft_status
         update_fields[owner.topic_field] = topic_id
-        effects.update(draft, **update_fields)
-        return None
+        return Edit(draft, **update_fields)
 
 
 class _Finalize(Step[Any]):
@@ -379,14 +384,14 @@ class _Finalize(Step[Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.final_type)
 
-    async def run(
-        self, context: Context, effects: Effects, trigger: Artifact[Any] | None
-    ) -> None:
+    async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
         artifact = trigger
         if artifact is None:
             return None
-        topic_id = owner._topic_id_of(artifact)
+        topic_id = correlation_id_of(
+            artifact, owner.topic_field, owner=owner.topic_type
+        )
         if topic_id is None:
             return None
         draft = context.get(owner._draft_id(topic_id))
@@ -403,6 +408,8 @@ class _Finalize(Step[Any]):
         final_data = await owner.finish(context, draft)
         if hasattr(final_data, owner.topic_field):
             final_data = final_data.model_copy(update={owner.topic_field: topic_id})
-        handle = effects.create(final_data, id=final_id)
-        handle.link("based_on", draft)
-        return None
+        return Emit(
+            final_data,
+            id=final_id,
+            links=(("based_on", draft),),
+        )

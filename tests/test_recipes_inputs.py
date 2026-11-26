@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 from reactifact import Context, RuntimeResources
-from reactifact.recipes import find, find_all
+from reactifact.recipes import correlation_id_of, find, find_all
 
 
 class Question(BaseModel):
@@ -50,3 +50,14 @@ def test_find_all_returns_empty_list_when_absent():
         text: str
 
     assert find_all(inputs, Answer) == []
+
+
+def test_correlation_id_reads_a_field():
+    q = build_inputs()[0]
+    assert correlation_id_of(q, "text") == "why?"
+    assert correlation_id_of(None, "text") is None
+
+
+def test_correlation_id_returns_the_owner_id():
+    q = build_inputs()[0]
+    assert correlation_id_of(q, "missing", owner=Question) == q.id

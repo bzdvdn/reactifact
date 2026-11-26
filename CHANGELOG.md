@@ -56,6 +56,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `Effects.create_once`; `source=` + `prefix=` mirror `create_once_from`. It is
   a no-op (including links) when the artifact already exists. `Emit` with an
   existing id stays the create-or-refresh (`upsert`) form.
+- **Recipe cleanups.** `search_sources` / `source_ref_id` are the pure search
+  helpers (`fan_out_sources` remains the effect-slot wrapper and accepts an
+  explicit `effects=`); `materialize_doc` accepts `effects=` too;
+  `correlation_id_of` centralizes the loop-key lookup. Recipes now use the
+  return-style `Emit`/`Ensure`/`Edit`/`Drop`/`Relate` internally. The approval
+  recipe is a package (`recipes.approval`) with unchanged public imports.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.
