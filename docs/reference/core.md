@@ -36,6 +36,22 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.Consume
 
+### OnCreate
+
+::: reactifact.OnCreate
+
+### OnUpdate
+
+::: reactifact.OnUpdate
+
+### OnDelete
+
+::: reactifact.OnDelete
+
+### OnStale
+
+::: reactifact.OnStale
+
 ### Runtime
 
 ::: reactifact.Runtime
@@ -85,6 +101,14 @@ is in how it's used, not its bare signature.
 ### Verify
 
 ::: reactifact.verify.Verify
+
+### VerificationResult
+
+::: reactifact.verify.VerificationResult
+
+### VerificationFailed
+
+::: reactifact.verify.VerificationFailed
 
 ## Audit & reproducibility
 
