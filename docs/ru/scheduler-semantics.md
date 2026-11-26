@@ -240,13 +240,13 @@
 
 | Понятие | Код | Конституция |
 | --- | --- | --- |
-| Цикл поколений | `reactifact/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
-| Матчинг | `reactifact/triggers.py` `Trigger.matches`, `reactifact/agents.py` `matching_triggers` | §22 |
-| Debounce / порядок / обрезка бюджета | `runtime.py` `_arun_once_impl` | §24, §58 |
+| Цикл поколений | `reactifact/runtime/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
+| Матчинг | `reactifact/triggers.py` `Trigger.matches`, `reactifact/step/group.py` `matching_triggers` | §22 |
+| Debounce / порядок / обрезка бюджета | `reactifact/runtime/runtime.py` `_arun_once_impl` | §24, §58 |
 | Политика планирования | `reactifact/scheduler.py` `Scheduler` | §26 |
-| Конкурентность | `runtime.py` `_dispatch` | §42, §58 |
-| Атомарный коммит / идемпотентность | `runtime.py` `_commit_patches_to_apply`, `_apply_patch`; `context.py` `create`/`update` | §41, §42, §43 |
+| Конкурентность | `reactifact/runtime/runtime.py` `_dispatch` | §42, §58 |
+| Атомарный коммит / идемпотентность | `reactifact/runtime/runtime.py` `_commit_patches_to_apply`, `_apply_patch`; `reactifact/context/context.py` `create`/`update` | §41, §42, §43 |
 | Устаревание | `context.py` `update` → `_dependents_of`, `stale_artifacts` | §43, §44 |
 | Бюджет / исходы | `reactifact/budget.py` | §58 |
-| Модель ошибок | `runtime.py` `_execute`, `_enter_turn` | §59, §69 |
+| Модель ошибок | `reactifact/runtime/runtime.py` `_execute`, `_enter_turn` | §59, §69 |
 | Наблюдаемость | `reactifact/tracing/` | §54 |

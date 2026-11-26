@@ -231,13 +231,13 @@ decisions deterministically; see [Replay](replay.md).
 
 | Concept | Code | Constitution |
 | --- | --- | --- |
-| Generation loop | `reactifact/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
-| Matching | `reactifact/triggers.py` `Trigger.matches`, `reactifact/agents.py` `matching_triggers` | §22 |
-| Debounce / order / budget slice | `runtime.py` `_arun_once_impl` | §24, §58 |
+| Generation loop | `reactifact/runtime/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
+| Matching | `reactifact/triggers.py` `Trigger.matches`, `reactifact/step/group.py` `matching_triggers` | §22 |
+| Debounce / order / budget slice | `reactifact/runtime/runtime.py` `_arun_once_impl` | §24, §58 |
 | Scheduling policy | `reactifact/scheduler.py` `Scheduler` | §26 |
-| Concurrency | `runtime.py` `_dispatch` | §42, §58 |
-| Atomic commit / idempotency | `runtime.py` `_commit_patches_to_apply`, `_apply_patch`; `context.py` `create`/`update` | §41, §42, §43 |
+| Concurrency | `reactifact/runtime/runtime.py` `_dispatch` | §42, §58 |
+| Atomic commit / idempotency | `reactifact/runtime/runtime.py` `_commit_patches_to_apply`, `_apply_patch`; `reactifact/context/context.py` `create`/`update` | §41, §42, §43 |
 | Staleness | `context.py` `update` → `_dependents_of`, `stale_artifacts` | §43, §44 |
 | Budget / outcomes | `reactifact/budget.py` | §58 |
-| Failure model | `runtime.py` `_execute`, `_enter_turn` | §59, §69 |
+| Failure model | `reactifact/runtime/runtime.py` `_execute`, `_enter_turn` | §59, §69 |
 | Observability | `reactifact/tracing/` | §54 |

@@ -85,3 +85,6 @@ class Trigger:
 
     def __repr__(self) -> str:
         return f"<Trigger {self.event_type.value} {self.artifact_type.__name__ if self.artifact_type else '*'}>"
+
+
+__all__ = ["Trigger"]
