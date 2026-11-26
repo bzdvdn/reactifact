@@ -137,6 +137,8 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
             return None
         round_no = count // self.every
         summary_id = self.id_of(round_no)
+        # The id is derived from the message count, not from one trigger
+        # artifact; IdempotentConsume cannot gate on a count.
         if context.get(summary_id) is not None:
             return None  # this round's summary already exists (§42)
         recent = sorted(messages, key=self.order_key)[-self.window :]

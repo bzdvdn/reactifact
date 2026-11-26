@@ -48,7 +48,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 from pydantic import BaseModel
 
 from ..artifacts import Artifact
-from ..consume import Consume
+from ..consume import Consume, IdempotentConsume, JoinConsume
 from ..context import Context
 from ..step import Edit, Emit, Step, StepGroup, create_step_group
 from .inputs import correlation_id_of
@@ -266,7 +266,15 @@ class _FuncReflection(ReflectionLoop[TopicT, DraftT, ReviewT, FinalT]):
 class _Draft(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.draft_type)
+        super().__init__(
+            artifact_type=owner.draft_type,
+            consumes=(
+                IdempotentConsume(
+                    owner.topic_type,
+                    id_of=lambda topic: owner._draft_id(topic.id),
+                ),
+            ),
+        )
 
     async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
@@ -279,8 +287,6 @@ class _Draft(Step[Any]):
         if topic_id is None:
             return None
         draft_id = owner._draft_id(topic_id)
-        if context.get(draft_id) is not None:
-            return None  # already drafted (§42)
         topic = context.get(topic_id)
         if topic is None:
             return None
@@ -302,7 +308,20 @@ class _Draft(Step[Any]):
 class _Critic(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.review_type)
+        super().__init__(
+            artifact_type=owner.review_type,
+            consumes=(
+                IdempotentConsume(
+                    owner.draft_type,
+                    id_of=lambda draft: owner._review_id(
+                        draft.id, getattr(draft.data, owner.round_field)
+                    ),
+                    condition=lambda draft: (
+                        getattr(draft.data, owner.status_field) == owner.draft_status
+                    ),
+                ),
+            ),
+        )
 
     async def run(
         self, context: Context, trigger: Artifact[Any] | None
@@ -324,8 +343,6 @@ class _Critic(Step[Any]):
             return None
         round_ = getattr(draft.data, owner.round_field)
         review_id = owner._review_id(draft.id, round_)
-        if context.get(review_id) is not None:
-            return None  # already reviewed this round (§42)
         score, feedback = await owner.critique(context, draft)
         review_data = owner.review_type(
             **{
@@ -348,7 +365,19 @@ class _Critic(Step[Any]):
 class _Rewrite(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.draft_type)
+        super().__init__(
+            artifact_type=owner.draft_type,
+            consumes=(
+                JoinConsume(
+                    owner.draft_type,
+                    owner.review_type,
+                    key=lambda data: (
+                        getattr(data, owner.topic_field),
+                        getattr(data, owner.round_field),
+                    ),
+                ),
+            ),
+        )
 
     async def run(self, context: Context, trigger: Artifact[Any] | None) -> Edit | None:
         owner = self.owner
@@ -382,7 +411,21 @@ class _Rewrite(Step[Any]):
 class _Finalize(Step[Any]):
     def __init__(self, owner: ReflectionLoop[Any, Any, Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.final_type)
+        super().__init__(
+            artifact_type=owner.final_type,
+            consumes=(
+                IdempotentConsume(
+                    owner.draft_type,
+                    id_of=lambda draft: owner._final_id(
+                        getattr(draft.data, owner.topic_field)
+                    ),
+                    condition=lambda draft: (
+                        getattr(draft.data, owner.status_field) == owner.accepted_status
+                        or getattr(draft.data, owner.round_field) >= owner.max_rounds
+                    ),
+                ),
+            ),
+        )
 
     async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
@@ -403,8 +446,6 @@ class _Finalize(Step[Any]):
         if not done:
             return None
         final_id = owner._final_id(topic_id)
-        if context.get(final_id) is not None:
-            return None  # already finalized
         final_data = await owner.finish(context, draft)
         if hasattr(final_data, owner.topic_field):
             final_data = final_data.model_copy(update={owner.topic_field: topic_id})

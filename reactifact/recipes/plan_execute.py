@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 from pydantic import BaseModel
 
 from ..artifacts import Artifact
-from ..consume import Consume
+from ..consume import Consume, IdempotentConsume
 from ..context import Context
 from ..step import Emit, Step, StepGroup, create_step_group
 from .inputs import correlation_id_of
@@ -248,6 +248,8 @@ class _Planner(Step[Any]):
         goal = trigger
         if goal is None or not isinstance(goal.data, owner.goal_type):
             return None
+        # A plan is a set of Step artifacts, not one derived id: IdempotentConsume
+        # cannot express "no steps for this goal", so the guard stays explicit.
         if owner._ordered_steps(context, goal.id):
             return None  # already planned (§42)
         steps = await owner.plan(context, goal)
@@ -264,6 +266,9 @@ class _Planner(Step[Any]):
 
 
 class _Executor(Step[Any]):
+    # Deliberately imperative: it must wake on both Step and StepResult events
+    # (to advance one step per generation), which a single per-step Consume
+    # cannot express.
     def __init__(self, owner: PlanExecute[Any, Any, Any, Any]):
         self.owner = owner
         super().__init__(artifact_type=owner.result_type)
@@ -302,7 +307,17 @@ class _Executor(Step[Any]):
 class _Finisher(Step[Any]):
     def __init__(self, owner: PlanExecute[Any, Any, Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.final_type)
+        super().__init__(
+            artifact_type=owner.final_type,
+            consumes=(
+                IdempotentConsume(
+                    owner.result_type,
+                    id_of=lambda result: owner._final_id(
+                        getattr(result.data, owner.goal_field)
+                    ),
+                ),
+            ),
+        )
 
     async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
@@ -312,8 +327,6 @@ class _Finisher(Step[Any]):
         goal_id = correlation_id_of(artifact, owner.goal_field)
         if goal_id is None:
             return None
-        if context.get(owner._final_id(goal_id)) is not None:
-            return None  # already finished
         steps = owner._ordered_steps(context, goal_id)
         if not steps:
             return None

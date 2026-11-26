@@ -200,6 +200,80 @@ class Consume:
         )
 
 
+class IdempotentConsume(Consume):
+    """Wake on `artifact_type` only while the derived target id is absent.
+
+    The declarative form of the common idempotency guard:
+
+        if context.get(f"draft:{topic.id}") is not None:
+            return None
+
+    becomes:
+
+        consumes = (IdempotentConsume(Topic, id_of=lambda topic: f"draft:{topic.id}"),)
+
+    `id_of` receives the triggering `Artifact` (id + data), so a key may use
+    either. Returning `None` means "no target for this artifact" — it never
+    wakes and is excluded from `collect()`, mirroring `AbsentConsume`'s
+    unblocked-only inputs.
+    """
+
+    def __init__(
+        self,
+        artifact_type: ArtifactType,
+        id_of: Callable[[Artifact[Any]], str | None],
+        condition: Callable[[Artifact[Any]], bool] | None = None,
+        event_types: Sequence[EventType] | None = None,
+        *,
+        wakes: bool | None = None,
+        debounce: bool | None = None,
+        include_subclasses: bool | None = None,
+    ):
+        if not callable(id_of):
+            raise TypeError("IdempotentConsume id_of must be callable")
+        super().__init__(
+            artifact_type,
+            condition,
+            event_types,
+            wakes=wakes,
+            debounce=debounce,
+            include_subclasses=include_subclasses,
+        )
+        self.id_of = id_of
+
+    def _target_id(self, artifact: Artifact[Any]) -> str | None:
+        return self.id_of(artifact)
+
+    def to_triggers(self) -> list[Trigger]:
+        if not self.wakes:
+            return []
+
+        def _matches(artifact: Artifact[Any], context: Context) -> bool:
+            if self.condition is not None and not self.condition(artifact):
+                return False
+            target = self._target_id(artifact)
+            return target is not None and context.get(target) is None
+
+        return [
+            Trigger(
+                event_type,
+                self.artifact_type,
+                context_condition=_matches,
+                debounce=self.debounce,
+                include_subclasses=self.include_subclasses,
+            )
+            for event_type in self.event_types
+        ]
+
+    def collect(self, context: Context) -> list[Artifact[Any]]:
+        return [
+            artifact
+            for artifact in super().collect(context)
+            if (target := self._target_id(artifact)) is not None
+            and context.get(target) is None
+        ]
+
+
 class CorrelatedConsume(Consume):
     """Fires (and feeds inputs) only for a correlation key (by `key`) where
     every type in `require` is present and every type in `forbid` is

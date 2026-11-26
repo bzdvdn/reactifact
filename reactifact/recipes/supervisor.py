@@ -61,6 +61,7 @@ from typing import Any, Generic, TypeVar
 from pydantic import BaseModel
 
 from ..artifacts import Artifact
+from ..consume import IdempotentConsume
 from ..context import Context
 from ..interaction import Human
 from ..interrupt import PendingQuestion
@@ -158,7 +159,15 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
 class _RouteStep(Step[Any]):
     def __init__(self, owner: Router[Any, Any]):
         self.owner = owner
-        super().__init__(artifact_type=owner.task_type)
+        super().__init__(
+            artifact_type=owner.task_type,
+            consumes=(
+                IdempotentConsume(
+                    owner.request_type,
+                    id_of=lambda request: f"task:{request.id}",
+                ),
+            ),
+        )
 
     async def run(self, context: Context, trigger: Artifact[Any] | None) -> Emit | None:
         owner = self.owner
@@ -166,8 +175,6 @@ class _RouteStep(Step[Any]):
         if request is None or not isinstance(request.data, owner.request_type):
             return None
         task_id = f"task:{request.id}"
-        if context.get(task_id) is not None:
-            return None  # already routed (§42)
         route = await owner.classify(context, request)
         if route not in owner.routes:
             route = owner.fallback_route(context, request)
@@ -199,6 +206,8 @@ class _ApprovalStep(Step[Any]):
         thread_id = owner._thread_id_of(artifact)
         if thread_id is None:
             return None
+        # Multi-trigger HITL state machine (Report + PendingQuestion), not one
+        # derived id; keep the explicit finalization guard.
         if context.get(owner._final_id(thread_id)) is not None:
             return None  # already finalized
         report = owner._report_of(context, thread_id)

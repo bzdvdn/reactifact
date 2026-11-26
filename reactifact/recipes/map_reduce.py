@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 from ..artifacts import Artifact
 from ..budget import RunStats
-from ..consume import Consume
+from ..consume import IdempotentConsume
 from ..context import Context
 from ..runtime import Runtime
 from ..step import Emit, Step, create_step_group
@@ -118,28 +118,34 @@ class MapWorker(Step):
 
 
 class ReduceStep(Step):
-    consumes = (Consume(MapResult, debounce=True),)
     produces = (MapReduced,)
 
     def __init__(self, fn: ReduceFn, *, plan_id: str, key: str):
-        super().__init__()
         self.fn = fn
         self.plan_id = plan_id
         self.key = key
+        super().__init__(
+            consumes=(
+                IdempotentConsume(
+                    MapResult,
+                    id_of=lambda _: f"map-reduced:{key}",
+                    debounce=True,
+                ),
+            )
+        )
 
     async def run(self, context: Context) -> Emit | None:
         plan = context.get(self.plan_id)
         if plan is None or not isinstance(plan.data, MapPlan):
             return None
         reduced_id = f"map-reduced:{self.key}"
-        if context.get(reduced_id) is not None:
-            return None
         results = [
             artifact
             for artifact in context.list_artifacts(MapResult)
             if artifact.data.key == self.key
         ]
         results.sort(key=lambda artifact: artifact.data.index)
+        # Cardinality, not an idempotency id: wait until every map result exists.
         if len(results) < plan.data.total:
             return None
         successful = [

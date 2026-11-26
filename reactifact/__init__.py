@@ -30,7 +30,7 @@ from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .chat import Chat
 from .commit import ContextCheckpoint
-from .consume import Consume, consume
+from .consume import Consume, IdempotentConsume, consume
 from .context import Context, ProvenanceLink, View
 from .daemon import Daemon
 from .di import Depends, Inject
@@ -110,6 +110,7 @@ __all__ = [
     "BudgetTracker",
     "Consume",
     "Context",
+    "IdempotentConsume",
     "ProvenanceLink",
     "ContextCheckpoint",
     "Create",

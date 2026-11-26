@@ -129,7 +129,8 @@ class RepairFlow(StepGroup):
   should put contracts on steps.
 - When `consumes` is explicit, typed artifact params missing from it are added
   as read-only inputs automatically; `Consume(..., wakes=False)` remains for an
-  explicit list without a typed param. `debounce=True` collapses several
+  explicit list without a typed param. `IdempotentConsume(T, id_of=...)` wakes
+  only while the derived target id is absent. `debounce=True` collapses several
   same-generation events into one run; `Consume.by_base(Base)` also wakes on
   subclasses. `JoinConsume`/`AbsentConsume` correlate across types — see
   [patterns](patterns.md).

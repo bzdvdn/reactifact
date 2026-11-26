@@ -97,6 +97,7 @@ ungrounded answer.
 | `Consume(T)` | a `T` is created or updated |
 | `Consume(T, condition=lambda a: ...)` | a matching `T` appears (condition on the `Artifact`) |
 | `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes — needed when `consumes` is derived (an explicit `consumes` already makes unlisted typed params reads) |
+| `IdempotentConsume(T, id_of=...)` | wakes on `T` only while `id_of(artifact)` is absent (the declarative idempotency guard) |
 | `Annotated[T, When(fn)]` | wakes when `fn(data)` is true |
 | `Scope(field, owner=Type, key=fn)` | correlate typed inputs; owner matches by artifact id, `key` overrides extraction |
 | `Consume.by_status(T, "ready")` | `T.status == "ready"` (has `status` field) |

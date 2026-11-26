@@ -62,6 +62,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `correlation_id_of` centralizes the loop-key lookup. Recipes now use the
   return-style `Emit`/`Ensure`/`Edit`/`Drop`/`Relate` internally. The approval
   recipe is a package (`recipes.approval`) with unchanged public imports.
+- **`IdempotentConsume`.** `IdempotentConsume(T, id_of=lambda a: ...)` wakes a
+  step on `T` only while the derived target id is absent — the declarative form
+  of `if context.get(derived_id): return None`. `collect()` excludes already
+  satisfied triggers, and `wakes=False`/`debounce`/`condition` work as on
+  `Consume`. The approval, router, reflection and plan-finisher recipes use it
+  to drop hand-written guards.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.

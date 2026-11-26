@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ...artifacts import Artifact
-from ...consume import Consume
+from ...consume import IdempotentConsume
 from ...context import Context
 from ...interaction import Human
 from ...interrupt import PendingQuestion
@@ -21,7 +21,15 @@ from .policy import ApprovalPolicy
 class InterpretApproval(Step):
     """Turn one answered approval question into an `ApprovalDecision`."""
 
-    consumes = (Consume.by_field(PendingQuestion, "answered", True),)
+    consumes = (
+        IdempotentConsume(
+            PendingQuestion,
+            id_of=lambda question: f"approval:{question.id}",
+            condition=lambda question: (
+                question.data.answered and question.data.kind in APPROVAL_KINDS
+            ),
+        ),
+    )
     produces = (ApprovalDecision,)
 
     def __init__(self, policy: ApprovalPolicy | None = None):
@@ -30,7 +38,6 @@ class InterpretApproval(Step):
 
     async def run(
         self,
-        context: Context,
         question: Artifact[PendingQuestion],
         llm: LLMProvider | None,
     ) -> Emit | None:
@@ -38,8 +45,6 @@ class InterpretApproval(Step):
         if data.kind not in APPROVAL_KINDS:
             return None
         decision_id = f"approval:{question.id}"
-        if context.get(decision_id) is not None:
-            return None
         intent = await classify_approval(llm, data, policy=self.policy)
         return Emit(
             ApprovalDecision(
@@ -78,6 +83,8 @@ class ClarifyApproval(Step):
         if decision.question_id.startswith("clarify:"):
             return None  # one clarification round, no loop
         follow_id = f"clarify:{decision.question_id}"
+        # One clarification round only: a clarify-of-clarify must not loop, so
+        # the guard is semantic, not just an idempotency check.
         if context.get(follow_id) is not None:
             return None
         human.ask(
