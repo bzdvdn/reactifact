@@ -2,7 +2,11 @@ import asyncio
 from pathlib import Path
 
 from examples.repair.models import ChatReply, Project, ProjectInfo, UserMsg
-from examples.repair.services import FAST_ABILITIES_TEXT, Catalog
+from examples.repair.services import (
+    FAST_ABILITIES_TEXT,
+    Catalog,
+    ImageRenderSettings,
+)
 from examples.repair.step_groups import RepairFlow
 from reactifact import Budget, Context, Runtime, RuntimeResources
 from reactifact.providers import (
@@ -90,7 +94,8 @@ class ScriptedLLM(LLMProvider):
 def build(tmp_path, llm):
     catalog = Catalog(write_catalog(tmp_path))
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", catalog)
+    resources.register(Catalog, catalog)
+    resources.register(ImageRenderSettings, ImageRenderSettings(), owned=True)
     ctx = Context(resources=resources)
     runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
     return ctx, runtime
@@ -207,6 +212,22 @@ class FakeImage(ImageProvider):
         return b"\x89PNG\r\n\x1a\nfake-png-bytes"
 
 
+def test_image_settings_close_the_provider() -> None:
+    class ClosableImage(FakeImage):
+        closed = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    provider = ClosableImage()
+    settings = ImageRenderSettings(provider=provider, out_dir=None)
+
+    asyncio.run(settings.aclose())
+
+    assert provider.closed is True
+    asyncio.run(ImageRenderSettings().aclose())  # disabled settings are a no-op
+
+
 def test_design_previews_rendered_and_attached(tmp_path):
     llm = ScriptedLLM(
         [
@@ -219,9 +240,12 @@ def test_design_previews_rendered_and_attached(tmp_path):
     catalog = Catalog(write_catalog(tmp_path))
     images = FakeImage()
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", catalog)
-    resources.set("images", images)
-    resources.set("images_dir", str(tmp_path / "gen"))
+    resources.register(Catalog, catalog)
+    resources.register(
+        ImageRenderSettings,
+        ImageRenderSettings(provider=images, out_dir=tmp_path / "gen"),
+        owned=True,
+    )
 
     ctx = Context(resources=resources)
     runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
@@ -352,13 +376,17 @@ def test_slow_image_preview_does_not_hang(tmp_path):
     )
     catalog = Catalog(write_catalog(tmp_path))
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", catalog)
-    resources.set("images", SlowImage())
-    resources.set("images_dir", str(tmp_path / "gen"))
-    resources.set("images_timeout", 0.05)
-    resources.set(
-        "images_retries", 1
-    )  # no retries — the test checks there is no "hanging"
+    resources.register(Catalog, catalog)
+    resources.register(
+        ImageRenderSettings,
+        ImageRenderSettings(
+            provider=SlowImage(),
+            out_dir=tmp_path / "gen",
+            timeout=0.05,
+            attempts=1,  # no retries — the test checks there is no "hanging"
+        ),
+        owned=True,
+    )
 
     ctx = Context(resources=resources)
     runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))
@@ -450,9 +478,12 @@ def test_image_retry_recovers_preview(tmp_path):
     catalog = Catalog(write_catalog(tmp_path))
     images = FlakyImage()
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", catalog)
-    resources.set("images", images)
-    resources.set("images_dir", str(tmp_path / "gen"))
+    resources.register(Catalog, catalog)
+    resources.register(
+        ImageRenderSettings,
+        ImageRenderSettings(provider=images, out_dir=tmp_path / "gen"),
+        owned=True,
+    )
 
     ctx = Context(resources=resources)
     runtime = Runtime(ctx, agents=[RepairFlow()], budget=Budget(max_runs=200))

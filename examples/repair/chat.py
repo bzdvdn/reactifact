@@ -17,7 +17,7 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
 
 from dotenv import load_dotenv
 from examples.repair.models import ChatReply, UserMsg
-from examples.repair.services import Catalog
+from examples.repair.services import Catalog, ImageRenderSettings
 from examples.repair.step_groups import RepairFlow
 from reactifact import Budget, Runtime, RuntimeResources, SessionStore
 from reactifact.checkpoints import SQLiteKVBackend
@@ -44,11 +44,15 @@ async def main() -> None:
         print("LLM не настроен: задайте OPENROUTER_API_KEY в .env.\n")
 
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", Catalog(ROOT / "data" / "price.csv"))
-    resources.set("images_dir", str(ROOT / "web" / "assets" / "generated"))
-    images = image_from_env()
-    if images is not None:
-        resources.set("images", images)
+    resources.register(Catalog, Catalog(ROOT / "data" / "price.csv"))
+    resources.register(
+        ImageRenderSettings,
+        ImageRenderSettings(
+            provider=image_from_env(),
+            out_dir=ROOT / "web" / "assets" / "generated",
+        ),
+        owned=True,
+    )
 
     # SQLite implements AppendBackend (snapshot + append-only commit log).
     sessions_dir = ROOT / "sessions"
@@ -66,7 +70,11 @@ async def main() -> None:
     )
 
     while True:
-        text = input("Вы: ").strip()
+        try:
+            text = input("Вы: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
         if text.lower() in {"exit", "quit"}:
             break
         if text.lower() == "new":
@@ -113,6 +121,8 @@ async def main() -> None:
 
         session.context.compact(keep_commits=500)  # bound a long session's history
         await session.save()
+
+    await resources.aclose()
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """repair produce — the staged RepairFlow pipeline (§71).
 
 Flat re-exports keep the agent's imports stable: `common` (shared helpers and
-the change/rebuild model), `design` (options + previews), `plan` (LLM plan),
-`stages` (the six Step stages).
+the change/rebuild model), `design` (options + previews), `stages` (the six
+Step stages, one module per stage).
 """
 
 from .stages import (

@@ -11,6 +11,7 @@ import logging
 import re
 from typing import Any
 
+from reactifact import LLMProvider, Progress
 from reactifact.artifacts import Artifact
 from reactifact.context import Context
 from reactifact.recipes import (
@@ -40,10 +41,6 @@ _BUDGET_COMPLAINT = re.compile(
     re.IGNORECASE,
 )
 
-_IMAGE_RENDER_TIMEOUT = 60.0
-_IMAGE_RENDER_RETRIES = 3
-_IMAGE_RETRY_DELAY = 2.0
-
 
 def _latest_user_msg(context: Context) -> Artifact[UserMsg] | None:
     messages = context.list_artifacts(UserMsg)
@@ -53,6 +50,16 @@ def _latest_user_msg(context: Context) -> Artifact[UserMsg] | None:
 def _project_artifact(context: Context) -> Artifact[Project] | None:
     projects = context.list_artifacts(Project)
     return projects[0] if projects else None
+
+
+def _reply(
+    msg_id: str,
+    text: str,
+    kind: str = "text",
+    images: list[str] | None = None,
+) -> ChatReply:
+    """A stable-id reply to one user message (`reply:{msg_id}` at the call site)."""
+    return ChatReply(query_id=msg_id, text=text, kind=kind, images=images or [])
 
 
 def _apply_facts(
@@ -68,16 +75,19 @@ def _apply_facts(
 
 
 async def _extract_info(
-    context: Context, text: str, current: ProjectInfo
+    llm: LLMProvider | None,
+    progress: Progress,
+    text: str,
+    current: ProjectInfo,
 ) -> ProjectInfo:
-    context.announce("Анализирую детали проекта…", kind="status")
+    progress("Анализирую детали проекта…")
     # No model configured (offline demo): extract deterministically instead of
     # asking the user to repeat facts forever.
-    if context.resources.llm is None:
+    if llm is None:
         return _apply_facts(current, parse_facts(text), override=True)
 
     result = await structured_llm(
-        context.resources.llm,
+        llm,
         schema=ProjectInfo,
         temperature=0.0,
         max_tokens=3000,
@@ -223,9 +233,6 @@ def _downstream_resets(target: str) -> dict[str, Any]:
 __all__ = [
     "_APPROVE_RE",
     "_BUDGET_COMPLAINT",
-    "_IMAGE_RENDER_TIMEOUT",
-    "_IMAGE_RENDER_RETRIES",
-    "_IMAGE_RETRY_DELAY",
     "_approval_text",
     "_assistant_context",
     "_conversation_text",
@@ -236,6 +243,7 @@ __all__ = [
     "_palette_text",
     "_parse_pick",
     "_project_artifact",
+    "_reply",
     "changed_fields",
     "ensure_geometry",
     "geometry_text",

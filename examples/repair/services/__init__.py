@@ -8,6 +8,7 @@ specific submodules):
     geometry  — wall/floor/perimeter math and `ensure_geometry`
     catalog   — `price.csv` lexical search (no embedders)
     estimate  — quantity parsing → catalog pricing → totals
+    images    — preview render settings + the sequential renderer
     rollback  — the "change → rebuild" stage routing (§22/§24)
 """
 
@@ -24,6 +25,7 @@ from .fast import (
     fast_reply,
 )
 from .geometry import Geometry, ensure_geometry, geometry_text
+from .images import ImageRenderSettings, render_previews
 from .rollback import rollback_target
 
 __all__ = [
@@ -35,6 +37,7 @@ __all__ = [
     "FAST_GREETING_TEXT",
     "FAST_THANKS_TEXT",
     "Geometry",
+    "ImageRenderSettings",
     "REQUIRED_FACTS",
     "STAGES",
     "build_estimate",
@@ -43,5 +46,6 @@ __all__ = [
     "geometry_text",
     "parse_facts",
     "qa_budget_warning",
+    "render_previews",
     "rollback_target",
 ]

@@ -19,7 +19,7 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
 
 from dotenv import load_dotenv
 from examples.repair.models import ChatReply, Project, UserMsg
-from examples.repair.services import Catalog
+from examples.repair.services import Catalog, ImageRenderSettings
 from examples.repair.step_groups import RepairFlow
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
@@ -65,14 +65,18 @@ FALLBACK_REPLY = "Не удалось обработать запрос. Поп�
 
 def _resources(llm) -> RuntimeResources:
     resources = RuntimeResources(llm=llm)
-    resources.set("catalog", Catalog(ROOT / "data" / "price.csv"))
-    resources.set("images_dir", str(ROOT / "web" / "assets" / "generated"))
+    resources.register(Catalog, Catalog(ROOT / "data" / "price.csv"))
+    resources.register(
+        ImageRenderSettings,
+        ImageRenderSettings(
+            provider=image_from_env(),
+            out_dir=ROOT / "web" / "assets" / "generated",
+        ),
+        owned=True,
+    )
     embedder = embedder_from_env()
     if embedder is not None:
         resources.embedder = embedder
-    images = image_from_env()
-    if images is not None:
-        resources.set("images", images)
     return resources
 
 

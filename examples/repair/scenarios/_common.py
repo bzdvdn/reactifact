@@ -11,6 +11,7 @@ from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, LLMRespon
 from reactifact.resources import RuntimeResources
 
 from ..services.catalog import Catalog
+from ..services.images import ImageRenderSettings
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = ROOT / "data" / "price.csv"
@@ -23,7 +24,8 @@ FIXTURE = Path(__file__).resolve().parent / "data" / "collect.jsonl"
 
 def resources(llm: LLMProvider | None = None) -> RuntimeResources:
     res = RuntimeResources(llm=llm)
-    res.set("catalog", Catalog(CATALOG_PATH))
+    res.register(Catalog, Catalog(CATALOG_PATH))
+    res.register(ImageRenderSettings, ImageRenderSettings(), owned=True)
     return res
 
 

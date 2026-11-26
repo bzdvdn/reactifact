@@ -56,17 +56,22 @@ plain `pytest` run never needs a model key or a network connection:
 ```
 examples/repair/
   models.py            Project/ProjectInfo/PlanStep/Estimate/ChatReply/…
-  prompts.py           role prompts (PromptTemplate)
-  produce/             the staged pipeline
+  steps/               the staged pipeline
     common.py          shared helpers + the reset map (change → rebuild)
-    design.py          LLM design options + preview rendering
-    plan.py            the plan prompt and driver
-    stages.py          six stages (collect → … → assistant)
+    design.py          LLM design options
+    stages/            one module per stage
+      collect.py       facts → designs
+      pick.py          design choice / regenerate
+      plan.py          plan prompt + PlanStage
+      estimate.py      deterministic catalog estimate
+      approval.py      HITL approval gate
+      assistant.py     post-approval dialogue
   services/            deterministic logic (no LLM, §67)
     facts.py · fast.py · geometry.py · catalog.py · estimate.py · rollback.py
+    images.py          preview render settings (`ImageRenderSettings`) + renderer
   fallbacks.py         demo-mode fallbacks (no model)
   image_prompt.py      photo-preview prompt builder
-  agents.py            RepairFlow (thin container over the stages)
+  step_groups.py       RepairFlow (thin container over the stages)
   chat.py · web.py     entrypoints (console · FastAPI/SSE)
   scenarios/           ScenarioLab scenarios (see above; recorded fixtures in scenarios/data/)
   data/ · web/ · sessions/
