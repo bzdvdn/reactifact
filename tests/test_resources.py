@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from reactifact.context import Context
 from reactifact.providers import FakeEmbedder, FakeLLM
 from reactifact.resources import ResourceKey, RuntimeResources
@@ -57,6 +58,86 @@ def test_aclose_closes_llm_and_embedder_when_present():
     asyncio.run(resources.aclose())
     assert llm.closed is True
     assert embedder.closed is True
+
+
+class _Owned:
+    def __init__(self, log: list[str], name: str) -> None:
+        self.log = log
+        self.name = name
+
+    async def aclose(self) -> None:
+        self.log.append(self.name)
+
+
+class _SyncOwned:
+    def __init__(self, log: list[str], name: str) -> None:
+        self.log = log
+        self.name = name
+
+    def close(self) -> None:
+        self.log.append(self.name)
+
+
+def test_register_owned_closes_on_aclose() -> None:
+    log: list[str] = []
+    resources = RuntimeResources()
+    resources.register(_Owned, _Owned(log, "owned"), owned=True)
+    resources.register(_SyncOwned, _SyncOwned(log, "sync"), owned=True)
+    resources.register(_Store, _Store())  # unowned: app-owned
+
+    asyncio.run(resources.aclose())
+
+    assert log == ["sync", "owned"]  # LIFO
+
+
+def test_owned_resources_close_before_providers() -> None:
+    log: list[str] = []
+
+    class SpyLLM(_SpyLLM):
+        async def aclose(self) -> None:
+            log.append("llm")
+
+    class SpyEmbedder(_SpyEmbedder):
+        async def aclose(self) -> None:
+            log.append("embedder")
+
+    resources = RuntimeResources(llm=SpyLLM(), embedder=SpyEmbedder())
+    resources.register(_Owned, _Owned(log, "first"), owned=True)
+    resources.register(_Owned, _Owned(log, "second"), owned=True)
+
+    asyncio.run(resources.aclose())
+
+    assert log == ["second", "first", "embedder", "llm"]
+
+
+def test_owned_resources_close_once_and_dedup_identity() -> None:
+    log: list[str] = []
+    item = _Owned(log, "once")
+    resources = RuntimeResources()
+    resources.register(_Owned, item, owned=True)
+    resources.register(_Owned, item, owned=True)
+
+    asyncio.run(resources.aclose())
+    asyncio.run(resources.aclose())
+
+    assert log == ["once"]
+
+
+def test_owned_close_errors_are_aggregated() -> None:
+    log: list[str] = []
+
+    class Boom:
+        async def aclose(self) -> None:
+            raise RuntimeError("boom")
+
+    resources = RuntimeResources()
+    resources.register(Boom, Boom(), owned=True)
+    resources.register(_Owned, _Owned(log, "ok"), owned=True)
+
+    with pytest.raises(ExceptionGroup, match="failed to close resources"):
+        asyncio.run(resources.aclose())
+
+    assert log == ["ok"]  # the failure did not skip the other closer
 
 
 class _Store:

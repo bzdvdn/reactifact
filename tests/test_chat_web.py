@@ -472,17 +472,32 @@ class _SpyLLM:
         self.closed = True
 
 
+class _SpyOwned:
+    """Typed resource registered with owned=True."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
 def test_callable_resources_closed_after_each_turn(tmp_path):
     """resources= a callable is assumed turn-scoped: a fresh RuntimeResources
-    is built per turn, and its provider must be closed after that turn."""
+    is built per turn, and its provider + owned resources must be closed."""
     from reactifact import RuntimeResources
 
     built: list[_SpyLLM] = []
+    owned: list[_SpyOwned] = []
 
     def fresh_resources():
         llm = _SpyLLM()
+        resource = _SpyOwned()
         built.append(llm)
-        return RuntimeResources(llm=llm)
+        owned.append(resource)
+        resources = RuntimeResources(llm=llm)
+        resources.register(_SpyOwned, resource, owned=True)
+        return resources
 
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
@@ -499,6 +514,7 @@ def test_callable_resources_closed_after_each_turn(tmp_path):
 
     assert len(built) == 2  # a fresh RuntimeResources was built each turn
     assert all(llm.closed for llm in built)
+    assert all(resource.closed for resource in owned)
 
 
 def test_callable_resources_closed_when_session_open_fails(tmp_path):

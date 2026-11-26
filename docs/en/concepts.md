@@ -262,6 +262,23 @@ when the task actually needs it.
 
 ### Resource ownership
 
-`RuntimeResources.aclose()` closes only `llm` and `embedder`. Everything else
-(`sources`, custom clients, `MemoryStore`, DB pools) is app-owned: close it in
-your lifespan, not per turn.
+`RuntimeResources.aclose()` closes `llm` and `embedder`, plus every typed
+resource registered with `owned=True` — in reverse registration order, before
+the providers. Owned clients are duck-typed: an async `aclose()` or a sync
+`close()`.
+
+```python
+resources.register(
+    ImageRenderSettings,
+    ImageRenderSettings(provider=image_from_env(), out_dir=...),
+    owned=True,
+)
+...
+await resources.aclose()  # owned resources, then embedder, then llm
+```
+
+Everything else (`sources`, shared clients, `MemoryStore`, DB pools) is
+app-owned: leave `owned=False` (the default) and close it in your lifespan, not
+per turn. The distinction matters for a callable `resources=` factory:
+`ChatAssistant` closes that per-turn instance after every turn, so mark only
+what the factory itself created.

@@ -26,6 +26,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `Context`; `Context.announce` remains for code that already holds one.
   Optional service parameters (`llm: LLMProvider | None`) now resolve from
   `RuntimeResources` instead of silently becoming `None`.
+- **Owned resources.** `RuntimeResources.register(..., owned=True)` hands a
+  typed resource to the container: `await resources.aclose()` closes owned
+  resources in reverse registration order (before `llm`/`embedder`) via an
+  async `aclose()` or a sync `close()`, collecting failures into an
+  `ExceptionGroup`. This makes per-turn `resources=` factories leak-free without
+  a lifespan: `ChatAssistant` closes the fresh instance after every turn. The
+  repair example marks `ImageRenderSettings` owned, so its image provider is
+  closed with the resources instead of lingering until GC.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.

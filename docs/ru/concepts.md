@@ -264,6 +264,23 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 
 ### Владение ресурсами
 
-`RuntimeResources.aclose()` закрывает только `llm` и `embedder`. Всё остальное
-(`sources`, кастомные клиенты, `MemoryStore`, пулы БД) принадлежит приложению:
-закрывайте в lifespan, не на каждый ход.
+`RuntimeResources.aclose()` закрывает `llm` и `embedder`, а также каждый
+typed-ресурс, зарегистрированный с `owned=True` — в обратном порядке
+регистрации, до провайдеров. Закрытие duck-typed: async `aclose()` или sync
+`close()`.
+
+```python
+resources.register(
+    ImageRenderSettings,
+    ImageRenderSettings(provider=image_from_env(), out_dir=...),
+    owned=True,
+)
+...
+await resources.aclose()  # owned-ресурсы, затем embedder, затем llm
+```
+
+Всё остальное (`sources`, общие клиенты, `MemoryStore`, пулы БД) принадлежит
+приложению: оставляйте `owned=False` (по умолчанию) и закрывайте в lifespan, а
+не на каждый ход. Для callable `resources=` это важно: `ChatAssistant`
+закрывает per-turn инстанс после каждого хода, поэтому помечайте только то, что
+создала сама фабрика.

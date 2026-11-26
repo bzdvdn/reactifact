@@ -181,6 +181,9 @@ class RuntimeResources:
         # `Store` — no `or None`, no duck-typing, no error surfacing three calls
         # later. `additional` stays as the string-keyed escape hatch.
         self._typed: dict[Any, Any] = {}
+        #: Typed resources registered with `owned=True`: `aclose()` closes them
+        #: (LIFO, before llm/embedder). Shared/app-owned resources stay out.
+        self._owned: list[Any] = []
         self.additional = additional
         # Set by Runtime per turn on a shallow copy of this instance (not a
         # constructor param — the runtime, not the caller, owns these): the
@@ -266,13 +269,29 @@ class RuntimeResources:
         clone.additional = dict(self.additional)
         return clone
 
-    def register(self, key: type[T] | ResourceKey[T], instance: T) -> T:
+    def register(
+        self,
+        key: type[T] | ResourceKey[T],
+        instance: T,
+        *,
+        owned: bool = False,
+    ) -> T:
         """Attaches `instance` under `key` (its type, or a `ResourceKey`).
 
         Returns the instance, so `store = resources.register(Store, Store(...))`
         reads as a one-liner. Re-registering a key overwrites it.
+
+        `owned=True` hands the instance to this `RuntimeResources`: `aclose()`
+        closes it (LIFO, before `llm`/`embedder`) via `aclose()` or a sync
+        `close()`. Use it for clients/settings created *with* these resources —
+        in particular in a per-turn factory, where `ChatAssistant` closes the
+        resources after every turn. Leave it off for long-lived shared clients
+        (a DB pool, a store) registered into per-turn resources: those are
+        app-owned and must be closed in your lifespan, not per turn.
         """
         self._typed[key] = instance
+        if owned:
+            self._owned.append(instance)
         return instance
 
     @overload
@@ -324,20 +343,51 @@ class RuntimeResources:
         self.additional[name] = value
 
     async def aclose(self) -> None:
-        """Closes the llm/embedder clients if they support it.
+        """Closes owned resources, then the llm/embedder clients.
 
-        Duck-typed: `LLMProvider`/`EmbeddingProvider` don't require `aclose`
-        (a fake/no-op test double doesn't need one), so it's called only when
-        present. Nothing in the runtime calls this automatically — resources
-        are typically shared across many turns/runtimes, and closing them
-        early would break whatever still holds a reference. Call it yourself
-        once, at real shutdown: a FastAPI `lifespan`, or the end of a script.
-        `ChatAssistant` is the one exception — see its docstring.
+        Attach a resource with `register(..., owned=True)` to hand its lifetime
+        to this instance; owned resources close in reverse registration order
+        (dependencies first), then `embedder`, then `llm`. Closing is
+        duck-typed: an async `aclose()` or a sync `close()`.
+
+        Nothing in the runtime calls this automatically — resources are
+        typically shared across many turns/runtimes, and closing them early
+        would break whatever still holds a reference. Call it yourself once, at
+        real shutdown: a FastAPI `lifespan`, `RuntimeResources.scope(...)`, or
+        the end of a script. `ChatAssistant` is the one exception: for a
+        callable `resources=` it closes the fresh per-turn instance after every
+        turn, so `owned=True` there closes the clients created by that factory.
+
+        Best-effort: every closer is attempted; failures are collected into an
+        `ExceptionGroup` afterwards. Owned resources are cleared even if one
+        fails, so a retry does not close them twice.
         """
-        for provider in (self.llm, self.embedder):
-            aclose = getattr(provider, "aclose", None)
-            if aclose is not None:
-                await aclose()
+        errors: list[Exception] = []
+        seen: set[int] = set()
+
+        async def _close(value: Any) -> None:
+            if value is None or id(value) in seen:
+                return
+            seen.add(id(value))
+            closer = getattr(value, "aclose", None)
+            if not callable(closer):
+                closer = getattr(value, "close", None)
+            if not callable(closer):
+                return
+            try:
+                result = closer()
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:  # noqa: BLE001 — keep closing the rest
+                errors.append(exc)
+
+        owned, self._owned = self._owned, []
+        for value in reversed(owned):
+            await _close(value)
+        await _close(self.embedder)
+        await _close(self.llm)
+        if errors:
+            raise ExceptionGroup("reactifact: failed to close resources", errors)
 
     @classmethod
     def scope(
