@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from pydantic import BaseModel
 from reactifact import (
     Agent,
@@ -10,6 +11,7 @@ from reactifact import (
     RuntimeResources,
     Step,
 )
+from reactifact.eval import answer_present
 from reactifact.verify import (
     DEFAULT_THRESHOLD,
     VerificationFailed,
@@ -127,3 +129,65 @@ def test_on_fail_retry_creates_marker_instead_of_asking():
     failures = ctx.list_artifacts(VerificationFailed)
     assert len(failures) == 1
     assert failures[0].data.overall == 0.5
+
+
+def test_verify_validates_configuration() -> None:
+    with pytest.raises(ValueError, match="threshold"):
+        Verify(threshold=1.5)
+    with pytest.raises(ValueError, match="on_fail"):
+        Verify(on_fail="oops")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="required metrics"):
+        Verify(required_metrics=("missing",))
+    with pytest.raises(ValueError, match="verification_threshold"):
+        ctx = Context(resources=RuntimeResources(verification_threshold=2.0))
+        runtime = make_runtime(ctx)
+        ctx.create(Answer(text="unsupported"))
+        asyncio.run(runtime.arun())
+
+
+def test_verify_copies_metrics_and_accepts_a_question() -> None:
+    metrics = {"answer_present": answer_present}
+    step = Verify(metrics=metrics, question="Accept? {reason}")
+    metrics.clear()
+    assert step.metrics == {"answer_present": answer_present}
+
+    context = Context()
+    runtime = make_runtime(context, question="Accept? {reason}")
+    context.create(Answer(text="unsupported"))
+    asyncio.run(runtime.arun())
+
+    questions = context.list_artifacts(PendingQuestion)
+    assert questions[0].data.question.startswith("Accept? ")
+    assert "threshold=" in questions[0].data.question
+
+
+def test_verify_records_skipped_required_metrics() -> None:
+    def skipped(context, expected=None):
+        return None
+
+    ctx = Context()
+    runtime = make_runtime(
+        ctx,
+        metrics={"answer_present": answer_present, "missing": skipped},
+        required_metrics=("missing",),
+        threshold=0.0,
+    )
+    ctx.create(Answer(text="unsupported"))
+    asyncio.run(runtime.arun())
+
+    result = ctx.list_artifacts(VerificationResult)[-1]
+    assert result.data.skipped == ["missing"]
+    assert result.data.required_failed == ["missing"]
+
+
+def test_verify_links_result_to_the_answer() -> None:
+    ctx = Context()
+    runtime = make_runtime(ctx)
+    answer = ctx.create(Answer(text="unsupported"))
+    asyncio.run(runtime.arun())
+
+    result = ctx.list_artifacts(VerificationResult)[-1]
+    assert result.data.answer_version == answer.version
+    assert [item.id for item in ctx.related(result.id, relation="verifies")] == [
+        answer.id
+    ]
