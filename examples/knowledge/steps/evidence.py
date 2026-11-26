@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Consume, Context, Effects, Step
+from reactifact import Artifact, Context, Effects, Step
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -68,7 +68,7 @@ class VerifyClaims(Step):
     state rather than something hidden in a string (§36, §69).
     """
 
-    consumes = (Evidence, Consume(Claim, wakes=False))
+    consumes = (Evidence,)
     produces = (Claim,)
     scope = "query_id"
 

@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 
+import pytest
 from examples.repair.models import ChatReply, Project, ProjectInfo, UserMsg
 from examples.repair.services import (
     FAST_ABILITIES_TEXT,
@@ -8,6 +9,7 @@ from examples.repair.services import (
     ImageRenderSettings,
 )
 from examples.repair.step_groups import RepairFlow
+from pydantic import ValidationError
 from reactifact import Budget, Context, Runtime, RuntimeResources
 from reactifact.providers import (
     ImageProvider,
@@ -226,6 +228,22 @@ def test_image_settings_close_the_provider() -> None:
 
     assert provider.closed is True
     asyncio.run(ImageRenderSettings().aclose())  # disabled settings are a no-op
+
+
+def test_image_render_settings_validate_and_coerce(tmp_path) -> None:
+    settings = ImageRenderSettings(
+        out_dir=str(tmp_path / "gen"),
+        attempts=2,
+        timeout="30",  # pydantic coerces numeric config strings
+    )
+
+    assert settings.out_dir == tmp_path / "gen"
+    assert isinstance(settings.out_dir, Path)
+    assert settings.attempts == 2
+    assert settings.timeout == 30.0
+
+    with pytest.raises(ValidationError, match="at least 1"):
+        ImageRenderSettings(attempts=0)
 
 
 def test_design_previews_rendered_and_attached(tmp_path):

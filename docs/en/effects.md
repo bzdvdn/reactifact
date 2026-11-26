@@ -32,9 +32,11 @@ the single `call: StepCall` argument and writes `call.effects`; both reach the
 same effect set, just through a different surface (the function form has no
 `self`).
 
-Inputs can be selected inline: `Annotated[T, When(...)]` conditions a type, and
-`Annotated[T, Wakes(False)]` reads it as input without waking the step:
-`history: Annotated[ConversationHistory, Wakes(False)]`. For `debounce`,
+Inputs can be selected inline: `Annotated[T, When(...)]` conditions a type. An
+explicit `consumes` is the wake set, so typed artifact params not listed there
+are read-only inputs automatically — no `wakes=False` needed. When `consumes` is
+derived from the signature, `Annotated[T, Wakes(False)]` marks one read-only
+input (`history: Annotated[ConversationHistory, Wakes(False)]`). For `debounce`,
 custom event types, or subclass matching, use `Consume(...)` explicitly.
 
 `scope` correlates typed inputs. `scope = "query_id"` is the shorthand; when a

@@ -251,7 +251,7 @@ uv run python -m examples.repo_agent.main
 
 **Что показывает:** то, что легко пропустить в большом приложении:
 типизированные артефакты с `version_history` / `diff` / `compact`;
-типизированные входы с `Latest`, `Wakes(False)` и
+типизированные входы с `Latest`, автоматическими read-only входами и
 `Consume(..., debounce=True)`; SQLite-сессию, которая переживает перезапуск,
 возобновляет pending-событие и реплеит прошлый коммит; опциональный LLM-шаг;
 retry агента и per-step дедлайны; schema-backed HITL-вопрос с типизированным

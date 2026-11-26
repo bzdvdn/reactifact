@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from reactifact import Artifact, Consume, Context, Effects, Step, When
+from reactifact import Artifact, Context, Effects, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 
@@ -19,7 +19,7 @@ class ScoutSources(Step):
     produce adds the idempotency marker, and the runtime commits the slot once.
     """
 
-    consumes = (ResearchTurn, Consume(SearchDone, wakes=False))
+    consumes = (ResearchTurn,)
     produces = (SourceRef, SearchDone)
     scope = "query_id"
 

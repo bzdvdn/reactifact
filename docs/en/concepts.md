@@ -127,10 +127,12 @@ class RepairFlow(StepGroup):
 - `StepGroup.consumes` still exists for the imperative escape hatch (a group
   subclass overriding `run(event, context)` directly), but declarative code
   should put contracts on steps.
-- `Consume(..., wakes=False)` reads an input without waking on it;
-  `debounce=True` collapses several same-generation events into one run;
-  `Consume.by_base(Base)` also wakes on subclasses. `JoinConsume`/
-  `AbsentConsume` correlate across types — see [patterns](patterns.md).
+- When `consumes` is explicit, typed artifact params missing from it are added
+  as read-only inputs automatically; `Consume(..., wakes=False)` remains for an
+  explicit list without a typed param. `debounce=True` collapses several
+  same-generation events into one run; `Consume.by_base(Base)` also wakes on
+  subclasses. `JoinConsume`/`AbsentConsume` correlate across types — see
+  [patterns](patterns.md).
 - The runtime wakes groups on events, respecting budget and concurrency.
 
 `StepGroup.run(event, context) -> Patch | None` remains the low-level escape
@@ -165,6 +167,31 @@ without injecting the whole `Context`. Use it when a step only announces and
 then works with an LLM, tools or domain logic. The same resolver also injects
 other non-model parameters from `RuntimeResources`, including optional ones:
 `llm: LLMProvider | None` gives the configured provider or an honest `None`.
+An explicitly registered type wins over artifact resolution, so a pydantic
+settings object (`resources.register(Settings, Settings(...))`) can be injected
+as a resource; unregistered pydantic models stay artifacts.
+
+When `consumes` is explicit, it is the step's **wake set**; its typed signature
+is the **read set**. A typed artifact parameter that is not in `consumes` is
+added automatically as a read-only input (`Consume(T, wakes=False)`):
+
+```python
+class PickStage(Step):
+    consumes = (UserMsg,)          # only a new message wakes it
+
+    async def run(
+        self,
+        user: Artifact[UserMsg],
+        project: Artifact[Project],  # read-only: collected, never wakes
+    ) -> Any:
+        ...
+```
+
+`project` is still collected, validated and recorded as an input — it just never
+wakes the step on its own. If `consumes` is omitted, the typed signature derives
+both triggers and inputs; mark an individual read-only input there with
+`Annotated[T, Wakes(False)]`. `Latest[T]` remains an ad-hoc context query, not a
+declared input.
 
 The function form takes one `call: StepCall` and uses `call.effects`:
 
@@ -239,7 +266,7 @@ when the task actually needs it.
 | --- | --- |
 | React to a type | `Consume(Type)` |
 | Conditional edge | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Read without waking / latest / scoped lookup | `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Read without waking / latest / scoped lookup | a typed param missing from explicit `consumes` (automatic), `Annotated[T, Wakes(False)]` when `consumes` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
 | Periodic/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 
 ### Streams

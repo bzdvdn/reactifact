@@ -98,10 +98,13 @@ def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
 def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     """Resolve a non-artifact service parameter (`LLMProvider`, `X | None`, …).
 
-    Pydantic models are data (resolved as artifacts below); everything else is
-    looked up in `RuntimeResources`. A union is unwrapped so `LLMProvider |
-    None` injects the configured provider or honestly returns `None` — the
-    same no-provider fallback the LLM helpers document.
+    Explicit typed registrations win over the artifact heuristic: an app may
+    register a pydantic settings object (`resources.register(Settings, ...)`)
+    and inject it by type. Unregistered pydantic models stay data, so a
+    consumer of `Project` keeps resolving the artifact. The rest is looked up
+    in `RuntimeResources`; a union is unwrapped so `LLMProvider | None` injects
+    the configured provider or honestly returns `None` — the same no-provider
+    fallback the LLM helpers document.
     """
     origin = get_origin(annotation)
     if origin in (types.UnionType, Union):
@@ -109,11 +112,14 @@ def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     else:
         candidates = [annotation]
     for candidate in candidates:
-        if (
-            isinstance(candidate, type)
-            and not issubclass(candidate, BaseModel)
-            and (service := call.context.resources.resolve(candidate)) is not None
-        ):
+        if not isinstance(candidate, type):
+            continue
+        registered = call.context.resources.get(candidate)
+        if registered is not None:
+            return registered
+        if issubclass(candidate, BaseModel):
+            continue
+        if (service := call.context.resources.resolve(candidate)) is not None:
             return service
     return None
 

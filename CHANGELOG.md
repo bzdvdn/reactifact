@@ -34,6 +34,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   a lifespan: `ChatAssistant` closes the fresh instance after every turn. The
   repair example marks `ImageRenderSettings` owned, so its image provider is
   closed with the resources instead of lingering until GC.
+- **Pydantic resources.** An explicitly registered pydantic model is injected
+  as a typed resource (`resources.register(Settings, ...)`), including
+  `Settings | None`; unregistered models keep resolving as artifacts. Explicit
+  registration wins over artifact resolution for that type. The repair
+  example's `ImageRenderSettings` is now a pydantic model (validated/coerced
+  config, frozen, `extra="forbid"`).
+- **Implicit read-only inputs.** When a step declares `consumes` explicitly, it
+  is the wake set: typed artifact parameters (`T`, `Artifact[T]`, lists of
+  either) missing from it are added as `Consume(T, wakes=False)` automatically,
+  preserving `When` conditions. Reads no longer need `wakes=False` boilerplate;
+  contract validation, provenance and the context builder still see them as
+  inputs. When `consumes` is derived from the signature, triggers and inputs
+  still come from the signature, and `Wakes(False)`/`Latest` remain available.
+  `Artifact[T]` parameters now derive their consume type in both modes.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.

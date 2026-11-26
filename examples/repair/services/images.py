@@ -12,9 +12,9 @@ import asyncio
 import inspect
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, field_validator
 from reactifact import Progress
 from reactifact.providers import ImageProvider
 
@@ -24,14 +24,22 @@ from ..models import DesignOption, ProjectInfo
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True, slots=True)
-class ImageRenderSettings:
+class ImageRenderSettings(BaseModel):
     """Where and how previews are rendered.
 
-    Rendering is opt-in: with no `provider` or no `out_dir` it is disabled, so
-    offline demos, scenarios and tests run without an image backend.
-    `url_prefix` is the public path the web app mounts `out_dir` under.
+    A pydantic model so env/config values are validated and coerced (`Path`
+    from a string, positive `attempts`, …) while the live `ImageProvider`
+    stays an arbitrary object. Rendering is opt-in: with no `provider` or no
+    `out_dir` it is disabled, so offline demos, scenarios and tests run without
+    an image backend. `url_prefix` is the public path the web app mounts
+    `out_dir` under.
     """
+
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+    )
 
     provider: ImageProvider | None = None
     out_dir: Path | None = None
@@ -43,9 +51,12 @@ class ImageRenderSettings:
     aspect_ratio: str = "1:1"
     output_format: str = "png"
 
-    def __post_init__(self) -> None:
-        if self.attempts < 1:
+    @field_validator("attempts")
+    @classmethod
+    def _at_least_one_attempt(cls, value: int) -> int:
+        if value < 1:
             raise ValueError("ImageRenderSettings.attempts must be at least 1")
+        return value
 
     @property
     def enabled(self) -> bool:

@@ -8,7 +8,9 @@ can walk the chain to an auditable record.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Consume, Context, Effects, step
+from typing import Annotated
+
+from reactifact import Artifact, Context, Effects, When, step
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import SourceRef
 
@@ -65,10 +67,6 @@ def _cell(table: Table, row: list[str], column: str) -> str | None:
     return row[index] if index < len(row) else None
 
 
-def _is_budget_table(table: Artifact[Table]) -> bool:
-    return table.data.locator.endswith("budget.csv")
-
-
 def _budget_for(table: Table, category: str) -> float | None:
     for row in table.rows:
         if _cell(table, row, "category") == category:
@@ -77,7 +75,7 @@ def _budget_for(table: Table, category: str) -> float | None:
     return None
 
 
-@step(produces=Spend, consumes=(Table, Consume(Question, wakes=False)))
+@step(produces=Spend, consumes=(Table,))
 async def compute_spend(
     table: Artifact[Table],
     question: Artifact[Question],
@@ -109,16 +107,15 @@ async def compute_spend(
 
 @step(
     produces=Variance,
-    consumes=(
-        Spend,
-        Consume(Question, wakes=False),
-        Consume(Table, condition=_is_budget_table, wakes=False),
-    ),
+    consumes=(Spend,),
 )
 async def compute_variance(
     spend: Artifact[Spend],
     question: Artifact[Question],
-    budget_table: Artifact[Table],
+    budget_table: Annotated[
+        Artifact[Table],
+        When(lambda table: table.locator.endswith("budget.csv")),
+    ],
     effects: Effects,
 ) -> None:
     """Actual vs budget, and whether the variance crosses the policy line."""
@@ -169,7 +166,7 @@ def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
     return locators
 
 
-@step(produces=AuditAnswer, consumes=(Variance, Consume(Question, wakes=False)))
+@step(produces=AuditAnswer, consumes=(Variance,))
 async def answer(
     context: Context,
     variance: Artifact[Variance],

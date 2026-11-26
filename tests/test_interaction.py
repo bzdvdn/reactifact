@@ -127,3 +127,74 @@ def test_optional_service_injection_resolves_a_provider() -> None:
     asyncio.run(Runtime(context, steps=[UsesLLM()]).arun())
 
     assert context.list_artifacts(Answer)[0].data.text == "ok"
+
+
+class Prefs(BaseModel):
+    out_dir: str = "/tmp"
+
+
+class UsesPrefs(Step):
+    consumes = (Ticket,)
+    produces = (Answer,)
+
+    async def run(self, ticket: Ticket, prefs: Prefs) -> Answer:
+        return Answer(text=prefs.out_dir)
+
+
+class UsesOptionalPrefs(Step):
+    consumes = (Ticket,)
+    produces = (Answer,)
+
+    async def run(self, ticket: Ticket, prefs: Prefs | None) -> Answer:
+        assert prefs is not None
+        return Answer(text=prefs.out_dir)
+
+
+class ConsumesPrefsArtifact(Step):
+    consumes = (Prefs,)
+    produces = (Answer,)
+
+    async def run(self, prefs: Prefs) -> Answer:
+        return Answer(text=prefs.out_dir)
+
+
+def test_registered_pydantic_model_is_injected() -> None:
+    resources = RuntimeResources()
+    resources.register(Prefs, Prefs(out_dir="/resource"))
+    context = Context(resources=resources)
+    context.create(Ticket(id="4", text="x"))
+
+    asyncio.run(Runtime(context, steps=[UsesPrefs()]).arun())
+
+    assert context.list_artifacts(Answer)[0].data.text == "/resource"
+
+
+def test_registered_pydantic_model_is_injected_when_optional() -> None:
+    resources = RuntimeResources()
+    resources.register(Prefs, Prefs(out_dir="/optional"))
+    context = Context(resources=resources)
+    context.create(Ticket(id="5", text="x"))
+
+    asyncio.run(Runtime(context, steps=[UsesOptionalPrefs()]).arun())
+
+    assert context.list_artifacts(Answer)[0].data.text == "/optional"
+
+
+def test_unregistered_pydantic_model_still_resolves_as_artifact() -> None:
+    context = Context()
+    context.create(Prefs(out_dir="/artifact"))
+
+    asyncio.run(Runtime(context, steps=[ConsumesPrefsArtifact()]).arun())
+
+    assert context.list_artifacts(Answer)[0].data.text == "/artifact"
+
+
+def test_registered_pydantic_model_wins_over_an_artifact() -> None:
+    resources = RuntimeResources()
+    resources.register(Prefs, Prefs(out_dir="/resource"))
+    context = Context(resources=resources)
+    context.create(Prefs(out_dir="/artifact"))
+
+    asyncio.run(Runtime(context, steps=[ConsumesPrefsArtifact()]).arun())
+
+    assert context.list_artifacts(Answer)[0].data.text == "/resource"

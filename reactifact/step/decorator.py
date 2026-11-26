@@ -132,12 +132,14 @@ def step(
         instance._func = func
         if instance.consumes is None:
             instance.consumes = Step._derive_consumes(func)
-            if instance.consumes is not None:
-                instance.reacts_to = tuple(
-                    consume.artifact_type
-                    for consume in instance.consumes
-                    if consume.artifact_type is not None
-                )
+        else:
+            instance.consumes = Step._merge_read_only_consumes(instance.consumes, func)
+        if instance.consumes is not None:
+            instance.reacts_to = tuple(
+                consume.artifact_type
+                for consume in instance.consumes
+                if consume.artifact_type is not None
+            )
         return instance
 
     return decorator

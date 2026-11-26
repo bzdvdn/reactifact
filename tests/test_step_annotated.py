@@ -2,7 +2,17 @@ import asyncio
 from typing import Annotated
 
 from pydantic import BaseModel
-from reactifact import Agent, Context, Effects, Runtime, Wakes, When, step
+from reactifact import (
+    Agent,
+    Artifact,
+    Consume,
+    Context,
+    Effects,
+    Runtime,
+    Wakes,
+    When,
+    step,
+)
 from reactifact.step import Step
 
 
@@ -109,3 +119,172 @@ def test_step_decorator_accepts_typed_parameters():
     context.create(Ticket(status="open", text="hello"))
     asyncio.run(Runtime(context, agents=[Agent(name="typed", steps=[step])]).arun())
     assert context.latest(Out).data.text == "typed:hello"
+
+
+class ReadsWithoutConsume(Step):
+    """Explicit consumes = wake set; a plain typed param = read-only input."""
+
+    consumes = (Ticket,)
+    produces = (Out,)
+
+    async def run(
+        self,
+        ticket: Ticket,
+        history: History,
+        effects: Effects,
+    ) -> None:
+        effects.upsert(Out(text=f"{ticket.text}:{history.text}"), id="reads-history")
+
+
+def test_explicit_consumes_adds_missing_typed_params_as_reads():
+    step = ReadsWithoutConsume()
+    specs = {spec.artifact_type: spec.wakes for spec in step.consume_specs() or ()}
+    assert specs[Ticket] is True
+    assert specs[History] is False
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    history = context.create(History(text="h"))
+    asyncio.run(Runtime(context, agents=[Agent(name="reads", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "q:h"
+
+    # A read-only input never wakes the step on its own.
+    context.update(history.id, History(text="h2"))
+    asyncio.run(Runtime(context, agents=[Agent(name="reads", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "q:h"
+
+
+def test_function_step_explicit_consumes_adds_reads():
+    runs: list[str] = []
+
+    @step(produces=Out, consumes=Ticket)
+    async def read_history(
+        ticket: Ticket,
+        history: History,
+        effects: Effects,
+    ) -> None:
+        runs.append(history.text)
+        effects.upsert(Out(text=f"fn:{ticket.text}:{history.text}"), id="fn-reads")
+
+    specs = {
+        spec.artifact_type: spec.wakes for spec in read_history.consume_specs() or ()
+    }
+    assert specs[Ticket] is True
+    assert specs[History] is False
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    context.create(History(text="h"))
+    asyncio.run(
+        Runtime(context, agents=[Agent(name="fn", steps=[read_history])]).arun()
+    )
+    assert context.latest(Out).data.text == "fn:q:h"
+    assert runs == ["h"]
+
+
+def test_explicit_consumes_preserves_when_on_auto_reads():
+    class ReadMatching(Step):
+        consumes = (Ticket,)
+        produces = (Out,)
+
+        async def run(
+            self,
+            ticket: Ticket,
+            history: Annotated[History, When(lambda h: h.text == "yes")],
+            effects: Effects,
+        ) -> None:
+            effects.upsert(Out(text=history.text), id="matching-history")
+
+    step = ReadMatching()
+    history_spec = next(
+        spec for spec in step.consume_specs() or () if spec.artifact_type is History
+    )
+    assert history_spec.wakes is False
+    assert history_spec.condition is not None
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    context.create(History(text="no"))
+    context.create(History(text="yes"))
+    asyncio.run(Runtime(context, agents=[Agent(name="when", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "yes"
+
+
+def test_explicit_consumes_does_not_duplicate_a_declared_read():
+    class Declared(Step):
+        consumes = (Ticket, Consume(History, wakes=False))
+        produces = (Out,)
+
+        async def run(
+            self,
+            ticket: Ticket,
+            history: History,
+            effects: Effects,
+        ) -> None:
+            effects.upsert(Out(text=history.text), id="declared-read")
+
+    specs = [
+        spec
+        for spec in Declared().consume_specs() or ()
+        if spec.artifact_type is History
+    ]
+    assert len(specs) == 1
+    assert specs[0].wakes is False
+
+
+def test_explicit_superclass_does_not_duplicate_a_typed_subclass():
+    class Base(BaseModel):
+        text: str
+
+    class Child(Base):
+        pass
+
+    class Covers(Step):
+        consumes = (Ticket, Consume(Base))
+        produces = (Out,)
+
+        async def run(
+            self,
+            ticket: Ticket,
+            child: Child,
+            effects: Effects,
+        ) -> None:
+            effects.upsert(Out(text=child.text), id="covered-child")
+
+    step = Covers()
+    assert not [
+        spec for spec in step.consume_specs() or () if spec.artifact_type is Child
+    ]
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    context.create(Child(text="c"))
+    asyncio.run(Runtime(context, agents=[Agent(name="covered", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "c"
+
+
+class ArtifactParams(Step):
+    produces = (Out,)
+
+    async def run(
+        self,
+        ticket: Artifact[Ticket],
+        history: Artifact[History],
+        effects: Effects,
+    ) -> None:
+        effects.upsert(
+            Out(text=f"{ticket.data.text}:{history.data.text}"),
+            id="artifact-params",
+        )
+
+
+def test_artifact_params_derive_consumes():
+    step = ArtifactParams()
+    specs = {spec.artifact_type: spec.wakes for spec in step.consume_specs() or ()}
+    assert specs == {Ticket: True, History: True}
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    context.create(History(text="h"))
+    asyncio.run(Runtime(context, agents=[Agent(name="artifact", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "q:h"

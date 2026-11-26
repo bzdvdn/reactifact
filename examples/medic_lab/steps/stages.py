@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Effects, Scope, Step, When
+from reactifact import Artifact, Context, Effects, Scope, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -119,10 +119,7 @@ class Generator(Step):
 class Investigator(Step):
     """Per-hypothesis channel: search sources tagged with the hypothesis."""
 
-    consumes = (
-        Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],
-        Consume(Question, wakes=False),
-    )
+    consumes = (Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],)
     produces = (SourceRef, SearchDone)
     scope = Scope("question_id", owner=Question, key=scope_key)
 

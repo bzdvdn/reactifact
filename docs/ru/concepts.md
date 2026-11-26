@@ -127,7 +127,9 @@ class RepairFlow(StepGroup):
 - `StepGroup.consumes` остаётся для imperative escape hatch (группа
   переопределяет `run(event, context)`), но декларативный код держит контракты
   на шагах.
-- `Consume(..., wakes=False)` читает вход, не будя на нём; `debounce=True`
+- Если `consumes` задан явно, типизированные артефактные параметры, которых там
+  нет, автоматически добавляются как read-only входы; `Consume(..., wakes=False)`
+  остаётся для явного списка без типизированного параметра. `debounce=True`
   схлопывает несколько событий одного поколения в один запуск;
   `Consume.by_base(Base)` будит и на наследниках. `JoinConsume`/
   `AbsentConsume` коррелируют типы — см. [patterns](patterns.md).
@@ -166,7 +168,33 @@ class EstimateStage(Step):
 статус, а дальше работает с LLM, инструментами или доменной логикой. Тот же
 резолвер инжектит и другие не-модельные параметры из `RuntimeResources`, в том
 числе опциональные: `llm: LLMProvider | None` даёт настроенного провайдера или
-честный `None`.
+честный `None`. Явно зарегистрированный тип выигрывает у артефакта, поэтому
+pydantic-настройки (`resources.register(Settings, Settings(...))`) можно
+инжектить как ресурс; незарегистрированные pydantic-модели остаются
+артефактами.
+
+Когда `consumes` задан явно, это **набор пробуждений** шага, а типизированная
+подпись — **набор чтений**. Типизированный артефактный параметр, которого нет в
+`consumes`, автоматически добавляется как read-only вход
+(`Consume(T, wakes=False)`):
+
+```python
+class PickStage(Step):
+    consumes = (UserMsg,)          # будит только новое сообщение
+
+    async def run(
+        self,
+        user: Artifact[UserMsg],
+        project: Artifact[Project],  # read-only: собирается, но не будит
+    ) -> Any:
+        ...
+```
+
+`project` по-прежнему собирается, валидируется и попадает в provenance — он
+просто никогда не будит шаг сам по себе. Если `consumes` не задан, типизированная
+подпись выводит и триггеры, и входы; отдельный read-only вход там помечается
+`Annotated[T, Wakes(False)]`. `Latest[T]` остаётся разовым запросом к контексту,
+а не объявленным входом.
 
 Функциональная форма принимает один `call: StepCall` и пишет через
 `call.effects`:
@@ -241,7 +269,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | --- | --- |
 | Реакция на тип | `Consume(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Читать без пробуждения / latest / scoped lookup | `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `consumes` (автоматически), `Annotated[T, Wakes(False)]`, когда `consumes` выводится, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
 | Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 
 ### Потоки

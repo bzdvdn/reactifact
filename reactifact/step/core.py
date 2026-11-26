@@ -271,6 +271,48 @@ class Step(Generic[TOut]):
                 )
         return tuple(specs) or None
 
+    @staticmethod
+    def _merge_read_only_consumes(
+        existing: tuple[Consume, ...], target: Callable[..., Any]
+    ) -> tuple[Consume, ...]:
+        """Add typed artifact params missing from an explicit `consumes` as reads.
+
+        An explicit `consumes` is the step's **wake set**; its typed signature is
+        the **read set**. A type in `run()`/the function but absent from
+        `consumes` becomes `Consume(T, wakes=False)` (preserving `When`), so
+        reads need no `wakes=False` boilerplate. Types already covered by an
+        explicit `Consume` are skipped — `Context.list_artifacts` is
+        subclass-inclusive, so an explicit superclass already collects them.
+        """
+        derived = Step._derive_consumes(target)
+        if not derived:
+            return existing
+        covered = tuple(
+            consume.artifact_type
+            for consume in existing
+            if consume.artifact_type is not None
+        )
+        seen = set(covered)
+        extras: list[Consume] = []
+        for spec in derived:
+            artifact_type = spec.artifact_type
+            if artifact_type is None or artifact_type in seen:
+                continue
+            if any(issubclass(artifact_type, covered_type) for covered_type in covered):
+                continue
+            seen.add(artifact_type)
+            extras.append(
+                Consume(
+                    artifact_type,
+                    condition=spec.condition,
+                    event_types=spec.event_types,
+                    wakes=False,
+                )
+            )
+        if not extras:
+            return existing
+        return (*existing, *extras)
+
     def __init__(
         self,
         artifact_type: ArtifactType | None = None,
@@ -309,8 +351,15 @@ class Step(Generic[TOut]):
             resolved_consumes = self._normalize_consumes(
                 getattr(self.__class__, "consumes", None)
             )
-        if resolved_consumes is None and type(self).run is not Step.run:
-            resolved_consumes = self._derive_consumes(type(self).run)
+        if resolved_consumes is None:
+            if type(self).run is not Step.run:
+                resolved_consumes = self._derive_consumes(type(self).run)
+        elif type(self).run is not Step.run:
+            # Explicit consumes = the wake set; the typed signature = the read
+            # set. Missing typed artifact params become read-only inputs.
+            resolved_consumes = self._merge_read_only_consumes(
+                resolved_consumes, type(self).run
+            )
         self.consumes = resolved_consumes
         # Deprecated aliases: 0.1.x code reads `.reacts_to` (types, not specs).
         self.reacts_to = (
@@ -567,6 +616,9 @@ def _annotation_types(annotation: Any) -> tuple[list[type], bool, bool]:
             sub, _, _ = _annotation_types(arg)
             found.extend(sub)
         return found, False, optional or not union_args
+    if origin is Artifact:
+        args = get_args(annotation)
+        return _annotation_types(args[0] if args else Any)
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return [annotation], False, False
     return [], False, optional

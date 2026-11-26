@@ -6,7 +6,7 @@ import re
 from typing import Annotated, Any
 
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Effects, Human, Scope, Step, When
+from reactifact import Artifact, Context, Effects, Human, Scope, Step, When
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -72,7 +72,7 @@ class Steer(Step):
     no new events.
     """
 
-    consumes = (Hypothesis, Claim, Evidence, Consume(Question, wakes=False))
+    consumes = (Hypothesis, Claim, Evidence)
     produces = (PendingQuestion,)
     scope = Scope("question_id", owner=Question, key=scope_key)
 
@@ -184,7 +184,6 @@ class Reporter(Step):
     consumes = (
         Hypothesis,
         PendingQuestion,
-        Consume(Question, wakes=False),
     )
     produces = (ResearchReport,)
     scope = Scope("question_id", owner=Question, key=scope_key)

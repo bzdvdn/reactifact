@@ -249,8 +249,9 @@ uv run python -m examples.repo_agent.main
 
 **What it shows:** the parts that are easy to miss when reading a full app:
 typed artifacts with `version_history` / `diff` / `compact`; typed inputs with
-`Latest`, `Wakes(False)` and `Consume(..., debounce=True)`; a SQLite session
-that survives a restart, resumes a pending event and replays an earlier commit;
+`Latest`, implicit read-only inputs and `Consume(..., debounce=True)`; a SQLite
+session that survives a restart, resumes a pending event and replays an earlier
+commit;
 an optional LLM step; agent retries and per-step deadlines; a schema-backed HITL
 question resumed with a Pydantic model; checkpoints/forks; the typed
 `Runtime.astream_events` modes; an optimistic-write conflict resolved by a

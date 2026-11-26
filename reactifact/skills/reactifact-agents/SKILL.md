@@ -23,8 +23,11 @@ A class step gets typed inputs + `effects: Effects`. A `@step` function can use
 the same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`,
 `Context`, `Effects`, `Progress`, `Event`), or the legacy single `call: StepCall`
 with `call.trigger`/`call.context`/`call.effects`/`call.inputs`. Typed parameters
-derive the step's `consumes`; `Annotated[T, When(...)]` conditions a type and
-`Annotated[T, Wakes(False)]` reads it without waking.
+derive the step's `consumes`; when `consumes` is explicit, it is the wake set and
+typed artifact params missing from it are added as read-only inputs
+automatically. `Annotated[T, When(...)]` conditions a type;
+`Annotated[T, Wakes(False)]` marks one read-only input when `consumes` is
+derived.
 
 ```python
 import asyncio
@@ -93,7 +96,7 @@ ungrounded answer.
 | --- | --- |
 | `Consume(T)` | a `T` is created or updated |
 | `Consume(T, condition=lambda a: ...)` | a matching `T` appears (condition on the `Artifact`) |
-| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes on it |
+| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes — needed when `consumes` is derived (an explicit `consumes` already makes unlisted typed params reads) |
 | `Annotated[T, When(fn)]` | wakes when `fn(data)` is true |
 | `Scope(field, owner=Type, key=fn)` | correlate typed inputs; owner matches by artifact id, `key` overrides extraction |
 | `Consume.by_status(T, "ready")` | `T.status == "ready"` (has `status` field) |

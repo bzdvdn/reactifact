@@ -30,9 +30,12 @@ async def run(
 аргумент `call: StepCall` и пишет через `call.effects`; это один и тот же
 набор эффектов, просто разные поверхности (у функции нет `self`).
 
-Входы можно выбирать аннотациями: `Annotated[T, When(...)]` задаёт условие,
-`Annotated[T, Wakes(False)]` читает тип как вход, не будя шаг:
-`history: Annotated[ConversationHistory, Wakes(False)]`. Для `debounce`,
+Входы можно выбирать аннотациями: `Annotated[T, When(...)]` задаёт условие.
+Явный `consumes` — это набор пробуждений, поэтому типизированные артефактные
+параметры, которых там нет, автоматически становятся read-only входами — без
+`wakes=False`. Если `consumes` выводится из подписи,
+`Annotated[T, Wakes(False)]` помечает отдельный read-only вход
+(`history: Annotated[ConversationHistory, Wakes(False)]`). Для `debounce`,
 кастомных `event_types` и `include_subclasses` используйте явный `Consume(...)`.
 
 `scope` коррелирует типизированные входы. `scope = "query_id"` — shorthand;

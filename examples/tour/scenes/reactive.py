@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, cast
+from typing import Any, cast
 
 from pydantic import BaseModel
 from reactifact import (
@@ -14,7 +14,6 @@ from reactifact import (
     Latest,
     Runtime,
     Step,
-    Wakes,
     create_step_group,
 )
 
@@ -49,10 +48,7 @@ class FanOutFacts(Step):
 
 
 class CollectFacts(Step):
-    consumes = (
-        Consume(Fact, debounce=True),
-        Annotated[Policy, Wakes(False)],
-    )
+    consumes = (Consume(Fact, debounce=True),)
     produces = (Digest,)
 
     async def run(

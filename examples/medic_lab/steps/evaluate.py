@@ -5,7 +5,7 @@ The lexicons decide the numbers, the model never does (§67, §68).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Consume, Context, Effects, Scope, Step
+from reactifact import Artifact, Context, Effects, Scope, Step
 from reactifact.sources import SourceRef
 
 from ..models import (
@@ -122,7 +122,6 @@ class Evaluator(Step):
         Claim,
         TypedDoc,
         SearchDone,
-        Consume(Question, wakes=False),
     )
     produces = (Hypothesis,)
     scope = Scope("question_id", owner=Question, key=scope_key)

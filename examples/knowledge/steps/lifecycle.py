@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from reactifact import Artifact, Consume, Context, Effects, Step, When
+from reactifact import Artifact, Context, Effects, Step, When
 from reactifact.recipes import StatusMachine, StatusState, match_skills
 from reactifact.sources import SourceRef
 from reactifact.structured import structured_llm
@@ -76,10 +76,6 @@ class BuildAnswer(Step):
 
     consumes = (
         Annotated[ResearchTurn, When(lambda turn: turn.status == "answerable")],
-        Consume(Evidence, wakes=False),
-        Consume(Claim, wakes=False),
-        Consume(Calculation, wakes=False),
-        Consume(Spreadsheet, wakes=False),
     )
     produces = (Answer,)
     scope = "query_id"

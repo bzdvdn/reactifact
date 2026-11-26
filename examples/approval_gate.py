@@ -47,7 +47,7 @@ class DeployOnApproval(Step):
     """Domain example: only an explicit `approve` runs the action."""
 
     # Wait for the decision; Request is only a read-only input.
-    consumes = (Consume(ApprovalDecision), Consume(Request, wakes=False))
+    consumes = (Consume(ApprovalDecision),)
     produces = (Deployment,)
 
     async def run(

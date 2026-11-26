@@ -27,7 +27,6 @@ from pydantic import BaseModel
 from reactifact import (
     SUPPORTED_BY,
     Budget,
-    Consume,
     Context,
     Effects,
     MergeConflict,
@@ -108,8 +107,6 @@ class Compose(Step):
 
     consumes = (
         K8sReport,
-        Consume(GitlabReport, wakes=False),
-        Consume(AnsibleReport, wakes=False),
         MergeSignal,
     )
     produces = (ChatReply,)

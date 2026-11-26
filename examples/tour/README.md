@@ -13,7 +13,7 @@ Scenes:
 | Scene | What it shows |
 | --- | --- |
 | `state` | typed `Step`, artifact versions, `version_history`, `at`, `diff`, `compact` |
-| `reactive` | typed inputs, `Latest`, `Wakes(False)`, `Consume(..., debounce=True)` |
+| `reactive` | typed inputs, `Latest`, implicit read-only inputs, `Consume(..., debounce=True)` |
 | `durable` | `SQLiteKVBackend` + `SessionStore`, restart, pending-event resume, `replay_context` |
 | `model` | an optional LLM step through `llm_reply`, with an offline fallback |
 | `resilience` | `Agent.retry` with `RetryPolicy`, `Step.timeout` |

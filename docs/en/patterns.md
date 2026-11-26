@@ -380,24 +380,26 @@ the deletion contract until the core grows delete→stale invalidation.
 
 ## Reading input without waking up on it
 
-`Consume(..., wakes=False)` still feeds `_collect_inputs()` but never
-contributes to `Agent.triggers` — "read this as input, don't wake up on
-it." The recurring case: an agent that should run when a `Question` arrives
-but also wants `ConversationHistory` as input, without re-running once per
-history artifact:
+An explicit `consumes` is the wake set; the typed `run()` signature is the read
+set. A type in the signature but not in `consumes` is collected as a read-only
+input — "read this, don't wake up on it." The recurring case: an agent that
+should run when a `Question` arrives but also wants `ConversationHistory` as
+input, without re-running once per history artifact:
 
 ```python
-consumes = [
-    Consume(Question),
-    Consume(ConversationHistory, wakes=False),
-]
+consumes = (Question,)
+
+async def run(self, question: Question, history: ConversationHistory) -> ...:
+    ...
 ```
 
-Before `wakes`, the only way to decouple "what wakes me" from "what I read"
-was `StepGroup`'s separate `triggers=` override, kept in sync with `consumes` by
-hand. `triggers=` is still the right tool for the *imperative* style (an
-`StepGroup` subclass overriding `run()` directly, with no `consumes` at all) —
-there's no `Consume` there to attach a condition to.
+`history` is collected, validated and recorded as an input, but never wakes the
+step. `Consume(..., wakes=False)` remains for an explicit `consumes` list with
+no typed param; when `consumes` is derived from the signature,
+`Annotated[T, Wakes(False)]` marks one read-only input. `triggers=` is still the
+right tool for the *imperative* style (an `StepGroup` subclass overriding
+`run()` directly, with no `consumes` at all) — there's no `Consume` there to
+attach a condition to.
 
 ## Debouncing fan-out
 
