@@ -20,7 +20,7 @@ jobs:
           version: "0.10.x"
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: uv sync
+        run: uv sync --group knowledge-pdf --group knowledge-office --group knowledge-s3
       - name: Tests
         run: uv run python -m pytest -q --cov=reactifact --cov-report=xml --cov-fail-under=85
       - name: Upload coverage to Codecov
@@ -81,10 +81,22 @@ jobs:
           uv venv /tmp/reactifact-ci
           uv pip install --python /tmp/reactifact-ci/bin/python dist/reactifact-*.whl
           /tmp/reactifact-ci/bin/python -c "import reactifact; print('version', reactifact.__version__)"
+          /tmp/reactifact-ci/bin/python -c "from reactifact.knowledge import HttpConnector, S3Connector, MMR, PdfExtractor; from reactifact.eval import evaluate_retrieval; print('knowledge ok')"
           /tmp/reactifact-ci/bin/reactifact --help >/dev/null
           if unzip -Z1 dist/reactifact-*.whl | grep -qE "^(examples|tests)/"; then echo "examples/tests leaked into wheel"; exit 1; fi
           if ! unzip -Z1 dist/reactifact-*.whl | grep -q "^reactifact/templates/fastapi_chat/app/main.py$"; then echo "fastapi template missing from wheel"; exit 1; fi
           if ! unzip -Z1 dist/reactifact-*.whl | grep -q "^reactifact/templates/daemon/app/main.py$"; then echo "daemon template missing from wheel"; exit 1; fi
+          for path in \
+            reactifact/knowledge/connectors/http.py \
+            reactifact/knowledge/connectors/s3.py \
+            reactifact/knowledge/extract/pdf.py \
+            reactifact/knowledge/extract/docx.py \
+            reactifact/eval/retrieval.py \
+            reactifact/skills/reactifact-rag/SKILL.md; do
+            if ! unzip -Z1 dist/reactifact-*.whl | grep -q "^$path$"; then
+              echo "missing from wheel: $path"; exit 1
+            fi
+          done
       - name: Generated template smoke
         run: |
           uv pip install --python /tmp/reactifact-ci/bin/python \
