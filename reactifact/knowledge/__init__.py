@@ -37,6 +37,7 @@ from .connectors import (
     FilesystemConnector,
     HttpConnector,
     ListingConnector,
+    S3Connector,
 )
 from .diversity import MMR, mmr_select
 from .docstore import (

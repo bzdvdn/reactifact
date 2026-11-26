@@ -48,6 +48,7 @@ knowledge = []  # code-first knowledge layer; no extra runtime deps
 knowledge-chroma = ["chromadb>=0.5"]
 knowledge-pdf = ["pypdf>=4"]
 knowledge-office = ["python-docx>=1.1"]
+knowledge-s3 = ["boto3>=1.34"]
 web = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -85,6 +86,7 @@ dev = [
 knowledge-chroma = ["chromadb>=0.5"]
 knowledge-pdf = ["pypdf>=4"]
 knowledge-office = ["python-docx>=1.1"]
+knowledge-s3 = ["boto3>=1.34"]
 web = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",

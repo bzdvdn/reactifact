@@ -412,6 +412,7 @@ pipeline = KnowledgePipeline(
 | --- | --- |
 | `FilesystemConnector` | текстовые файлы в каталоге; content-хэши; fetch по URI |
 | `HttpConnector` | явные URL или sitemap; отпечатки `ETag`/`Last-Modified`; `httpx` — core-зависимость |
+| `S3Connector` | один бакет с опциональным префиксом; листинг по `ETag`; `knowledge-s3` (`boto3`) |
 
 | Экстрактор | Вход | Extra |
 | --- | --- | --- |

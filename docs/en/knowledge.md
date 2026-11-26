@@ -409,6 +409,7 @@ the corpus as empty and reconciling it away.
 | --- | --- |
 | `FilesystemConnector` | text files under a directory; content hashes; per-URI fetch |
 | `HttpConnector` | explicit URLs or a sitemap; `ETag`/`Last-Modified` fingerprints; `httpx` is a core dependency |
+| `S3Connector` | one bucket with an optional prefix; `ETag` listing; `knowledge-s3` (`boto3`) |
 
 | Extractor | Input | Extra |
 | --- | --- | --- |

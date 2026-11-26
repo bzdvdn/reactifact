@@ -83,7 +83,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `(state_path, source_id)` inside the process.
 - **Knowledge connectors and extractors.** Connectors are now a package;
   `HttpConnector` handles explicit URLs or a sitemap with `ETag`/`Last-Modified`
-  listing. `CsvExtractor`/`JsonExtractor` are dependency-free, and optional
+  listing, and `S3Connector` (`knowledge-s3`) lists one bucket by `ETag`. `CsvExtractor`/`JsonExtractor` are dependency-free, and optional
   `PdfExtractor` (`knowledge-pdf`) / `DocxExtractor` (`knowledge-office`) cover
   PDF and DOCX. `run(batch_size=...)` bounds ingestion memory, and
   `IndexSource(principals=..., require_principals=True)` makes ACL filtering
