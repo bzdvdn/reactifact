@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from reactifact import Artifact, Context, Effects, Step, When
+from reactifact import Artifact, Context, Emit, Step, When
 from reactifact.recipes import StatusMachine, StatusState, match_skills
 from reactifact.sources import SourceRef
 from reactifact.structured import structured_llm
@@ -88,8 +88,7 @@ class BuildAnswer(Step):
         claims: list[Artifact[Claim]],
         calculations: list[Artifact[Calculation]],
         spreadsheets: list[Artifact[Spreadsheet]],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit | None:
         query_id = turn.query_id
         if not evidences and not calculations:
             return None
@@ -182,12 +181,9 @@ class BuildAnswer(Step):
             sources=sources,
         )
         answer_id = f"answer:{query_id}"
-        answer = effects.create(
+        links = [("supported_by", artifact) for artifact in (*evidences, *calculations)]
+        return Emit(
             Answer(query_id=query_id, text=text, sources=sources),
             id=answer_id,
+            links=tuple(links),
         )
-        for evidence_art in evidences:
-            answer.link("supported_by", evidence_art)
-        for calc in calculations:
-            answer.link("supported_by", calc)
-        return None

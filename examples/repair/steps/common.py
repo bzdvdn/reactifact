@@ -12,7 +12,6 @@ import re
 from typing import Any
 
 from reactifact import LLMProvider, Progress
-from reactifact.artifacts import Artifact
 from reactifact.context import Context
 from reactifact.recipes import (
     changed_fields,
@@ -40,16 +39,6 @@ _BUDGET_COMPLAINT = re.compile(
     r"бюджет|дорог|вышел за бюджет|превыш|уложи|дешевле|много|дорого",
     re.IGNORECASE,
 )
-
-
-def _latest_user_msg(context: Context) -> Artifact[UserMsg] | None:
-    messages = context.list_artifacts(UserMsg)
-    return max((m for m in messages), key=lambda m: m.created_at, default=None)
-
-
-def _project_artifact(context: Context) -> Artifact[Project] | None:
-    projects = context.list_artifacts(Project)
-    return projects[0] if projects else None
 
 
 def _reply(
@@ -238,11 +227,9 @@ __all__ = [
     "_conversation_text",
     "_downstream_resets",
     "_extract_info",
-    "_latest_user_msg",
     "_list_preferences",
     "_palette_text",
     "_parse_pick",
-    "_project_artifact",
     "_reply",
     "changed_fields",
     "ensure_geometry",

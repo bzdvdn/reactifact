@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Context, Effects, Step, create_step_group
+from reactifact import Context, Emit, Step, create_step_group
 from reactifact.recipes.swarm import Handoff, swarm
 
 
@@ -21,8 +21,8 @@ class TriageStep(Step):
     consumes = (Question,)
     produces = (Handoff,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(
+    async def run(self, question: Question) -> Emit:
+        return Emit(
             Handoff(
                 to="billing",
                 reason="refund request",

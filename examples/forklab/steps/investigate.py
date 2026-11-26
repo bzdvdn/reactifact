@@ -9,7 +9,7 @@ fallback, §59) — the pipeline still runs fully offline.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Step, StepCall
+from reactifact import Artifact, Context, Emit, Step, StepCall
 from reactifact.structured import structured_llm
 
 from ..models import Evidence, EvidenceBody, Question, Strategy
@@ -66,14 +66,14 @@ class DepthInvestigate(Step):
     consumes = (Strategy,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepCall) -> Emit | None:
         context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "depth":
             return None
         context.announce("depth: wording 1 finding…", kind="status")
         doc_id, snippet, quality = _CATALOG[0]
-        call.effects.create(
+        return Emit(
             Evidence(
                 branch=strategy.data.branch,
                 source=doc_id,
@@ -82,7 +82,6 @@ class DepthInvestigate(Step):
             ),
             id=f"evidence:{strategy.data.branch}:{doc_id}",
         )
-        return None
 
 
 class BreadthInvestigate(Step):
@@ -91,27 +90,30 @@ class BreadthInvestigate(Step):
     consumes = (Strategy,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepCall) -> list[Emit] | None:
         context = call.context
         strategy = _strategy_of(context)
         if strategy is None or strategy.data.kind != "breadth":
             return None
+        findings: list[Emit] = []
         for offset in range(1, min(4, len(_CATALOG))):
             context.announce(
                 f"breadth: wording finding {offset}/{min(3, len(_CATALOG) - 1)}…",
                 kind="status",
             )
             doc_id, snippet, quality = _CATALOG[offset]
-            call.effects.create(
-                Evidence(
-                    branch=strategy.data.branch,
-                    source=doc_id,
-                    text=await _wording(context, snippet),
-                    score=quality,
-                ),
-                id=f"evidence:{strategy.data.branch}:{doc_id}",
+            findings.append(
+                Emit(
+                    Evidence(
+                        branch=strategy.data.branch,
+                        source=doc_id,
+                        text=await _wording(context, snippet),
+                        score=quality,
+                    ),
+                    id=f"evidence:{strategy.data.branch}:{doc_id}",
+                )
             )
-        return None
+        return findings
 
 
 __all__ = ["BreadthInvestigate", "DepthInvestigate"]

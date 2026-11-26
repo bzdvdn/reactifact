@@ -288,3 +288,50 @@ def test_artifact_params_derive_consumes():
     context.create(History(text="h"))
     asyncio.run(Runtime(context, agents=[Agent(name="artifact", steps=[step])]).arun())
     assert context.latest(Out).data.text == "q:h"
+
+
+class Note(BaseModel):
+    text: str
+
+
+class ReadsOptionalArtifact(Step):
+    consumes = (Ticket,)
+    produces = (Out,)
+
+    async def run(
+        self,
+        ticket: Ticket,
+        note: Artifact[Note] | None,
+        effects: Effects,
+    ) -> None:
+        if note is None:
+            effects.upsert(Out(text="none"), id="optional-artifact")
+        else:
+            effects.upsert(
+                Out(text=f"{note.id}:{note.data.text}"), id="optional-artifact"
+            )
+
+
+def test_optional_artifact_handle_is_none_when_absent():
+    step = ReadsOptionalArtifact()
+    specs = {spec.artifact_type: spec.wakes for spec in step.consume_specs() or ()}
+    assert specs[Note] is False  # auto-added read-only, not a trigger
+
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    asyncio.run(Runtime(context, agents=[Agent(name="opt", steps=[step])]).arun())
+    assert context.latest(Out).data.text == "none"
+
+
+def test_optional_artifact_handle_returns_the_artifact():
+    context = Context()
+    context.create(Ticket(status="open", text="q"))
+    context.create(Note(text="h"), id="note:1")
+
+    asyncio.run(
+        Runtime(
+            context, agents=[Agent(name="opt", steps=[ReadsOptionalArtifact()])]
+        ).arun()
+    )
+
+    assert context.latest(Out).data.text == "note:1:h"

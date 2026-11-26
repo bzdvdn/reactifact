@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from reactifact import Artifact, Context, Effects, Step, When
+from reactifact import Artifact, Context, Emit, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 
@@ -15,8 +15,8 @@ from .common import SCOUT_LIMIT
 class ScoutSources(Step):
     """Fan-out over all configured sources, with idempotency (§24, §42).
 
-    Effects-based: `fan_out_sources` writes the refs into `effects`, this
-    produce adds the idempotency marker, and the runtime commits the slot once.
+    `fan_out_sources` writes the refs into the effect slot, this produce
+    returns the idempotency marker, and the runtime commits the slot once.
     """
 
     consumes = (ResearchTurn,)
@@ -28,8 +28,7 @@ class ScoutSources(Step):
         context: Context,
         turn: ResearchTurn,
         searches: list[Artifact[SearchDone]],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit | None:
         # Idempotency (§42): once searched, don't restart the cascade.
         if searches:
             return None
@@ -50,10 +49,7 @@ class ScoutSources(Step):
                 source=sid,
             ),
         )
-        effects.create(
-            SearchDone(query_id=turn.query_id), id=f"scouted:{turn.query_id}"
-        )
-        return None
+        return Emit(SearchDone(query_id=turn.query_id), id=f"scouted:{turn.query_id}")
 
 
 class ResolveRef(Step):
@@ -104,8 +100,7 @@ class ResolveTable(Step):
         self,
         context: Context,
         ref_artifact: Artifact[SourceRef],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit | None:
         ref = ref_artifact.data
         source = context.resources.get_source(ref.source_id)
         if source is None:
@@ -123,7 +118,7 @@ class ResolveTable(Step):
         columns = list(payload.get("columns", []))
         rows = [list(r) for r in payload.get("rows", [])]
         sheet_id = f"sheet:{ref.stable_id()}"
-        sheet = effects.create(
+        return Emit(
             Spreadsheet(
                 source_id=ref.source_id,
                 path=ref.locator,
@@ -132,6 +127,5 @@ class ResolveTable(Step):
                 query_id=ref.query_id,
             ),
             id=sheet_id,
+            links=(("materialized_from", ref_artifact),),
         )
-        sheet.link("materialized_from", ref_artifact)
-        return None

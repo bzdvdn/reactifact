@@ -51,7 +51,6 @@ from reactifact import (
     Artifact,
     Chat,
     Context,
-    Effects,
     LLMProvider,
     configure_logging,
     step,
@@ -82,15 +81,13 @@ async def add(a: float, b: float) -> str:
 
 
 @step(produces=ChatReply, consumes=Question)
-async def _chat_reply(
-    context: Context, question: Artifact[Question], effects: Effects
-) -> None:
+async def _chat_reply(context: Context, question: Artifact[Question]) -> ChatReply:
     text = await llm_reply(
         context.resources.llm,
         system="You are a concise, friendly assistant.",
         user=question.data.text,
     )
-    effects.create(ChatReply(text=text or OFFLINE_REPLY))
+    return ChatReply(text=text or OFFLINE_REPLY)
 
 
 def _from_env() -> LLMProvider | None:

@@ -26,7 +26,6 @@ from pydantic import BaseModel, Field
 from reactifact import (
     Consume,
     Context,
-    Effects,
     PendingQuestion,
     Runtime,
     RuntimeResources,
@@ -84,8 +83,8 @@ class BuildChangeReport(Step[ChangeReport]):
     consumes = (ToolAnswer,)
     produces = (ChangeReport,)
 
-    async def run(self, answer: ToolAnswer, effects: Effects) -> None:
-        effects.create(ChangeReport(summary=answer.text, commits=list(COMMITS)))
+    async def run(self, answer: ToolAnswer) -> ChangeReport:
+        return ChangeReport(summary=answer.text, commits=list(COMMITS))
 
 
 class RepoAgent(HITLLMAgent):

@@ -8,7 +8,7 @@ the top findings are printed verbatim (honest fallback, §59).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Step, StepCall
+from reactifact import Artifact, Context, Emit, Step, StepCall
 from reactifact.structured import structured_llm
 
 from ..models import Answer, AnswerBody, Evidence, Question, Review
@@ -23,7 +23,7 @@ class Evaluate(Step):
     consumes = (Review,)
     produces = (Answer,)
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepCall) -> Emit | None:
         context = call.context
         evidences = context.list_artifacts(Evidence)
         if not evidences:
@@ -32,16 +32,14 @@ class Evaluate(Step):
         top = ranked[:TOPN]
 
         answer_id = "answer:merged"
-        answer = call.effects.create(
+        return Emit(
             Answer(
                 text=await self._synthesize(context, top, ranked),
                 sources=[e.data.source for e in top],
             ),
             id=answer_id,
+            links=tuple(("supported_by", evidence) for evidence in ranked),
         )
-        for evidence in ranked:
-            answer.link("supported_by", evidence)
-        return None
 
     async def _synthesize(
         self,

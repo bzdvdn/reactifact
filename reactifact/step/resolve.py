@@ -124,6 +124,22 @@ def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
     return None
 
 
+def _artifact_shape(annotation: Any) -> tuple[list[type], bool, bool] | None:
+    """(types, is_list, optional) when the annotation yields artifact handles.
+
+    `Artifact[T]`, `Artifact[T | None]` and `list[Artifact[T]]` qualify; the
+    data forms (`T`, `T | None`, `list[T]`) do not.
+    """
+    origin = get_origin(annotation)
+    if origin is Artifact:
+        return _annotation_types(annotation)
+    if origin is list:
+        args = get_args(annotation)
+        if args and get_origin(args[0]) is Artifact:
+            return _annotation_types(annotation)
+    return None
+
+
 def _resolve_arg(
     name: str,
     annotation: Any,
@@ -184,16 +200,40 @@ def _resolve_arg(
             and _scope_matches(scope, scope_value, call.trigger)
         )
 
-    origin = get_origin(annotation)
-    if origin is list:
-        args = get_args(annotation)
-        inner = args[0] if args else Any
-        if get_origin(inner) is Artifact:
-            inner_args = get_args(inner)
-            inner_types, _, _ = _annotation_types(inner_args[0] if inner_args else Any)
-            found = _matches(inner_types)
+    def _artifact_value(types_: list[type], is_list: bool, optional: bool) -> Any:
+        found = _matches(types_)
+        if is_list:
             _use(call, *found)
             return found
+        if _trigger_matches(types_):
+            assert call.trigger is not None
+            _use(call, call.trigger)
+            return call.trigger
+        if found:
+            _use(call, found[-1])
+            return found[-1]
+        if optional:
+            return None
+        available = {type(a.data).__name__ for a in call.context.list_artifacts()}
+        raise MissingInputError(
+            name,
+            [type_.__name__ for type_ in types_],
+            available,
+            step_name=step_name,
+        )
+
+    origin = get_origin(annotation)
+    shape = _artifact_shape(annotation)
+    if shape is not None:
+        return _artifact_value(*shape)
+    if origin in (types.UnionType, Union):
+        members = [arg for arg in get_args(annotation) if arg is not type(None)]
+        optional = len(members) != len(get_args(annotation))
+        if len(members) == 1:
+            shape = _artifact_shape(members[0])
+            if shape is not None:
+                types_, is_list, inner_optional = shape
+                return _artifact_value(types_, is_list, optional or inner_optional)
     if origin is Latest:
         args = get_args(annotation)
         inner_types, is_list, optional = _annotation_types(args[0] if args else Any)
@@ -215,29 +255,6 @@ def _resolve_arg(
         if optional:
             return None
         return None
-    if origin is Artifact:
-        args = get_args(annotation)
-        inner_types, is_list, optional = _annotation_types(args[0] if args else Any)
-        found = _matches(inner_types)
-        if is_list:
-            _use(call, *found)
-            return found
-        if _trigger_matches(inner_types):
-            assert call.trigger is not None
-            _use(call, call.trigger)
-            return call.trigger
-        if found:
-            _use(call, found[-1])
-            return found[-1]
-        if optional:
-            return None
-        available = {type(a.data).__name__ for a in call.context.list_artifacts()}
-        raise MissingInputError(
-            name,
-            [type_.__name__ for type_ in inner_types],
-            available,
-            step_name=step_name,
-        )
 
     types_, is_list, optional = _annotation_types(annotation)
     if not types_:

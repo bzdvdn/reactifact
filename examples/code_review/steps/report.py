@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Emit, Step
 
 from ..models import FileReview, ReviewReport
 
@@ -41,20 +41,18 @@ class BuildReportStep(Step):
     consumes = (FileReview,)
     produces = (ReviewReport,)
 
-    async def run(self, review: Artifact[FileReview], effects: Effects) -> None:
-        reviews = [
-            artifact.data
+    async def run(self, review: Artifact[FileReview]) -> Emit:
+        request_id = review.data.request_id
+        artifacts = [
+            artifact
             for artifact in self.context.list_artifacts(FileReview)
-            if artifact.data.request_id == review.data.request_id
+            if artifact.data.request_id == request_id
         ]
-        report = effects.upsert(
-            render_report(review.data.request_id, reviews),
-            id=f"review-report:{review.data.request_id}",
+        return Emit(
+            render_report(request_id, [artifact.data for artifact in artifacts]),
+            id=f"review-report:{request_id}",
+            links=tuple(("reviewed", artifact) for artifact in artifacts),
         )
-        for artifact in self.context.list_artifacts(FileReview):
-            if artifact.data.request_id == review.data.request_id:
-                report.link("reviewed", artifact)
-        return None
 
 
 __all__ = ["BuildReportStep", "render_report"]

@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
-from reactifact import Chat, Effects, Step, StepGroup, When, create_step_group
+from reactifact import Chat, Step, StepGroup, When, create_step_group
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.context import Context
@@ -35,13 +35,11 @@ class Echo(Step):
     )
     produces = (ConversationMessage,)
 
-    async def run(self, message: ConversationMessage, effects: Effects) -> None:
-        effects.create(
-            ConversationMessage(
-                role="assistant",
-                text=f"[echo] {message.text}",
-                turn=message.turn,
-            )
+    async def run(self, message: ConversationMessage) -> ConversationMessage:
+        return ConversationMessage(
+            role="assistant",
+            text=f"[echo] {message.text}",
+            turn=message.turn,
         )
 
 

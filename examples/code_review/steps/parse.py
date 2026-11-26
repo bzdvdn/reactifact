@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Emit, Step
 
 from ..models import ChangedFile, ReviewRequest
 
@@ -68,13 +68,14 @@ class ParseDiffStep(Step):
     consumes = (ReviewRequest,)
     produces = (ChangedFile,)
 
-    async def run(self, request: Artifact[ReviewRequest], effects: Effects) -> None:
-        for index, (path, patch) in enumerate(split_diff(request.data.diff)):
-            effects.create(
+    async def run(self, request: Artifact[ReviewRequest]) -> list[Emit]:
+        return [
+            Emit(
                 ChangedFile(request_id=request.id, path=path, patch=patch),
                 id=f"file:{request.id}:{index}",
             )
-        return None
+            for index, (path, patch) in enumerate(split_diff(request.data.diff))
+        ]
 
 
 __all__ = ["ParseDiffStep", "added_lines", "split_diff"]

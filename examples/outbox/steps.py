@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Effects, Outbox, PendingAction, step
+from reactifact import Artifact, Emit, Outbox, PendingAction, step
 
 from .models import Order, Receipt
 
 
 @step(produces=(Receipt, PendingAction), consumes=Order)
-async def process_order(order: Artifact[Order], effects: Effects) -> None:
-    Outbox(effects).act(
+async def process_order(order: Artifact[Order], outbox: Outbox) -> Emit:
+    outbox.act(
         "notify",
         key=f"notify:{order.data.id}",
         payload={
@@ -18,7 +18,7 @@ async def process_order(order: Artifact[Order], effects: Effects) -> None:
             "total": order.data.total,
         },
     )
-    effects.upsert(
+    return Emit(
         Receipt(order_id=order.data.id, text=f"order {order.data.id} confirmed"),
         id=f"receipt:{order.data.id}",
     )

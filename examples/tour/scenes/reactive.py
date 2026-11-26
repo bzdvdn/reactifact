@@ -10,7 +10,7 @@ from reactifact import (
     Budget,
     Consume,
     Context,
-    Effects,
+    Emit,
     Latest,
     Runtime,
     Step,
@@ -41,10 +41,12 @@ class FanOutFacts(Step):
     consumes = (Topic,)
     produces = (Fact,)
 
-    async def run(self, topic: Topic, effects: Effects) -> None:
-        effects.create(Fact(topic=topic.name, text="typed inputs"), id="fact:1")
-        effects.create(Fact(topic=topic.name, text="debounced fan-out"), id="fact:2")
-        effects.create(Fact(topic=topic.name, text="scoped history"), id="fact:3")
+    async def run(self, topic: Topic) -> list[Emit]:
+        return [
+            Emit(Fact(topic=topic.name, text="typed inputs"), id="fact:1"),
+            Emit(Fact(topic=topic.name, text="debounced fan-out"), id="fact:2"),
+            Emit(Fact(topic=topic.name, text="scoped history"), id="fact:3"),
+        ]
 
 
 class CollectFacts(Step):
@@ -56,9 +58,8 @@ class CollectFacts(Step):
         facts: list[Artifact[Fact]],
         policy: Policy,
         topic: Latest[Topic],
-        effects: Effects,
-    ) -> None:
-        effects.create(
+    ) -> Emit:
+        return Emit(
             Digest(
                 topic=cast(Topic, topic).name,
                 facts=[fact.data.text for fact in facts],

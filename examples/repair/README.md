@@ -61,7 +61,8 @@ examples/repair/
     design.py          LLM design options
     stages/            one module per stage
       collect.py       facts → designs
-      pick.py          design choice / regenerate
+      pick.py          design choice
+      redesign.py      regenerate/style-change helpers
       plan.py          plan prompt + PlanStage
       estimate.py      deterministic catalog estimate
       approval.py      HITL approval gate

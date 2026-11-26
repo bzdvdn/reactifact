@@ -125,6 +125,11 @@ patch. `create` returns a `Handle` you can link immediately.
 | `delete(artifact)` | remove |
 | `ask(text, kind=...)` / `resume(...)` | pause for a human (HITL) |
 
+Return-style equivalents (preferred for short steps): `Emit` (create, or
+refresh an existing id — the `upsert` form), `Ensure` (create once, by id or
+`source=`/`prefix=`), `Edit`, `Drop`, `Relate`. `Ensure` is a no-op when the
+artifact already exists; `Emit` refreshes it.
+
 Full details, ids and HITL: `references/effects.md`.
 
 ## Scheduling and ordering
@@ -137,8 +142,8 @@ Full details, ids and HITL: `references/effects.md`.
   the fixpoint does. Avoid relying on intra-generation order; make the
   dependency an artifact instead.
 - **Idempotency**: agents may re-wake on an update. Use stable ids with
-  `create_once`/`upsert`, or gate with `AbsentConsume`, so a second wake is a
-  no-op rather than a duplicate.
+  `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
+  `AbsentConsume`, so a second wake is a no-op rather than a duplicate.
 
 ## Reviewing existing agent code
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Ensure, Step
 from reactifact.structured import structured_llm
 
 from ..models import ChangedFile, FileReview, Finding, ReviewBody, ReviewRequest
@@ -84,7 +84,7 @@ class ReviewFileStep(Step):
     consumes = (ChangedFile,)
     produces = (FileReview,)
 
-    async def run(self, file: Artifact[ChangedFile], effects: Effects) -> None:
+    async def run(self, file: Artifact[ChangedFile]) -> Ensure:
         findings = _deterministic(file.data.path, file.data.patch)
 
         if self.context.resources.llm is not None:
@@ -114,16 +114,15 @@ class ReviewFileStep(Step):
                     for finding in body.findings
                 )
 
-        effects.create_once_from(
-            file,
+        return Ensure(
             FileReview(
                 request_id=file.data.request_id,
                 path=file.data.path,
                 findings=_dedupe(findings),
             ),
+            source=file,
             prefix="review",
         )
-        return None
 
 
 __all__ = ["ReviewFileStep"]

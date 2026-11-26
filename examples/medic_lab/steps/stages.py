@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Effects, Scope, Step, When
+from reactifact import Artifact, Context, Edit, Emit, Relate, Scope, Step, When
 from reactifact.recipes import fan_out_sources, materialize_doc
 from reactifact.sources import SourceRef
 from reactifact.structured import StructuredLLM
@@ -68,8 +68,7 @@ class Generator(Step):
         self,
         context: Context,
         question: Artifact[Question],
-        effects: Effects,
-    ) -> None:
+    ) -> list[Emit] | None:
         question_id = question.id
         if context.list_artifacts(Hypothesis):
             return None  # already generated
@@ -106,14 +105,19 @@ class Generator(Step):
                 kind="status",
             )
 
+        hypotheses: list[Emit] = []
         for i, statement in enumerate(statements):
             hyp_id = f"hyp:{question_id}:{i}"
-            hypothesis = effects.create(
-                Hypothesis(question_id=question_id, statement=statement, status="open"),
-                id=hyp_id,
+            hypotheses.append(
+                Emit(
+                    Hypothesis(
+                        question_id=question_id, statement=statement, status="open"
+                    ),
+                    id=hyp_id,
+                    links=(("answers", question_id),),
+                )
             )
-            hypothesis.link("answers", question_id)
-        return None
+        return hypotheses
 
 
 class Investigator(Step):
@@ -128,8 +132,7 @@ class Investigator(Step):
         context: Context,
         hyp_art: Artifact[Hypothesis],
         question: Artifact[Question],
-        effects: Effects,
-    ) -> None:
+    ) -> list[Emit | Edit] | None:
         hyp = hyp_art.data
         depth = question.data.depth
         marker = f"searched:{hyp_art.id}:{depth}"
@@ -165,15 +168,17 @@ class Investigator(Step):
                 f"  «{sid}» → {n} pages", kind="status", count=n, source=sid
             ),
         )
-        effects.create(
-            SearchDone(
-                hypothesis_id=hyp_art.id, round=depth, question_id=hyp.question_id
-            ),
-            id=marker,
-        )
+        results: list[Emit | Edit] = [
+            Emit(
+                SearchDone(
+                    hypothesis_id=hyp_art.id, round=depth, question_id=hyp.question_id
+                ),
+                id=marker,
+            )
+        ]
         if hyp.status == "open":
-            effects.update(hyp_art, status="investigating")
-        return None
+            results.append(Edit(hyp_art, status="investigating"))
+        return results
 
 
 class Resolver(Step):
@@ -215,9 +220,7 @@ class ExtractEvidence(Step):
     consumes = (TypedDoc,)
     produces = (Evidence,)
 
-    async def run(
-        self, context: Context, doc_art: Artifact[TypedDoc], effects: Effects
-    ) -> None:
+    async def run(self, context: Context, doc_art: Artifact[TypedDoc]) -> Emit:
         doc = doc_art.data
         body = await _extract_prompt.call(
             context.resources.llm,
@@ -232,15 +235,14 @@ class ExtractEvidence(Step):
             source=doc.path,
             score=doc.score,
         )
-        evidence_handle = effects.create(evidence, id=evidence_id)
-        evidence_handle.link("extracted_from", doc_art)
+        links: list[tuple[str, object]] = [("extracted_from", doc_art)]
         # deterministic support/contradiction per hypothesis (§67, §36)
         for hyp_art in hypotheses_of(context, doc.question_id):
             if token_support(doc.content, hyp_art.data.statement) < 0.05:
                 continue  # page does not address this hypothesis — coverage only
             same_stance = negatory(doc.content) == negatory(hyp_art.data.statement)
-            evidence_handle.link("supports" if same_stance else "contradicts", hyp_art)
-        return None
+            links.append(("supports" if same_stance else "contradicts", hyp_art))
+        return Emit(evidence, id=evidence_id, links=tuple(links))
 
 
 class ClaimBuilder(Step):
@@ -249,12 +251,11 @@ class ClaimBuilder(Step):
     consumes = (Evidence,)
     produces = (Claim,)
 
-    async def run(
-        self, context: Context, ev_art: Artifact[Evidence], effects: Effects
-    ) -> None:
+    async def run(self, context: Context, ev_art: Artifact[Evidence]) -> list[Emit]:
         evidence = ev_art.data
         docs = context.related(ev_art.id, relation="extracted_from")
         doc_text = docs[0].data.content if docs else ""
+        claims_out: list[Emit] = []
         for i, sentence in enumerate(split_sentences(evidence.text)):
             support = token_support(sentence, doc_text)
             confidence = round(min(1.0, 0.3 + 0.7 * support), 2)
@@ -264,18 +265,20 @@ class ClaimBuilder(Step):
                 else ("weak" if support >= 0.35 else "unverified")
             )
             claim_id = f"claim:{ev_art.id}:{i}"
-            claim = effects.create(
-                Claim(
-                    question_id=evidence.question_id,
-                    hypothesis_id=evidence.hypothesis_id,
-                    text=sentence,
-                    confidence=confidence,
-                    status=status,
-                ),
-                id=claim_id,
+            claims_out.append(
+                Emit(
+                    Claim(
+                        question_id=evidence.question_id,
+                        hypothesis_id=evidence.hypothesis_id,
+                        text=sentence,
+                        confidence=confidence,
+                        status=status,
+                    ),
+                    id=claim_id,
+                    links=(("derived_from", ev_art),),
+                )
             )
-            claim.link("derived_from", ev_art)
-        return None
+        return claims_out
 
 
 class CrossChecker(Step):
@@ -284,10 +287,9 @@ class CrossChecker(Step):
     consumes = (Claim,)
     produces = (Claim,)
 
-    async def run(
-        self, context: Context, claim_art: Artifact[Claim], effects: Effects
-    ) -> None:
+    async def run(self, context: Context, claim_art: Artifact[Claim]) -> list[Relate]:
         claim = claim_art.data
+        relations: list[Relate] = []
         for other in context.list_artifacts(Claim):
             if (
                 other.id == claim_art.id
@@ -298,5 +300,5 @@ class CrossChecker(Step):
             if token_support(claim.text, other.data.text) >= 0.3 and negatory(
                 claim.text
             ) != negatory(other.data.text):
-                effects.link(claim_art.id, "contradicted_by", other.id)
-        return None
+                relations.append(Relate(claim_art.id, "contradicted_by", other.id))
+        return relations

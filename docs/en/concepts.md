@@ -193,6 +193,10 @@ both triggers and inputs; mark an individual read-only input there with
 `Annotated[T, Wakes(False)]`. `Latest[T]` remains an ad-hoc context query, not a
 declared input.
 
+`T` injects the data model, while `Artifact[T]` injects the handle (id, version,
+for `Edit`/links). Add `| None` to either form when the input may be absent:
+`Artifact[T] | None` gives the handle or `None`, not the data model.
+
 The function form takes one `call: StepCall` and uses `call.effects`:
 
 ```python

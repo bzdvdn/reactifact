@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Effects, Step
+from reactifact import Artifact, Context, Edit, Emit, Relate, Step
 from reactifact.structured import structured_llm
 
 from ..models import AnswerBody, Claim, Evidence, TypedDoc
@@ -26,8 +26,7 @@ class ExtractEvidence(Step):
         self,
         context: Context,
         doc_artifact: Artifact[TypedDoc],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit:
         doc = doc_artifact.data
         context.announce(
             f"Extracting key facts from «{doc.path}»...",
@@ -46,7 +45,7 @@ class ExtractEvidence(Step):
         )
         evidence_id = f"evidence:{doc.query_id}:{doc.path}"
         # provenance (§34): Evidence —extracted_from→ TypedDoc
-        evidence = effects.create(
+        return Emit(
             Evidence(
                 query_id=doc.query_id,
                 text=text,
@@ -54,9 +53,8 @@ class ExtractEvidence(Step):
                 score=doc.score,
             ),
             id=evidence_id,
+            links=(("extracted_from", doc_artifact),),
         )
-        evidence.link("extracted_from", doc_artifact)
-        return None
 
 
 class VerifyClaims(Step):
@@ -84,8 +82,7 @@ class VerifyClaims(Step):
         context: Context,
         evidence_art: Artifact[Evidence],
         claims: list[Artifact[Claim]],
-        effects: Effects,
-    ) -> None:
+    ) -> list[Emit | Relate | Edit]:
         evidence = evidence_art.data
         doc = source_doc_of(context, evidence_art)
         doc_text = doc.data.content if doc is not None else ""
@@ -115,6 +112,7 @@ class VerifyClaims(Step):
                 ) != has_negation(other.data.text):
                     conflicting.update({aid, other.id})
 
+        results: list[Emit | Relate | Edit] = []
         for aid, sentence in new_items:
             support = token_support(sentence, doc_text)
             confidence = round(
@@ -126,26 +124,28 @@ class VerifyClaims(Step):
                 if support >= 0.6
                 else ("weak" if support >= 0.35 else "unverified")
             )
-            claim = effects.create(
-                Claim(
-                    query_id=evidence.query_id,
-                    text=sentence,
-                    confidence=confidence,
-                    status=status,
-                    conflict=aid in conflicting,
-                ),
-                id=aid,
+            results.append(
+                Emit(
+                    Claim(
+                        query_id=evidence.query_id,
+                        text=sentence,
+                        confidence=confidence,
+                        status=status,
+                        conflict=aid in conflicting,
+                    ),
+                    id=aid,
+                    links=(("derived_from", evidence_art),),
+                )
             )
-            claim.link("derived_from", evidence_art)
 
         for i, (aid, a_text) in enumerate(new_items):
             for bid, b_text in new_items[i + 1 :]:
                 if self._similarity(a_text, b_text) >= 0.5 and has_negation(
                     a_text
                 ) != has_negation(b_text):
-                    effects.link(aid, "contradicted_by", bid)
-                    effects.link(bid, "contradicted_by", aid)
+                    results.append(Relate(aid, "contradicted_by", bid))
+                    results.append(Relate(bid, "contradicted_by", aid))
         for other in claims:
             if other.id in conflicting and not other.data.conflict:
-                effects.update(other, conflict=True)
-        return None
+                results.append(Edit(other, conflict=True))
+        return results

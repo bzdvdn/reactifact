@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Budget, Effects, Runtime, Step, create_step_group
+from reactifact import Budget, Emit, Runtime, Step, create_step_group
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.replay import replay_context
 from reactifact.session import SessionStore
@@ -25,8 +25,8 @@ class FinishJob(Step):
     consumes = (Job,)
     produces = (Done,)
 
-    async def run(self, job: Job, effects: Effects) -> None:
-        effects.create(Done(text=job.text.upper()), id="done:1")
+    async def run(self, job: Job) -> Emit:
+        return Emit(Done(text=job.text.upper()), id="done:1")
 
 
 async def _run_durable(path: Path) -> dict[str, Any]:

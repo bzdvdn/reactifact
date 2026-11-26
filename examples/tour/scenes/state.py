@@ -9,7 +9,8 @@ from reactifact import (
     Artifact,
     Budget,
     Context,
-    Effects,
+    Edit,
+    Emit,
     Runtime,
     Step,
     When,
@@ -30,16 +31,16 @@ class StartDraft(Step):
     consumes = (Seed,)
     produces = (Draft,)
 
-    async def run(self, seed: Seed, effects: Effects) -> None:
-        effects.create(Draft(text=seed.text), id="draft:1")
+    async def run(self, seed: Seed) -> Emit:
+        return Emit(Draft(text=seed.text), id="draft:1")
 
 
 class PolishDraft(Step):
     consumes = (Annotated[Draft, When(lambda draft: draft.revision < 2)],)
     produces = (Draft,)
 
-    async def run(self, draft: Artifact[Draft], effects: Effects) -> None:
-        effects.update(
+    async def run(self, draft: Artifact[Draft]) -> Edit:
+        return Edit(
             draft,
             text=draft.data.text + "!",
             revision=draft.data.revision + 1,

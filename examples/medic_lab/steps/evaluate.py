@@ -5,7 +5,9 @@ The lexicons decide the numbers, the model never does (§67, §68).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Effects, Scope, Step
+from typing import Any
+
+from reactifact import Artifact, Context, Edit, Scope, Step
 from reactifact.sources import SourceRef
 
 from ..models import (
@@ -64,7 +66,7 @@ def channel_done(context: Context, hyp_art: Artifact[Hypothesis], depth: int) ->
 
 def evaluate_hypothesis(
     context: Context, hyp_art: Artifact[Hypothesis]
-) -> dict[str, object] | None:
+) -> dict[str, Any] | None:
     """One hypothesis: counts, score, verdict — or None if nothing changed."""
     supports = len(context.incoming(hyp_art.id, relation="supports"))
     contradicts = len(context.incoming(hyp_art.id, relation="contradicts"))
@@ -130,13 +132,13 @@ class Evaluator(Step):
         self,
         context: Context,
         question: Artifact[Question],
-        effects: Effects,
-    ) -> None:
+    ) -> list[Edit]:
         question_id = question.id
         depth = question.data.depth
+        edits: list[Edit] = []
         for hyp_art in hypotheses_of(context, question_id):
             if channel_done(context, hyp_art, depth):
                 fields = evaluate_hypothesis(context, hyp_art)
                 if fields is not None:
-                    effects.update(hyp_art, **fields)
-        return None
+                    edits.append(Edit(hyp_art, **fields))
+        return edits

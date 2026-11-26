@@ -31,6 +31,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Depends",
             "Effects",
             "Emit",
+            "Ensure",
             "Relate",
             "Edit",
             "Drop",

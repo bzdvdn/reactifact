@@ -8,9 +8,9 @@ can walk the chain to an auditable record.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from reactifact import Artifact, Context, Effects, When, step
+from reactifact import Artifact, Context, Emit, Ensure, When, step
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import SourceRef
 
@@ -33,9 +33,7 @@ async def search_sources(context: Context, question: Artifact[Question]) -> None
 
 
 @step(produces=(Table, Policy), consumes=SourceRef)
-async def materialize(
-    context: Context, ref: Artifact[SourceRef], effects: Effects
-) -> None:
+async def materialize(context: Context, ref: Artifact[SourceRef]) -> Emit | None:
     """Resolves a `SourceRef` into a `Table` (CSV) or a `Policy` (Markdown)."""
     source = context.resources.get_source(ref.data.source_id)
     if source is None:
@@ -53,10 +51,11 @@ async def materialize(
         )
     else:
         document = Policy(text=str(content), locator=ref.data.locator)
-    effects.create(document, id=f"doc:{ref.data.locator}").link(
-        "materialized_from", ref
+    return Emit(
+        document,
+        id=f"doc:{ref.data.locator}",
+        links=(("materialized_from", ref),),
     )
-    return None
 
 
 def _cell(table: Table, row: list[str], column: str) -> str | None:
@@ -79,8 +78,7 @@ def _budget_for(table: Table, category: str) -> float | None:
 async def compute_spend(
     table: Artifact[Table],
     question: Artifact[Question],
-    effects: Effects,
-) -> None:
+) -> Ensure | None:
     """Sums `cloud` spend by month — deterministic arithmetic, not a model."""
     if not table.data.locator.endswith("transactions.csv"):
         return None
@@ -96,13 +94,11 @@ async def compute_spend(
         total += float(amount)
         by_month[month] = by_month.get(month, 0.0) + float(amount)
 
-    handle = effects.create_once_from(
-        question, Spend(category="cloud", total=total, by_month=by_month)
+    return Ensure(
+        Spend(category="cloud", total=total, by_month=by_month),
+        source=question,
+        links=(("calculated_from", table),),
     )
-    if handle is None:
-        return None
-    handle.link("calculated_from", table)
-    return None
 
 
 @step(
@@ -116,8 +112,7 @@ async def compute_variance(
         Artifact[Table],
         When(lambda table: table.locator.endswith("budget.csv")),
     ],
-    effects: Effects,
-) -> None:
+) -> Ensure | None:
     """Actual vs budget, and whether the variance crosses the policy line."""
     budget = _budget_for(budget_table.data, spend.data.category)
     if budget is None:
@@ -125,8 +120,7 @@ async def compute_variance(
 
     actual = spend.data.total
     pct = (actual - budget) / budget if budget else 0.0
-    handle = effects.create_once_from(
-        question,
+    return Ensure(
         Variance(
             category=spend.data.category,
             actual=actual,
@@ -135,12 +129,12 @@ async def compute_variance(
             threshold=POLICY_THRESHOLD,
             within_policy=abs(pct) <= POLICY_THRESHOLD,
         ),
+        source=question,
+        links=(
+            ("calculated_from", spend),
+            ("calculated_from", budget_table),
+        ),
     )
-    if handle is None:
-        return None
-    handle.link("calculated_from", spend)
-    handle.link("calculated_from", budget_table)
-    return None
 
 
 def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
@@ -171,8 +165,7 @@ async def answer(
     context: Context,
     variance: Artifact[Variance],
     question: Artifact[Question],
-    effects: Effects,
-) -> None:
+) -> Ensure:
     """States the computed figures in prose, citing the sources it rests on."""
     v = variance.data
     verdict = "exceeds" if not v.within_policy else "is within"
@@ -184,23 +177,23 @@ async def answer(
     if not v.within_policy:
         text += " CFO approval is required before the quarter is closed."
 
-    handle = effects.create_once_from(
-        question,
+    links: list[tuple[str, Any]] = [("supported_by", variance)]
+    links.extend(
+        ("supported_by", artifact)
+        for artifact in context.related(variance.id, "calculated_from")
+    )
+    policy = context.latest(Policy)
+    if policy is not None:
+        links.append(("supported_by", policy))
+    return Ensure(
         AuditAnswer(
             text=text,
             figures={"actual": v.actual, "budget": v.budget, "pct": v.pct},
             citations=_citations(context, variance),
         ),
+        source=question,
+        links=tuple(links),
     )
-    if handle is None:
-        return None
-    handle.link("supported_by", variance)
-    for artifact in context.related(variance.id, "calculated_from"):
-        handle.link("supported_by", artifact)
-    policy = context.latest(Policy)
-    if policy is not None:
-        handle.link("supported_by", policy)
-    return None
 
 
 __all__ = [

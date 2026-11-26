@@ -26,7 +26,6 @@ from ..common import (
     _approval_text,
     _downstream_resets,
     _extract_info,
-    _project_artifact,
     _reply,
 )
 
@@ -42,14 +41,13 @@ class ApprovalStage(Step):
         context: Context,
         human: Human,
         user: Artifact[UserMsg],
-        project: Project | None,
+        project: Artifact[Project] | None,
         progress: Progress,
         llm: LLMProvider | None,
     ) -> Any:
-        project_art = _project_artifact(context)
-        if project_art is None or project_art.data.stage != "final_approval":
+        if project is None or project.data.stage != "final_approval":
             return None
-        data = project if project is not None else project_art.data
+        data = project.data
         pending = [p for p in context.pending_questions() if p.data.kind == "approval"]
         if not pending:
             # entering the stage: ask the question immediately, without waiting
@@ -57,7 +55,7 @@ class ApprovalStage(Step):
             if user.id != data.handled_msg:
                 human.ask(_approval_text(data), kind="approval")
                 return (
-                    Edit(project_art, handled_msg=user.id),
+                    Edit(project, handled_msg=user.id),
                     Emit(
                         _reply(
                             user.id,
@@ -80,7 +78,7 @@ class ApprovalStage(Step):
         if _APPROVE_RE.match(answer):
             return (
                 Edit(
-                    project_art,
+                    project,
                     approved=True,
                     stage="assistant",
                     handled_msg=user.id,
@@ -113,7 +111,7 @@ class ApprovalStage(Step):
         )
         # no separate reply: the rebuild will pass and ApprovalStage will show
         # the updated proposal again (the same user.id gets overwritten by it).
-        return Edit(project_art, **updates)
+        return Edit(project, **updates)
 
 
 __all__ = ["ApprovalStage"]

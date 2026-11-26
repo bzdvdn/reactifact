@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Context, Effects, Step
+from reactifact import Artifact, Context, Emit, Step
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -72,8 +72,7 @@ class CalculateAggregate(Step):
         self,
         context: Context,
         sheet_art: Artifact[Spreadsheet],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit | None:
         sheet = sheet_art.data
         question = next(
             (
@@ -110,7 +109,7 @@ class CalculateAggregate(Step):
             path=sheet.path,
         )
         calc_id = f"calc:{sheet.query_id}:{sheet_art.id}"
-        calc = effects.create(
+        return Emit(
             Calculation(
                 query_id=sheet.query_id,
                 description=description,
@@ -119,6 +118,5 @@ class CalculateAggregate(Step):
                 rows=len(values),
             ),
             id=calc_id,
+            links=(("derived_from", sheet_art),),
         )
-        calc.link("derived_from", sheet_art)
-        return None

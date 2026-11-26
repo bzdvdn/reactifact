@@ -28,7 +28,7 @@ from reactifact import (
     SUPPORTED_BY,
     Budget,
     Context,
-    Effects,
+    Emit,
     MergeConflict,
     Runtime,
     RuntimeResources,
@@ -62,11 +62,13 @@ class Plan(Step):
     consumes = (UserMsg,)
     produces = (K8sProblem, GitlabProblem, AnsibleProblem)
 
-    async def run(self, msg: UserMsg, effects: Effects) -> None:
+    async def run(self, msg: UserMsg) -> list[Emit]:
         qid = f"q:{msg.text[:12]}"
-        effects.create(K8sProblem(text=msg.text, query_id=qid), id=f"k8s:{qid}")
-        effects.create(GitlabProblem(text=msg.text, query_id=qid), id=f"gitlab:{qid}")
-        effects.create(AnsibleProblem(text=msg.text, query_id=qid), id=f"ansible:{qid}")
+        return [
+            Emit(K8sProblem(text=msg.text, query_id=qid), id=f"k8s:{qid}"),
+            Emit(GitlabProblem(text=msg.text, query_id=qid), id=f"gitlab:{qid}"),
+            Emit(AnsibleProblem(text=msg.text, query_id=qid), id=f"ansible:{qid}"),
+        ]
 
 
 class InvestigateK8s(Step):

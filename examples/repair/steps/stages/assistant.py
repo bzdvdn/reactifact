@@ -8,32 +8,26 @@ from reactifact import Artifact, Context, Edit, Emit, LLMProvider, Progress, Ste
 from reactifact.structured import llm_reply
 
 from ...models import ChatReply, Project, UserMsg
-from ..common import (
-    _assistant_context,
-    _conversation_text,
-    _project_artifact,
-    _reply,
-)
+from ..common import _assistant_context, _conversation_text, _reply
 
 
 class AssistantStage(Step):
     """Open-ended dialogue after approval."""
 
-    consumes = (UserMsg, Project)
+    consumes = (UserMsg,)
     produces = (Project, ChatReply)
 
     async def run(
         self,
         context: Context,
         user: Artifact[UserMsg],
-        project: Project | None,
+        project: Artifact[Project] | None,
         progress: Progress,
         llm: LLMProvider | None,
     ) -> Any:
-        project_art = _project_artifact(context)
-        if project_art is None or project_art.data.stage != "assistant":
+        if project is None or project.data.stage != "assistant":
             return None
-        data = project if project is not None else project_art.data
+        data = project.data
         if user.id == data.handled_msg:
             return None
         progress("Думаю…")
@@ -68,7 +62,7 @@ class AssistantStage(Step):
             text = _assistant_fallback(data)
         return (
             Emit(_reply(user.id, text), id=f"reply:{user.id}"),
-            Edit(project_art, handled_msg=user.id),
+            Edit(project, handled_msg=user.id),
         )
 
 

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from reactifact import Artifact, Context, Edit, Emit, LLMProvider, Progress, Step
+from reactifact import Artifact, Edit, Emit, LLMProvider, Progress, Step
 
 from ...models import ChatReply, Project, UserMsg
 from ...services.facts import FACT_LABELS, REQUIRED_FACTS
 from ...services.fast import fast_reply
 from ...services.geometry import ensure_geometry
 from ...services.images import ImageRenderSettings
-from ..common import _extract_info, _project_artifact, _reply
+from ..common import _extract_info, _reply
 from ..design import _make_design_options
 
 
@@ -23,17 +23,15 @@ class CollectStage(Step):
 
     async def run(
         self,
-        context: Context,
         user: Artifact[UserMsg],
-        project: Project | None,
+        project: Artifact[Project] | None,
         progress: Progress,
         llm: LLMProvider | None,
         previews: ImageRenderSettings,
     ) -> Any:
-        project_art = _project_artifact(context)
-        if project_art is None:
+        if project is None:
             return Project()
-        data = project if project is not None else project_art.data
+        data = project.data
         if data.stage != "collect":
             return None
         if user.id == data.handled_msg:
@@ -42,7 +40,7 @@ class CollectStage(Step):
         fast = fast_reply(user.data.text)
         if fast is not None:
             return (
-                Edit(project_art, handled_msg=user.id),
+                Edit(project, handled_msg=user.id),
                 Emit(_reply(user.id, fast), id=f"reply:{user.id}"),
             )
 
@@ -53,7 +51,7 @@ class CollectStage(Step):
         if missing:
             labeled = ", ".join(FACT_LABELS[f] for f in missing)
             return (
-                Edit(project_art, info=info, handled_msg=user.id),
+                Edit(project, info=info, handled_msg=user.id),
                 Emit(
                     _reply(user.id, f"Уточните, пожалуйста: {labeled}."),
                     id=f"reply:{user.id}",
@@ -65,7 +63,7 @@ class CollectStage(Step):
         )
         if options is None:
             return (
-                Edit(project_art, info=info, handled_msg=user.id),
+                Edit(project, info=info, handled_msg=user.id),
                 Emit(
                     _reply(
                         user.id,
@@ -81,7 +79,7 @@ class CollectStage(Step):
         )
         return (
             Edit(
-                project_art,
+                project,
                 info=info,
                 design_options=options,
                 stage="design_choice",

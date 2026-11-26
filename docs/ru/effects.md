@@ -59,9 +59,25 @@ async def run(self, question: Artifact[Question]) -> Answer:
     return Answer(text=question.data.text)
 ```
 
-`effects` нужны, когда шагу требуется явный id, update/link/delete, HITL или
-несколько create. `None` означает «изменений нет» (guard или неподходящая
-ветка).
+Для явного id/провенанса возвращайте `Emit`; для идемпотентного создания —
+`Ensure`:
+
+```python
+from reactifact import Emit, Ensure
+
+return Emit(
+    Answer(text=...),
+    id=f"answer:{question.id}",
+    links=(("supported_by", evidence),),
+)
+return Ensure(Answer(text=...), source=question, prefix="answer")
+# или: Ensure(Answer(text=...), id=f"answer:{question.id}")
+```
+
+`Emit` с существующим id обновляет артефакт (`upsert`). `Ensure` ничего не
+делает, если артефакт уже есть, и применяет links только при создании; он
+повторяет `create_once` / `create_once_from`. `None` означает «изменений нет»
+(guard или неподходящая ветка).
 
 ## Идемпотентность: `create_once` и `upsert`
 

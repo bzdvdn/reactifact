@@ -73,6 +73,20 @@ return Emit(
 )
 ```
 
+`Emit` with an id that already exists refreshes the artifact (the `upsert`
+equivalent). When an existing artifact should be left untouched, return
+`Ensure` instead:
+
+```python
+from reactifact import Ensure
+
+return Ensure(Answer(text=...), source=question, prefix="answer")
+# or: Ensure(Answer(text=...), id=f"answer:{question.id}")
+```
+
+`Ensure` mirrors `create_once` / `create_once_from`; its links are applied only
+when the artifact is actually created.
+
 For mutations, return `Edit`, `Drop` or `Relate` instead of calling effects:
 
 ```python

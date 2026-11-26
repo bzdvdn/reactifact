@@ -9,7 +9,7 @@ from reactifact import (
     Artifact,
     Budget,
     Context,
-    Effects,
+    Emit,
     Runtime,
     RuntimeResources,
     create_step_group,
@@ -31,8 +31,7 @@ class TourBrief(BaseModel):
 async def write_brief(
     context: Context,
     facts: Artifact[TourFacts],
-    effects: Effects,
-) -> None:
+) -> Emit:
     prompt = "Summarize these framework tour facts in one sentence:\n" + "\n".join(
         f"- {line}" for line in facts.data.lines
     )
@@ -43,7 +42,7 @@ async def write_brief(
     )
     if text is None:
         text = "Offline tour: " + "; ".join(facts.data.lines)
-    effects.create(TourBrief(text=text.strip()), id="brief:1")
+    return Emit(TourBrief(text=text.strip()), id="brief:1")
 
 
 async def run_model(provider: LLMProvider | None) -> dict[str, Any]:

@@ -48,6 +48,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   inputs. When `consumes` is derived from the signature, triggers and inputs
   still come from the signature, and `Wakes(False)`/`Latest` remain available.
   `Artifact[T]` parameters now derive their consume type in both modes.
+- **Optional artifact handles.** `Artifact[T] | None` now resolves to the
+  `Artifact[T]` handle or `None` (it previously fell into the data path and
+  returned the model). `Artifact[T]` and `list[Artifact[T]]` keep returning
+  handles; `T | None` keeps returning data.
+- **`Ensure` return primitive.** `return Ensure(Model(...), id=...)` mirrors
+  `Effects.create_once`; `source=` + `prefix=` mirror `create_once_from`. It is
+  a no-op (including links) when the artifact already exists. `Emit` with an
+  existing id stays the create-or-refresh (`upsert`) form.
 - **`reactifact dev`.** Starts an ASGI app with reload, infers factory vs app
   from the target, and prints the app, `/contracts` and `/traces` URLs. A
   missing `.env` gets a hint instead of a bare uvicorn traceback.

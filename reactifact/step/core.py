@@ -88,11 +88,37 @@ class Emit:
 
         return Emit(Answer(text=...), id=f"answer:{q.id}",
                     links=(("supported_by", evidence),))
+
+    With an id that already exists, `Emit` refreshes the artifact (a new
+    version) — the return-style equivalent of `Effects.upsert`. Use `Ensure`
+    when an existing artifact should be left untouched instead.
     """
 
     data: Any
     id: str | None = None
     links: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class Ensure:
+    """A return-style idempotent create: create only if the id is absent.
+
+    `Ensure(Model(...), id="answer:42")` mirrors `Effects.create_once`;
+    `Ensure(Model(...), source=question)` mirrors `Effects.create_once_from`
+    (the id is `f"{prefix or type(data).__name__.lower()}:{source.id}"`).
+    Links are applied only when the artifact is actually created; if it already
+    exists, the instruction is a no-op (no new version, no links).
+    """
+
+    data: Any
+    id: str | None = None
+    source: Any = None
+    prefix: str | None = None
+    links: tuple[tuple[str, Any], ...] = ()
+
+    def __post_init__(self) -> None:
+        if (self.id is None) == (self.source is None):
+            raise ValueError("Ensure needs exactly one of id= or source=")
 
 
 class Edit:
@@ -545,6 +571,20 @@ class Step(Generic[TOut]):
             handle = effects.create(result.data, id=result.id)
             for relation, target in result.links:
                 handle.link(relation, target)
+            return
+        if isinstance(result, Ensure):
+            artifact_id = result.id
+            if artifact_id is None:
+                source = result.source
+                source_id = source if isinstance(source, str) else source.id
+                artifact_id = (
+                    f"{result.prefix or type(result.data).__name__.lower()}:{source_id}"
+                )
+            ensured = effects.create_once(result.data, id=artifact_id)
+            if ensured is None:
+                return
+            for relation, target in result.links:
+                ensured.link(relation, target)
             return
         if isinstance(result, Edit):
             target = (

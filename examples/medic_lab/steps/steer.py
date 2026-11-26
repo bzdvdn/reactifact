@@ -6,7 +6,7 @@ import re
 from typing import Annotated, Any
 
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Effects, Human, Scope, Step, When
+from reactifact import Artifact, Context, Edit, Emit, Human, Scope, Step, When
 from reactifact.interrupt import PendingQuestion
 from reactifact.structured import StructuredLLM
 
@@ -80,7 +80,7 @@ class Steer(Step):
         self,
         context: Context,
         question: Artifact[Question],
-        effects: Effects,
+        human: Human,
     ) -> None:
         question_id = question.id
         if context.list_artifacts(ResearchReport):
@@ -93,7 +93,7 @@ class Steer(Step):
         steer_id = f"steer:{question_id}:{question.data.depth}"
         if context.get(steer_id) is not None:
             return None  # same round already steering (idempotent, §42)
-        Human(effects).ask(
+        human.ask(
             "All hypotheses have been evaluated. Deepen one, "
             "or stop for the final report?\n\n"
             f"{_ranking_block(context, question_id)}\n\n"
@@ -116,8 +116,7 @@ class Deepen(Step):
         self,
         context: Context,
         q_art: Artifact[PendingQuestion],
-        effects: Effects,
-    ) -> None:
+    ) -> list[Edit] | None:
         q = q_art.data
         if not q.answered or q.kind != "steer":
             return None
@@ -139,7 +138,7 @@ class Deepen(Step):
                         kind="status",
                         hypothesis=hyp_art.id,
                     )
-                    effects.update(hyp_art, status="open")
+                    edits = [Edit(hyp_art, status="open")]
                     question = context.get(question_id)
                     if question is not None and isinstance(question.data, Question):
                         if context.resources.llm is not None:
@@ -155,7 +154,8 @@ class Deepen(Step):
                             existing = dict(question.data.deepen_queries or {})
                             existing[hyp_art.id] = queries
                             updates["deepen_queries"] = existing
-                        effects.update(question, **updates)
+                        edits.append(Edit(question, **updates))
+                    return edits
         return None
 
     async def _deepen_queries(
@@ -192,8 +192,7 @@ class Reporter(Step):
         self,
         context: Context,
         question: Artifact[Question],
-        effects: Effects,
-    ) -> None:
+    ) -> Emit | None:
         question_id = question.id
         if context.list_artifacts(ResearchReport):
             return None
@@ -259,7 +258,7 @@ class Reporter(Step):
                 uncertainty_ = "insufficient evidence."
         else:
             uncertainty_ = "see the ranked hypotheses below."
-        effects.create(
+        return Emit(
             ResearchReport(
                 question_id=question_id,
                 answer=synthesized,
@@ -268,7 +267,6 @@ class Reporter(Step):
             ),
             id=f"report:{question_id}",
         )
-        return None
 
     async def _synthesize(
         self,

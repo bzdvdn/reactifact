@@ -714,3 +714,12 @@ def test_rejected_design_options_offer_a_fresh_set(tmp_path):
         if item.data.query_id == rejected.id
     ][-1].data.text
     assert reply.startswith("Вот другие варианты:")
+
+
+def test_read_only_stages_do_not_wake_on_project():
+    from examples.repair.steps import AssistantStage, PickStage
+
+    for stage in (PickStage(), AssistantStage()):
+        specs = {spec.artifact_type: spec.wakes for spec in stage.consume_specs() or ()}
+        assert specs[UserMsg] is True
+        assert specs[Project] is False
