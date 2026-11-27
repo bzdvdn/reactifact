@@ -7,7 +7,7 @@ each is concretely instantiated in `examples/`.
 
 | Do | Don't | Why |
 | --- | --- | --- |
-| Write `effects.create/update/delete/link/upsert(...)`, return `None` | Assemble a `Patch` by hand in an ordinary produce | The runtime compiles one atomic patch per produce — building it yourself is the escape hatch, not the default |
+| Write `effects.create/update/delete/link/upsert(...)`, return `None` | Assemble a `Patch` by hand in an ordinary step | The runtime compiles one atomic patch per step — building it yourself is the escape hatch, not the default |
 | Guard eligibility with an early `return None` | Rely on scheduling order to skip work that isn't ready | Eligibility is a state decision, not a lucky accident (§69) |
 | Use stable ids (`answer:{qid}`) or `effects.create_once(...)` | Re-derive an id from a counter or timestamp | Idempotent re-runs — the same event twice must not duplicate state |
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
@@ -69,7 +69,7 @@ waiting for a user message), then **react to the answer** on the next event.
 
 For a re-derivable question (`f"steer:{qid}:{round}"`, `medic-lab`'s steering
 ask), pass `id=` to `human.ask(...)` so a guard
-(`if context.get(id) is not None: return None`) can stop the produce from
+(`if context.get(id) is not None: return None`) can stop the step from
 asking again while the question is still unanswered — the same idempotency
 idiom as `effects.create_once`.
 
@@ -82,14 +82,16 @@ after the intent is committed:
 ![The outbox: a step records a PendingAction (no I/O), the runtime commits it, and only after the commit a dispatcher calls the world once per stable id. Replay, retry and merge rebuild state from the commit chain and never re-send.](../img/outbox-flow.svg)
 
 ```python
-from reactifact import Artifact, Effects, PendingAction, Runtime, Step
+from reactifact import Artifact, Effects, Outbox, PendingAction, Runtime, Step
 
 
 class Notify(Step):
     consumes = (Order,)
-    produces = (Receipt,)
+    produces = (Receipt, PendingAction)  # outbox.act creates a PendingAction
 
-    async def run(self, order: Artifact[Order], effects: Effects) -> None:
+    async def run(
+        self, order: Artifact[Order], effects: Effects, outbox: Outbox
+    ) -> None:
         # stable, content-derived key -> idempotent re-runs and merges
         outbox.act(
             "notify",
@@ -104,7 +106,7 @@ async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
         await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
 
 
-runtime = Runtime(ctx, groups=[Notifier()], dispatcher=dispatch)
+runtime = Runtime(ctx, groups=[Notify()], dispatcher=dispatch)
 ```
 
 The runtime dispatches every committed-but-undispatched `PendingAction` after a
@@ -139,7 +141,7 @@ Why it holds up:
 For "the model decides which tool to call" flows, use the built-in agents:
 
 ```python
-from reactifact import Consume, Step
+from reactifact import Consume
 from reactifact.llm_agent import HITLLMAgent
 
 class OpsAgent(HITLLMAgent):
@@ -149,7 +151,7 @@ class OpsAgent(HITLLMAgent):
     max_steps = 8
     max_asks = 2
     consumes = [Consume(Project)]
-    steps = [Step(Report)]
+    steps = [BuildReport()]  # your step: consumes ToolAnswer -> Report
 ```
 
 - `LLMAgent` — blocking loop: the LLM emits `tool_call`, the runtime runs the
@@ -314,8 +316,8 @@ way it would read a mixed list from several ordinary `Consume`s — no
 ## Selecting one of several triggers
 
 Each step owns its consume contract, so an agent with several steps does not
-need a global `reacts_to`: a step that consumes `ResolvedDocuments` simply does
-not run for a `DecisionReply` event.
+need a global trigger: a step that consumes `ResolvedDocuments` simply does not
+run for a `DecisionReply` event.
 
 ```python
 class FinalizeWithDocuments(Step):
@@ -417,7 +419,7 @@ consumes = [Consume(Evidence, debounce=True)]
 
 The single run reads `inputs` (collected fresh from `Context`), not
 `event` — that's exactly the "which one changed" information debouncing
-discards, so a debounced produce should never key off `event` for anything
+discards, so a debounced step should never key off `event` for anything
 beyond "something changed." Debouncing is scoped to the `Consume` it's set
 on, not the whole agent: an agent with a mix of debounced and
 non-debounced `Consume`s only collapses the debounced type's events. A
@@ -461,7 +463,7 @@ part of the product, not a lifecycle.
 runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrency=2)
 ```
 
-- `max_runs`, `max_iterations`, `max_time_s`, tool-call caps — the runtime
+- `max_runs`, `max_iterations`, `max_seconds`, tool-call caps — the runtime
   stops and reports `RunOutcome` (`completed` | `budget_exhausted` | …) with
   `RunStats`.
 - `StepGroup.concurrency_limit` (LLM-bound agents default to a lower cap) + the
@@ -486,7 +488,7 @@ session = await store.open(session_id, resources=resources)
 ```
 
 `store.open` rehydrates the context from the last checkpoint; a background
-agent (`@consume`/trigger) can trim history, update a `handled_msg` pointer, and
+step (`Consume`/trigger) can trim history, update a `handled_msg` pointer, and
 patch pending questions. The web demos ship this pattern verbatim.
 
 ## Status machines for long lifecycles
@@ -495,16 +497,16 @@ See [recipes](recipes.md). The rule of thumb for choosing between patterns:
 
 | Situation | Approach |
 | --- | --- |
-| An artifact moves through phase states | `StatusMachine` + verify-produce |
+| An artifact moves through phase states | `StatusMachine` + a verification step |
 | A workflow needs to roll *back* on user edits | stage guard + `_downstream_resets` |
 | Explore & compare alternative states | `branch()` + `merge()` (§39-§40) |
 | "Which of these did the model pick?" | `PickStage`-style parse + guard |
 
 ## Determinism as a habit
 
-- The **produce contract**: write `effects.create/update/delete/link/upsert(...)` and
+- The **step contract**: write `effects.create/update/delete/link/upsert(...)` and
   return `None`; the runtime compiles the slot into one atomic patch (§24).
-  `Patch` is the transport — you rarely type it in an ordinary produce.
+  `Patch` is the transport — you rarely type it in an ordinary step.
 - Make eligibility a guard, not a lucky scheduling accident (`return None` early).
 - Prefer stable ids (`answer:{qid}`, `ref:{sid}:{owner}`) → idempotent re-runs.
   `effects.create_once(Model(...), id=...)` folds the "already done"

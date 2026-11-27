@@ -35,7 +35,8 @@ Being upfront about this matters more than the feature table:
 - **You need a large pre-built agent/tool ecosystem.** LangGraph and CrewAI
   both have more third-party integrations, more Stack Overflow answers, more
   production war stories. reactifact's `Source` abstraction is intentionally
-  small (filesystem, CSV, embeddings, web) — you write the rest. `reactifact.mcp`
+  small (filesystem, CSV, web); vector retrieval lives in the optional
+  `reactifact.knowledge` layer (`KnowledgePipeline` + `IndexSource`). `reactifact.mcp`
   ([docs](mcp.md)) reaches any MCP server as a `Tool`, which narrows this for
   tool-calling specifically, but doesn't touch `Source`/retrieval integrations.
 - **Your team already has deep LangGraph investment.** Rewriting a working
@@ -70,9 +71,9 @@ reactifact agents declare `consumes`/`produces` — what artifact types they rea
 to and what they can create. The runtime derives execution from **which
 artifacts actually exist**, not from a pre-declared path. Two agents that have
 never heard of each other compose correctly as long as one produces what the
-other consumes. This is also why there's no `viz.blueprint()` node-and-edge
-picture to keep in sync by hand — see [Why reactifact](why-reactifact.md) for the
-full argument.
+other consumes. `viz.blueprint()` renders that static consumes/produces
+declaration map; it is not an execution graph you keep in sync by hand — see
+[Why reactifact](why-reactifact.md) for the full argument.
 
 ### 3. Provenance: bolt-on vs. built-in
 
@@ -82,7 +83,7 @@ first-class notion of "this Answer artifact is *derived from* this Evidence,
 which was *extracted from* this Doc."
 
 In reactifact, `effects.create(...).link("supported_by", evidence)` is a normal
-part of writing a produce, and the resulting graph is queryable:
+part of writing a step, and the resulting graph is queryable:
 `context.related(answer.id, "supported_by")`, or rendered as a Mermaid graph
 via `context_to_mermaid()`. This isn't a logging add-on — it's the same
 mechanism the runtime uses to decide what to re-run after a rollback.

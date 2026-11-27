@@ -2,7 +2,8 @@
 
 A `Consume` answers two questions: *does this agent run at all* (`wakes`) and
 *which artifacts become its inputs* (`collect`). All parameters can be class
-attributes (for a `StepGroup` subclass) or constructor arguments.
+attributes (for a `Consume` subclass) or constructor arguments; a `StepGroup`
+holds a `consumes` sequence of those objects.
 
 ## Common parameters
 
@@ -13,6 +14,7 @@ attributes (for a `StepGroup` subclass) or constructor arguments.
 | `event_types` | which events wake it (default `CREATED`, `UPDATED`) |
 | `wakes` | `False` = feed inputs but never trigger a run (default `True`) |
 | `debounce` | collapse several same-generation events into one run |
+| `include_subclasses` | also match subclasses of `artifact_type` (default exact type); `Consume.by_base(Base)` is the factory form |
 
 `Consume(T)` fires when a `T` is created or updated.
 

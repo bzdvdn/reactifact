@@ -79,6 +79,19 @@ return Ensure(Answer(text=...), source=question, prefix="answer")
 повторяет `create_once` / `create_once_from`. `None` означает «изменений нет»
 (guard или неподходящая ветка).
 
+Для мутаций возвращайте `Edit`, `Drop` или `Relate`, а не вызывайте effects:
+
+```python
+from reactifact import Drop, Edit, Relate
+
+return Edit(ticket, status="closed")          # effects.update
+return Drop(ticket)                            # effects.delete
+return Relate(answer, "supported_by", evidence)
+```
+
+Используйте `effects` для batch/условных записей или когда id вычисляется в
+runtime. `None` означает «изменений нет».
+
 ## Идемпотентность: `create_once` и `upsert`
 
 Пересобираемому id (`f"answer:{qid}"`) нужен гард — `create_once` сворачивает
@@ -97,22 +110,26 @@ if handle is None:
 effects.upsert(Summary(...), id=f"summary:{doc_id}")
 ```
 
-## Внешние эффекты: `act` (outbox)
+## Human и outbox — не effects
 
-`create`/`update`/`link`/`ask` меняют *состояние*. Письмо, webhook или деплой
-меняют *мир* и не должны повторяться при replay/retry. Запишите намерение —
-runtime выполнит его после коммита:
+`Effects` — поверхность записи данных. Рядом инжектируются два не-данных
+коллаборатора:
+
+- `Human.ask(...)` / `Human.resume(...)` — HITL на базе `PendingQuestion`;
+- `Outbox.act(...)` — намерение внешнего side effect на базе `PendingAction`.
 
 ```python
-outbox.act(
-    "notify", key=f"notify:{order_id}:email", payload={"to": email}
-)
+@step(produces=PendingAction, consumes=Ticket)
+def notify(ticket: Ticket, outbox: Outbox) -> None:
+    outbox.act("notify", key=f"notify:{ticket.id}", payload={"to": ticket.email})
 ```
 
-`act` создаёт `PendingAction` под стабильным id `action:{key}`. Шаг **не**
-выполняет I/O сам: передайте `Runtime(dispatcher=...)`, и runtime вызовет его
-один раз на закоммиченное намерение. См. [Outbox](patterns.md#outbox-side-effects)
-и [durability](durability.md).
+`Outbox.act` создаёт `PendingAction` под стабильным id `action:{key}` (retry или
+ветка, дошедшая до того же действия, не создаёт второе). Шаг **не** выполняет
+I/O сам: передайте `Runtime(dispatcher=...)`, и runtime вызовет его один раз на
+закоммиченное намерение, записав `dispatched`/`failed`. См.
+[patterns — Outbox](patterns.md#outbox-side-effects) и [durability](durability.md).
+`Effects.ask/resume/act` удалены; используйте `Human`/`Outbox`.
 
 ## Progress — не данные и не эффект
 
@@ -161,9 +178,10 @@ status-артефактом (`recipes.status.StatusMachine`).
 
 - **`StepGroup.run`** — escape hatch для кастомных агентов, собирающих change-set
   вручную.
-- **Рецепты** (`fan_out_sources`, `materialize_doc`) и `StatusMachine` пишут в
-  слот; tool loop (`ToolUse`/`ToolUseHITL`) и HITL (`human.ask`) — это взаимодействие, не запись данных
-  эффекты.
+- **Рецепты** (`fan_out_sources`, `materialize_doc`) пишут в слот;
+  return-style шаги вроде `StatusMachine` возвращают `Edit`. Tool loop
+  (`ToolUse`/`ToolUseHITL`) и HITL (`human.ask`) — это взаимодействие, а не
+  прямая запись данных.
 - **Тесты и продвинутая сборка** могут строить `Patch`; обычным шагам он не
   нужен.
 

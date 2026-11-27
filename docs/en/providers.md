@@ -7,11 +7,11 @@ through narrow contracts (`LLMProvider`, `EmbeddingProvider`, …).
 
 ## Contracts
 
-The core itself knows four contracts:
+The core itself knows these contracts:
 
 | Contract | Role |
 | --- | --- |
-| `LLMProvider` | text generation (`generate`, `stream`) |
+| `LLMProvider` | text generation (`complete`, `stream`) |
 | `EmbeddingProvider` | vector embeddings |
 | `ImageProvider` | image generation |
 | `SpeechProvider` / `TranscriberProvider` | TTS / STT |

@@ -10,8 +10,8 @@ reactifact поставляет **Agent Skills** — файлы `SKILL.md`, ко
 (артефакты, produce/consume, эффекты, провенанс) не похожа на
 mutation-ориентированные агентные фреймворки, и модель, обученная на них, иначе
 напишет императивный код с состоянием, воюющий с рантаймом. Скиллы кодируют
-ментальную модель и типовые ошибки — а каждый исполняемый блок кода в них
-прогоняется в CI, поэтому они не гниют незаметно.
+ментальную модель и типовые ошибки — а каждый исполняемый блок кода в
+`SKILL.md` прогоняется в CI, поэтому ключевые примеры не гниют незаметно.
 
 ## Установка
 
@@ -36,9 +36,9 @@ OpenCode; Claude Code читает ещё и `.claude/skills/`, а проект�
 | Скилл | Для чего |
 | --- | --- |
 | `reactifact` | Точка входа: ментальная модель, три инварианта, рабочая петля (design → implement → wire → test → evaluate), таблица маршрутизации и топ-ошибки. Читать первым. |
-| `reactifact-agents` | Глубокий авторинг агентов и produce: `scope=`/`Unscoped`, lifecycle-consumes, side-effect-only шаги, варианты `Consume`, все эффекты, id/идемпотентность, провенанс, планирование и когда нужен низкоуровневый API. |
+| `reactifact-agents` | Глубокий авторинг агентов, шагов и produce: `scope=`/`Unscoped`, lifecycle-consumes, side-effect-only шаги, варианты `Consume`, все эффекты, id/идемпотентность, провенанс, планирование и когда нужен низкоуровневый API. |
 | `reactifact-llm` | LLM-шаги: провайдеры, структурный вывод в типизированные артефакты, `StructuredGenerateAgent`/`LLMAgent`/HITL, `@tool`, промпты, бюджеты токенов/стоимости. |
-| `reactifact-rag` | Ретрив: источники (filesystem, CSV, web, embeddings), `fan_out_sources`, `materialize_doc`, `TurnContext` и готовые рецепты (router, plan-execute, reflection, memory). |
+| `reactifact-rag` | Ретрив: источники (filesystem, CSV, web), опциональный knowledge-слой + `IndexSource` для векторного поиска, `fan_out_sources`, `materialize_doc`, `TurnContext` и готовые рецепты (router, plan-execute, reflection, memory). |
 | `reactifact-testing` | Детерминированные тесты через `ScenarioLab`: ассерты, инъекция сбоев, record/replay, golden-снимки, pytest-плагин и CLI `scenario`. |
 | `reactifact-eval` | Оценка качества по датасету: многоуровневые метрики, сопоставление типизированных траекторий, LLM-as-judge и CI-гейт. |
 | `reactifact-observability` | Трейсы и `TraceStore`, метрики Prometheus, сессии/устойчивость, детерминированный replay и ветвление, CLI graph/trace. |
@@ -49,5 +49,6 @@ OpenCode; Claude Code читает ещё и `.claude/skills/`, а проект�
 Каждый скилл — `reactifact/skills/<name>/SKILL.md` с YAML-frontmatter
 (`name`, `description`) и телом-workflow; объёмный справочный материал лежит в
 папке `references/` скилла и читается только при необходимости. Блок
-```` ```python ```` исполняется в CI, если не начинается с `# not-run`
-(иллюстративные фрагменты), поэтому примеры всегда валидны для текущего API.
+```` ```python ```` в `SKILL.md` исполняется в CI, если не начинается с
+`# not-run` (иллюстративные фрагменты), поэтому эти примеры остаются
+валидными для текущего API.

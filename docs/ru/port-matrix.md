@@ -15,6 +15,7 @@
 | Eval-driven разработка (DSPy) | DSPy | многоуровневые метрики `reactifact.eval` (§56) | `examples` + тесты |
 | Бюджет инструментов / честность сбоя | — | `Budget` + детерминированные фолбэки, пути `None` (§59) | `devops`, `repair` |
 | Внешние side effects (outbox) | — | `outbox.act` + `Runtime(dispatcher=...)`, стабильный id, replay-safe состояние | `outbox` |
+| Code review / diff analysis | — | детерминированные rule-шаги + опциональные `StructuredLLM` findings, связанный отчёт | `code_review` |
 | Примитивы фреймворка (версии, селекторы, durability) | — | `version_history`/`diff`/`compact`, `Latest`/`Wakes`/`debounce`, `SessionStore`/replay | `tour` |
 
 Всё выше работает **офлайн** (детерминированные фолбэки) и, с моделью через

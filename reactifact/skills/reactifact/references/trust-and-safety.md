@@ -61,7 +61,7 @@ resources = RuntimeResources(
   capabilities matches.
 - Enforced by the runtime on `run` (agent name) and `create`/`update`/`delete`
   (artifact type), and by the tool loop on `execute` (tool name).
-- A produce asks with the injected `access: Access` collaborator:
+- A step checks with the injected `access: Access` collaborator:
   `access.can("read", id)` for a branch, `access.require("read", id)` to raise.
   It wraps `resources.authorize`/`require_authorized`; with no authorizer,
   `can` is always true and `require` is a no-op.

@@ -110,10 +110,10 @@ session = await store.open("user-42", resources=resources)
 assert session.loaded
 ```
 
-Backends: `InMemoryKVBackend`, `FileKVBackend`, `SQLiteKVBackend`,
-`PostgreSQLKVBackend` (the `pg` extra). Checkpoint backends
-(`FileBackend`, `SQLiteBackend`, `PostgreSQLKVBackend`) snapshot the working
-tree/commit chain for branching and time travel.
+Session KV backends: `InMemoryKVBackend`, `FileKVBackend`, `SQLiteKVBackend`,
+`PostgreSQLKVBackend` (the `pg` extra, an `AppendBackend`). Checkpoint backends
+(`FileBackend`, `SQLiteBackend`) snapshot the working tree/commit chain for
+branching and time travel.
 
 ## Replay and branching
 

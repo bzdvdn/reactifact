@@ -47,8 +47,10 @@ do.
    `OnUpdate`, `OnDelete`, `OnStale`; `IdempotentConsume` for "only while the
    target id is absent"; `JoinConsume`/`AbsentConsume` for set-shaped wakes.
 3. **A recipe** when the flow is a known pattern: `TurnContextStep` for a
-   conversation window + digest, `ApprovalGate`, `ReflectionLoop`,
-   `PlanExecute`, `StatusMachine`, `WindowPruner`, `materialize_doc`.
+   conversation window + digest, `Route` (expand with `route.groups()`) for
+   mutually exclusive cases, `ApprovalGate`, `ReflectionLoop`, `PlanExecute`,
+   `StatusMachine`, `WindowPruner`, `materialize_doc`. Use `Verify(Answer)` for
+   live quality checks without a dummy `Step(...)`.
 4. **Low-level API only when the flow is genuinely imperative:** a hand-written
    `StepGroup.run(event, context) -> Patch`, direct `Context` queries that
    cannot be expressed as typed inputs, or a custom `Patch` for an integration.
@@ -57,7 +59,9 @@ do.
 
 The same ladder applies to conversations: prefer `TurnContextStep` +
 `Consume(TurnContext)` over every step taking `Context` and rebuilding the
-transcript.
+transcript. Inside a step use `Conversation.add_effect(effects, ...)` (not
+`add`, which writes directly); `window=0` renders an empty window when you
+deliberately want no history.
 
 ## Canonical example
 
@@ -107,7 +111,7 @@ single-pass variants.
 | --- | --- | --- |
 | one run of a pipeline (script, job, service) | `Pipeline(steps=[...])` | owns resources/defaults, `run/arun`, `answer()`/`aanswer()`, `seed_type`/`answer_type`, optional `traces=` |
 | a persisted multi-turn chat | `Chat(steps=[...], seed_type=..., answer_type=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()` |
-| a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| groups=...)` | full control; `RunResult.trace()`/`traces` stay available |
+| a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| groups=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
 
 For example, the same `Answerer` as a one-shot pipeline:
 
@@ -159,7 +163,7 @@ mutate state or call agents directly, and turn those into the model above —
 | --- | --- | --- |
 | Write/review steps, consumes, effects, provenance | `reactifact-agents` | `reactifact-agents/references/consume.md`, `reactifact-agents/references/effects.md` |
 | Add an LLM step, structured output, tools, budget | `reactifact-llm` | `reactifact-llm/references/providers.md`, `reactifact-llm/references/tools.md` |
-| Retrieve from files/CSV/web/embeddings, RAG, fan-out | `reactifact-rag` | `reactifact-rag/references/sources.md` |
+| Retrieve from files/CSV/web/knowledge, RAG, fan-out | `reactifact-rag` | `reactifact-rag/references/sources.md` |
 | Guardrails, authorization/scopes, per-tenant quota | this skill | `reactifact/references/trust-and-safety.md` |
 | Test/debug a pipeline deterministically | `reactifact-testing` | — |
 | Score quality over a dataset, CI gate | `reactifact-eval` | — |
@@ -172,7 +176,7 @@ https://bzdvdn.github.io/reactifact/): an installed skill bundle carries only
 the skills and their `references/`, not the docs tree.
 
 Docs (when the skills are not enough): `docs/en/concepts.md`,
-`docs/en/effects.md`, `docs/en/recipes.md`, `docs/en/llm.md`,
+`docs/en/effects.md`, `docs/en/recipes.md`, `docs/en/providers.md`,
 `docs/en/testing.md`, `docs/en/eval.md`, `docs/en/observability.md`.
 
 ## Top mistakes (and the structural fix)

@@ -10,8 +10,8 @@ This matters more here than for a typical library: reactifact's paradigm
 (artifacts, produce/consume, effects, provenance) is unlike mutation-style agent
 frameworks, and a model trained on those will otherwise write stateful,
 imperative code that fights the runtime. The skills encode the mental model and
-the failure modes — and every runnable code block in them is executed in CI, so
-they cannot silently rot.
+the failure modes — and every runnable code block in a `SKILL.md` is executed
+in CI, so the core examples cannot silently rot.
 
 ## Install
 
@@ -36,9 +36,9 @@ whole team gets the same guidance.
 | Skill | Use it for |
 | --- | --- |
 | `reactifact` | The entry point: the mental model, the three invariants, the working loop (design → implement → wire → test → evaluate), a routing table, and the top mistakes. Read this first. |
-| `reactifact-agents` | Authoring agents and produces deeply: `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps, `Consume` variants, every effect, ids/idempotency, provenance, scheduling, and when the low-level API is justified. |
+| `reactifact-agents` | Authoring agents, steps and produces deeply: `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps, `Consume` variants, every effect, ids/idempotency, provenance, scheduling, and when the low-level API is justified. |
 | `reactifact-llm` | LLM steps: providers, structured output into typed artifacts, `StructuredGenerateAgent`/`LLMAgent`/HITL, `@tool`, prompts, and token/cost budgets. |
-| `reactifact-rag` | Retrieval: sources (filesystem, CSV, web, embeddings), `fan_out_sources`, `materialize_doc`, `TurnContext`, and the ready-made recipes (router, plan-execute, reflection, memory). |
+| `reactifact-rag` | Retrieval: sources (filesystem, CSV, web), the optional knowledge layer + `IndexSource` for vector search, `fan_out_sources`, `materialize_doc`, `TurnContext`, and the ready-made recipes (router, plan-execute, reflection, memory). |
 | `reactifact-testing` | Deterministic tests with `ScenarioLab`: assertions, fault injection, record/replay, golden snapshots, the pytest plugin and the `scenario` CLI. |
 | `reactifact-eval` | Quality measurement over a dataset: multi-level metrics, typed trajectory matching, LLM-as-judge, and the CI gate. |
 | `reactifact-observability` | Traces and `TraceStore`, Prometheus metrics, sessions/durability, deterministic replay and branching, and the graph/trace CLI. |
@@ -49,6 +49,6 @@ whole team gets the same guidance.
 Each skill is `reactifact/skills/<name>/SKILL.md` with YAML frontmatter
 (`name`, `description`) followed by the workflow; larger lookup material lives
 in the skill's `references/` folder and is read only when needed. A fenced
-```` ```python ```` block runs in CI unless it begins with `# not-run`
-(illustrative fragments), so the examples are always valid against the current
-API.
+```` ```python ```` block in a `SKILL.md` runs in CI unless it begins with a
+`# not-run` (illustrative fragments), so those examples stay valid against the
+current API.

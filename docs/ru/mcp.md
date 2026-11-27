@@ -136,9 +136,9 @@ app.mount("/mcp", server.streamable_http_app())
 
 ## Модель безопасности: встроенной авторизации нет
 
-У reactifact нет встроенного примитива прав/авторизации — это касается и MCP
-конкретно, и фреймворка в целом (§57 явно помечен «planned», не
-«implemented»; см. appendix статуса реализации в `docs/constitution.md`).
+Авторизация в reactifact включается опционально на `RuntimeResources`
+(`Principal`, `PermissionPolicy`, `Access`; см. [Trust & safety](safety.md)).
+Сам MCP-мост не добавляет авторизацию по ресурсам или инструментам.
 Конкретно для `create_mcp_server`:
 
 - Оба ресурса `context=` (`context://artifacts/...`, `context://artifact/...`)

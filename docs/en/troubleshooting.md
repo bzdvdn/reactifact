@@ -33,7 +33,7 @@ condition was false for the artifact that exists.
 
 ## "My agent ran, but produced nothing"
 
-A produce returning early (`return None`) is the normal, honest shape of "not
+A step returning early (`return None`) is the normal, honest shape of "not
 eligible yet" or "nothing to do" (§59) — it is not itself an error, so it
 won't show up as one.
 

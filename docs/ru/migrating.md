@@ -156,9 +156,9 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 
 Для полного контроля соберите тот же пайплайн руками через `fan_out_sources` +
 `materialize_doc` и произведите `Answer`, связанный `supported_by` с
-документами (`examples/knowledge`). Поиск — это
-возможность `Source` (filesystem/CSV/embeddings/web), а не захардкоженная
-цепочка: меняете источник, агенты остаются.
+документами (`examples/knowledge`). Поиск — это возможность `Source`
+(filesystem/CSV/web или `KnowledgePipeline` + `IndexSource` для векторного
+поиска), а не захардкоженная цепочка: меняете источник, агенты остаются.
 
 ## 7. Tool-циклы
 

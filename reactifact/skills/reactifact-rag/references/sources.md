@@ -19,7 +19,7 @@ resources = RuntimeResources(sources={
 ```python
 # not-run: illustrative
 class Source(ABC):
-    preferred: bool = False            # polled first when true (e.g. vector RAG)
+    preferred: bool = False            # advisory hint; aggregators rank by score
     def search(self, query: str, limit: int = 10) -> list[SourceRef]: ...
     async def asearch(self, query, limit=10) -> list[SourceRef]: ...   # default: search()
     async def resolve(self, ref: SourceRef) -> Any: ...
@@ -52,7 +52,8 @@ Access a source by id with `context.resources.get_source(source_id)`.
 # not-run: illustrative
 SourceRef(
     source_id="docs",
-    locator="guide.md",          # path / URL / row index / chunk id
+    locator="guide.md",          # path / URL / row index
+    fragment="chunk-3",          # chunk/section inside the locator
     score=0.82,
     title="Guide",
     excerpt="...",
@@ -61,7 +62,8 @@ SourceRef(
 )
 ```
 
-`stable_id()` hashes `source_id:locator` — the basis for idempotent creation.
+`stable_id()` hashes `source_id:locator` plus the optional `fragment` — the
+basis for idempotent creation and distinct chunk refs.
 A `SourceRef` is an artifact: you can link answers to it and query it later.
 
 ## fan_out_sources
@@ -80,8 +82,8 @@ refs = await fan_out_sources(
 )
 ```
 
-Polls every source (preferred first), ranks by score, keeps the top `limit`, and
-creates each as an idempotent artifact `id=f"ref:{stable_id}:{owner_id}"`. Must
+Polls every source in registration order, ranks by score, keeps the top
+`limit`, and creates each as an idempotent artifact `id=f"ref:{stable_id}:{owner_id}"`. Must
 run inside a step (it writes into the current effects). Returns the scoped
 refs so the caller can inspect them or add a marker.
 

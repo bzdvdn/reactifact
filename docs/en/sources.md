@@ -41,6 +41,7 @@ The shared result of *every* search is a `SourceRef` — a ranked, scoped pointe
 class SourceRef(BaseModel):
     source_id: str         # which source produced it
     locator: str           # stable locator inside the source (path / URL / id)
+    fragment: str = ""     # chunk/section inside the locator; part of stable_id
     metadata: dict         # owner_id scoping, structured flag, extra context
     score: float | None    # rank/hit score, if the source scores
     title: str             # optional display title
@@ -48,8 +49,10 @@ class SourceRef(BaseModel):
     query_id: str          # the query that found it
 ```
 
-`SourceRef.stable_id()` lets you build deterministic artifact ids
-(`ref:{stable_id}:{owner_id}` in `fan_out_sources`), so repeated searches are
+`SourceRef.stable_id()` hashes `source_id:locator` plus the optional `fragment`,
+so several chunks of one document get distinct refs; it lets you build
+deterministic artifact ids (`ref:{stable_id}:{owner_id}` in `fan_out_sources`),
+so repeated searches are
 idempotent.
 
 ## The three built-in sources

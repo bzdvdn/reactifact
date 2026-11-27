@@ -81,9 +81,9 @@ def step(
         @step(produces=Answer, consumes=Question)
         def answer(call): return Answer(...)
 
-    `artifact_type`/`also_creates`/`reacts_to` are the 0.1.x spellings, kept
-    for compatibility (`artifact_type` is the same as a one-element
-    `produces`).
+    `artifact_type` is the 0.1.x spelling kept for compatibility (the same as a
+    one-element `produces`); `also_creates=`/`reacts_to=` are not accepted here
+    — put extra creates in `produces` and triggers in `consumes`.
 
     The function may take one `call: StepCall` (the 0.1.x shape) or a typed
     signature — parameter annotations are artifact types (`T`, `list[T]`,

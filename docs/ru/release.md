@@ -17,20 +17,23 @@ Changelog). При бампе версии:
 
 1. перенесите незакрытые пункты под новый заголовок `## [X.Y.Z] — <дата>`;
 2. сгруппируйте `Added` / `Changed` / `Removed` (в т.ч. устаревшее);
-3. явно помечайте ломающие изменения даже в `rc`.
+3. все ломающие изменения выносите под заголовок `### Breaking`, даже в `rc`.
 
 ## Обновление между версиями
 
-Для 0.24.0 есть [migration-гайд](migration-0.24.md); для 0.23.0 — [свой](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
+Для 0.25.0 есть [migration-гайд](migration-0.25.md); для 0.24.0 — [свой](migration-0.24.md); для 0.23.0 — [свой](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
 о том, что изменилось, — `CHANGELOG.md`; ломающие изменения помечены по правилу
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
-- **0.25.0** — аддитивная эргономика: `scope=` у `Step`/`@step`, `Unscoped()`
-  для истории между ходами, рецепт `TurnContext`, side-effect-only шаги,
-  типизированный `CurrentRequest`, `Step.progress`, конфиг
-  `[tool.reactifact]`, `skills install --target opencode|all|auto`. Без
-  migration-гайда: ломающих изменений нет.
+- **0.25.0** — в основном аддитивная эргономика: `scope=` у `Step`/`@step`,
+  `Unscoped()` для истории между ходами, рецепт `TurnContext`, side-effect-only
+  шаги, типизированный `CurrentRequest`, `Step.progress`, конфиг
+  `[tool.reactifact]`, `skills install --target opencode|all|auto`. Два
+  запланированных удаления ломают совместимость: `EmbeddingSource`
+  (используйте knowledge-слой + `IndexSource`) и shim-модули инструментов из
+  0.20 (используйте `reactifact.tools.*`). См.
+  [migration-гайд 0.25](migration-0.25.md).
 - **0.24.0** — CLI/daemon/MCP/HTTP-адаптеры, `check`, `new agent`,
   `demo --web`, pipeline tools и HITL/approval-рецепты. LLM-хелперы
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
@@ -142,7 +145,7 @@ uv build                         # dist/reactifact-0.25.0-py3-none-any.whl + sdi
 
 # 4) проверка wheel в чистом venv (не workspace — чтобы не цеплял PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.25.0-py3-none-any.whl
+uv pip install --python /tmp/reactifact-rc/bin/python dist/reactifact-0.25.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/reactifact --help          # console-скрипт на месте
 unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
@@ -156,10 +159,11 @@ uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
 
 ## Что входит в дистрибутив
 
-`uv build` пакует только пакет `reactifact` (setuptools `packages.find` исключает
+Wheel пакует только пакет `reactifact` (setuptools `packages.find` исключает
 `examples`/`tests`) плюс шаблоны трейс-дашборда
-(`reactifact/tracing/templates/*.html`). Примеры, тесты и docs остаются в
-репозитории и служат документацией-примером.
+(`reactifact/tracing/templates/*.html`). Sdist дополнительно несёт тесты для
+упаковщиков; примеры и docs остаются в репозитории и служат
+документацией-примером.
 
 ## Откат
 

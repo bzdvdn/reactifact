@@ -76,7 +76,7 @@ app.include_router(create_a2a_router([RouteGroup(), …], name="ops-agent"))
 
 | A2A | reactifact |
 | --- | --- |
-| Agent Card (`skills`) | строится из `produces` каждого агента |
+| Agent Card (`skills`) | строится из типов артефактов, которые производят `steps` каждого агента |
 | Task | одна беседа над `Context` |
 | `message/send` | сид через `create_message(ctx, text)`, прогон агентов до фикспоинта, ответ через `reply(ctx, seed_id)` |
 | `message/stream` (SSE) | рабочий Task, status-update на каждый `context.announce()`, затем финальный Task |
@@ -103,8 +103,9 @@ app.include_router(create_a2a_router(GROUPS, create_message=create_message, repl
 Сервер проверен против **официального клиента `a2a-sdk`** (тест из `a2a`-группы
 зависимостей, не рантайм): эталонный клиент резолвит нашу Agent Card и зовёт
 `message/send`, получая Task со статусом `completed` и артефактом-ответом — см.
-`tests/test_a2a_interop.py`. `a2a-sdk` — только тест-зависимость (своя группа
-`a2a`); рантайм остаётся на `httpx` + FastAPI и ни на чём больше.
+`tests/test_a2a_interop.py`. `a2a-sdk` используется только этим interop-тестом
+(группа/extra `a2a`); сам рантайм остаётся на `httpx` + FastAPI и ни на чём
+больше.
 
 ## Область
 

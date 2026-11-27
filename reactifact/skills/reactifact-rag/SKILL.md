@@ -18,7 +18,7 @@ Register sources on `RuntimeResources(sources={...})`; an agent retrieves via
 | Source | Search |
 | --- | --- |
 | `FileSystemSource(root, source_id=..., scorer=...)` | lexical over `.md`/`.txt` |
-| `CSVSource(root, source_id=..., scorer=...)` | lexical over rows (returns a dict) |
+| `CSVSource(root, source_id=..., scorer=...)` | lexical over rows; `resolve` returns a row dict |
 | `WebSource(urls=[...])` | fetch + keyword |
 
 Vector retrieval is the optional knowledge layer (`KnowledgePipeline` +
@@ -26,7 +26,8 @@ Vector retrieval is the optional knowledge layer (`KnowledgePipeline` +
 `asearch` for embeddings.
 
 `SourceRef` (an artifact you can save and link) carries `source_id`, `locator`,
-`score`, `title`, `query_id`, `metadata`.
+`fragment`, `score`, `title`, `excerpt`, `query_id`, `metadata`; `fragment`
+distinguishes chunks of one document and participates in `stable_id()`.
 
 ## Fan out → materialize (the RAG shape)
 
@@ -58,14 +59,19 @@ class MemorySource(Source):
     def search(self, query, limit=10):
         terms = query.lower().split()
         scored = [
-            (doc, sum(term in doc.lower() for term in terms))
-            for doc in self._docs
+            (i, doc, sum(term in doc.lower() for term in terms))
+            for i, doc in enumerate(self._docs)
         ]
-        hits = [(doc, score) for doc, score in scored if score]
+        hits = [(i, doc, score) for i, doc, score in scored if score]
         return [
-            SourceRef(source_id=self.source_id, locator=str(i), title=doc, score=float(s))
-            for i, (doc, s) in enumerate(hits)
-        ][:limit]
+            SourceRef(
+                source_id=self.source_id,
+                locator=str(i),
+                title=doc,
+                score=float(score),
+            )
+            for i, doc, score in hits[:limit]
+        ]
 
     async def resolve(self, ref):
         return self._docs[int(ref.locator)]
@@ -212,7 +218,8 @@ section/document on `resolve`; `principals` applies ACL filtering to every
 search, and `require_principals` turns a missing identity into an error.
 
 `reactifact.eval` ships retrieval metrics (recall, precision, MRR, nDCG, hit
-rate) and `cases_from_dataset` for dataset-driven retrieval evals.
+rate); `reactifact.knowledge.eval` adds `cases_from_dataset` for dataset-driven
+retrieval evals.
 
 ## Recipes (ready-made patterns)
 
@@ -224,6 +231,7 @@ the hooks.
 | --- | --- |
 | `fan_out_sources` / `materialize_doc` | retrieval + provenance (above) |
 | `Router` | classify into a route with a deterministic fallback |
+| `Route` / `RouteCase` | mutually exclusive case groups over one artifact field; expand with `route.groups()` |
 | `PlanExecute` | plan → execute → finish, gating each step on its predecessor |
 | `ReflectionLoop` | draft → critique → rewrite, with the accept threshold |
 | `StatusMachine` | advance an artifact's `status` via a pure `next_status` |
@@ -231,7 +239,7 @@ the hooks.
 | `EphemeralCleanup` / `PrefixedEphemeralCleanup` / `ScopedCleanup` | delete a turn's scratch artifacts, by type or by shared scope |
 | `WindowSummarizer` / `RollingDigestSummarizer` | periodic checkpoints / one growing digest (the bounded-window choice) |
 | `Conversation` / `Transcript` | multi-turn conversation as typed turns |
-| `TurnContext` / `TurnContextStep` | one artifact per turn: window, digest, previous query, follow-up flag |
+| `TurnContext` / `TurnContextStep` | one artifact per turn: bounded history, digest, previous query, follow-up flag |
 | `run_tool_loop` | a plain tool-calling loop (no full `LLMAgent`) |
 | `find` / `find_all` | pick typed artifacts out of `inputs` |
 | `changed_fields` / `downstream_fields` | the "change → rebuild" model |

@@ -10,11 +10,11 @@ Langfuse или Postgres.
 
 - **Спаны агентов** (`AgentSpan`) — что делал каждый агент: чтения и записи
   артефактов, суммарные ключ/значение патча, который он произвёл,
-  тип-потребитель, разбудивший агента (`event_artifact_type`), какие produces
+  тип-потребитель, разбудивший агента (`event_artifact_type`), какие шаги
   реально отработали (`produces`: имя, число операций, задержка) и какие
   инструменты он вызвал (`tools`: `ToolRun` имя/produce/задержка/статус/
   размер/output — аргументы opt-in, output усекается/редактируется политикой
-  трейса). Дашборд, OTLP (`reactifact.tools`) и Langfuse
+  трейса). Дашборд, OTLP (`reactifact.tracing`) и Langfuse
   (`langfuse.observation.metadata.tools`) несут тот же список; Langfuse/OTLP
   дополнительно дают child-span на каждый тул, размещённый по
   `ToolRun.started_at` (параллельные вызовы перекрываются). Аргументы по
@@ -67,12 +67,13 @@ from reactifact.tracing.web import create_trace_router
 app.include_router(create_trace_router(store), prefix="/traces")
 ```
 
-Он отдаёт `traces.html` (список запусков, фильтрация) и `run.html` (спаны,
-чтения, записи, ввод/вывод LLM, тайминги, нативную **causal chain**
-(runtime → agent → step → LLM/tool → commit) и живую Mermaid-диаграмму
-**граф доказательств** — записанные артефакты с рёбрами провенанса
-`patch.link`, §34). Пример `devops` монтирует этот роутер
-и служит эталонным UI.
+Он отдаёт общий app shell (`templates/app.css`): сворачиваемый sidebar
+(Traces / Sessions), `/traces` (список запусков с фильтрацией), `/traces/{id}`
+(stat-плитки, спаны, чтения, записи, ввод/вывод LLM, тайминги, нативная
+**causal chain** (runtime → agent → step → LLM/tool → commit) и живая
+Mermaid-диаграмма **граф доказательств** — записанные артефакты с рёбрами
+провенанса `patch.link`, §34) и `/sessions`. Пример `devops` монтирует этот
+роутер и служит эталонным UI.
 
 ![Список трейсов: фильтр по outcome и session, у каждой строки — длительность и число спанов.](../img/tracer-list.png)
 
@@ -246,8 +247,8 @@ app.include_router(create_trace_router(
 `any`) и точечный путь `field` внутрь данных артефакта. Шаг по списку берёт
 первый элемент, если не указан явный индекс: `sources.title` = `sources[0].title`,
 `sources.1.title` — второй. Если совпадений несколько, `index` по умолчанию —
-последний. Отсутствующий артефакт, `default` или обрезанный лимитом JSON — всё
-падает в `default`.
+последний. Отсутствующий артефакт, значение по умолчанию `—` или обрезанный
+лимитом JSON — всё падает в `default`.
 
 `scope="session"` решает колонку **на момент** run'а строки: берёт все run'ы
 сессии до него включительно (в хронологическом порядке), а не только текущий.
@@ -295,7 +296,7 @@ runtime = Runtime(
 
 Трейсы доставляются один раз в конце хода (семантика доставки-один-раз); трейсер
 Langfuse мапит суммарные чтения/записи в `input`/`output`, чтобы таймлайн читался
-в их UI; каждый отработавший produce становится дочерней observation, так что
+в их UI; каждый отработавший шаг становится дочерней observation, так что
 waterfall показывает шаги `Consume → Step`. SQLite `TraceStore` остаётся одним
 из источников для веб-дашборда; Postgres зеркалирует ту же схему `runs`/`spans`.
 
@@ -393,7 +394,7 @@ agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 то есть какие бы типы артефактов и связи приложение ни использовало (напр.
 пара `Answer`/`Evidence` и `supported_by`), они появляются сами.
 
-Для сигналов приложения (маршрут, отказ, источник) пишите их из produce через
+Для сигналов приложения (маршрут, отказ, источник) пишите их из шага через
 `RuntimeResources.metrics` — это no-op sink, пока не сконфигурирован, поэтому
 проверять на `None` не нужно:
 
@@ -405,20 +406,20 @@ runtime = Runtime(
     tracer=MetricsTracer(metrics),
 )
 
-# внутри produce, в точке решения:
+# внутри шага, в точке решения:
 call.context.resources.metrics.increment("route_total", route=route)
 call.context.resources.metrics.observe("docs_found", len(docs), source=source)
 ```
 
 `Metrics.render()` выдаёт Prometheus text exposition напрямую (без
 `prometheus_client`), поэтому `create_metrics_router` просто отдаёт его;
-`MetricsTracer` также композируется с сенками (`tracer=[TraceStore(…),
-MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят только
+`MetricsTracer` также композируется с приёмниками
+(`tracer=[TraceStore(…), MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят только
 **меняющие состояние** агенты, поэтому settle-поколение не считается.
 
 ## Модель эмиссии
 
-- Спаны эмитят только **меняющие состояние** агенты (чистый read/verify-produce
+- Спаны эмитят только **меняющие состояние** агенты (чистый read/verify-шаг
   ничего не эмитит — меньше шума).
 - Один `Tracer` на `CompositeTracer`: отдавайте один композит нескольким приёмникам.
 - `on_turn_end` — единая точка доставки: новый `astream`/`arun` продвигает id

@@ -6,9 +6,9 @@
 
 ## `find` / `find_all` — поиск типизированных артефактов в `inputs`
 
-Если агент объявляет больше одного типа в `consumes`, produce получает плоский
+Если агент объявляет больше одного типа в `consumes`, шаг получает плоский
 `list[Artifact[Any]]`; выбрать «тот самый Question» или «все Evidence» —
-почти в каждом produce одна и та же строка
+почти в каждом шаге одна и та же строка
 `next((a for a in inputs if isinstance(a.data, X)), None)`. `find`/`find_all` —
 типизированная замена в одну строку:
 
@@ -29,7 +29,8 @@ evidence = find_all(inputs, Evidence)       # list[Artifact[Evidence]]
 from reactifact import Emit
 from reactifact.recipes import search_sources, source_ref_id
 
-refs = await search_sources(context, question, owner_id=query_id, limit=5)
+query = question.data.text
+refs = await search_sources(context, query, owner_id=query_id, limit=5)
 return [Emit(ref, id=source_ref_id(ref, query_id)) for ref in refs]
 ```
 
@@ -42,7 +43,7 @@ from reactifact.recipes import fan_out_sources
 
 refs = await fan_out_sources(
     context,
-    query=question,
+    query=query,
     owner_id=query_id,           # скоуп рефов на владеющий ход
     limit=5,
     query_id=query_id,           # owner-ключ для провенанса
@@ -67,7 +68,7 @@ refs = await fan_out_sources(
 *повториться* при ретраях — те же id пересоздаются без дублей. `on_start` /
 `on_count` дают прогресс-аннонсы поверх SSE.
 
-## `MemoryStore` — namespaced long-term memory (§27)
+## `MemoryStore` — namespaced-долговременная память (§27) {: #memorystore-namespaced-long-term-memory-27 }
 
 ```python
 from reactifact.recipes import MemoryStore
@@ -241,24 +242,46 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
         return None
 
     def on_transition(self, context, key, old_status, new_status) -> None:
-        context.announce(f"Research status: {old} → {new}",
+        context.announce(f"Research status: {old_status} → {new_status}",
                          kind="status", query_id=key)
 ```
 
+Для машины с одним методом `StatusMachine.from_funcs(...)` избегает subclass:
+
+```python
+machine = StatusMachine.from_funcs(
+    artifact_type=ResearchTurn,
+    terminal={"answered", "insufficient"},
+    next_status=lambda state: "answered" if state.any(Answer) else None,
+)
+```
+
+Конструктор принимает те же опции:
+`StatusMachine(artifact_type=..., next_status=..., terminal=..., consumes=...)`.
+
 Механика (всё унаследовано от `Step`):
 
-- Будет разбужен любым событием; событие сопоставляется с жизненным циклом через
-  `owner_key` (читает `query_id_field` данных артефакта с фолбэком на его `id`).
-- Берёт первый подходящий артефакт `artifact_type`; `terminal`-статусы
-  останавливают машину.
-- `next_status` получает `StatusState`: target плюс входы шага, уже
-  отфильтрованные по `key`. `state.all(T)`, `state.any(T)` и `state.latest(T)`
-  заменяют повторяющийся `list_artifacts(T)` + проверку `query_id == key`.
+- Generic `StatusMachine[ResearchTurn]` задаёт `artifact_type`; явный
+  `artifact_type` тоже работает.
+- По умолчанию будится любым событием; `consumes=` сужает набор событий.
+  Событие сопоставляется с жизненным циклом через `owner_key(artifact)` (по
+  умолчанию читает `query_id_field` данных артефакта с фолбэком на его `id`).
+  Переопределите `owner_key`, если домен использует другой ключ; входы
+  `StatusState.inputs` фильтруются тем же хуком.
+- Берёт **последний** подходящий артефакт `artifact_type` (по `updated_at`);
+  `terminal`-статусы останавливают машину.
+- `next_status` получает типизированный `StatusState[StatusT]`: target плюс
+  входы шага, уже отфильтрованные по `key`. `state.status`, `state.all(T)`,
+  `state.any(T)` и `state.latest(T)` заменяют повторяющийся
+  `list_artifacts(T)` + проверку `query_id == key`.
 - `next_status` решает новый статус; `None` или отсутствие изменения ⇒ ничего не
   происходит.
-- Непосредственно перед применением вызывается `on_transition` — ваш хук для
+- Непосредственно перед применением вызывается
+  `on_transition(context, key, old_status, new_status)` — ваш хук для
   прогресс-аннонсов.
-- Переход — это эффект: `effects.update(target, **{status_field: new})`.
+- Переход — это return-style `Edit(target, **{status_field: new})`,
+  компилируемый в тот же update-effect; машина объявляет `produces=()`,
+  потому что обновляет target, а не создаёт новый артефакт.
 
 Логику *проверки* кладите в отдельный шаг, реагирующий на смену статуса, —
 машина и верификатор разделены, детерминированы и тестируются по отдельности.
@@ -302,13 +325,14 @@ turn_context = TurnContextStep(
 # groups=[turn_context, *answer_steps]
 ```
 
-Шаг создаёт `TurnContext` (или `artifact_type=`) с id `turn:{query_id}`.
-`TurnFacts` содержит trigger, текущий/предыдущий запрос, предыдущие
-artifact/answer, историю, digest и follow-up — поэтому доменный контекст может
-нести `prior_domain`/`routing_text` без чтения `Context`. `consume=OnCreate` —
-один артефакт на ход; `ensure=True` делает повторный запуск no-op.
-Комбинируйте с `Annotated[..., Unscoped()]`, когда другому шагу тоже нужна
-полная история.
+Шаг создаёт `TurnContext` (или `artifact_type=`) с id `turn:{trigger.id}`;
+`history` ограничена текущим trigger'ом (более поздние ходы не попадают) и
+сохраняет поля `turn`/`session_id`. `TurnFacts` содержит trigger,
+текущий/предыдущий запрос, предыдущие artifact/answer, историю, digest и
+follow-up — поэтому доменный контекст может нести
+`prior_domain`/`routing_text` без чтения `Context`. `consume=OnCreate` — один
+артефакт на ход; `ensure=True` делает повторный запуск no-op. Комбинируйте с
+`Annotated[..., Unscoped()]`, когда другому шагу тоже нужна полная история.
 
 ## `WindowSummarizer` — периодические чекпоинты диалога (§27, §37)
 
@@ -357,6 +381,8 @@ class Flow(StepGroup):
   раунд создаётся, даже если несколько сообщений пришли за одну генерацию.
 - `render`/`order_key`/`id_of` переопределяемы, если дефолты (рендер по
   role/text, сортировка по `created_at`) не подходят вашему артефакту.
+- `message_type` также принимает последовательность типов (например,
+  `[UserQuery, Answer]`), так что один чекпоинт покрывает гетерогенный поток.
 
 **Не комбинируйте с `WindowPruner`.** Cadence чекпоинтов считается по
 количеству сообщений, а prune останавливает рост этого счётчика, поэтому
@@ -715,8 +741,8 @@ result = pipeline.run(Goal(text="ship it"))
 
 ## `Router` / `ApprovalGate` — классификация, затем подтверждение перед финализацией (§60, §67)
 
-Два независимых класса, портированных из ручных `RouteTask`/`Supervisor` в
-`ApprovalGate`:
+Два независимых элемента: роутер и approval gate; паттерн повторяет ручные
+`RouteTask`/`Supervisor`:
 
 - `Router` — классифицирует запрос в один из фиксированного набора
   маршрутов, идемпотентно, с детерминированным fallback, когда вызов
@@ -758,7 +784,7 @@ class Flow(StepGroup):
     consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                 Consume(PendingQuestion)]
     steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
-             Step(PendingQuestion)]  # расширяет разрешённые Create-типы (§ verify.py)
+             Step(PendingQuestion)]  # Router/ApprovalGate зовут human.ask в runtime
 ```
 
 `Specialist` — собственно работа маршрута — остаётся полностью вашим
@@ -766,7 +792,7 @@ class Flow(StepGroup):
 
 Рабочие кейсы — `tests/test_recipe_supervisor.py`.
 
-## `ReflectionLoop` — generate → critique → regenerate (§24, §42, §69)
+## `ReflectionLoop` — генерация → критика → перегенерация (§24, §42, §69)
 
 Паттерн "Reflection" из LangGraph, портирован из ручных
 `DraftIt`/`Critic`/`Rewrite`/`Finalize` в `reactifact.recipes.ReflectionLoop`. В отличие от

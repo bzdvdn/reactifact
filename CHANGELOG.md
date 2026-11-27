@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [0.25.0] — 2026-11-27
 
+### Breaking
+
+- **`EmbeddingSource` removed.** The core no longer ships a vector `Source`.
+  Use the optional `reactifact.knowledge` pipeline (`KnowledgePipeline` +
+  `IndexSource`) or implement a custom `Source.asearch`. `FileSystemSource`,
+  `CSVSource` and `WebSource` remain. This removal has no separate deprecation
+  release — 0.25 is a deliberate exception to the one-minor window, like 0.24's
+  `consume()`; see [migration-0.25](docs/en/migration-0.25.md).
+- **Tool-module compatibility shims removed.** `reactifact.tool_use`,
+  `reactifact.native_tool_use` and `reactifact.agent_tool` are gone after the
+  0.20–0.24 compatibility window; import from `reactifact.tools.use`,
+  `reactifact.tools.native` and `reactifact.tools.agent`. Persisted type ids
+  that still name the removed modules (e.g. `reactifact.tool_use.ToolAnswer`,
+  `reactifact.agent_tool.SubTask`) keep resolving through
+  `reactifact.types.resolve`.
+
 ### Added
 
 - **Step-level `scope=`.** `Step(..., scope=...)` and `@step(..., scope=...)`
@@ -161,20 +177,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `MessagesPrompt.hash` is no longer ambiguous when a template contains a
   newline. The docs now show the doubled-brace form for a placeholder inside a
   literal JSON object.
-
-### Removed
-
-- **`EmbeddingSource`.** Removed from `reactifact.sources`; use the optional
-  `reactifact.knowledge` pipeline (`KnowledgePipeline` + `IndexSource`) for
-  vector retrieval, or implement a custom `Source.asearch`. FileSystem, CSV and
-  Web sources remain.
-- **Tool-module compatibility shims.** `reactifact.tool_use`,
-  `reactifact.native_tool_use` and `reactifact.agent_tool` are gone; import from
-  `reactifact.tools.use`, `reactifact.tools.native` and
-  `reactifact.tools.agent`. Persisted type ids that still name the removed
-  modules (e.g. `reactifact.tool_use.ToolAnswer`,
-  `reactifact.agent_tool.SubTask`) keep resolving through
-  `reactifact.types.resolve`.
 
 ## [0.24.0] — 2026-11-27
 

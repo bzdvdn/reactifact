@@ -29,8 +29,10 @@ async def send_email(to: str, body: str) -> ToolOutput:
 - A tool returns a `str`, a `dict`, a `ToolOutput`, or anything (stringified).
   A pydantic model return fills `ToolOutput.data` (and the model still sees its
   JSON); failure is `ToolOutput(error=...)` or an exception — not a crash.
-- `destructive=True` routes the call through the human-approval gate
-  (`PendingQuestion`), so a side effect waits for a human.
+- `destructive=True` routes the call through HITL approval in
+  `ToolUseHITL`/`HITLLMAgent` (`PendingQuestion`), so a side effect waits for a
+  human. Blocking `ToolUse`/`LLMAgent` excludes destructive tools from the
+  model's tool set instead.
 
 ### Injected collaborators and policies
 
@@ -71,13 +73,16 @@ ToolOutput(text="...", data={"rows": [...]}, error="")
 the model calls tools until it produces a final answer. `max_steps` caps the
 loop, `temperature`/`max_tokens` override provider defaults, and
 `deferred_tool_groups` (list of `DeferredToolGroup`) keep a group of tools out
-of the first steps' schema and reveal them later — a simple two-stage
-toolset.
+of the first steps' schema and reveal them later — a simple two-stage toolset.
+This is JSON-mode `ToolUse` only: native/auto mode rejects deferred groups, and
+`ToolUseHITL`/`HITLLMAgent` do not support them.
 
-`ToolUse` (a `Step[ToolAnswer]`) is the underlying step if you want to
-compose the loop yourself; `ToolUseHITL` is the reactive variant that can pause
-for a human. Their artifacts — `ToolAnswer`, `Observation`, `PendingQuestion` —
-are ordinary types you can consume downstream.
+`ToolUse` is the underlying blocking step (it produces `ToolAnswer`);
+`ToolUseHITL` is the reactive variant that can pause for a human and produces
+`ToolAnswer`/`Observation`/`PendingQuestion`. Their artifacts are ordinary
+types you can consume downstream. In an `LLMAgent`/`HITLLMAgent` subclass put
+steps that consume the final answer in `steps=[...]`; the container merges them
+with its internal tool step instead of replacing it.
 
 ## Human in the loop
 

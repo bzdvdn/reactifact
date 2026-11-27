@@ -14,7 +14,7 @@ A `RunTrace` is one run of the runtime (until `astream`/`run` ends):
   (`produces`: name, authored operations, latency), and which tools it executed
   (`tools`: `ToolRun` name/produce/latency/status/chars/output — args are
   opt-in, output is truncated/redacted by the trace policy).
-  The dashboard, OTLP (`reactifact.tools`) and Langfuse
+  The dashboard, OTLP (`reactifact.tracing`) and Langfuse
   (`langfuse.observation.metadata.tools`) carry the same list; Langfuse/OTLP
   also emit a child span per tool, placed by `ToolRun.started_at` (parallel
   calls overlap). Tool args are omitted by default — set
@@ -293,7 +293,7 @@ runtime = Runtime(
 
 Spans are delivered once per turn end (delivery-once semantics); the Langfuse
 tracer maps read/write summaries into `input`/`output`, so the timeline is
-readable in their UI; each produce the agent ran also becomes a child
+readable in their UI; each step run the agent performed also becomes a child
 observation, so the waterfall shows the `Consume → Step` steps. The SQLite
 `TraceStore` stays a source for the web dashboard; Postgres mirrors the same
 `runs`/`spans` schema.
@@ -404,7 +404,7 @@ runtime = Runtime(
     tracer=MetricsTracer(metrics),
 )
 
-# inside a produce, at the decision point:
+# inside a step, at the decision point:
 call.context.resources.metrics.increment("route_total", route=route)
 call.context.resources.metrics.observe("docs_found", len(docs), source=source)
 ```
@@ -417,7 +417,7 @@ generation isn't counted.
 
 ## Emission model
 
-- Only **state-changing** agents emit spans (a pure read/verify produce emits
+- Only **state-changing** agents emit spans (a pure read/verify step emits
   nothing — less noise).
 - One `Tracer` per `CompositeTracer`: hand the same composite to multiple sinks.
 - `on_turn_end` is the single delivery point: a new `astream`/`arun` advances the

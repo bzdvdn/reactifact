@@ -149,6 +149,10 @@ history = view.messages(ctx, window=20)      # list[providers.Message]
 # Chat(..., session_state=view.state)
 ```
 
+`view.entries(ctx)` is the lower-level form: it returns the ordered
+`TranscriptEntry(spec, artifact)` pairs, so a step that needs the artifacts
+themselves (ids, versions, metadata) does not have to re-scan `Context`.
+
 ## Bounded memory
 
 A conversation grows forever unless you bound it. `ChatMemory` on
@@ -208,7 +212,7 @@ A turn can pause for a human without any special machinery — asking is just an
 effect, and the answer is just another patch:
 
 ```python
-# inside a produce
+# inside a step
 human.ask("Approve this estimate?", kind="approval")
 # later, from your API, when the human answers:
 ctx.resume(question_id, "approved")   # emits an update → agents react

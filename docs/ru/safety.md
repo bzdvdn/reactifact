@@ -64,7 +64,7 @@ resources = RuntimeResources(
 `PermissionPolicy.grants` сопоставляет capability шаблонам `"action:resource"`
 (`"run:*"`, `"create:*"`, `"*"`). Рантайм энфорсит `run` (имя агента) и
 `create`/`update`/`delete` (тип артефакта); цикл инструментов энфорсит
-`execute` (имя инструмента); produce спрашивает через инжектированный `access: Access` —
+`execute` (имя инструмента); шаг проверяет через инжектированный `access: Access` —
 `access.can("read", id)` для ветвления или `access.require("read", id)`, чтобы
 бросить исключение. Отказ бросает `AuthorizationError`.
 

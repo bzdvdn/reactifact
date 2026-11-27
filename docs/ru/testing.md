@@ -110,7 +110,7 @@ lab.stub_resource("catalog", side_effect=[{"sku": "A1"}, KeyError("missing")])
 `result.tools.called("x")[0].error` покажет упавший вызов, а `result.errors.none()`
 может при этом пройти.
 
-## Record / replay
+## Запись / replay
 
 `mode=` управляет LLM за `resources.llm`:
 
@@ -158,9 +158,10 @@ print(result.explain())
 
 `Verify` применяет ground-truth-free метрики `reactifact.eval` к *живому*
 `Answer` в той же генерации, что его создала (batch-eval скорит готовый
-`Context` постфактум). Добавьте его в `produces`; `Verify` сам объявляет свои
-`VerificationResult`/`VerificationFailed`/`PendingQuestion`. Передача класса
-модели делает шаг самопланирующимся:
+`Context` постфактум). Добавьте его в `steps` группы; `Verify` сам объявляет
+свои `VerificationResult`/`VerificationFailed`/`PendingQuestion`, поэтому
+dummy-шаги `Step(...)` не нужны. Передача класса модели делает шаг
+самопланирующимся:
 
 ```python
 from reactifact import Consume, Context, RuntimeResources, StepGroup
@@ -168,7 +169,7 @@ from reactifact.verify import Verify
 
 class Answerer(StepGroup):
     consumes = [Consume(Question)]
-    produces = [BuildAnswer(), Verify(Answer)]
+    steps = [BuildAnswer(), Verify(Answer)]
 
 ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```

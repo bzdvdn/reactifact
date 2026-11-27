@@ -25,7 +25,7 @@
 
 ## 2. Одно поколение, пошагово
 
-Реализация — `Runtime._arun_once_impl` (`reactifact/runtime.py`).
+Реализация — `Runtime._arun_once_impl` (`reactifact/runtime/runtime.py`).
 
 1. **Drain.** `context.drain_events()` отдаёт очередь событий в порядке FIFO
    (порядок эмиссии) и очищает её. Если очередь пуста, поколение даёт **0
@@ -35,7 +35,8 @@
    опрашивается через `agent.matching_triggers(event, context)`. Триггер
    совпадает по:
    - **типу события** (`artifact_created` / `updated` / `deleted` / `stale`),
-   - **точному равенству типа артефакта** (не `issubclass`),
+   - **точному равенству типа артефакта** по умолчанию; `include_subclasses=True` /
+     `Consume.by_base(Base)` включает матчинг по subclass'ам,
    - необязательным `condition(artifact)` и/или `context_condition(artifact, context)`
      (последнее — то, что используют `CorrelatedConsume`/`JoinConsume`/`AbsentConsume`
      для корреляции между типами).
@@ -154,7 +155,7 @@
 | Параметр | Где применяется | При исчерпании |
 | --- | --- | --- |
 | `max_runs` | обрезка работы + цикл матчинга в `_arun_once_impl` | `budget_runs_exceeded` |
-| `max_seconds` | `_budget_exhausted()`, между поколениями; также публикуется в `resources.budget_deadline` для tool-циклов | `budget_time_exceeded` |
+| `max_seconds` | жёсткий дедлайн хода: цикл поколений идёт под `asyncio.timeout(...)`, поэтому генерация в полёте отменяется; также публикуется в `resources.budget_deadline` для tool-циклов | `budget_time_exceeded` |
 | `max_iterations` | граница цикла `_arun_impl` | `iterations_exhausted` |
 | `max_tool_calls` | tool-циклы (`ToolUse`/`LLMAgent`), не ядро рантайма | цикл останавливается, честный ответ |
 | `max_tokens` | `_budget_exhausted()` между поколениями + tool-циклы (через `resources.budget_tracker`); считается из usage каждого ответа LLM, независимо от трейсера | `budget_tokens_exceeded` |
@@ -164,8 +165,9 @@
 `max_iterations`; явный `Budget.max_iterations` побеждает.
 
 Бюджеты на токены/стоимость останавливают *следующий* шаг поколения/цикла, а не
-текущий вызов — поэтому прогон может перебрать максимум на один вызов, как и
-`max_seconds`. Трейсер им не нужен: рантайм ставит собственный счётчик usage
+текущий вызов — поэтому прогон может перебрать максимум на один вызов.
+(`max_seconds` строже: он отменяет генерацию в полёте.) Трейсер им не нужен:
+рантайм ставит собственный счётчик usage
 (`BudgetLLM`) на ход, когда бюджет отслеживает токены/стоимость. Для стоимости
 нужен инжектированный `Pricer` (`reactifact.pricing`); встроенную таблицу цен
 фреймворк сознательно не поставляет.

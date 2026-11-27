@@ -29,7 +29,7 @@ ctx = Context(
 | `view((M1, M2), condition=…)` | запрос по нескольким типам для решений и памяти чата |
 | `related(artifact_id, relation)` | проход по графу провенанса |
 | `announce(message, kind=…)` | событие прогресса/статуса для UI |
-| `diff / rollback / merge` | просмотр или откат истории; слияние веток |
+| `diff / checkout / merge` | просмотр или откат истории; слияние веток |
 
 `Context.resources` несёт то, что *не является состоянием*: провайдеры (LLM,
 эмбеддер), источники и произвольные ресурсы приложения (каталог цен, папка
@@ -66,8 +66,8 @@ class Evidence(BaseModel):
 
 ## 3. Effects и Patch
 
-Авторская поверхность — слот **effects** (см. [Контракт produce](effects.md),
-§24): produce пишет `create/update/delete/link/upsert` и возвращает `None`. Класс-шаг
+Авторская поверхность — слот **effects** (см. [Контракт шага](effects.md),
+§24): шаг пишет `create/update/delete/link/upsert` и возвращает `None`. Класс-шаг
 объявляет `effects: Effects` в `run()`; функция `@step` использует
 `call.effects`. Рантайм компилирует набор эффектов в один атомарный
 **`Patch`** — скомпилированный транспорт.
@@ -92,7 +92,7 @@ async def run(self, effects: Effects) -> None:
 | `Link` | соединить `source →rel→ target` (провенанс) |
 | `Unlink` | убрать связь |
 
-`Patch` (контейнер) собирает рантайm и escape-хук `StepGroup.run`; эффекты
+`Patch` (контейнер) собирает рантайм и escape-хук `StepGroup.run`; эффекты
 сочетаются *внутри* одного produce, поэтому ничего не применяется до компиляции
 рантаймом — атомарность структурная (§41).
 
@@ -122,8 +122,9 @@ class RepairFlow(StepGroup):
 - `steps` — экземпляры шагов. `consumes` шага питает его типизированные входы и
   решает, какие события могут его запустить; `produces` — разрешённый набор
   Create-типов. Основной output идёт первым, дополнительные create-only типы —
-  в том же tuple: `produces = (Primary, Extra)`; `also_creates` — deprecated
-  алиас.
+  в том же tuple: `produces = (Primary, Extra)`; старое написание
+  `also_creates=` удалено в 0.23, поэтому дополнительные типы указываются
+  прямо в `produces`.
 - `StepGroup.consumes` остаётся для imperative escape hatch (группа
   переопределяет `run(event, context)`), но декларативный код держит контракты
   на шагах.

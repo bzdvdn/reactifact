@@ -5,9 +5,10 @@ description: Author reactifact agents deeply — Step/Consume contracts, scope a
 
 # Authoring agents in reactifact
 
-An agent is a bundle of **consumes** (what wakes it) and **produces** (the
-transformations it may apply). There is no `run()` to override in the common
-case — you declare the contract and implement each step's effects.
+An agent is a bundle of **consumes** (what wakes it) and **steps** (the
+transformations it runs). Each step declares its own `produces` contract. There
+is no group-level `run()` to override in the common case — you declare the
+contract and implement each step's effects.
 
 ```python
 # not-run: illustrative — Answerer/Question/Evidence are defined below
@@ -72,7 +73,7 @@ class Scout(Step):
 
 
 class Answerer(Step):
-    consumes = (Evidence, Consume(Question, wakes=False))
+    consumes = (Evidence,)  # Question is auto-added as a read-only input
     produces = (Answer,)
 
     async def run(
@@ -99,10 +100,11 @@ assert answer is not None
 assert ctx.related(answer.id, "supported_by")  # provenance exists
 ```
 
-The `wakes=False` on the `Question` consume is the key idea: it feeds the
-agent's inputs but does not make the agent run. Without it the answerer would
-fire the moment the question exists — before any evidence — and produce an
-ungrounded answer.
+`question: Question` is not listed in `consumes`; with an explicit consume list
+the typed artifact parameter is added as a **read-only input**. It feeds the
+step without waking it, so the answerer fires on `Evidence`, not on the bare
+`Question`. Use `Consume(Question, wakes=False)` only when you want that input
+spelled out in the consume list.
 
 ## Scope and cross-turn history
 
@@ -204,12 +206,14 @@ Full details, ids and HITL: `references/effects.md`.
   wait for *absence*, use `AbsentConsume`.
 - **`priority`** (lower runs earlier in a generation) and
   **`concurrency_limit`** tune scheduling but should not carry correctness —
-  the fixpoint does. Avoid relying on intra-generation order; make the
-  dependency an artifact instead.
+  the fixpoint does. `Step.priority` applies when steps go through
+  `Runtime(steps=...)`; inside an explicit `StepGroup`, steps run in list
+  order, and `StepGroup.priority` orders groups within a generation. Avoid
+  relying on intra-generation order; make the dependency an artifact instead.
 - **Mutually exclusive cases**: when one artifact field selects one of several
   downstream groups, build them with `recipes.Route(on=..., key=..., cases=...)`
-  instead of hand-written conditions; `validate_contracts` warns about
-  `ambiguous_producer` outside a route.
+  and expand with `Runtime(groups=[*route.groups(), ...])`; `validate_contracts`
+  warns about `ambiguous_producer` outside a route.
 - **Idempotency**: agents may re-wake on an update. Use stable ids with
   `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
   `AbsentConsume`, so a second wake is a no-op rather than a duplicate.
@@ -225,7 +229,7 @@ create_step_group(
     "answer_builder",
     steps=[BuildAnswer()],
     fallback=FallbackAnswer("Не удалось собрать ответ."),
-    fallback_on=(ProviderError, TimeoutError),
+    fallback_on=(ConnectionError, TimeoutError),
 )
 ```
 

@@ -47,7 +47,7 @@ no graph to draw.
 | --- | --- |
 | **Typed state** | A turn is not a chat string; it is `Claim`, `Evidence`, `Answer`, `Calculation` — versioned objects with a schema. |
 | **Provenance by construction** | Every derived artifact links back to what produced it, so an answer can be audited without reading the prompt. |
-| **Rewindable history** | Every run is a commit: `diff`, `rollback`, `branch()`, `merge()`, deterministic replay. |
+| **Rewindable history** | Every run is a commit: `diff`, `checkout()`/`at()`, `branch()`, `merge()`, deterministic replay. |
 | **Reactive scheduling** | The next step is chosen from state changes; adding a new capability does not mean redrawing a graph. |
 | **Determinism where it pays** | Calculations stay in code; the LLM is used for language and judgement, not arithmetic or lookup. |
 | **Production controls** | Budgets, retries, guardrails, authorization, human approval and quotas are part of the runtime, not per-app glue. |
@@ -86,7 +86,7 @@ half-applied state.
 
 ## Why versioned state
 
-Every run is a commit. You get `diff`, `rollback`, `branch()` and `merge()` for
+Every run is a commit. You get `diff`, `checkout()`/`at()`, `branch()` and `merge()` for
 the state of a conversation (§39–§40) and deterministic replay (§55). This is
 the difference between *a transcript you can look at* and *a history you can
 rewind, fork and safely merge*.

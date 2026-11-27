@@ -75,7 +75,7 @@ and `POST /` with `message/send`, `message/stream`, `tasks/get`, `tasks/cancel`.
 
 | A2A | reactifact |
 | --- | --- |
-| Agent Card (`skills`) | built from each agent's `produces` |
+| Agent Card (`skills`) | built from the artifact types each agent's `steps` produce |
 | Task | one conversation over a `Context` |
 | `message/send` | seed via `create_message(ctx, text)`, run the agents to a fixpoint, read the reply with `reply(ctx, seed_id)` |
 | `message/stream` (SSE) | the working task, a status update per `context.announce()` progress event, then the final task |
@@ -102,8 +102,9 @@ app.include_router(create_a2a_router(GROUPS, create_message=create_message, repl
 The server is verified against the **official `a2a-sdk` client** (a `dev`-extra
 test, not runtime): the reference client resolves our Agent Card and calls
 `message/send`, receiving a `completed` task with the reply artifact — see
-`tests/test_a2a_interop.py`. `a2a-sdk` is only a test dependency (its own
-`a2a` group); the runtime keeps `httpx` + FastAPI and nothing else.
+`tests/test_a2a_interop.py`. `a2a-sdk` is only used by that interop test (the
+`a2a` dependency group/extra); the runtime itself keeps `httpx` + FastAPI and
+nothing else.
 
 ## Scope
 

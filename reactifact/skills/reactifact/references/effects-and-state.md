@@ -76,12 +76,15 @@ everything earlier ones produced:
 
 ```python
 # not-run: illustrative
-session = Session(store=...)         # in-memory by default
-runtime = Runtime(ctx, groups=agents, session=session)
-ctx.create(Question(text="first turn"))
-asyncio.run(runtime.arun())
-ctx.create(Question(text="second turn"))   # same ctx/session
-asyncio.run(runtime.arun())
+from reactifact.checkpoints import InMemoryKVBackend
+
+store = SessionStore(InMemoryKVBackend())
+session = await store.open("s1", resources=resources)
+runtime = Runtime(session.context, groups=agents, session=session)
+session.context.create(Question(text="first turn"))
+await runtime.arun()
+session.context.create(Question(text="second turn"))   # same context/session
+await runtime.arun()
 ```
 
 See `docs/en/chat.md` for `Conversation`, `Transcript`, `ChatMemory` and

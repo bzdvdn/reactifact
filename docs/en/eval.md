@@ -151,7 +151,7 @@ result = await Experiment(
     dataset=Dataset.from_file("evals/qa.json"),
     seed=lambda ctx, inputs: ctx.create(Question(text=inputs["question"])),
     evaluators=[exact_answer],
-    metric="exact",              # optional: default is the report's overall
+    metric="exact_answer",       # sequence evaluators are keyed by __name__
 ).run()
 
 print(result.render())           # markdown table + winner

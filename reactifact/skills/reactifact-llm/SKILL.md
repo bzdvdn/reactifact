@@ -79,6 +79,10 @@ class Classify(StructuredGenerateAgent):
 agent = Classify()
 ```
 
+`schema` is required: constructing the agent without one raises `ValueError`.
+Each run stores the result under a stable id derived from the trigger, so a
+re-run refreshes the artifact instead of creating a duplicate.
+
 Override `fallback(inputs) -> schema | None` for a deterministic path when the
 provider is offline or the model keeps failing — this is how an LLM step stays
 testable and never blocks a run.
@@ -86,9 +90,10 @@ testable and never blocks a run.
 ## Tool calling
 
 `LLMAgent` runs a tool loop: it reads the provider, lets the model choose tools,
-executes them, and finally produces the artifacts you declare. Tools come from
-the `@tool` decorator over an `async def` (the JSON schema is derived from the
-signature):
+executes them, and finally produces a `ToolAnswer`. Add `steps=[...]` (merged
+with the internal tool step in 0.25) to consume that answer and create domain
+artifacts. Tools come from the `@tool` decorator over an `async def` (the JSON
+schema is derived from the signature):
 
 ```python
 # not-run: illustrative
@@ -112,9 +117,11 @@ class Researcher(LLMAgent):
 agent = Researcher()
 ```
 
-Mark a tool `destructive=True` to route it through the human-approval gate.
-`HITLLMAgent` lets the model ask clarifying questions (`PendingQuestion`)
-instead of guessing. Details and the full tool contract: `references/tools.md`.
+Mark a tool `destructive=True` to route it through the HITL approval gate
+(`HITLLMAgent`/`ToolUseHITL`); blocking `LLMAgent`/`ToolUse` does not offer
+destructive tools to the model at all. `HITLLMAgent` also lets the model ask
+clarifying questions (`PendingQuestion`) instead of guessing. Details and the
+full tool contract: `references/tools.md`.
 
 ### Native vs JSON tool loops
 
@@ -145,10 +152,12 @@ base `run()` accepts any return-style value:
 ```python
 # not-run: illustrative — Answer/Observation are your models
 from reactifact import Artifact, Context, Effects, Emit
-from reactifact.tools.use import ToolUse
+from reactifact.tools.use import Observation, ToolAnswer, ToolUse
 
 
 class ResearchToolUse(ToolUse):
+    produces = (ToolAnswer, Observation)
+
     async def run(
         self,
         context: Context,
@@ -249,4 +258,4 @@ provider failover; both are ordinary `LLMProvider` wrappers.
 
 - `references/providers.md` — provider factories, caching, failover, replay.
 - `references/tools.md` — `@tool`, `Tool`, `ToolOutput`, `LLMAgent` internals.
-- `docs/en/llm.md`, `docs/en/structured.md`, `docs/en/providers.md`.
+- `docs/en/providers.md`, `docs/en/recipes.md`, `docs/en/api.md`.

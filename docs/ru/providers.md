@@ -7,11 +7,11 @@
 
 ## Контракты
 
-Ядро знает четыре контракта:
+Ядро знает эти контракты:
 
 | Контракт | Роль |
 | --- | --- |
-| `LLMProvider` | генерация текста (`generate`, `stream`) |
+| `LLMProvider` | генерация текста (`complete`, `stream`) |
 | `EmbeddingProvider` | векторные эмбеддинги |
 | `ImageProvider` | генерация изображений |
 | `SpeechProvider` / `TranscriberProvider` | TTS / STT |

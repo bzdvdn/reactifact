@@ -18,10 +18,10 @@ and the graph grows.
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
 | `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |
-| tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools), or `ToolUse` / `NativeToolUse` |
+| tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools) plus `steps=[...]` to turn the final `ToolAnswer` into domain artifacts, or `ToolUse` / `NativeToolUse` |
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
 | `messages: list[...]` as memory | artifacts (`Question`/`Answer`/…) across turns, or `ChatMemory` |
-| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates |
+| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates; `recipes.Route` when exactly one branch must run (`route.groups()`) |
 | `app.invoke(...)` | `Runtime(ctx, groups=[...]).arun()` |
 | LangSmith traces | `reactifact.tracing.TraceStore` (`tracer=[...]`) |
 | `langchain.evaluation` / LangSmith evals | `reactifact.eval` (`docs/en/eval.md`) |

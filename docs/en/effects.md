@@ -187,9 +187,10 @@ not "about ids".
 
 - **`StepGroup.run`** — the escape hatch for custom agents that assemble a
   change-set by hand.
-- **Recipes** (`fan_out_sources`, `materialize_doc`) and `StatusMachine` write
-  into the slot; the tool loop (`ToolUse`/`ToolUseHITL`) and HITL
-  (`human.ask`) are interaction, not data writes.
+- **Recipes** (`fan_out_sources`, `materialize_doc`) write into the slot;
+  return-style steps such as `StatusMachine` return an `Edit` instead. The
+  tool loop (`ToolUse`/`ToolUseHITL`) and HITL (`human.ask`) are interaction,
+  not direct data writes.
 - **Tests and advanced assembly** may still build a `Patch`; ordinary steps
   should not need it.
 

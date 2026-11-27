@@ -66,14 +66,18 @@ smoke-запуска.
 Цикл доступен и как библиотека:
 
 ```python
+import asyncio
+
 from reactifact import Daemon
 
-Daemon(
-    pipeline,
-    seed_source=next_tick,   # sync/async: индекс тика -> seed | None
-    interval=60,
-    traces=True,
-).serve()
+asyncio.run(
+    Daemon(
+        pipeline,
+        seed_source=next_tick,   # sync/async: индекс тика -> seed | None
+        interval=60,
+    ).serve()
+)
+# tracing настраивается на Pipeline (traces=True/путь), а не на Daemon
 ```
 
 `reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60`

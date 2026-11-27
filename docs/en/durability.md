@@ -13,7 +13,7 @@ log for `AppendBackend`:
 
 - the **artifacts** (typed, versioned) and the **relations** between them;
 - the **commit chain** (`Context.history()`), so provenance and `diff`/
-  `rollback`/`replay` still work;
+  `checkout`/`replay` still work;
 - the **pending trigger queue** — the events no generation has dispatched yet.
 
 Artifact payloads are content-addressed in the snapshot: `blobs` stores each
@@ -27,14 +27,14 @@ registered migrations (`Context.from_dict`).
 
 With an **`AppendBackend`** (`SQLiteKVBackend`, `PostgreSQLKVBackend`) the store
 does not rewrite the whole Context on every commit: the first save (or the first
-save after a compaction/rollback) writes a snapshot, and later saves append only
+save after a compaction/checkout) writes a snapshot, and later saves append only
 the new commits plus the current pending-event queue. `FileKVBackend` and
 `InMemoryKVBackend` keep the full-blob behavior.
 
 `SessionStore(backend, compact_every=N)` bounds the append log: roughly every
 N saves the store rewrites the snapshot and clears the entries. The default is
 100; pass `compact_every=None` to keep the log until an explicit
-`context.compact()` or a rollback. `BranchStore` takes the same option per
+`context.compact()` or a checkout. `BranchStore` takes the same option per
 branch key.
 
 With the default `session_save_policy="per_commit"`, the runtime saves at every
@@ -64,11 +64,11 @@ trigger that was queued but not yet reacted to is re-dispatched.
 
 ## The guarantee: at-least-once
 
-Resume is **at-least-once**, not exactly-once. A produce that had already
+Resume is **at-least-once**, not exactly-once. A step that had already
 committed before the crash may run again. If it is not idempotent, that means a
 duplicate artifact (or a repeated external side effect).
 
-Give produces a **stable id** so a re-run upserts instead of duplicating
+Give steps a **stable id** so a re-run upserts instead of duplicating
 ([§42](../constitution.md)):
 
 ```python
@@ -85,8 +85,8 @@ async def summarize(call):
 
 ## What is *not* covered
 
-- **External side effects inside a produce.** An email, a file write, or a
-  third-party API call made *directly* in a produce can be repeated by a retry.
+- **External side effects inside a step.** An email, a file write, or a
+  third-party API call made *directly* in a step can be repeated by a retry.
   Do not do that — record an intent instead: `outbox.act(kind=..., key=...,
   payload=...)` writes a `PendingAction` and `Runtime(dispatcher=...)` performs
   it once after the intent commits (see the outbox pattern in
@@ -103,7 +103,7 @@ async def summarize(call):
   failing dispatcher marks the action `failed` (bumping `attempts`), fires
   `Runtime(on_dispatch_error=...)` if set, and re-raises; `context.retry_action(
   id)` re-arms it.
-- **In-flight work.** A produce that was mid-flight at the crash is simply
+- **In-flight work.** A step that was mid-flight at the crash is simply
   re-run; only committed generations are durable.
 - **Budgets reset per run.** `Budget` counters (`max_runs`, `max_seconds`) are
   per-`arun()` call; resuming starts a fresh budget, not the remainder of the

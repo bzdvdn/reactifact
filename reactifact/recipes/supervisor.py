@@ -41,16 +41,14 @@ to fill them in — the recipe stamps the real values on every create.
     class Flow(StepGroup):
         consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                     Consume(PendingQuestion)]
-        produces = [MyRouter().produce(), Specialist(), MyGate().produce(),
-                    Step(PendingQuestion)]  # widens allowed Create types, see verify.py
+        steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
+                 Step(PendingQuestion)]  # Router/ApprovalGate call human.ask
 
-Kept as an inert placeholder (not `produces=`) because
-none of the three real produces above is uniquely "the one that creates
-`PendingQuestion`" — it's created by whichever of `Router`/`ApprovalGate`'s
-own HITL machinery calls `human.ask(...)` at runtime. `also_creates` is the
-better fit when a *single* produce's own body is the one writing the extra
-type (`Emit(Bar(...))` inside an `artifact_type = Foo`
-produce) — declare it there directly instead of adding a placeholder here.
+The `PendingQuestion` entry is an inert placeholder: none of the real steps
+above is uniquely the one that creates it — `Router`/`ApprovalGate` create it
+through `human.ask(...)` inside their own HITL machinery at runtime. When a
+*single* step's body writes an extra type (`Emit(Bar(...))`), declare that type
+in the step's `produces` tuple directly instead of adding a placeholder here.
 """
 
 from __future__ import annotations

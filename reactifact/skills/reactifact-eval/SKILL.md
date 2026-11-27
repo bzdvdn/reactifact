@@ -5,11 +5,12 @@ description: Evaluate reactifact pipelines and other LLM apps over a dataset wit
 
 # Evaluating pipelines with reactifact.eval
 
-`reactifact.eval` has two layers. **Deterministic metrics** score a finished
-`Context` — provenance grounding, evidence quality, claim verification,
+`reactifact.eval` has two offline layers. **Deterministic metrics** score a
+finished `Context` — provenance grounding, evidence quality, claim verification,
 calculation correctness — not just `answer == expected`. The **experiment
 layer** runs a `Dataset` through a target and scores every example. Both are
-provider-agnostic and need no hosted store.
+provider-agnostic and need no hosted store. For live scoring, `Verify` applies
+the same ground-truth-free metrics inside a run.
 
 ## Dataset evaluation
 
@@ -189,6 +190,27 @@ key no case measured is **not** met. Summary evaluators
 (`summary_pass_rate(threshold)`, `summary_mean(key)`) aggregate across the
 suite. `report.render()` prints a readable report; `report.to_dict()` is a
 CI/log artifact.
+
+## Inline verification (`reactifact.verify.Verify`)
+
+`Verify` is the live counterpart of batch eval: it scores the `Answer` in the
+generation that produced it, emits a stable `VerificationResult`, and on failure
+either asks a human (`PendingQuestion(kind="approve")`) or emits
+`VerificationFailed` for a regenerating step. Pass the model class to make it
+self-scheduling:
+
+```python
+# not-run: illustrative
+from reactifact import StepGroup
+from reactifact.verify import Verify
+
+class Answerer(StepGroup):
+    steps = [BuildAnswer(), Verify(Answer)]
+```
+
+The containing group needs no dummy `Step(...)` entries: `Verify` declares its
+own `VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs. See
+`docs/en/testing.md` for thresholds and `on_fail`.
 
 ## Online evaluation
 

@@ -154,6 +154,11 @@ history = view.messages(ctx, window=20)      # list[providers.Message]
 # Chat(..., session_state=view.state)
 ```
 
+`view.entries(ctx)` — более низкоуровневая форма: она возвращает
+упорядоченные пары `TranscriptEntry(spec, artifact)`, поэтому шагу, которому
+нужны сами артефакты (id, версии, metadata), не приходится заново сканировать
+`Context`.
+
 ## Ограниченная память
 
 Разговор растёт вечно, если его не ограничить. `ChatMemory` на `Chat`
@@ -213,7 +218,7 @@ assistant = Chat(
 эффект, а ответ — просто ещё один патч:
 
 ```python
-# внутри produce
+# внутри шага
 human.ask("Approve this estimate?", kind="approval")
 # позже, из вашего API, когда человек отвечает:
 ctx.resume(question_id, "approved")   # эмитит update → агенты реагируют

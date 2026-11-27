@@ -28,6 +28,7 @@ _IMPORT_MODULE = re.compile(
     re.M,
 )
 _REFERENCE = re.compile(r"`((?:[A-Za-z0-9_-]+/)?references/[A-Za-z0-9_.-]+\.md)`")
+_DOCS_LINK = re.compile(r"docs/en/([A-Za-z0-9_./-]+\.md)")
 
 
 def _frontmatter(text: str) -> dict[str, str]:
@@ -125,6 +126,17 @@ def test_skill_reference_paths_exist() -> None:
             candidates = (path.parent / target, SKILLS_DIR / target)
             if not any(candidate.is_file() for candidate in candidates):
                 missing.append(f"{path.relative_to(SKILLS_DIR)}: {target}")
+    assert not missing, "\n".join(missing)
+
+
+def test_skill_docs_links_exist() -> None:
+    """Docs links in a skill point at a page that exists in this checkout."""
+    docs = Path(__file__).resolve().parents[1] / "docs" / "en"
+    missing: list[str] = []
+    for path in _MD_FILES:
+        for target in _DOCS_LINK.findall(path.read_text(encoding="utf-8")):
+            if not (docs / target).is_file():
+                missing.append(f"{path.relative_to(SKILLS_DIR)}: docs/en/{target}")
     assert not missing, "\n".join(missing)
 
 

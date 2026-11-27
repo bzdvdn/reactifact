@@ -134,10 +134,10 @@ app.mount("/mcp", server.streamable_http_app())
 
 ## Security model: no built-in authorization
 
-reactifact has no built-in permission/authorization primitive — this applies
-to MCP specifically and to the framework generally (§57 is explicitly
-"planned", not "implemented"; see `docs/constitution.md`'s implementation
-appendix). Concretely, for `create_mcp_server`:
+reactifact's authorization is opt-in on `RuntimeResources` (`Principal`,
+`PermissionPolicy`, `Access`; see [Trust & safety](safety.md)). The MCP bridge
+itself adds no per-resource or per-tool authorization. Concretely, for
+`create_mcp_server`:
 
 - The two `context=` resources (`context://artifacts/...`, `context://artifact/...`)
   are **read-only** — an MCP client can inspect any artifact in the `Context`

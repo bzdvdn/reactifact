@@ -63,7 +63,7 @@ resources = RuntimeResources(
 `PermissionPolicy.grants` maps a capability to `"action:resource"` patterns
 (`"run:*"`, `"create:*"`, `"*"`). The runtime enforces `run` (agent name) and
 `create`/`update`/`delete` (artifact type); the tool loop enforces `execute`
-(tool name); a produce asks with the injected `access: Access` —
+(tool name); a step checks with the injected `access: Access` —
 `access.can("read", id)` to branch or `access.require("read", id)` to raise.
 Denial raises `AuthorizationError`.
 

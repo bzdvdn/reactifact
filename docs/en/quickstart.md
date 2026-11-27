@@ -67,14 +67,18 @@ smoke run.
 The loop is also available as a library:
 
 ```python
+import asyncio
+
 from reactifact import Daemon
 
-Daemon(
-    pipeline,
-    seed_source=next_tick,   # sync/async: tick index -> seed | None
-    interval=60,
-    traces=True,
-).serve()
+asyncio.run(
+    Daemon(
+        pipeline,
+        seed_source=next_tick,   # sync/async: tick index -> seed | None
+        interval=60,
+    ).serve()
+)
+# tracing is configured on the Pipeline (traces=True/path), not on Daemon
 ```
 
 `reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60`

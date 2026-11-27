@@ -157,9 +157,10 @@ print(result.explain())
 
 `Verify` applies `reactifact.eval`'s ground-truth-free metrics to a *live*
 `Answer`, in the generation that produced it (batch eval scores a finished
-`Context` after the fact). Add it to `produces`; `Verify` declares its own
-`VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs. Passing
-the model class makes it self-scheduling:
+`Context` after the fact). Add it to the group's `steps`; `Verify` declares its
+own `VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs, so it
+needs no dummy `Step(...)` entries. Passing the model class makes it
+self-scheduling:
 
 ```python
 from reactifact import Consume, Context, RuntimeResources, StepGroup
@@ -167,7 +168,7 @@ from reactifact.verify import Verify
 
 class Answerer(StepGroup):
     consumes = [Consume(Question)]
-    produces = [BuildAnswer(), Verify(Answer)]
+    steps = [BuildAnswer(), Verify(Answer)]
 
 ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```

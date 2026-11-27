@@ -24,7 +24,7 @@ is no pre-declared execution graph; the schedule is a function of state (§63).
 
 ## 2. One generation, step by step
 
-Implemented by `Runtime._arun_once_impl` (`reactifact/runtime.py`).
+Implemented by `Runtime._arun_once_impl` (`reactifact/runtime/runtime.py`).
 
 1. **Drain.** `context.drain_events()` returns the queued events in FIFO
    (emission) order and clears the queue. If the queue is empty, the generation
@@ -33,7 +33,8 @@ Implemented by `Runtime._arun_once_impl` (`reactifact/runtime.py`).
 2. **Match.** For each event, each agent (in priority order) is asked
    `agent.matching_triggers(event, context)`. A trigger matches on:
    - the **event type** (`artifact_created` / `updated` / `deleted` / `stale`),
-   - **exact artifact-type equality** (not `issubclass`),
+   - **exact artifact-type equality** by default; `include_subclasses=True` /
+     `Consume.by_base(Base)` switches to subclass matching,
    - an optional `condition(artifact)` and/or `context_condition(artifact, context)`
      (the latter is what `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` use to
      correlate across types).
@@ -148,7 +149,7 @@ bounds a slow one.
 | Knob | Enforced where | On exhaustion |
 | --- | --- | --- |
 | `max_runs` | work slicing + the match loop, in `_arun_once_impl` | `budget_runs_exceeded` |
-| `max_seconds` | `_budget_exhausted()`, between generations; also published to `resources.budget_deadline` for tool loops | `budget_time_exceeded` |
+| `max_seconds` | a hard turn deadline: the generation loop runs under `asyncio.timeout(...)`, so the in-flight generation is cancelled; also published to `resources.budget_deadline` for tool loops | `budget_time_exceeded` |
 | `max_iterations` | the `_arun_impl` loop bound | `iterations_exhausted` |
 | `max_tool_calls` | tool loops (`ToolUse`/`LLMAgent`), not the runtime core | loop stops, honest answer |
 | `max_tokens` | `_budget_exhausted()` between generations + tool loops (via `resources.budget_tracker`); counted from every LLM response's usage, tracer-independent | `budget_tokens_exceeded` |
@@ -158,7 +159,8 @@ bounds a slow one.
 `max_iterations`; an explicit `Budget.max_iterations` wins.
 
 Token/cost budgets stop the *next* generation or loop step, not the in-flight
-call — so a run can overshoot by at most one call, same as `max_seconds`. They
+call — so a run can overshoot by at most one call. (`max_seconds` is stricter:
+it cancels the in-flight generation.) They
 need no tracer: the runtime installs its own usage counter (`BudgetLLM`) for the
 turn when the budget tracks tokens/cost. Cost needs an injected `Pricer`
 (`reactifact.pricing`); the framework ships no built-in price table on purpose.

@@ -1,6 +1,6 @@
 # Constitution of the Artifact-Driven Agent Runtime
 
-> **Status:** Foundational design document, aligned with `reactifact` 0.24.0
+> **Status:** Foundational design document, aligned with `reactifact` 0.25.0
 > **Version:** 0.3
 > **Purpose:** Define the architectural philosophy, invariants, terminology, design rules, examples, and decision criteria for a new agent framework based on evolving typed artifacts and context rather than explicit execution graphs.
 >
@@ -3173,8 +3173,8 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 
 # Appendix — Implementation Status
 
-State of the public `reactifact` codebase at **0.24.0** (pre-1.0).
-Verification: ~1600 tests (optional-dependency skips in a bare venv); mypy
+State of the public `reactifact` codebase at **0.25.0** (pre-1.0).
+Verification: ~1700 tests (optional-dependency skips in a bare venv); mypy
 strict, ruff, import-linter and the docs build are clean.
 
 | Area | Section(s) | Status |
@@ -3182,7 +3182,7 @@ strict, ruff, import-linter and the docs build are clean.
 | Context / Artifact / Patch / Revision (git-like) | §4, §12, §14 | implemented — `Artifact` is a frozen handle over an append-only `ArtifactStore`; `artifact_version`/`version_history`/`find_versions` are canonical; `create/update/delete/link`, diff, checkout/snapshot; v2 persistence (`blobs` + version index + commit `data_ref`); `Context` composes `RelationGraph`, `ArtifactStore` and `CommitLog` |
 | Relations & provenance edges | §15, §33-§34, §36 | implemented (`Link`, `derived_from`, `supported_by`, `contradicted_by`) |
 | Context views (token-budgeted projections) | §27, §28 | implemented (`context.view` + `tokens_estimate`); `TokenBudgetContextBuilder(min_keep={type: count})` reserves a costed type's top-ranked instances a slice of the budget before the shared greedy fill runs, so a high-volume type (many `Evidence`) can't crowd out a low-volume one that still has real content (the triggering `Question`) — complements `exempt_types`, which is for a type with no real content at all |
-| Reference sources (filesystem / CSV / web / vector) | §7-§9, §74 P2 | implemented in core |
+| Reference sources (filesystem / CSV / web) | §7-§9, §74 P2 | implemented in core; vector retrieval lives in the optional knowledge layer (`KnowledgePipeline` + `IndexSource`) or a custom `Source.asearch` |
 | Knowledge ingestion / retrieval layer | §7-§9, §9.1 | implemented — optional `reactifact.knowledge`: code-first `Connector -> RawDocument -> Document -> Chunk -> Index`, `DocStore` protocol (`JsonDocStore`/`SqliteDocStore`), BM25/RRF hybrid retrieval, `MemoryIndex`/`SqliteIndex`/`QdrantIndex`/`ChromaIndex`/`PgVectorIndex`, MMR diversity, dense/keyword/rerank ranks, retrieval metrics in `reactifact.eval`, `IndexSource`/`IngestStep` bridges; no YAML/CLI/plugin registry |
 | Knowledge connectors and extractors | §74 P2 | implemented — `HttpConnector` (URLs/sitemap with `ETag`/`Last-Modified`) and `S3Connector` (`knowledge-s3`); dependency-free CSV/JSON extractors and optional PDF/DOCX (`knowledge-pdf`/`knowledge-office`); GitLab/Confluence stay domain examples |
 | CLI, daemon, HTTP/MCP/A2A adapters | §23, §52-§53 | implemented — `reactifact run/dev/demo/check/new/daemon/trace/graph/contracts`; `Daemon` interval loop; `Pipeline.router()/http()/as_tool()` and `Chat.http()`; MCP server/client and A2A interop (official SDK) |

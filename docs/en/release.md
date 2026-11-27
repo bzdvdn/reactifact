@@ -17,20 +17,23 @@ entry when the version is bumped:
 
 1. move unreleased items under a new `## [X.Y.Z] — <date>` heading;
 2. group them as `Added` / `Changed` / `Removed` (deprecations too);
-3. mark breaking changes explicitly, even in `rc`s.
+3. put every breaking change under a `### Breaking` heading, even in `rc`s.
 
 ## Upgrading
 
-0.24.0 has a [migration guide](migration-0.24.md); 0.23.0 has [its own](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
+0.25.0 has a [migration guide](migration-0.25.md); 0.24.0 has [its own](migration-0.24.md); 0.23.0 has [its own](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
 remains the source of truth for what changed between versions, and breaking
 entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
 
-- **0.25.0** — additive ergonomics: `scope=` on `Step`/`@step`, cross-turn
-  `Unscoped()`, the `TurnContext` recipe, side-effect-only steps, typed
-  `CurrentRequest`, `Step.progress`, `[tool.reactifact]` config, and
-  `skills install --target opencode|all|auto`. No migration guide: no breaks.
+- **0.25.0** — mostly additive ergonomics: `scope=` on `Step`/`@step`,
+  cross-turn `Unscoped()`, the `TurnContext` recipe, side-effect-only steps,
+  typed `CurrentRequest`, `Step.progress`, `[tool.reactifact]` config, and
+  `skills install --target opencode|all|auto`. Two planned removals break
+  compatibility: `EmbeddingSource` (use the knowledge layer + `IndexSource`)
+  and the 0.20 tool-module shims (use `reactifact.tools.*`). See the
+  [0.25 migration guide](migration-0.25.md).
 - **0.24.0** — CLI/daemon/MCP/HTTP adapter work, `check`, `new agent`,
   `demo --web`, pipeline tools and HITL/approval recipes. The LLM helpers
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
@@ -174,7 +177,7 @@ uv build                     # dist/reactifact-0.25.0-py3-none-any.whl + sdist
 
 # 4) verify the wheel in a scratch venv (not the workspace, so no PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.25.0-py3-none-any.whl
+uv pip install --python /tmp/reactifact-rc/bin/python --quiet dist/reactifact-0.25.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.step_groups 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
@@ -191,10 +194,11 @@ uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
 
 ## What ships
 
-`uv build` packages only the `reactifact` package (setuptools `packages.find`
+The wheel packages only the `reactifact` package (setuptools `packages.find`
 excludes `examples`/`tests`) plus the trace dashboard assets
-(`reactifact/tracing/templates/*.html` and `*.css`). Examples, tests and docs
-stay in the repository and are the documentation-by-example.
+(`reactifact/tracing/templates/*.html` and `*.css`). The sdist also carries the
+test suite for downstream packagers; examples and docs stay in the repository
+and are the documentation-by-example.
 
 ## Rollback
 

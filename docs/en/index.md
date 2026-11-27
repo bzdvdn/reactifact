@@ -93,7 +93,7 @@ with them*. The runtime does the plumbing.
 | Messages are strings | **Typed artifacts** (`Claim`, `Evidence`, `Answer`, …) |
 | Orchestration is explicit | Orchestration **falls out of the state** |
 | A unit of work *returns* a change | A step **writes effects** (`effects`) — the runtime compiles them |
-| Retries/rollback are manual | Context is **versioned** (git-like commits, diff, rollback) |
+| Retries/rollback are manual | Context is **versioned** (git-like commits, diff, checkout/at) |
 | "Who produced this?" is lost | **Provenance** links every derived artifact to its inputs |
 
 ## Why effects instead of "return a change"?
@@ -101,7 +101,7 @@ with them*. The runtime does the plumbing.
 At the heart of the loop is how a step makes a change. Many frameworks ask a
 unit of work to *return* its result, and some orchestrator applies it. reactifact
 inverts authorship: a step **states what should change** via `effects`
-(create / update / link / ask); the runtime compiles the effect set into one
+(create / update / delete / link / upsert); the runtime compiles the effect set into one
 atomic patch — the whole step lands (or none of it does).
 
 ```python
@@ -118,7 +118,7 @@ Because handles are objects, not ids, one statement can reference the artifact
 created by another — and because the runtime owns the compilation, you never
 assemble a `Patch` by hand. Human-in-the-loop is just another effect
 (`human.ask(...)`). See [Why reactifact](why-reactifact.md) for the full argument,
-and [The produce contract](effects.md) for details.
+and [The step contract](effects.md) for details.
 
 ## Why artifacts instead of messages?
 

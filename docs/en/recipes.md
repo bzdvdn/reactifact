@@ -6,10 +6,10 @@ dependencies — everything is built on the core.
 
 ## `find` / `find_all` — locate typed artifacts in `inputs`
 
-A produce whose agent declares more than one `Consume` type receives a flat
+A step whose agent declares more than one `Consume` type receives a flat
 `list[Artifact[Any]]`; picking out "the one Question" or "all the Evidence"
 is the same `next((a for a in inputs if isinstance(a.data, X)), None)` in
-nearly every produce. `find`/`find_all` are a typed one-liner for it:
+nearly every step. `find`/`find_all` are a typed one-liner for it:
 
 ```python
 from reactifact.recipes import find, find_all
@@ -28,7 +28,8 @@ itself (for example, return a list of `Emit`s):
 from reactifact import Emit
 from reactifact.recipes import search_sources, source_ref_id
 
-refs = await search_sources(context, question, owner_id=query_id, limit=5)
+query = question.data.text
+refs = await search_sources(context, query, owner_id=query_id, limit=5)
 return [
     Emit(ref, id=source_ref_id(ref, query_id)) for ref in refs
 ]
@@ -43,7 +44,7 @@ from reactifact.recipes import fan_out_sources
 
 refs = await fan_out_sources(
     context,
-    query=question,
+    query=query,
     owner_id=query_id,           # scope refs to the owning turn
     limit=5,
     query_id=query_id,           # owner key for provenance
@@ -257,12 +258,18 @@ machine = StatusMachine.from_funcs(
 )
 ```
 
+The constructor form takes the same options:
+`StatusMachine(artifact_type=..., next_status=..., terminal=..., consumes=...)`.
+
 Mechanics (all inherited from `Step`):
 
 - The generic `StatusMachine[ResearchTurn]` supplies `artifact_type`; an
   explicit `artifact_type` still works.
-- Woken by any event; the event maps to a lifecycle via `owner_key` (reads
-  `query_id_field` of the artifact data, falling back to its `id`).
+- Woken by any event by default; pass `consumes=` to narrow the wake set. The
+  event maps to a lifecycle via `owner_key(artifact)` (by default it reads
+  `query_id_field` of the artifact data, falling back to its `id`). Override
+  `owner_key` when a domain uses a different key; `StatusState.inputs` is
+  filtered with the same hook.
 - Picks the **latest** matching `artifact_type` artifact (by `updated_at`);
   `terminal` statuses stop the machine.
 - `next_status` receives a typed `StatusState[StatusT]`: the target plus this
@@ -270,9 +277,11 @@ Mechanics (all inherited from `Step`):
   `state.any(T)` and `state.latest(T)` replace the repeated
   `list_artifacts(T)` + `query_id == key` filtering.
 - `next_status` decides the new status; `None` or unchanged ⇒ nothing happens.
-- Right before applying the change, `on_transition` is called — your hook for
-  progress announces.
-- The transition is an effect: `effects.update(target, **{status_field: new})`.
+- Right before applying the change, `on_transition(context, key, old_status,
+  new_status)` is called — your hook for progress announces.
+- The transition is a return-style `Edit(target, **{status_field: new})`, which
+  compiles to the same update effect; the machine declares `produces=()`
+  because it updates its target rather than creating a new artifact.
 
 Put your *verify* logic into another step that reacts on status changes —
 the machine and the verifier are separate, deterministic, and unit-testable.
@@ -316,12 +325,14 @@ turn_context = TurnContextStep(
 # groups=[turn_context, *answer_steps]
 ```
 
-The step emits `TurnContext` (or `artifact_type=`) with id `turn:{query_id}`.
-`TurnFacts` includes the trigger, current/previous query, previous
-artifact/answer, history, digest and follow-up flag — so a domain context can
-carry `prior_domain`/`routing_text` without reading `Context`. `consume=OnCreate`
-makes it one artifact per turn; `ensure=True` makes a re-run a no-op. Combine
-with `Annotated[..., Unscoped()]` when another step also needs full history.
+The step emits `TurnContext` (or `artifact_type=`) with id `turn:{trigger.id}`;
+`history` is bounded to the current trigger (later turns are not included) and
+keeps the `turn`/`session_id` fields. `TurnFacts` includes the trigger,
+current/previous query, previous artifact/answer, history, digest and follow-up
+flag — so a domain context can carry `prior_domain`/`routing_text` without
+reading `Context`. `consume=OnCreate` makes it one artifact per turn;
+`ensure=True` makes a re-run a no-op. Combine with
+`Annotated[..., Unscoped()]` when another step also needs full history.
 
 ## `WindowSummarizer` — periodic conversation checkpoints (§27, §37)
 
@@ -769,7 +780,7 @@ class Flow(StepGroup):
     consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                 Consume(PendingQuestion)]
     steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
-             Step(PendingQuestion)]  # widens allowed Create types (§ verify.py)
+             Step(PendingQuestion)]  # Router/ApprovalGate call human.ask at runtime
 ```
 
 `Specialist` — actually doing the routed work — stays fully your own

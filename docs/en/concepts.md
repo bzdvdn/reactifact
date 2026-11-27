@@ -29,7 +29,7 @@ Key capabilities:
 | `view((M1, M2), condition=…)` | query a type join for decisions/chat memory |
 | `related(artifact_id, relation)` | walk the provenance graph |
 | `announce(message, kind=…)` | emit a progress/status event to the UI |
-| `diff / rollback / merge` | inspect or unwind history; merge forks |
+| `diff / checkout / merge` | inspect or unwind history; merge forks |
 
 `Context.resources` carries what is *not* state: providers (the LLM, an
 embedder), sources, and arbitrary app resources (a price catalog, an image
@@ -66,7 +66,7 @@ Rules of thumb:
 ## 3. Effects & Patch
 
 The authoring surface is the **effects** slot (see
-[The produce contract](effects.md), §24): a produce writes
+[The step contract](effects.md), §24): a step writes
 `create/update/delete/link/upsert` and returns `None`. A class-style step declares
 `effects: Effects` in `run()`; a `@step` function uses
 `call.effects`. The runtime compiles the effect set into one atomic
@@ -121,8 +121,8 @@ class RepairFlow(StepGroup):
 - `steps` — the unit-of-work instances. A step's `consumes` both feeds its
   typed inputs and decides which events can run it; `produces` is the allowed
   create set. Put the primary output first and extra create-only types in the
-  same tuple: `produces = (Primary, Extra)`; `also_creates` is a deprecated
-  alias.
+  same tuple: `produces = (Primary, Extra)`; the old `also_creates=` spelling
+  was removed in 0.23, so extra types belong in `produces` itself.
 - `StepGroup.consumes` still exists for the imperative escape hatch (a group
   subclass overriding `run(event, context)` directly), but declarative code
   should put contracts on steps.

@@ -10,7 +10,7 @@ depends only on the contract, so no transport is imported until you build one.
 # not-run: illustrative
 from reactifact.providers import from_env, openai_llm, anthropic_llm
 
-llm = from_env()                      # OPENROUTER_API_KEY first, else a local one
+llm = from_env()  # OPENROUTER_API_KEY, else OPENAI_BASE_URL, else None
 llm = openai_llm(model="gpt-4o-mini")  # explicit
 llm = anthropic_llm(model="claude-sonnet-4-6")
 ```
@@ -23,9 +23,28 @@ Factory families (same shape, `model=`/key kwargs):
 | Local | `ollama_llm` |
 | Embeddings | `openai_embedder`, `mistral_embedder`, `qwen_embedder`, `nvidia_embedder`, `fireworks_embedder`, `together_embedder` |
 
-`RuntimeResources(llm=..., embedder=...)` wires them; `embedder` is what
-`reactifact.knowledge` uses for vector retrieval (see the `reactifact-rag`
-skill).
+`RuntimeResources(llm=..., embedder=...)` wires them. `resources.embedder` is an
+`EmbeddingProvider`; `KnowledgePipeline` expects an `Embedder`, so wrap it with
+`ProviderEmbedder(resources.embedder)` or use
+`KnowledgePipeline.from_resources(resources, connector)` (see the
+`reactifact-rag` skill).
+
+### Settings-shaped `LLMSpec`
+
+When provider/model/key/proxy should come from configuration instead of code,
+`LLMSpec` names them once and returns a provider or `None`:
+
+```python
+# not-run: illustrative
+from reactifact.providers import LLMSpec
+
+llm = LLMSpec(
+    provider="openrouter",              # or openai, anthropic, ollama, ...
+    model="deepseek/deepseek-v4-flash",
+    api_key_env="OPENROUTER_API_KEY",
+    proxy="http://proxy:3128",
+).build(on_error=lambda reason, exc: print("llm unavailable:", reason))
+```
 
 ## Fakes for tests
 
@@ -46,18 +65,21 @@ network.
 | Wrapper | What it adds |
 | --- | --- |
 | `CachingLLM(inner, cache=...)` | exact-key response cache (`InMemoryCache`, or `KVCache(backend)` to persist). Not semantic. A hit is marked so `BudgetLLM` does not charge it. |
-| `RouterLLM(inner, ..., fallback=...)` | provider failover on retryable errors (`retryable_only` predicate; `on_fallback` hook). |
+| `RouterLLM(providers, *, should_fallback=..., on_fallback=...)` | provider failover in declared order (`retryable_only` is a ready predicate; `on_fallback` hook). |
 | `ReplayLLM(recording, mode="record"|"replay", inner=...)` | record/replay calls to JSONL; replay never hits the network and raises `ReplayMiss` on divergence. |
-| `BudgetLLM(tracker, inner)` | counts tokens/cost per turn and enforces the budget. |
+| `BudgetLLM(inner, tracker, *, pricer=...)` | counts tokens/cost per turn and enforces the budget. |
 
 ```python
 # not-run: illustrative
 from reactifact.cache import CachingLLM, InMemoryCache
-from reactifact.routing import RouterLLM
+from reactifact.routing import RouterLLM, retryable_only
 
 llm = RouterLLM(
-    CachingLLM(openai_llm(model="gpt-4o-mini"), cache=InMemoryCache()),
-    fallback=anthropic_llm(model="claude-sonnet-4-6"),
+    [
+        CachingLLM(openai_llm(model="gpt-4o-mini"), cache=InMemoryCache()),
+        anthropic_llm(model="claude-sonnet-4-6"),
+    ],
+    should_fallback=retryable_only,
 )
 ```
 

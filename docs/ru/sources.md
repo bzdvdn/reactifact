@@ -42,6 +42,7 @@ ctx = Context(
 class SourceRef(BaseModel):
     source_id: str         # какой источник его произвёл
     locator: str           # стабильный локатор внутри источника (путь / URL / id)
+    fragment: str = ""     # chunk/секция внутри локатора; входит в stable_id
     metadata: dict         # owner_id-скоуп, флаг structured, доп. контекст
     score: float | None    # ранг/оценка совпадения, если источник скорирует
     title: str             # опциональный заголовок
@@ -49,7 +50,9 @@ class SourceRef(BaseModel):
     query_id: str          # запрос, который его нашёл
 ```
 
-`SourceRef.stable_id()` позволяет строить детерминированные id артефактов
+`SourceRef.stable_id()` хеширует `source_id:locator` плюс необязательный
+`fragment`, поэтому разные чанки одного документа получают разные refs; это
+позволяет строить детерминированные id артефактов
 (`ref:{stable_id}:{owner_id}` в `fan_out_sources`), так что повторные поиски
 идемпотентны.
 

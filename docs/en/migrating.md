@@ -154,8 +154,8 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 For full control, compose the same pipeline by hand with `fan_out_sources` +
 `materialize_doc` and produce an `Answer` linked `supported_by` the documents
 (`examples/knowledge`). Retrieval is a `Source` capability
-(filesystem/CSV/embeddings/web), not a hardcoded chain — swap the source, keep
-the agents.
+(filesystem/CSV/web, or `KnowledgePipeline` + `IndexSource` for vector search),
+not a hardcoded chain — swap the source, keep the agents.
 
 ## 7. Tool loops
 
