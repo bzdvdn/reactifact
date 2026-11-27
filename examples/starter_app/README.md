@@ -85,4 +85,4 @@ starter_app/
 - `examples/devops`, `examples/knowledge` — fuller apps on the same chat/trace
   contract, with HITL and richer agents.
 - `reactifact.quick` — `.agent`/`.context` on every object is the graduation
-  path from this app to hand-written produces.
+  path from this app to hand-written typed `Step`s.

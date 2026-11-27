@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from reactifact import Artifact, Edit, LLMProvider, Progress, Step
+from reactifact.prompts import PromptTemplate
 from reactifact.structured import structured_llm
 
 from ...fallbacks import fallback_plan
 from ...models import PlanStep, Project, RepairPlan
 from ..common import _palette_text
 
-_PLAN_PROMPT = """Ты — Planner. Составь поэтапный план ремонта помещения.
+_PLAN_PROMPT = PromptTemplate("""Ты — Planner. Составь поэтапный план ремонта помещения.
 
 Геометрия уже вычислена: {geometry}
 Бюджет: {budget}
@@ -40,7 +41,7 @@ _PLAN_PROMPT = """Ты — Planner. Составь поэтапный план �
 - учитывай выбранный дизайн (стиль, цвета, покрытие пола).
 
 Верни ТОЛЬКО JSON без пояснений:
-{{"steps": [{{"name": "", "description": "", "materials": ["..."]}}]}}"""
+{{"steps": [{{"name": "", "description": "", "materials": ["..."]}}]}}""")
 
 
 async def _make_plan(
@@ -59,7 +60,8 @@ async def _make_plan(
         llm,
         temperature=0.1,
         schema=RepairPlan,
-        user=_PLAN_PROMPT.format(geometry=geometry, palette=palette, budget=budget),
+        user=_PLAN_PROMPT.render(geometry=geometry, palette=palette, budget=budget),
+        prompt_hash=_PLAN_PROMPT.hash,
     )
     if result is None or not result.steps:
         return fallback_plan(info)

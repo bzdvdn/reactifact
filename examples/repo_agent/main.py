@@ -79,7 +79,7 @@ class ChangeReport(BaseModel):
     commits: list[str] = Field(default_factory=list)
 
 
-class BuildChangeReport(Step[ChangeReport]):
+class BuildChangeReport(Step):
     consumes = (ToolAnswer,)
     produces = (ChangeReport,)
 

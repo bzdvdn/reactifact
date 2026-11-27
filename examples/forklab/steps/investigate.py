@@ -9,11 +9,11 @@ fallback, §59) — the pipeline still runs fully offline.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Emit, Step, StepCall
+from reactifact import Artifact, Context, Emit, Step
 from reactifact.structured import structured_llm
 
 from ..models import Evidence, EvidenceBody, Question, Strategy
-from ..prompts import wording_system
+from ..prompts import wording_prompt
 
 
 async def _wording(context: Context, snippet: str) -> str:
@@ -26,14 +26,15 @@ async def _wording(context: Context, snippet: str) -> str:
         return snippet
     questions = context.list_artifacts(Question)
     question = questions[0].data if questions else None
+    rendered = wording_prompt(
+        topic=question.topic if question else "unknown",
+        question=question.text if question else "unknown",
+        snippet=snippet,
+    )
     body = await structured_llm(
         context.resources.llm,
         schema=EvidenceBody,
-        system=wording_system(
-            topic=question.topic if question else "unknown",
-            question=question.text if question else "unknown",
-        ),
-        user=f"Document snippet: {snippet}",
+        **rendered.as_kwargs(),
     )
     return body.text if body is not None else snippet
 
@@ -55,23 +56,20 @@ _CATALOG: list[tuple[str, str, float]] = [
 ]
 
 
-def _strategy_of(context: Context) -> Artifact[Strategy] | None:
-    strategies = context.list_artifacts(Strategy)
-    return strategies[0] if strategies else None
-
-
 class DepthInvestigate(Step):
     """One strong finding from the top-ranked document."""
 
     consumes = (Strategy,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> Emit | None:
-        context = call.context
-        strategy = _strategy_of(context)
-        if strategy is None or strategy.data.kind != "depth":
+    async def run(
+        self,
+        strategy: Artifact[Strategy],
+        context: Context,
+    ) -> Emit | None:
+        if strategy.data.kind != "depth":
             return None
-        context.announce("depth: wording 1 finding…", kind="status")
+        self.progress("depth: wording 1 finding…")
         doc_id, snippet, quality = _CATALOG[0]
         return Emit(
             Evidence(
@@ -90,16 +88,17 @@ class BreadthInvestigate(Step):
     consumes = (Strategy,)
     produces = (Evidence,)
 
-    async def run(self, call: StepCall) -> list[Emit] | None:
-        context = call.context
-        strategy = _strategy_of(context)
-        if strategy is None or strategy.data.kind != "breadth":
+    async def run(
+        self,
+        strategy: Artifact[Strategy],
+        context: Context,
+    ) -> list[Emit] | None:
+        if strategy.data.kind != "breadth":
             return None
         findings: list[Emit] = []
         for offset in range(1, min(4, len(_CATALOG))):
-            context.announce(
-                f"breadth: wording finding {offset}/{min(3, len(_CATALOG) - 1)}…",
-                kind="status",
+            self.progress(
+                f"breadth: wording finding {offset}/{min(3, len(_CATALOG) - 1)}…"
             )
             doc_id, snippet, quality = _CATALOG[offset]
             findings.append(

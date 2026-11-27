@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Ensure, Step
+from reactifact import Artifact, Consume, Ensure, LLMProvider, Scope, Step
 from reactifact.structured import structured_llm
 
 from ..models import ChangedFile, FileReview, Finding, ReviewBody, ReviewRequest
@@ -81,21 +81,22 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
 
 
 class ReviewFileStep(Step):
-    consumes = (ChangedFile,)
+    consumes = (ChangedFile, Consume(ReviewRequest, wakes=False))
     produces = (FileReview,)
+    scope = Scope("request_id", owner=ReviewRequest)
 
-    async def run(self, file: Artifact[ChangedFile]) -> Ensure:
+    async def run(
+        self,
+        file: Artifact[ChangedFile],
+        request: Artifact[ReviewRequest],
+        llm: LLMProvider | None,
+    ) -> Ensure:
         findings = _deterministic(file.data.path, file.data.patch)
 
-        if self.context.resources.llm is not None:
-            request = self.context.get(file.data.request_id)
-            instructions = (
-                request.data.instructions
-                if request is not None and isinstance(request.data, ReviewRequest)
-                else ""
-            )
+        if llm is not None:
+            instructions = request.data.instructions
             body = await structured_llm(
-                self.context.resources.llm,
+                llm,
                 schema=ReviewBody,
                 system=REVIEW_SYSTEM,
                 user=(

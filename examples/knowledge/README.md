@@ -201,7 +201,7 @@ add-on — `Answer.sources` and this graph come from the same state.
 `description` frontmatter plus a body of procedural instructions.
 `chat.py`'s `build_resources()` loads every file in `skills/` once
 (`reactifact.recipes.load_skills`) into `resources.get("skills")`; `BuildAnswer`
-(`produce/lifecycle.py`) only *matches* a skill against the situation when it
+(`steps/lifecycle.py`) only *matches* a skill against the situation when it
 has a `Calculation` to report:
 
 ```python

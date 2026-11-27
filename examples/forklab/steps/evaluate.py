@@ -8,11 +8,11 @@ the top findings are printed verbatim (honest fallback, §59).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Context, Emit, Step, StepCall
+from reactifact import Artifact, Context, Emit, Step
 from reactifact.structured import structured_llm
 
 from ..models import Answer, AnswerBody, Evidence, Question, Review
-from ..prompts import synthesis_system
+from ..prompts import synthesis_prompt
 
 TOPN = 3
 
@@ -23,8 +23,7 @@ class Evaluate(Step):
     consumes = (Review,)
     produces = (Answer,)
 
-    async def run(self, call: StepCall) -> Emit | None:
-        context = call.context
+    async def run(self, context: Context) -> Emit | None:
         evidences = context.list_artifacts(Evidence)
         if not evidences:
             return None
@@ -47,9 +46,7 @@ class Evaluate(Step):
         top: list[Artifact[Evidence]],
         ranked: list[Artifact[Evidence]],
     ) -> str:
-        context.announce(
-            "synthesizing the answer over the merged evidence…", kind="status"
-        )
+        self.progress("synthesizing the answer over the merged evidence…")
         facts = "\n".join(
             f"- [{evidence.data.branch} / score {evidence.data.score:g}] {evidence.data.text}"
             for evidence in ranked
@@ -59,16 +56,15 @@ class Evaluate(Step):
             return "\n".join(f"[{e.data.branch}] {e.data.text}" for e in top)
         questions = context.list_artifacts(Question)
         question = questions[0].data if questions else None
+        rendered = synthesis_prompt(
+            topic=question.topic if question else "unknown",
+            question=question.text if question else "unknown",
+            facts=facts,
+        )
         body = await structured_llm(
             context.resources.llm,
             schema=AnswerBody,
-            system=synthesis_system(
-                topic=question.topic if question else "unknown",
-                question=question.text if question else "unknown",
-            ),
-            user=(
-                f"Findings from competing branches:\n{facts}\nWrite the final answer."
-            ),
+            **rendered.as_kwargs(),
         )
         if body is not None:
             return body.text

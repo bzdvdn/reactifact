@@ -59,7 +59,7 @@ recorded fingerprint without re-reading the code.
 
 - **Deterministic figures** — `compute_spend`/`compute_variance` are pure
   consumes→produce arithmetic; `Artifact.version` proves only the real
-  dependents recompute (see `examples/ledger` for that story in isolation).
+  dependents recompute (see the `state` scene in `examples/tour`).
 - **Provenance as structure** — `reactifact.audit.build_report` walks the
   relation graph to every contributing artifact with its hash, author and
   version, and lists the source locators the answer rests on.
@@ -72,14 +72,13 @@ recorded fingerprint without re-reading the code.
 fintech_audit/
 ├── data/             # transactions.csv, budget.csv, policy.md
 ├── models.py         # Question, Table, Policy, Spend, Variance, AuditAnswer
-├── produce.py        # search → materialize → compute_spend → compute_variance → answer
-├── agents.py         # GROUPS list
-└── main.py           # run, audit report, reproducibility check
+├── steps.py          # search → materialize → compute_spend → compute_variance → answer
+└── main.py           # STEPS list, run, audit report, reproducibility check
 ```
 
 ## See also
 
 - `reactifact/audit.py` — `build_report`, `context_hash`, `report_to_markdown`.
-- `examples/ledger` — the dependency-precision argument, with `Artifact.version`.
+- `examples/tour` — the `state` scene shows versioned artifacts and dependency precision.
 - `docs/en/observability.md` — trace redaction (`RuntimeResources(redactor=…)`),
   so a demo like this can be shipped to a sink without the raw amounts/PII.

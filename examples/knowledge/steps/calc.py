@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Context, Emit, Step
+from reactifact import Artifact, Consume, Emit, Step
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -65,24 +65,17 @@ class CalculateAggregate(Step):
     Provenance: Calculation —derived_from→ Spreadsheet.
     """
 
-    consumes = (Spreadsheet,)
+    consumes = (Spreadsheet, Consume(ResearchTurn, wakes=False))
     produces = (Calculation,)
+    scope = "query_id"
 
     async def run(
         self,
-        context: Context,
         sheet_art: Artifact[Spreadsheet],
+        turn: ResearchTurn,
     ) -> Emit | None:
         sheet = sheet_art.data
-        question = next(
-            (
-                t.data.text
-                for t in context.list_artifacts(ResearchTurn)
-                if t.data.query_id == sheet.query_id
-            ),
-            "",
-        )
-        func = aggregate_intent(question)
+        func = aggregate_intent(turn.text)
         if func is None:
             return None
         column, values = numeric_column(sheet)
@@ -103,9 +96,8 @@ class CalculateAggregate(Step):
             description = f"Minimum of column «{column}»"
         description += f" ({len(values)} rows, {sheet.source_id}:{sheet.path})"
         value = round(value, 2) if isinstance(value, float) else value
-        context.announce(
+        self.progress(
             f"Computing: {description} = {value}",
-            kind="status",
             path=sheet.path,
         )
         calc_id = f"calc:{sheet.query_id}:{sheet_art.id}"

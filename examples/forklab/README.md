@@ -67,11 +67,11 @@ artifact budget, the answer, and provenance link count.
 ```
 examples/forklab/
   models.py          Question(topic), Strategy, Evidence(Body), Review, Answer(Body), Budget
-  prompts.py         PromptTemplate-based SYSTEM_WORDING / SYSTEM_SYNTHESIS — every call knows the topic + question
-  produce/
+  prompts.py         PromptPair-based wording/synthesis — every call knows the topic + question
+  steps/
     investigate.py   DepthInvestigate / BreadthInvestigate — deterministic pick + LLM wording
     evaluate.py      Evaluate — deterministic ranking/links, LLM/fallback synthesis
-  agents.py          StrategyGroup (per fork) · EvaluatorGroup (on merged)
+  step_groups.py     StrategyGroup (per fork) · EvaluatorGroup (on merged)
   pipeline.py        application orchestration (fork → run → merge → Review → evaluate)
   main.py            CLI entry — arguments + printing only
   web.py             FastAPI/SSE app streaming the pipeline + merged graph

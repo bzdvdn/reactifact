@@ -40,14 +40,11 @@ def render_report(request_id: str, reviews: list[FileReview]) -> ReviewReport:
 class BuildReportStep(Step):
     consumes = (FileReview,)
     produces = (ReviewReport,)
+    scope = "request_id"
 
     async def run(self, review: Artifact[FileReview]) -> Emit:
         request_id = review.data.request_id
-        artifacts = [
-            artifact
-            for artifact in self.context.list_artifacts(FileReview)
-            if artifact.data.request_id == request_id
-        ]
+        artifacts = self.related_all(FileReview)
         return Emit(
             render_report(request_id, [artifact.data for artifact in artifacts]),
             id=f"review-report:{request_id}",

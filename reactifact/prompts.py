@@ -49,7 +49,7 @@ import string
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, cast, get_args
+from typing import Any, TypedDict, cast, get_args
 
 from .providers import Message, Role
 
@@ -424,6 +424,14 @@ class PromptSequence:
         )
 
 
+class PromptKwargs(TypedDict):
+    """Typed keyword payload for `structured_llm` / `llm_reply`."""
+
+    system: str
+    user: str
+    prompt_hash: str
+
+
 @dataclass(frozen=True)
 class RenderedPrompt:
     """A rendered system/user pair plus the prompt version hash."""
@@ -432,7 +440,7 @@ class RenderedPrompt:
     user: str
     prompt_hash: str
 
-    def as_kwargs(self) -> dict[str, str]:
+    def as_kwargs(self) -> PromptKwargs:
         """Keyword arguments for `structured_llm` / `llm_reply`."""
         return {
             "system": self.system,
@@ -559,6 +567,7 @@ class PromptPair:
 
 __all__ = [
     "MessagesPrompt",
+    "PromptKwargs",
     "PromptPair",
     "PromptSequence",
     "PromptTemplate",
