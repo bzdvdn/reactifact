@@ -423,8 +423,8 @@ def rag(
     `doc_locator` so the prompt and citations still read it. The returned
     `QuickRAG` is generic in the answer type, so `.ask()` preserves it.
 
-    Pass `resources=` to fully own the `RuntimeResources` (e.g. a vector
-    `EmbeddingSource` you constructed with your own embedder) — in that case
+    Pass `resources=` to fully own the `RuntimeResources` (e.g. a custom vector
+    `Source` / knowledge `IndexSource`) — in that case
     `sources` is still used to build the pipeline, so register the same
     sources there.
     """

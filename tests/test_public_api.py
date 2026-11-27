@@ -283,6 +283,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "ToolLoopResult",
             "ToolObservation",
             "Transcript",
+            "TranscriptEntry",
             "TurnContext",
             "TurnContextStep",
             "TurnFacts",

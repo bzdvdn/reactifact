@@ -1,6 +1,6 @@
 ---
 name: reactifact-rag
-description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web, embeddings), use the reactifact.knowledge ingestion/retrieval layer (connectors, extractors, hybrid search, MMR, metrics), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings, knowledge ingestion or a scout/resolver step. Not for prompt or tool-loop design (`reactifact-llm`).
+description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web), use the reactifact.knowledge ingestion/retrieval layer (connectors, extractors, hybrid search, MMR, metrics), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings, knowledge ingestion or a scout/resolver step. Not for prompt or tool-loop design (`reactifact-llm`).
 ---
 
 # Retrieval and recipes in reactifact
@@ -19,8 +19,11 @@ Register sources on `RuntimeResources(sources={...})`; an agent retrieves via
 | --- | --- |
 | `FileSystemSource(root, source_id=..., scorer=...)` | lexical over `.md`/`.txt` |
 | `CSVSource(root, source_id=..., scorer=...)` | lexical over rows (returns a dict) |
-| `EmbeddingSource(root, embedder=...)` | vector/cosine (async only) |
 | `WebSource(urls=[...])` | fetch + keyword |
+
+Vector retrieval is the optional knowledge layer (`KnowledgePipeline` +
+`IndexSource`), not a built-in `Source`; a custom `Source` may still override
+`asearch` for embeddings.
 
 `SourceRef` (an artifact you can save and link) carries `source_id`, `locator`,
 `score`, `title`, `query_id`, `metadata`.

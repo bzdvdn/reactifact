@@ -54,7 +54,7 @@ async def mcp_tools(session: Any) -> list[Tool]:
             session,
             name=t.name,
             description=t.description or t.name,
-            schema=t.input_schema,
+            schema=dict(t.input_schema or {"type": "object", "properties": {}}),
             destructive=bool(t.annotations and t.annotations.destructive_hint),
         )
         for t in listed.tools

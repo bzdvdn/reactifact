@@ -23,6 +23,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   reading `Context`; `consume=OnCreate(...)`/`ensure=True` make it one idempotent
   artifact per turn; `artifact_type=` selects a custom target. Downstream steps
   consume the result instead of rebuilding the conversation.
+- **MCP server bridge.** `create_mcp_server` now preserves tool argument
+  signatures through `__signature__` instead of executing schema-derived Python
+  source; invalid parameter names fail with a clear error, missing client
+  `input_schema` becomes an empty object schema, and context resources are
+  ordered newest-first as documented.
+- **LLM agent containers.** `LLMAgent`/`HITLLMAgent` share a common constructor,
+  accept explicit `steps=` without overwriting their internal tool loop, and no
+  longer need dummy `Step(ToolAnswer/Observation/PendingQuestion)` entries:
+  `ToolUse`/`ToolUseHITL` declare their real outputs. `StructuredGenerateAgent`
+  now requires `schema`, uses a stable result id per trigger, and has clearer
+  prompt/fallback errors.
+- **`StatusMachine` ergonomics.** Class and `from_funcs` forms share one
+  constructor with typed `next_status`/`on_transition` callbacks and optional
+  `consumes=`. `StatusState.inputs` scopes through `owner_key` (so custom keys
+  work), and the machine declares no creates because it updates its target.
+- **Conversation helpers.** `Transcript.entries()` (and the `TranscriptEntry`
+  pairing) is now public, `Conversation.add_effect(effects, ...)` supports
+  appending from inside a `Step`, and `window=0` correctly means "empty" in
+  `Transcript.messages`/`Conversation.transcript`. `TurnContextStep` bounds its
+  history to the current trigger and preserves `turn`/`session_id`.
 - **Prompt template composition.** `PromptTemplate.partial(**defaults)` returns
   a variant without mutating the original, `required_variables` reports what is
   still missing after defaults, and `.hash` now covers defaults as well as the
@@ -144,6 +164,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Removed
 
+- **`EmbeddingSource`.** Removed from `reactifact.sources`; use the optional
+  `reactifact.knowledge` pipeline (`KnowledgePipeline` + `IndexSource`) for
+  vector retrieval, or implement a custom `Source.asearch`. FileSystem, CSV and
+  Web sources remain.
 - **Tool-module compatibility shims.** `reactifact.tool_use`,
   `reactifact.native_tool_use` and `reactifact.agent_tool` are gone; import from
   `reactifact.tools.use`, `reactifact.tools.native` and

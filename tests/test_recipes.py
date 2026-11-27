@@ -618,6 +618,34 @@ def test_status_machine_advances_the_latest_target_for_a_key():
     assert ctx.get(second.id).data.status == "done"
 
 
+def test_status_machine_scopes_inputs_through_owner_key():
+    class KeyedJob(BaseModel):
+        key: str
+        status: str = "pending"
+
+    class Marker(BaseModel):
+        key: str
+
+    class KeyedMachine(StatusMachine[KeyedJob]):
+        def owner_key(self, artifact):
+            return artifact.data.key
+
+        def next_status(self, state):
+            return "done" if state.any(Marker) else None
+
+    group = create_step_group(
+        "keyed-status",
+        consumes=[Consume(KeyedJob), Consume(Marker)],
+        steps=[KeyedMachine()],
+    )
+    ctx = Context()
+    ctx.create(KeyedJob(key="k1"))
+    ctx.create(Marker(key="k1"))
+    asyncio.run(Runtime(ctx, groups=[group]).arun())
+
+    assert ctx.latest(KeyedJob).data.status == "done"
+
+
 def test_search_sources_is_pure(tmp_path):
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
 

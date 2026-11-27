@@ -8,6 +8,7 @@ from typing import Annotated
 from pydantic import BaseModel
 from reactifact import (
     Artifact,
+    Consume,
     Context,
     CurrentRequest,
     Effects,
@@ -212,6 +213,31 @@ def test_turn_context_step_builds_window_previous_query_and_digest():
         "first answer",
         "and second?",
     ]
+
+
+def test_turn_context_ignores_messages_after_its_trigger():
+    context = Context()
+    context.create(Question(text="first question"))
+    context.create(Answer(text="first answer"))
+    second = context.create(Question(text="second question"))
+    context.create(Answer(text="future answer"))
+
+    builder = TurnContextStep(
+        Question,
+        assistant_type=Answer,
+        window=None,
+        consume=Consume(Question),
+    )
+    asyncio.run(Runtime(context, steps=[builder]).arun())
+
+    current = context.get(f"turn:{second.id}")
+    assert current is not None
+    assert [message.text for message in current.data.history] == [
+        "first question",
+        "first answer",
+        "second question",
+    ]
+    assert current.data.previous_query == "first question"
 
 
 def test_latest_unscoped_reads_across_turns():

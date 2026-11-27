@@ -5,12 +5,11 @@ mechanics; the source decides (keywords, vectors, SQL, HTTP).
 
 ```python
 # not-run: illustrative
-from reactifact.sources import FileSystemSource, CSVSource, EmbeddingSource, WebSource
+from reactifact.sources import FileSystemSource, CSVSource, WebSource
 
 resources = RuntimeResources(sources={
     "docs": FileSystemSource("knowledge/docs", source_id="docs", scorer=keyword_score),
     "costs": CSVSource("knowledge/costs", source_id="costs"),
-    "rag": EmbeddingSource("knowledge/docs", embedder=embedder),
     "web": WebSource(urls=["https://example.com/page"]),
 })
 ```
@@ -36,13 +35,13 @@ synchronously).
 | --- | --- | --- |
 | `FileSystemSource` | `(root, source_id="filesystem", extensions=(".md", ".txt"), scorer=...)` | file text |
 | `CSVSource` | `(root, source_id="csv", extensions=(".csv",), scorer=...)` | a row `dict` |
-| `EmbeddingSource` | `(root, source_id="rag", embedder=..., chunk_size=1200, score_threshold=0.15)` | chunk text (async search only) |
 | `WebSource` | `(urls=[...], source_id="web", timeout=15.0, transport=...)` | page text (lazy fetch) |
 
 `scorer(text, query) -> float` defaults to token overlap; pass
 `recipes.keyword_score` (with `use_stems=True` for Russian) for better matching.
-`EmbeddingSource` builds its index lazily on first search; call
-`invalidate()` after files change. `WebSource` fetches lazily and accepts an
+For vector search use `reactifact.knowledge` (`KnowledgePipeline` +
+`IndexSource`), or subclass `Source` and override `asearch`. `WebSource`
+fetches lazily and accepts an
 injectable `transport` (e.g. httpx `MockTransport`) for hermetic tests.
 
 Access a source by id with `context.resources.get_source(source_id)`.

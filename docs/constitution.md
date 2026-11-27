@@ -484,12 +484,14 @@ confluence = ConfluenceSource(...)
 filesystem = FileSystemSource(...)
 ```
 
-The core ships *reference sources* demonstrating three retrieval strategies
-(§8-§9): `FileSystemSource` (keyword/full-text), `CSVSource` (structured tables,
-§29) and `EmbeddingSource` (optional vector). GitLab / Confluence / S3 and other
-enterprise systems are **domain-specific connectors**: application code on top
-of the `Source` API (typically under `examples/`), not core — the framework must
-not become a catalog of integrations (§61).
+The core ships *reference sources* demonstrating two retrieval strategies
+(§8-§9): `FileSystemSource` (keyword/full-text) and `CSVSource` (structured
+tables, §29). Vector retrieval lives in the optional knowledge layer
+(`KnowledgePipeline` + `IndexSource`) and implements the same `Source` seam.
+GitLab / Confluence / S3 and other enterprise systems are **domain-specific
+connectors**: application code on top of the `Source` API (typically under
+`examples/`), not core — the framework must not become a catalog of
+integrations (§61).
 
 ---
 
@@ -2755,7 +2757,9 @@ Reference sources shipped in the core, each demonstrating a retrieval strategy
 ```text
 Filesystem   keyword / full-text  (FileSystemSource)
 CSV          structured tables    (CSVSource → Spreadsheet/Calculation)
-Vector       optional embedding   (EmbeddingSource)
+
+Vector retrieval is not a core Source: use the optional knowledge layer
+(KnowledgePipeline + IndexSource) or a custom Source subclass.
 ```
 
 Goal:

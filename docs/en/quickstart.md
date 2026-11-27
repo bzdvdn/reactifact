@@ -391,8 +391,9 @@ Ansible) behind one router, a trace dashboard, a web UI. Run it:
 ## 2. Retrieval over your own docs
 
 Sources are a capability, not a hardcoded RAG pipeline — `FileSystemSource`
-here, but `CSVSource`/`EmbeddingSource`/`WebSource` plug into the exact same
-`fan_out_sources` call (§8). Provenance is a first-class effect
+here, but `CSVSource`/`WebSource` plug into the exact same `fan_out_sources`
+call (§8); vector retrieval uses `reactifact.knowledge` + `IndexSource`.
+Provenance is a first-class effect
 (`materialize_doc` links the derived `Doc` back to its `SourceRef`), not a
 citation string built by hand:
 

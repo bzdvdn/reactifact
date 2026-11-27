@@ -275,9 +275,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | --- | --- |
 | `Source` | ABC: `asearch(query, limit)` → list[SourceRef] |
 | `SourceRef` | the shared atomic search result (ranked, scoped, stable id) |
-| `FileSystemSource` | keyword/embedding search over local files |
+| `FileSystemSource` | keyword search over local files |
 | `CSVSource` | deterministic catalog/table search |
-| `EmbeddingSource` | vector search over a prepared corpus |
 | `WebSource` | discovery + lazy remote document resolution |
 
 ## Providers (reactifact.providers)

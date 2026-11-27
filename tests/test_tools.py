@@ -398,6 +398,21 @@ def test_llm_agent_without_consumes_raises():
         raise AssertionError("expected ValueError")
 
 
+def test_llm_agent_merges_explicit_steps_with_the_tool_loop():
+    class ExplicitAgent(LLMAgent):
+        system = "Use kubectl."
+        tools = [kubectl]
+        consumes = [Consume(K8sProblems)]
+
+    agent = ExplicitAgent(steps=[Step(ChatReply)])
+
+    assert any(isinstance(step, ToolUse) for step in agent.steps or ())
+    assert any(
+        isinstance(step, Step) and step.artifact_type is ChatReply
+        for step in agent.steps or ()
+    )
+
+
 def test_llm_agent_tools_only_no_produces():
     """Without produces: ToolAnswer is the result, rendered by the base chat."""
     calls.clear()

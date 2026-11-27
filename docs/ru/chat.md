@@ -130,9 +130,11 @@ history = conv.transcript(ctx, window=20)   # list[providers.Message] для п�
 ```
 
 `transcript` рендерит поток в провайдерские `Message` (от старых к новым,
-`window` оставляет последние N); `conversation_state` — payload истории для
-`session_state=`; номера `turn` берутся от максимального записанного, поэтому
-pruning их не сбрасывает.
+`window` оставляет последние N, `0` — пусто); `conversation_state` — payload
+истории для `session_state=`; номера `turn` берутся от максимального
+записанного, поэтому pruning их не сбрасывает. `add`/`create_turn` —
+app-side хуки; внутри `Step` используйте `conv.add_effect(effects, ...)` или
+возвращайте `Emit`.
 
 **У большинства реальных приложений *разные* типы на две стороны** (`Question`
 + `FinalResponse`, `UserMsg` + `ChatReply`) с ключом корреляции и нетекстовым

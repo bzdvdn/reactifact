@@ -18,6 +18,10 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 
 ::: reactifact.recipes.ApprovalIntent
 
+### `ConversationMessage`
+
+::: reactifact.recipes.ConversationMessage
+
 ## Steps
 
 ### `ApprovalFlow`
@@ -154,39 +158,11 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 
 ::: reactifact.recipes.ReflectionLoop
 
-## Conversation
+## Core
 
 ### `Conversation`
 
 ::: reactifact.recipes.Conversation
-
-### `ConversationMessage`
-
-::: reactifact.recipes.ConversationMessage
-
-### `MessageSpec`
-
-::: reactifact.recipes.MessageSpec
-
-### `Transcript`
-
-::: reactifact.recipes.Transcript
-
-### `TurnContext`
-
-::: reactifact.recipes.TurnContext
-
-### `TurnContextStep`
-
-::: reactifact.recipes.TurnContextStep
-
-### `TurnFacts`
-
-::: reactifact.recipes.TurnFacts
-
-### `looks_like_follow_up`
-
-::: reactifact.recipes.looks_like_follow_up
 
 ### `add_message`
 
@@ -207,6 +183,20 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 ### `turn_count`
 
 ::: reactifact.recipes.turn_count
+
+## Views
+
+### `MessageSpec`
+
+::: reactifact.recipes.MessageSpec
+
+### `Transcript`
+
+::: reactifact.recipes.Transcript
+
+### `TranscriptEntry`
+
+::: reactifact.recipes.TranscriptEntry
 
 ## Memory Store
 
@@ -243,6 +233,24 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 ### `llm_summarizer`
 
 ::: reactifact.recipes.llm_summarizer
+
+## Turn Context
+
+### `TurnContext`
+
+::: reactifact.recipes.TurnContext
+
+### `TurnContextStep`
+
+::: reactifact.recipes.TurnContextStep
+
+### `TurnFacts`
+
+::: reactifact.recipes.TurnFacts
+
+### `looks_like_follow_up`
+
+::: reactifact.recipes.looks_like_follow_up
 
 ## Swarm
 

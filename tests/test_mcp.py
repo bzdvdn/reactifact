@@ -3,6 +3,7 @@ transport (`mcp.shared.memory`) — no subprocess, no network, but genuine
 wire-format initialize/list_tools/call_tool/read_resource round-trips."""
 
 import asyncio
+import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -166,13 +167,45 @@ def test_mcp_server_exposes_context_as_resources():
 
             listed = await session.read_resource("context://artifacts/Answer")
             body = listed.contents[0].text
-            assert '"first"' in body or "first" in body
-            assert "second" in body
+            payload = json.loads(body)
+            assert [item["data"]["text"] for item in payload] == ["second", "first"]
 
             one = await session.read_resource(f"context://artifact/{a1.id}")
             assert "first" in one.contents[0].text
 
     run(scenario())
+
+
+def test_mcp_tools_handles_a_missing_input_schema():
+    class FakeTool:
+        name = "no_schema"
+        description = ""
+        input_schema = None
+        annotations = None
+
+    class FakeSession:
+        async def list_tools(self):
+            return SimpleNamespace(tools=[FakeTool()])
+
+    (tool,) = run(mcp_tools(FakeSession()))
+    assert tool.schema == {"type": "object", "properties": {}}
+
+
+def test_mcp_server_rejects_invalid_parameter_names():
+    class BadParameterTool(Tool):
+        name = "bad_parameter"
+        description = ""
+        schema = {
+            "type": "object",
+            "properties": {"foo-bar": {"type": "string"}},
+            "required": ["foo-bar"],
+        }
+
+        async def execute(self, args: dict) -> ToolOutput:
+            return ToolOutput(text="never")
+
+    with pytest.raises(ValueError, match="valid MCP parameter name"):
+        create_mcp_server([BadParameterTool()])
 
 
 def test_mcp_http_tools_passes_headers_to_the_transport(monkeypatch):

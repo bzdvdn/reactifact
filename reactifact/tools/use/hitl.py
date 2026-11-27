@@ -56,6 +56,8 @@ class ToolUseHITL(_ToolLoopBase):
     concurrent tool-use conversations.
     """
 
+    produces = (ToolAnswer, Observation, PendingQuestion)
+
     def __init__(
         self,
         system: str,

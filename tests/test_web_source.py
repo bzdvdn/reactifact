@@ -59,6 +59,18 @@ def test_no_fetch_until_needed():
     assert [r.locator for r in again] == [r.locator for r in refs]
 
 
+def test_fetch_sends_the_user_agent_header():
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["user-agent"] = request.headers.get("user-agent", "")
+        return httpx.Response(200, text=PAGES[str(request.url)])
+
+    src = WebSource(urls=list(PAGES), transport=httpx.MockTransport(handler))
+    asyncio.run(src.asearch("gpu"))
+    assert seen["user-agent"] == WebSource.DEFAULT_UA
+
+
 def test_html_to_text_strips_markup():
     from reactifact.sources import _html_to_text
 

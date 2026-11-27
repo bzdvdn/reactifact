@@ -126,8 +126,10 @@ history = conv.transcript(ctx, window=20)   # list[providers.Message] for a prom
 ```
 
 `transcript` renders the thread to provider `Message`s (oldest first, `window`
-keeps the last N); `conversation_state` is the `session_state=` history payload;
-`turn` numbers come from the max recorded turn, so pruning never restarts them.
+keeps the last N, `0` means empty); `conversation_state` is the
+`session_state=` history payload; `turn` numbers come from the max recorded
+turn, so pruning never restarts them. `add`/`create_turn` are app-side hooks;
+inside a `Step` use `conv.add_effect(effects, ...)` or return an `Emit`.
 
 **Most real apps have *separate* types for the two sides** (`Question` +
 `FinalResponse`, `UserMsg` + `ChatReply`) with a correlation key and a non-text

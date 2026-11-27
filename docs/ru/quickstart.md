@@ -391,8 +391,9 @@ resources.register(K8sClient, K8sClient())
 ## 2. Поиск по своим документам
 
 Источники — это capability, а не зашитый RAG-пайплайн: здесь
-`FileSystemSource`, но `CSVSource`/`EmbeddingSource`/`WebSource` подключаются
-через тот же самый вызов `fan_out_sources` (§8). Provenance — полноценный
+`FileSystemSource`, но `CSVSource`/`WebSource` подключаются через тот же
+самый вызов `fan_out_sources` (§8); векторный поиск — через
+`reactifact.knowledge` + `IndexSource`. Provenance — полноценный
 эффект (`materialize_doc` связывает выведенный `Doc` обратно с его
 `SourceRef`), а не строка цитаты, собранная руками:
 

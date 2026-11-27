@@ -91,6 +91,13 @@ class ReportGenerator(StructuredGenerateAgent):
         return Report(title="fallback", body=inputs[0].data.content[:50])
 
 
+def test_structured_generate_agent_requires_a_schema():
+    import pytest
+
+    with pytest.raises(ValueError, match="schema"):
+        StructuredGenerateAgent()
+
+
 def test_structured_generate_agent_uses_llm():
     llm = ScriptedLLM(['{"title": "Т", "body": "Б"}'])
     ctx = Context(resources=RuntimeResources(llm=llm))
@@ -101,6 +108,7 @@ def test_structured_generate_agent_uses_llm():
     reports = ctx.list_artifacts(Report)
     assert len(reports) == 1
     assert reports[0].data.title == "Т"
+    assert reports[0].id.startswith("report:")
     commit = ctx.history()[-1]
     assert commit.author == "report_generator"
 

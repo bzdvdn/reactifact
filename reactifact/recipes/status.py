@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel
 
 from ..artifacts import Artifact, ArtifactType
+from ..consume import Consume
 from ..context import Context
 from ..step import Edit, Step
 
@@ -20,10 +21,10 @@ T = TypeVar("T", bound=BaseModel)
 class StatusState(Generic[StatusT]):
     """The scoped snapshot `StatusMachine.next_status()` decides from.
 
-    `inputs` is the step's consumed artifacts restricted to `key` (via the
-    machine's `query_id_field`), so `all(SourceRef)` means "this turn's
-    refs", not "every ref in the context" — no hand-written `query_id == key`
-    filters in every `next_status`.
+    `inputs` is the step's consumed artifacts restricted to `key` via the
+    machine's `owner_key`, so `all(SourceRef)` means "this turn's refs", not
+    "every ref in the context" — no hand-written `query_id == key` filters in
+    every `next_status`.
     """
 
     context: Context
@@ -56,18 +57,30 @@ class StatusState(Generic[StatusT]):
         return found[-1] if found else None
 
 
+NextStatus = Callable[[StatusState[Any]], str | None]
+TransitionHook = Callable[[Context, str, str, str], None]
+
+
 class StatusMachine(Step[StatusT], Generic[StatusT]):
     """Deterministic `status` lifecycle for an artifact type (§67).
 
-    Subclass it, set `artifact_type`/`terminal`, implement `next_status` (and
-    override `owner_key` or tweak `query_id_field`/`status_field` when the
-    artifact uses a different key/status column). The runtime advances the
-    lifecycle in reaction to events — no manual transition graph (§21, §24).
+    Build one either with a constructor callback:
+
+        machine = StatusMachine(
+            artifact_type=ResearchTurn,
+            terminal={"answered", "insufficient"},
+            next_status=lambda state: "answered" if state.any(Answer) else None,
+        )
+
+    or by subclassing (the generic supplies `artifact_type`):
+
+        class EvaluateTurn(StatusMachine[ResearchTurn]):
+            def next_status(self, state): ...
 
     `next_status` receives a `StatusState`: the lifecycle target plus this
-    step's inputs already restricted to the same correlation key. That keeps
-    the transition function a pure `state -> status | None` without the
-    repeated `context.list_artifacts(T)` + `query_id == key` filtering.
+    step's inputs already restricted to the same correlation key. `owner_key`
+    can be overridden when the artifact uses a different key than
+    `query_id_field`; the same hook scopes the inputs.
     """
 
     artifact_type: ArtifactType | None = None
@@ -87,30 +100,67 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
                     cls.artifact_type = args[0]
                     return
 
+    def __init__(
+        self,
+        artifact_type: type[StatusT] | None = None,
+        *,
+        next_status: NextStatus | None = None,
+        terminal: Iterable[str] | None = None,
+        consumes: Consume
+        | ArtifactType
+        | Sequence[Consume | ArtifactType]
+        | None = None,
+        query_id_field: str = "query_id",
+        status_field: str = "status",
+        on_transition: TransitionHook | None = None,
+        name: str | None = None,
+    ) -> None:
+        resolved = artifact_type or type(self).artifact_type
+        if resolved is None:
+            raise TypeError(
+                "StatusMachine needs artifact_type=... or a StatusMachine[Model] "
+                "subclass"
+            )
+        self._next_status = next_status
+        self._on_transition = on_transition
+        self.terminal = (
+            frozenset(terminal)
+            if terminal is not None
+            else frozenset(getattr(type(self), "terminal", ()))
+        )
+        self.query_id_field = query_id_field
+        self.status_field = status_field
+        # A status machine updates its target; it does not create it. Keep
+        # `artifact_type` for target selection and viz, but declare no creates.
+        super().__init__(produces=(), consumes=consumes, name=name)
+        self.artifact_type = resolved
+
     @classmethod
     def from_funcs(
         cls,
         *,
         artifact_type: type[StatusT],
-        next_status: Any,
-        terminal: frozenset[str] | set[str] = frozenset(),
-        on_transition: Any = None,
+        next_status: NextStatus,
+        terminal: Iterable[str] = (),
+        on_transition: TransitionHook | None = None,
         query_id_field: str = "query_id",
         status_field: str = "status",
+        consumes: Consume
+        | ArtifactType
+        | Sequence[Consume | ArtifactType]
+        | None = None,
+        name: str | None = None,
     ) -> StatusMachine[StatusT]:
-        """Build a machine from a pure `next_status` function instead of a class.
-
-        `next_status(state) -> str | None`; `on_transition(context, key, old,
-        new)` is optional. The artifact type is explicit here because there is
-        no subclass generic to infer it from.
-        """
-        return _FuncStatusMachine(
+        """Build a machine from pure callables instead of a subclass."""
+        return cls(
             artifact_type=artifact_type,
-            next_status_fn=next_status,
+            next_status=next_status,
             terminal=terminal,
-            on_transition_fn=on_transition,
+            on_transition=on_transition,
             query_id_field=query_id_field,
             status_field=status_field,
+            consumes=consumes,
+            name=name,
         )
 
     def owner_key(self, artifact: Artifact[Any]) -> str | None:
@@ -122,14 +172,21 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
                 return key
         return artifact.id
 
-    @abstractmethod
     def next_status(self, state: StatusState[StatusT]) -> str | None:
         """The status the lifecycle should move to, or None (no change)."""
+        if self._next_status is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must implement next_status or pass "
+                "next_status=..."
+            )
+        return self._next_status(state)
 
     def on_transition(
         self, context: Context, key: str, old_status: str, new_status: str
     ) -> None:
         """Hook called right before a transition (progress announces, §53)."""
+        if self._on_transition is not None:
+            self._on_transition(context, key, old_status, new_status)
 
     async def run(
         self,
@@ -159,9 +216,7 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
             context=context,
             key=key,
             target=cast("Artifact[StatusT]", target),
-            inputs=tuple(
-                a for a in inputs if getattr(a.data, self.query_id_field, None) == key
-            ),
+            inputs=tuple(a for a in inputs if self.owner_key(a) == key),
             status_field=self.status_field,
         )
         current = state.status
@@ -173,33 +228,3 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         self.on_transition(context, key, str(current), expected)
         fields: dict[str, Any] = {self.status_field: expected}
         return Edit(target, **fields)
-
-
-class _FuncStatusMachine(StatusMachine[StatusT]):
-    """`StatusMachine.from_funcs` adapter: delegates the pure hooks."""
-
-    def __init__(
-        self,
-        *,
-        artifact_type: type[StatusT],
-        next_status_fn: Any,
-        terminal: frozenset[str] | set[str],
-        on_transition_fn: Any,
-        query_id_field: str,
-        status_field: str,
-    ) -> None:
-        super().__init__(artifact_type=artifact_type)
-        self.terminal = frozenset(terminal)
-        self.query_id_field = query_id_field
-        self.status_field = status_field
-        self._next_status_fn = next_status_fn
-        self._on_transition_fn = on_transition_fn
-
-    def next_status(self, state: StatusState[StatusT]) -> str | None:
-        return cast("str | None", self._next_status_fn(state))
-
-    def on_transition(
-        self, context: Context, key: str, old_status: str, new_status: str
-    ) -> None:
-        if self._on_transition_fn is not None:
-            self._on_transition_fn(context, key, old_status, new_status)

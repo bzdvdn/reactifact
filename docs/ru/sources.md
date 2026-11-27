@@ -14,18 +14,19 @@
 `Source` отвечает на вопрос *как искать во время запроса*. Чтобы построить и
 инкрементально обновлять индекс по документам, используйте
 [`reactifact.knowledge`](knowledge.md) и его ingestion-`Connector`;
-`IndexSource` превращает knowledge-индекс обратно в обычный `Source`.
+`IndexSource` превращает knowledge-индекс обратно в обычный `Source`. Это же
+встроенный путь для векторного поиска: `EmbeddingSource` в core больше нет —
+есть опциональный `KnowledgePipeline` + `IndexSource` (или свой `Source`).
 
 ```python
 from reactifact import Context, RuntimeResources
-from reactifact.sources import CSVSource, EmbeddingSource, FileSystemSource, WebSource
+from reactifact.sources import CSVSource, FileSystemSource, WebSource
 
 ctx = Context(
     resources=RuntimeResources(
         sources={
             "docs": FileSystemSource("./docs"),                 # по ключевым словам по умолчанию
             "catalog": CSVSource("data/"),                      # каталог с .csv-файлами
-            "rag": EmbeddingSource("data/", embedder=embedder),  # векторный поиск требует embedder
             "web": WebSource(["https://example.com/docs"]),     # страницы тянутся лениво
         }
     )
@@ -52,12 +53,11 @@ class SourceRef(BaseModel):
 (`ref:{stable_id}:{owner_id}` в `fan_out_sources`), так что повторные поиски
 идемпотентны.
 
-## Четыре встроенных источника
+## Три встроенных источника
 
 | Источник | Назначение | Примечания |
 | --- | --- | --- |
 | `FileSystemSource` | поиск по ключевым словам по локальным файлам | `scorer` опционален; по умолчанию — пересечение слов |
-| `EmbeddingSource` | векторный поиск по подготовленному корпусу | нужен `EmbeddingProvider` |
 | `CSVSource` | запрос к каталогу/таблице, возвращает структурированные строки | детерминированно, без эмбеддингов |
 | `WebSource` | живой веб: поиск + **ленивое** разрешение страниц | тянет *обещанные* документы по требованию |
 
@@ -92,8 +92,8 @@ query ──► fan_out_sources ──► SourceRefs (ранжированные
 детерминированно:
 
 ```python
-catalog = CSVSource("data/price.csv", key="name")
-rows = await catalog.asearch("штукатурка", limit=20)
+catalog = CSVSource("data/", source_id="catalog")
+refs = await catalog.asearch("штукатурка", limit=20)
 ```
 
 Можно указывать `CSVSource` на любую структурированную таблицу и искать по

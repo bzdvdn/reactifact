@@ -24,7 +24,8 @@ Factory families (same shape, `model=`/key kwargs):
 | Embeddings | `openai_embedder`, `mistral_embedder`, `qwen_embedder`, `nvidia_embedder`, `fireworks_embedder`, `together_embedder` |
 
 `RuntimeResources(llm=..., embedder=...)` wires them; `embedder` is what
-`EmbeddingSource` uses for RAG (see the `reactifact-rag` skill).
+`reactifact.knowledge` uses for vector retrieval (see the `reactifact-rag`
+skill).
 
 ## Fakes for tests
 

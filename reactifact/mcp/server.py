@@ -6,14 +6,15 @@ extra.
 Tool schemas come from `Tool.schema` (already a JSON schema — every `Tool`
 has one, hand-written or `@tool`-derived). The `mcp` SDK's own `add_tool`
 only accepts a plain Python function and derives the schema from its
-*signature*, so each `Tool` is bridged through a small function synthesized
-from its schema (`exec`, §below) rather than reduced to a single opaque
-`**kwargs` parameter — the point of serving these over MCP is that a caller
-sees real argument names and types, not a blind bag of kwargs.
+*signature*, so each `Tool` gets a `**kwargs` wrapper with a generated
+`__signature__` — the caller sees real argument names and types, not a blind
+bag of kwargs, and no schema-derived source is executed.
 """
 
 from __future__ import annotations
 
+import inspect
+import keyword
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -21,13 +22,13 @@ from .._extras import require_extra
 from ..context import Context
 from ..tools import Tool
 
-_JSON_TYPE_TO_PY = {
-    "string": "str",
-    "integer": "int",
-    "number": "float",
-    "boolean": "bool",
-    "array": "list",
-    "object": "dict",
+_JSON_TYPE_TO_PY: dict[str, Any] = {
+    "string": str,
+    "integer": int,
+    "number": float,
+    "boolean": bool,
+    "array": list,
+    "object": dict,
 }
 
 
@@ -68,31 +69,48 @@ def _register_tool(server: Any, t: Tool) -> None:
 
 
 def _bridge_function(t: Tool) -> Callable[..., Any]:
-    """Synthesizes a real Python function matching `t.schema`'s properties,
-    so `add_tool`'s signature-introspection publishes `t`'s actual argument
-    names and types instead of one opaque `**kwargs`.
-    """
-    properties: dict[str, Any] = t.schema.get("properties", {}) or {}
-    required = set(t.schema.get("required", []) or [])
-    param_names = list(properties.keys())
+    """Builds a signature-preserving wrapper for `t` without `exec`.
 
-    params = []
-    dict_entries = []
-    for pname in param_names:
-        json_type = (properties[pname] or {}).get("type")
+    `mcp` publishes a tool's parameters by introspecting a Python function.
+    A `Tool` already carries a JSON schema, so the wrapper gets the schema's
+    names/types as its `__signature__`; the body is a single `**kwargs` call
+    into `Tool.execute`. JSON property names must be valid Python identifiers
+    (and must not start with `_`, which the MCP SDK reserves).
+    """
+    properties = t.schema.get("properties", {}) or {}
+    if not isinstance(properties, dict):
+        raise ValueError(f"Tool {t.name!r}: schema['properties'] must be an object")
+    required = set(t.schema.get("required", []) or [])
+    parameters: list[inspect.Parameter] = []
+    annotations: dict[str, Any] = {}
+
+    for pname in properties:
+        if (
+            not isinstance(pname, str)
+            or not pname.isidentifier()
+            or keyword.iskeyword(pname)
+            or pname.startswith("_")
+        ):
+            raise ValueError(
+                f"Tool {t.name!r}: parameter {pname!r} is not a valid MCP "
+                "parameter name (use an identifier, no leading underscore)"
+            )
+        prop = properties[pname] or {}
+        json_type = prop.get("type") if isinstance(prop, dict) else None
         py_type = (
-            _JSON_TYPE_TO_PY.get(json_type, "Any")
-            if isinstance(json_type, str)
-            else "Any"
+            _JSON_TYPE_TO_PY.get(json_type, Any) if isinstance(json_type, str) else Any
         )
-        if pname in required:
-            params.append(f"{pname}: {py_type}")
-        else:
-            params.append(f"{pname}: {py_type} | None = None")
-        dict_entries.append(f"{pname!r}: {pname}")
-    signature = ", ".join(params)
-    call_dict = "{" + ", ".join(dict_entries) + "}"
-    src = f"async def _bridge({signature}):\n    return await _call({call_dict})\n"
+        is_required = pname in required
+        annotation = py_type if is_required else py_type | None
+        parameters.append(
+            inspect.Parameter(
+                pname,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=inspect.Parameter.empty if is_required else None,
+                annotation=annotation,
+            )
+        )
+        annotations[pname] = annotation
 
     async def _call(args: dict[str, Any]) -> Any:
         from mcp.server.mcpserver.exceptions import ToolError
@@ -108,23 +126,29 @@ def _bridge_function(t: Tool) -> Callable[..., Any]:
             raise ToolError(result.error)
         return result.data or result.text
 
-    namespace: dict[str, Any] = {"_call": _call, "Any": Any}
-    exec(src, namespace)  # noqa: S102 — schema-derived source, no user input
-    fn: Callable[..., Any] = namespace["_bridge"]
-    fn.__name__ = t.name
-    fn.__doc__ = t.description
-    return fn
+    async def _bridge(**kwargs: Any) -> Any:
+        return await _call(kwargs)
+
+    _bridge.__signature__ = inspect.Signature(parameters)  # type: ignore[attr-defined]
+    _bridge.__annotations__ = annotations
+    _bridge.__name__ = t.name
+    _bridge.__doc__ = t.description
+    return _bridge
 
 
 def _register_context_resources(server: Any, context: Context) -> None:
     import json
 
     async def list_artifacts_resource(artifact_type: str) -> str:
-        matches = [
-            a
-            for a in context.list_artifacts()
-            if type(a.data).__name__ == artifact_type
-        ]
+        matches = sorted(
+            (
+                a
+                for a in context.list_artifacts()
+                if type(a.data).__name__ == artifact_type
+            ),
+            key=lambda a: a.created_at,
+            reverse=True,
+        )
         return json.dumps(
             [
                 {

@@ -18,10 +18,6 @@ Query-time sources registered on `RuntimeResources`. The narrative guide is [Sou
 
 ::: reactifact.sources.FileSystemSource
 
-### `EmbeddingSource`
-
-::: reactifact.sources.EmbeddingSource
-
 ### `CSVSource`
 
 ::: reactifact.sources.CSVSource

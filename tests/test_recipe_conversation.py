@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from pydantic import BaseModel
-from reactifact import create_step_group
+from reactifact import Effects, Step, create_step_group
 from reactifact.consume import Consume
 from reactifact.context import Context
 from reactifact.recipes.conversation import (
@@ -15,6 +16,7 @@ from reactifact.recipes.conversation import (
     ConversationMessage,
     MessageSpec,
     Transcript,
+    TranscriptEntry,
     add_message,
     conversation_state,
     create_turn,
@@ -171,3 +173,46 @@ def test_transcript_state_can_carry_message_metadata():
     )
 
     assert view.state(ctx)["messages"][1]["images"] == ["14 days.png"]
+
+
+def test_transcript_entries_are_public_and_ordered():
+    ctx = Context()
+    q = ctx.create(Q(text="first"))
+    a = ctx.create(A(text="answer"))
+    view = Transcript([MessageSpec(Q, "user"), MessageSpec(A, "assistant")])
+
+    entries = view.entries(ctx)
+
+    assert [type(entry) for entry in entries] == [TranscriptEntry, TranscriptEntry]
+    assert [entry.artifact.id for entry in entries] == [q.id, a.id]
+
+
+def test_window_zero_is_empty_and_negative_is_rejected():
+    ctx = Context()
+    add_message(ctx, "user", "hi")
+    add_message(ctx, "assistant", "hello")
+
+    assert transcript(ctx, window=0) == []
+    assert Conversation().transcript(ctx, window=0) == []
+    with pytest.raises(ValueError, match="window"):
+        transcript(ctx, window=-1)
+    with pytest.raises(ValueError, match="window"):
+        Transcript([MessageSpec(Q, "user")]).messages(ctx, window=-1)
+
+
+def test_conversation_add_effect_inside_a_step():
+    class AddMessage(Step):
+        consumes = (Q,)
+        produces = (ConversationMessage,)
+
+        async def run(self, effects: Effects) -> None:
+            Conversation().add_effect(effects, "user", "via effects", session_id="s1")
+
+    ctx = Context()
+    ctx.create(Q(text="go"))
+    asyncio.run(Runtime(ctx, steps=[AddMessage()]).arun())
+
+    messages = ctx.list_artifacts(ConversationMessage)
+    assert len(messages) == 1
+    assert messages[0].data.text == "via effects"
+    assert messages[0].data.session_id == "s1"

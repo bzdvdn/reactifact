@@ -80,6 +80,7 @@ class _ToolLoopBase(Step[ToolAnswer]):
     """
 
     artifact_type = ToolAnswer
+    produces: tuple[type[BaseModel], ...] = (ToolAnswer,)
     provenance = DERIVED_FROM
 
     def __init__(

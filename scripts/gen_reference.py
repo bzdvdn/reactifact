@@ -129,7 +129,6 @@ PAGES = (
             "reactifact.sources.Source",
             "reactifact.sources.SourceRef",
             "reactifact.sources.FileSystemSource",
-            "reactifact.sources.EmbeddingSource",
             "reactifact.sources.CSVSource",
             "reactifact.sources.WebSource",
         ),
