@@ -108,6 +108,16 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 
 ::: reactifact.recipes.materialize_doc
 
+## Route
+
+### `Route`
+
+::: reactifact.recipes.Route
+
+### `RouteCase`
+
+::: reactifact.recipes.RouteCase
+
 ## Status
 
 ### `StatusMachine`

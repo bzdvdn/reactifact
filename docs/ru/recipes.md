@@ -460,6 +460,34 @@ LLM при `context.resources.llm is None`, и откатывается на
 `previous + "\n" + history` (обрезанный), если провайдер бросил исключение,
 вернул `None` или пустой текст. `fallback=` переопределяет это поведение.
 
+## `Route` — одна группа на значение артефакта
+
+`Route` — для частого случая «в ходе есть ключ ветвления; должна выполниться
+только одна downstream-группа». Это builder над обычными `StepGroup`, без
+вложенных групп в runtime. Каждая case-группа сохраняет свои шаги и поздние
+триггеры; сужаются только совпадения события `on` по `key(value) == case`.
+
+```python
+from reactifact.recipes import Route
+
+route = Route(
+    on=ResearchTurn,
+    key=lambda turn: turn.domain,
+    cases={
+        "meta": kb_react_group,
+        "rag": rag_group,
+    },
+    default="rag",       # значения вне map идут в rag
+)
+
+Runtime(ctx, groups=[*route.groups(), planner, ...])
+```
+
+Сгенерированные группы несут `route_case`-маркер. `validate_contracts`
+использует его, чтобы не выдавать `ambiguous_producer`, если один артефакт
+производят разные case одной route; producer'ы вне route по-прежнему дают
+warning.
+
 ## `ScopedCleanup` — удалить scratch хода по scope
 
 `EphemeralCleanup` удаляет артефакты, id которых выводятся из ключа

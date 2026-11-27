@@ -192,6 +192,10 @@ Full details, ids and HITL: `references/effects.md`.
   **`concurrency_limit`** tune scheduling but should not carry correctness —
   the fixpoint does. Avoid relying on intra-generation order; make the
   dependency an artifact instead.
+- **Mutually exclusive cases**: when one artifact field selects one of several
+  downstream groups, build them with `recipes.Route(on=..., key=..., cases=...)`
+  instead of hand-written conditions; `validate_contracts` warns about
+  `ambiguous_producer` outside a route.
 - **Idempotency**: agents may re-wake on an update. Use stable ids with
   `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
   `AbsentConsume`, so a second wake is a no-op rather than a duplicate.

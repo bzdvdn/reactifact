@@ -233,7 +233,7 @@ def test_latest_unscoped_reads_across_turns():
 
 
 def test_chat_reply_projects_the_latest_answer_and_metadata():
-    from reactifact import ChatReply
+    from reactifact.chat import ChatReply
 
     context = Context()
     answer = context.create(Answer(query_id="q1", text="raw"))

@@ -167,7 +167,10 @@ def validate_contracts(
     - no triggers/consumes → **warning** `never_scheduled`;
     - group whose inputs are never available from seeds/producers → **warning**
       `unreachable`;
-    - artifact-type cycle with no bounding Budget → **warning** `cycle`.
+    - artifact-type cycle with no bounding Budget → **warning** `cycle`;
+    - one artifact type with several producing groups → **warning**
+      `ambiguous_producer` (suppressed when they are distinct cases of one
+      `Route`).
     """
     agent_list = normalize_units(
         steps=list(steps) if steps is not None else None,
@@ -205,6 +208,32 @@ def validate_contracts(
                     (agent.name,),
                 )
             )
+
+    by_name = {agent.name: agent for agent in agent_list}
+    for artifact, names in sorted(producers.items()):
+        if len(names) < 2:
+            continue
+        markers = [getattr(by_name[name], "route_case", None) for name in names]
+        if all(marker is not None for marker in markers):
+            routes = {getattr(marker, "route", None) for marker in markers}
+            cases = [getattr(marker, "case", None) for marker in markers]
+            if (
+                None not in routes
+                and len(routes) == 1
+                and None not in cases
+                and len(cases) == len(set(cases))
+            ):
+                continue
+        report.issues.append(
+            ValidationIssue(
+                "warning",
+                "ambiguous_producer",
+                f"artifact type {artifact!r} is produced by {len(names)} groups: "
+                f"{', '.join(sorted(names))}; check exclusivity or declare a Route",
+                tuple(sorted(names)),
+                artifact,
+            )
+        )
 
     all_consumed = set().union(*consumers.values()) if consumers else set()
     all_produced = set(producers)

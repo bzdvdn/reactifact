@@ -188,7 +188,7 @@ def turn_answer(question: Question, call) -> TurnAnswer:
 
 
 def test_chat_accepts_a_declarative_chat_reply():
-    from reactifact import ChatReply
+    from reactifact.chat import ChatReply
 
     reply = ChatReply(
         TurnAnswer,

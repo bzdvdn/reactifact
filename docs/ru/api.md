@@ -16,9 +16,11 @@
 
 reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
-`tests/test_public_api.py` фиксирует `reactifact.__all__` и экспорты core-
-подмодулей (`reactifact.eval`, `reactifact.recipes`, `reactifact.providers`,
-`reactifact.tracing`), поэтому новый экспорт там добавляется осознанно (и
+`tests/test_public_api.py` фиксирует `reactifact.__all__` и экспорты
+канонических подмодулей (`reactifact.step`, `reactifact.consume`,
+`reactifact.chat`, `reactifact.tools.use`, `reactifact.eval`,
+`reactifact.recipes`, `reactifact.providers`, `reactifact.tracing`), поэтому
+новый экспорт там добавляется осознанно (и
 документируется), а не случайно.
 
 - **Публичный API = каждое имя в `reactifact.__all__`** и в запиненных
@@ -53,6 +55,27 @@ reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхно
 - Всё, что находится под `reactifact.cli.*` за пределами задокументированных
   подкоманд `python -m reactifact …`, а также любые тест-хелперы модулей —
   деталь реализации, даже если формально импортируется.
+
+## Карта импортов
+
+Top-level `reactifact` — удобный shortlist для core-примитивов и главных
+фасадов. Специализированные объекты живут в каноническом подмодуле; оттуда
+импортируйте, когда нужна полная поверхность:
+
+| Что | Канонический импорт |
+| --- | --- |
+| шаги, группы, return-style инструкции, аннотации входов | `from reactifact.step import Step, StepGroup, Emit, Scope, Unscoped, Wakes` |
+| consume-декларации и lifecycle-варианты | `from reactifact.consume import Consume, OnCreate, IdempotentConsume, JoinConsume` |
+| chat-хуки и память | `from reactifact.chat import Chat, ChatAssistant, ChatReply, ChatMemory` |
+| tool loops | `from reactifact.tools.use import ToolUse, NativeToolUse, ToolUseHITL` |
+| провайдеры и их спецификации | `from reactifact.providers import LLMProvider, LLMSpec` |
+| рецепты | `from reactifact.recipes import Route, ScopedCleanup, TurnContextStep` |
+| верификация | `from reactifact.verify import Verify` |
+
+`reactifact.__all__` остаётся shortlist’ом для `Context`, `Artifact`, `Step`,
+`StepGroup`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `Chat`, `Budget`,
+lifecycle-consume’ов, `CurrentRequest`, аннотаций входов и инструментов.
+Freeze-тест фиксирует и top-level набор, и `__all__` канонических подмодулей.
 
 ## Он-рамп (`reactifact.quick`)
 
@@ -101,7 +124,6 @@ reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхно
 | `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного. |
-| `ChatReply` | декларативный terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` убирает ручной `reply(ctx, msg_id)` и позволяет переиспользовать `extra` в `Transcript.state` |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()`. `.validate()` — статическая проверка контрактов; `.describe()` — `ContractReport` со схемами seed/answer; `.router()` / `.http()` — опциональные FastAPI-адаптеры; `.as_tool()` — представление как `Tool`/MCP-инструмент |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | цикл по интервалу над Pipeline: `seed_source(tick)` может быть sync/async и вернуть `None`, чтобы пропустить тик; graceful SIGINT/SIGTERM, изоляция ошибок тика. `Daemon(tick=fn)` — форма для готовой tick-функции (шаблон daemon) |
@@ -110,7 +132,7 @@ reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхно
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | статический контракт consumes/produces/tools (Markdown или JSON); CLI `reactifact contracts <module> [--format md\|json]` |
-| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`) |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle/ambiguous_producer (warnings; последний подавляется для разных case одного `Route`); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`) |
 | `Wakes(False)` / `Scope` / `Unscoped` / `Consume` / `IdempotentConsume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `IdempotentConsume(T, id_of=...)` будит, только пока производного id нет; `wakes=False` — читать как вход, не будя агента (нужно только когда `consumes` выводится из подписи); `debounce=True` схлопывает несколько событий одного поколения в один запуск; `Annotated[T, Unscoped()]` читает T по всем ходам, а не только в `scope` шага (для истории комбинируйте с `Wakes(False)`) |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-подклассы `Consume`: будить только на create/update/delete/stale; `OnDelete` требует `event`/`Trigger`, потому что данных уже нет |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
@@ -124,10 +146,10 @@ reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхно
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
-| `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения. Подкласс может использовать `self.progress(...)` и возвращать `Emit`/`Ensure` (базовый возвращает `Any`) |
+| `ToolUse`, `NativeToolUse`, `ToolUseHITL` | produce цикла инструментов: `mode="json" | "native" | "auto"`; native использует `run_tool_loop`/provider tool calls + textual fallback, auto откатывается на JSON. HITL-вариант ждёт одобрения. Подкласс может использовать `self.progress(...)` и возвращать `Emit`/`Ensure` (базовый возвращает `Any`) |
 | `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Inject` | явный маркер `Annotated[T, Inject()]` для инжектируемого параметра тула (когда обычный класс неоднозначен); `Depends` — FastAPI-совместимый алиас |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` ретраит вызов; параметр с обычным классом инжектится из `RuntimeResources` (и не попадает в схему); pydantic-результат заполняет `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `@tool(progress="Смотрю {service}")` задаёт локализованный шаблон статуса для tool loop; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` ретраит вызов; параметр с обычным классом инжектится из `RuntimeResources` (и не попадает в схему); pydantic-результат заполняет `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
 | `ToolAnswer`, `Observation` | результаты инструментов и наблюдения модели (протокол цикла) |
 | `PendingQuestion` | HITL-примитив: приостановленный вопрос, ждущий ответа человека, возобновляется через `human.resume(...)`; опциональные `resolution_schema`, типизированный `resolution_data`, хелперы `approved()` / `answer_text()` |
 | `Effects.update(artifact, *, expected_version=…, **fields)` | обновление полей существующего артефакта; `expected_version=` включает optimistic concurrency (`ArtifactConflict` вместо last-write-wins) |
@@ -160,6 +182,7 @@ reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхно
 
 | Символ | Роль |
 | --- | --- |
+| `ChatReply` | декларативный terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` убирает ручной `reply(ctx, msg_id)` и позволяет переиспользовать `extra` в `Transcript.state` |
 | `ChatAssistant` | низкоуровневый движок под `Chat`: сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
 | `ChatMemory` | необязательная ограниченная память для `Chat`/`ChatAssistant`; `ChatMemory.from_transcript(transcript, ...)` связывает все типы сообщений, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |

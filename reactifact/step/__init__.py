@@ -32,12 +32,5 @@ __all__ = [
     "Wakes",
     "When",
     "create_step_group",
-    "current_step_call",
-    "current_step_context",
-    "invoke_step",
-    "reset_step_call",
-    "reset_step_context",
-    "set_step_call",
-    "set_step_context",
     "step",
 ]

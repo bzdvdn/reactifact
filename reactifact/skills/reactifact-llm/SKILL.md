@@ -116,6 +116,25 @@ Mark a tool `destructive=True` to route it through the human-approval gate.
 `HITLLMAgent` lets the model ask clarifying questions (`PendingQuestion`)
 instead of guessing. Details and the full tool contract: `references/tools.md`.
 
+### Native vs JSON tool loops
+
+`ToolUse` has three modes: `"json"` (the original structured decision loop),
+`"native"` (provider-native `tool_calls` through `run_tool_loop`, including
+DSML/textual parsing), and `"auto"` (native first, JSON fallback when the
+provider returns no usable answer). `NativeToolUse` is the `"native"` shorthand.
+Native mode also honours `context.resources.redactor`.
+
+Give tools a localized progress template; the loop formats it with the args and
+passes it through the redactor:
+
+```python
+# not-run: illustrative
+@tool(progress="Смотрю настройки {service}")
+async def kb_values(service: str) -> str:
+    """Read deployment values."""
+    ...
+```
+
 ### Customising `ToolUse`
 
 Subclass `ToolUse`/`ToolUseHITL` when the loop needs a domain-specific

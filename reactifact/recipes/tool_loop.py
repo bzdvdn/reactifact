@@ -36,6 +36,7 @@ from typing import Any, Literal
 from ..context import Context
 from ..providers import LLMResponse
 from ..tools import Tool, ToolError, execute_tool
+from ..tools.base import tool_progress
 from ..tools.native import (
     ToolCall,
     looks_like_tool_markup,
@@ -348,10 +349,14 @@ async def run_tool_loop(
             remaining = max(0, max_tool_calls - executed)
             to_run, skipped = calls[:remaining], calls[remaining:]
         for call in to_run:
+            tool = tool_map.get(call.name)
+            progress_text = (
+                tool_progress(tool, call.args, redactor) if tool is not None else None
+            )
             await emit(
                 "tool_call",
                 {
-                    "message": f"Calling tool '{call.name}'…",
+                    "message": progress_text or f"Calling tool '{call.name}'…",
                     "tool": call.name,
                     "args": call.args,
                 },

@@ -13,8 +13,10 @@ the docs site, rather than copied here by hand. Per-area pages:
 
 reactifact is pre-1.0 (`0.25.0`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
-pins `reactifact.__all__` and the core submodule exports (`reactifact.eval`,
-`reactifact.recipes`, `reactifact.providers`, `reactifact.tracing`), so a new
+pins `reactifact.__all__` and the canonical submodule exports
+(`reactifact.step`, `reactifact.consume`, `reactifact.chat`,
+`reactifact.tools.use`, `reactifact.eval`, `reactifact.recipes`,
+`reactifact.providers`, `reactifact.tracing`), so a new
 export there has to be added deliberately (and documented), never by accident.
 
 - **Public API = every name in `reactifact.__all__`** and the pinned submodule
@@ -47,6 +49,28 @@ export there has to be added deliberately (and documented), never by accident.
 - Anything under `reactifact.cli.*` beyond the documented `python -m reactifact …`
   subcommands, and anything in a module's tests-only helpers, is implementation
   detail regardless of whether it happens to be importable.
+
+## Import map
+
+`reactifact` top-level is a curated shortcut for the core primitives and the
+main facades. Specialized objects live in their canonical submodule; import
+from there when you want the full surface:
+
+| What | Canonical import |
+| --- | --- |
+| steps, groups, return-style instructions, input annotations | `from reactifact.step import Step, StepGroup, Emit, Scope, Unscoped, Wakes` |
+| consume declarations and lifecycle variants | `from reactifact.consume import Consume, OnCreate, IdempotentConsume, JoinConsume` |
+| chat hooks and memory | `from reactifact.chat import Chat, ChatAssistant, ChatReply, ChatMemory` |
+| tool loops | `from reactifact.tools.use import ToolUse, NativeToolUse, ToolUseHITL` |
+| providers and provider specs | `from reactifact.providers import LLMProvider, LLMSpec` |
+| recipes | `from reactifact.recipes import Route, ScopedCleanup, TurnContextStep` |
+| verification | `from reactifact.verify import Verify` |
+
+`reactifact.__all__` remains the shortcut for `Context`, `Artifact`, `Step`,
+`StepGroup`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `Chat`, `Budget`,
+the lifecycle consumes, `CurrentRequest`, the input annotations, and tools.
+The freeze test pins both the top-level set and the canonical submodule
+`__all__` lists.
 
 ## Quick on-ramp (`reactifact.quick`)
 
@@ -95,7 +119,6 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one. |
-| `ChatReply` | declarative terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` avoids a hand-written `reply(ctx, msg_id)` and can share `extra` with `Transcript.state` |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.answer(seed)` / `.aanswer(seed)` return the typed `answer_type`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()`. `.validate()` runs the static contract check; `.describe()` returns `ContractReport` with seed/answer JSON Schemas; `.router()` / `.http()` are the optional FastAPI adapters; `.as_tool()` exposes it as a `Tool`/MCP tool |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
@@ -104,7 +127,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `run_subflow(parent, *, groups, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | static consumes/produces/tools contract (Markdown or JSON); CLI `reactifact contracts <module> [--format md\|json]` |
-| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
+| `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle/ambiguous_producer warnings (the last is suppressed for distinct `Route` cases); `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
 | `Wakes(False)` / `Scope` / `Unscoped` / `Consume` / `IdempotentConsume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `IdempotentConsume(T, id_of=...)` wakes only while the derived id is absent; `wakes=False` reads as input without waking the agent (needed only when `consumes` is derived from the signature); `debounce=True` collapses several same-generation events into one run; `Annotated[T, Unscoped()]` reads T across every turn instead of only the step's `scope` (combine with `Wakes(False)` for history) |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-specific `Consume` subclasses: wake only on create, update, delete or stale; `OnDelete` needs `event`/`Trigger` because the data is gone |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
@@ -118,10 +141,10 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
-| `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval. A subclass can use `self.progress(...)` and return `Emit`/`Ensure` (the base returns `Any`) |
+| `ToolUse`, `NativeToolUse`, `ToolUseHITL` | the tool-loop step: `mode="json" | "native" | "auto"`; native uses `run_tool_loop`/provider tool calls + textual fallback, `auto` falls back to JSON. HITL variant waits for approval. A subclass can use `self.progress(...)` and return `Emit`/`Ensure` (the base returns `Any`) |
 | `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Inject` | explicit `Annotated[T, Inject()]` marker for an injected tool parameter (useful when a plain class would be ambiguous); `Depends` is a FastAPI-style alias |
-| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `Tool.execute` is instrumented once (trace `ToolRun` + hooks + record/replay) for both direct calls and `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` retries one call; a plain-class parameter is injected from `RuntimeResources` (not in the schema); a pydantic return type fills `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
+| `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `@tool(progress="Looking at {service}")` gives the tool loop a localized status template; `Tool.execute` is instrumented once (trace `ToolRun` + hooks + record/replay) for both direct calls and `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` retries one call; a plain-class parameter is injected from `RuntimeResources` (not in the schema); a pydantic return type fills `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
 | `ToolAnswer`, `Observation` | tool results and model observations (loop protocol) |
 | `PendingQuestion` | HITL primitive: a paused ask waiting for a human answer, resumed via `human.resume(...)`; optional `resolution_schema`, typed `resolution_data`, helpers `approved()` / `answer_text()` |
 | `Effects.update(artifact, *, expected_version=…, **fields)` | field-bump of an existing artifact; `expected_version=` opts into optimistic concurrency (`ArtifactConflict` instead of last-write-wins) |
@@ -154,6 +177,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
+| `ChatReply` | declarative terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` avoids a hand-written `reply(ctx, msg_id)` and can share `extra` with `Transcript.state` |
 | `ChatAssistant` | the low-level engine behind `Chat`: sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
 | `ChatMemory` | optional bounded memory for `Chat`/`ChatAssistant`; `ChatMemory.from_transcript(transcript, ...)` binds every message type, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |

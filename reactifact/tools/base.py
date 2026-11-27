@@ -43,6 +43,9 @@ class Tool(ABC):
     retry: RetryPolicy | None = None
     #: Per-attempt deadline in seconds; `None` = no deadline.
     timeout: float | None = None
+    #: Optional progress template (`"Looking at {service}"`); the tool loop
+    #: formats it with the call arguments after redaction.
+    progress: str | None = None
     _reactifact_instrumented: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -109,6 +112,7 @@ class FunctionTool(Tool):
         description: str | None = None,
         retry: RetryPolicy | None = None,
         timeout: float | None = None,
+        progress: str | None = None,
     ):
         self._fn = fn
         self._injected: dict[str, Any] = {}
@@ -119,6 +123,7 @@ class FunctionTool(Tool):
         self.schema = self.args_model.model_json_schema()
         self.retry = retry
         self.timeout = timeout
+        self.progress = progress
 
     def _service(self, tool_name: str, param: str, annotation: Any) -> Any:
         resources = _active_resources()
@@ -175,6 +180,7 @@ def tool(
     description: str | None = None,
     retry: RetryPolicy | None = None,
     timeout: float | None = None,
+    progress: str | None = None,
 ) -> FunctionTool: ...
 
 
@@ -187,6 +193,7 @@ def tool(
     description: str | None = None,
     retry: RetryPolicy | None = None,
     timeout: float | None = None,
+    progress: str | None = None,
 ) -> Callable[[Callable[..., Any]], FunctionTool]: ...
 
 
@@ -198,6 +205,7 @@ def tool(
     description: str | None = None,
     retry: RetryPolicy | None = None,
     timeout: float | None = None,
+    progress: str | None = None,
 ) -> Any:
     """Decorator: turns an async function into a `FunctionTool` (schema from the signature).
 
@@ -212,9 +220,28 @@ def tool(
             description=description,
             retry=retry,
             timeout=timeout,
+            progress=progress,
         )
 
     return wrap(fn) if fn is not None else wrap
 
 
-__all__ = ["FunctionTool", "Tool", "tool"]
+def tool_progress(
+    tool: Tool,
+    args: dict[str, Any],
+    redactor: Any | None = None,
+) -> str | None:
+    """Formats `tool.progress` with the call arguments, then redacts it."""
+    template = getattr(tool, "progress", None)
+    if not template:
+        return None
+    try:
+        text = template.format(**args)
+    except (KeyError, IndexError, ValueError):
+        return None
+    if redactor is not None:
+        text = redactor.redact(text)
+    return str(text)
+
+
+__all__ = ["FunctionTool", "Tool", "tool", "tool_progress"]

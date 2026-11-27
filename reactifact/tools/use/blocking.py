@@ -4,7 +4,7 @@ import inspect
 import json
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -12,7 +12,7 @@ from ...artifacts import Artifact
 from ...context import Context
 from ...effects import Effects
 from ...structured import structured_llm
-from ..base import Tool
+from ..base import Tool, tool_progress
 from .base import (
     ToolAnswer,
     _FinalAnswer,
@@ -59,6 +59,12 @@ class DeferredToolGroup(BaseModel):
     loader: ToolLoader
 
 
+def _usable_native_text(text: str) -> bool:
+    from ...tools.native import looks_like_tool_markup
+
+    return bool(text.strip()) and not looks_like_tool_markup(text)
+
+
 class ToolUse(_ToolLoopBase):
     """Blocking loop \"LLM decides → tool → … → answer\" in a single produce.
 
@@ -76,12 +82,20 @@ class ToolUse(_ToolLoopBase):
         temperature: float | None = None,
         max_tokens: int | None = None,
         deferred_tool_groups: Sequence[DeferredToolGroup] = (),
+        mode: Literal["json", "native", "auto"] = "json",
+        max_observation_chars: int | None = None,
     ):
+        if mode not in ("json", "native", "auto"):
+            raise ValueError("ToolUse.mode must be 'json', 'native' or 'auto'")
         super().__init__(
             system, tools, name=name, temperature=temperature, max_tokens=max_tokens
         )
+        if mode != "json" and deferred_tool_groups:
+            raise ValueError("DeferredToolGroup is only supported in JSON mode")
         self.max_steps = max_steps
         self.deferred_tool_groups = list(deferred_tool_groups)
+        self.mode = mode
+        self.max_observation_chars = max_observation_chars
 
     async def run(
         self,
@@ -92,9 +106,34 @@ class ToolUse(_ToolLoopBase):
         if trigger is None or isinstance(trigger.data, ToolAnswer):
             return None  # final answer is handled by user produces
         goal = getattr(trigger.data, "text", "") or ""
-        text = await self._loop(context, goal)
+        if self.mode == "json":
+            text = await self._loop(context, goal)
+        else:
+            text = await self._native_loop(context, goal)
+            if self.mode == "auto" and not _usable_native_text(text):
+                text = await self._loop(context, goal)
         effects.create(ToolAnswer(agent=self.name, query_id=trigger.id, text=text))
         return None
+
+    async def _native_loop(self, context: Context, goal: str) -> str:
+        """Provider-native tool calls (OpenAI/DSML) via `run_tool_loop`."""
+        from ...recipes.tool_loop import run_tool_loop
+        from ...tools.native import parse_tool_calls_with_textual
+
+        result = await run_tool_loop(
+            context,
+            system=self.system,
+            user=goal,
+            tools=self.tools,
+            max_rounds=self.max_steps,
+            parallel=True,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            max_observation_chars=self.max_observation_chars,
+            redact_tool_outputs=True,
+            parse_calls=parse_tool_calls_with_textual,
+        )
+        return (result.text or "").strip()
 
     async def _loop(self, context: Context, goal: str) -> str:
         history: list[str] = []
@@ -143,12 +182,22 @@ class ToolUse(_ToolLoopBase):
                     "Tool budget exhausted; answer based on the available data."
                 )
                 continue
+            tool = available.get(decision.tool)
+            progress_text = (
+                tool_progress(tool, decision.args, context.resources.redactor)
+                if tool is not None
+                else None
+            )
             self.progress(
-                f"Calling tool '{decision.tool}'…", kind="agent", tool=decision.tool
+                progress_text or f"Calling tool '{decision.tool}'…",
+                kind="agent",
+                tool=decision.tool,
             )
             result = await self._run_tool(
                 available, decision.tool, decision.args, context=context
             )
+            if context.resources.redactor is not None:
+                result = context.resources.redactor.redact(result)
             executed += 1
             history.append(
                 f"tool_call: {decision.tool}({json.dumps(decision.args, ensure_ascii=False)})\n"
@@ -264,3 +313,15 @@ class ToolUse(_ToolLoopBase):
     def _user_prompt(goal: str, history: list[str]) -> str:
         results = "\n\n".join(history)
         return f"Goal: {goal}\n\nTool results so far:\n{results or '—'}"
+
+
+class NativeToolUse(ToolUse):
+    """`ToolUse` with provider-native tool calls (and textual fallback).
+
+    Equivalent to `ToolUse(..., mode="native")`; use `mode="auto"` when an
+    unsupported provider should still fall back to the JSON tool loop.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("mode", "native")
+        super().__init__(*args, **kwargs)

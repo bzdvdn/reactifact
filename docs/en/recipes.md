@@ -474,6 +474,34 @@ the LLM when `context.resources.llm is None`, and falls back to
 `previous + "\n" + history` (truncated) when the provider raises, returns
 `None`, or returns blank text. `fallback=` overrides that policy.
 
+## `Route` — one case group per artifact value
+
+`Route` is for the common "the turn carries a branch key; only one downstream
+group should run" shape. It stays a builder over ordinary `StepGroup`s — no
+nested groups in the runtime. Each case group keeps its own steps and later
+triggers; only matches of the route's `on` event are narrowed by
+`key(value) == case`.
+
+```python
+from reactifact.recipes import Route
+
+route = Route(
+    on=ResearchTurn,
+    key=lambda turn: turn.domain,
+    cases={
+        "meta": kb_react_group,
+        "rag": rag_group,
+    },
+    default="rag",       # values outside the map use the rag group
+)
+
+Runtime(ctx, groups=[*route.groups(), planner, ...])
+```
+
+Generated groups carry a `route_case` marker. `validate_contracts` uses it to
+suppress the `ambiguous_producer` warning when the same artifact is produced by
+distinct cases of one route; producers outside the route still warn.
+
 ## `ScopedCleanup` — drop a turn's scratch by scope
 
 `EphemeralCleanup` removes artifacts whose ids are derived from a terminal

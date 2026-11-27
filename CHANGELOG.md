@@ -36,6 +36,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   matches the turn id). `MessageSpec` gained `artifact_meta` and `state_field`,
   and `Transcript.render`/`.state()` now cover ids/query ids/sources and the
   `content` key, so `reply` and `session_state` can share one metadata hook.
+- **`Route` and `NativeToolUse`.** `Route(on=..., key=..., cases=...)` builds
+  case-routed `StepGroup` copies (only the route's `on` trigger is narrowed;
+  later events keep working) and marks them for exclusivity validation.
+  `ToolUse(mode="json" | "native" | "auto")` and `NativeToolUse` use the native
+  tool loop (`run_tool_loop`) with textual fallback and JSON fallback;
+  `@tool(progress="…")` gives per-tool localized statuses. `validate_contracts`
+  now warns about `ambiguous_producer` types, suppressed for distinct cases of
+  one `Route`.
 - **`ScopedCleanup` recipe.** `reactifact.recipes.cleanup.ScopedCleanup(
   Answer, scratch_types=(...,), scope="query_id")` reacts to `OnCreate(Answer)`
   and drops every scratch artifact in that scope. It declares `produces=()` and
@@ -73,6 +81,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps,
   `TurnContext` and the low-level-API boundary, and a test rejects removed API
   names in skill text.
+
+### Changed
+
+- **Canonical import paths.** `ChatReply` now lives in
+  `reactifact.chat.ChatReply`; the top-level `reactifact` namespace stays a
+  curated shortcut. `reactifact.step`, `reactifact.consume`, `reactifact.chat`
+  and `reactifact.tools.use` `__all__` are pinned by the freeze test, and the
+  API reference has an import map (execution helpers such as `invoke_step` are
+  no longer advertised in `reactifact.step.__all__`).
 
 ### Fixed
 

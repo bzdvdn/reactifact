@@ -5,10 +5,11 @@ section, plus the everyday building blocks (tool calling, sessions, the LLM
 provider protocol) most agents need regardless of what else they use.
 
 Everything else — eval, tracing, checkpoint/branch backends beyond the
-in-memory default, the chat/web layer, the adaptive scheduler, replay,
-structured-LLM helpers, viz, prompts — is one level down, in its own
-submodule (`reactifact.eval`, `reactifact.tracing`, `reactifact.chat`, ...). Import it
-from there:
+in-memory default, chat hooks beyond `Chat` (`ChatReply`, `ChatMemory`,
+`ChatAssistant`), tool loops (`ToolUse`), provider specs, recipes, the
+adaptive scheduler, replay, structured-LLM helpers, viz, prompts — is one
+level down, in its own submodule (`reactifact.eval`, `reactifact.tracing`,
+`reactifact.chat`, ...). Import it from there:
 
     from reactifact.structured import structured_llm
     from reactifact.tracing import TraceStore
@@ -27,7 +28,7 @@ from importlib.metadata import version as _distribution_version
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
-from .chat import Chat, ChatReply
+from .chat import Chat
 from .commit import ContextCheckpoint
 from .consume import (
     Consume,
@@ -113,7 +114,6 @@ __all__ = [
     "ArtifactConflict",
     "Budget",
     "Chat",
-    "ChatReply",
     "BudgetTracker",
     "Consume",
     "Context",

@@ -22,7 +22,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "ArtifactConflict",
             "Budget",
             "Chat",
-            "ChatReply",
             "BudgetTracker",
             "Consume",
             "Context",
@@ -113,6 +112,60 @@ FROZEN: dict[str, frozenset[str]] = {
             "step",
             "tool",
             "validate_contracts",
+        }
+    ),
+    "reactifact.consume": frozenset(
+        {
+            "AbsentConsume",
+            "Consume",
+            "CorrelatedConsume",
+            "IdempotentConsume",
+            "JoinConsume",
+            "OnCreate",
+            "OnDelete",
+            "OnStale",
+            "OnUpdate",
+        }
+    ),
+    "reactifact.step": frozenset(
+        {
+            "Drop",
+            "Edit",
+            "Emit",
+            "Ensure",
+            "Latest",
+            "Relate",
+            "Scope",
+            "Step",
+            "StepCall",
+            "StepGroup",
+            "Unscoped",
+            "Wakes",
+            "When",
+            "create_step_group",
+            "step",
+        }
+    ),
+    "reactifact.chat": frozenset(
+        {
+            "Chat",
+            "ChatAssistant",
+            "ChatEvent",
+            "ChatEventKind",
+            "ChatMemory",
+            "ChatReply",
+            "default_session_state",
+            "run_message",
+        }
+    ),
+    "reactifact.tools.use": frozenset(
+        {
+            "DeferredToolGroup",
+            "NativeToolUse",
+            "Observation",
+            "ToolAnswer",
+            "ToolUse",
+            "ToolUseHITL",
         }
     ),
     "reactifact.eval": frozenset(
@@ -216,6 +269,8 @@ FROZEN: dict[str, frozenset[str]] = {
             "ScopedCleanup",
             "ReflectionLoop",
             "RollingDigestSummarizer",
+            "Route",
+            "RouteCase",
             "Router",
             "SeedIdentity",
             "Skill",

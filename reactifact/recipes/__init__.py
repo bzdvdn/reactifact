@@ -129,6 +129,7 @@ from .plan_execute import PlanExecute
 from .reflection import ReflectionLoop
 from .resolve import materialize_doc
 from .rollback import changed_fields, downstream_fields, earliest_stage
+from .route import Route, RouteCase
 from .search import fan_out_sources, search_sources, source_ref_id
 from .skills import Skill, load_skills, match_skills
 from .status import StatusMachine, StatusState
@@ -159,6 +160,8 @@ __all__ = [
     # search / resolve
     "fan_out_sources",
     "materialize_doc",
+    "Route",
+    "RouteCase",
     "search_sources",
     "source_ref_id",
     # status / rollback
