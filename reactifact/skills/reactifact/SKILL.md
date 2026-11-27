@@ -12,8 +12,8 @@ step declares the artifacts it consumes (`consumes`) and may produce
 effects into one atomic patch and loops until nothing new can run. The graph of
 artifacts *is* the program state.
 
-Read this skill first, then the focused skill for the task at hand (see the
-routing table below).
+Read this skill first, then load only the focused skill the task needs (see the
+routing table below). Loading every skill wastes context and blurs the rules.
 
 ## The three invariants
 
@@ -67,7 +67,7 @@ creates an `Answer`, the runtime runs to a fixpoint.
 ```python
 import asyncio
 from pydantic import BaseModel
-from reactifact import StepGroup, Context, Effects, Runtime, Step
+from reactifact import StepGroup, Context, Runtime, Step
 
 
 class Question(BaseModel):
@@ -82,8 +82,8 @@ class Answerer(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Answer(text=question.text.upper()))
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
 
 
 class AnswerAgent(StepGroup):
@@ -157,17 +157,21 @@ mutate state or call agents directly, and turn those into the model above —
 
 | Task | Skill | Key reference |
 | --- | --- | --- |
-| Write/review steps, consumes, effects, provenance | `reactifact-agents` | `references/consume.md`, `references/effects.md` |
-| Add an LLM step, structured output, tools, budget | `reactifact-llm` | `references/providers.md`, `references/tools.md` |
-| Retrieve from files/CSV/web/embeddings, RAG, fan-out | `reactifact-rag` | `references/sources.md` |
-| Guardrails, authorization/scopes, per-tenant quota | this skill | `references/trust-and-safety.md` |
+| Write/review steps, consumes, effects, provenance | `reactifact-agents` | `reactifact-agents/references/consume.md`, `reactifact-agents/references/effects.md` |
+| Add an LLM step, structured output, tools, budget | `reactifact-llm` | `reactifact-llm/references/providers.md`, `reactifact-llm/references/tools.md` |
+| Retrieve from files/CSV/web/embeddings, RAG, fan-out | `reactifact-rag` | `reactifact-rag/references/sources.md` |
+| Guardrails, authorization/scopes, per-tenant quota | this skill | `reactifact/references/trust-and-safety.md` |
 | Test/debug a pipeline deterministically | `reactifact-testing` | — |
 | Score quality over a dataset, CI gate | `reactifact-eval` | — |
 | Traces, metrics, sessions, durability, CLI/viz | `reactifact-observability` | — |
-| Call or serve another agent over A2A (Agent2Agent) | `reactifact.a2a` | `docs/en/a2a.md` |
+| Call or serve another agent over A2A (Agent2Agent) | `reactifact.a2a` (module, not a skill) | `docs/en/a2a.md` |
 | Port LangChain/LangGraph code | `reactifact-from-langchain` | — |
 
-Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
+The `docs/en/...` paths point into the reactifact repository (or the docs site
+https://bzdvdn.github.io/reactifact/): an installed skill bundle carries only
+the skills and their `references/`, not the docs tree.
+
+Docs (when the skills are not enough): `docs/en/concepts.md`,
 `docs/en/effects.md`, `docs/en/recipes.md`, `docs/en/llm.md`,
 `docs/en/testing.md`, `docs/en/eval.md`, `docs/en/observability.md`.
 
@@ -176,7 +180,7 @@ Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
 | Wrong | Right |
 | --- | --- |
 | `context.state["x"] = v`, or mutating `artifact.data` | `effects.create/update(...)` / `call.effects` |
-| returning a value from a step to hand back a result | create an artifact; the next step consumes it |
+| treating a step's return value as a function result | return the model/Emit — the runtime commits it as an artifact; downstream steps consume it |
 | calling another agent/step directly | declare `consumes`/`produces`; let the runtime schedule |
 | a fresh `Runtime` per request with an empty context | seed the context; keep one session across turns |
 | state in a module global or a plain dict | make it an artifact (typed, versioned, traced) |

@@ -790,6 +790,58 @@ class Runtime:
         finally:
             self._trace.unregister_task(task)
 
+        if error is not None and agent.should_fallback(error):
+            fallback_slot: Effects | None = None
+            fallback_runs: list[tuple[str, int, float, datetime]] = []
+            fallback_tools: list[ToolRun] = []
+            fallback_error: BaseException | None = None
+            effects_token = set_effects(Effects(self.context))
+            produce_runs_token = begin_produce_runs()
+            tool_runs_token = begin_tool_runs(
+                record_args=self.context.resources.record_tool_args,
+                redactor=self.context.resources.redactor,
+                truncate=self._trace.data_char_limit,
+                on_start=self._trace.tool_started,
+                on_end=self._trace.tool_ended,
+                recorder=self.context.resources.tool_recorder,
+            )
+            try:
+                if timeout is not None:
+                    async with asyncio.timeout(timeout):
+                        await agent.run_fallback(self.context, event)
+                else:
+                    await agent.run_fallback(self.context, event)
+                fallback_slot = current_effects()
+                fallback_runs = produce_runs()
+                fallback_tools = tool_runs()
+            except Exception as exc:
+                fallback_error = exc
+            finally:
+                end_produce_runs(produce_runs_token)
+                end_tool_runs(tool_runs_token)
+                reset_effects(effects_token)
+            if fallback_error is None:
+                slot = fallback_slot
+                runs = fallback_runs
+                tools = fallback_tools
+                logger.warning(
+                    "agent fallback used",
+                    extra={"agent": agent.name, "error": repr(error)},
+                )
+                if self.on_agent_error is not None:
+                    self.on_agent_error(agent, event, error)
+                error = None
+            else:
+                logger.warning(
+                    "agent fallback failed",
+                    extra={
+                        "agent": agent.name,
+                        "error": repr(error),
+                        "fallback_error": repr(fallback_error),
+                    },
+                )
+                error = fallback_error
+
         latency = (time.monotonic() - started) * 1000
         if error is not None:
             if isinstance(error, MissingInputError):

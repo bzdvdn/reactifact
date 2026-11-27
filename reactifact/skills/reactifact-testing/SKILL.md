@@ -1,6 +1,6 @@
 ---
 name: reactifact-testing
-description: Test reactifact agent pipelines deterministically with ScenarioLab, provenance assertions, golden snapshots, fault injection, record/replay and the pytest plugin. Use whenever the user wants to test, assert on, debug, or stabilise a reactifact run — checking which artifacts were produced, which tools ran, the agent path, LLM usage, or errors — or when a reactifact test is flaky near an LLM or a tool.
+description: Test reactifact agent pipelines deterministically with ScenarioLab, provenance assertions, golden snapshots, fault injection, record/replay and the pytest plugin. Use whenever the user wants to test, assert on, debug, or stabilise a reactifact run — checking which artifacts were produced, which tools ran, the agent path, LLM usage, or errors — or when a reactifact test is flaky near an LLM or a tool. Not for output-quality scoring (`reactifact-eval`) or production tracing (`reactifact-observability`).
 ---
 
 # Testing reactifact pipelines
@@ -15,7 +15,7 @@ injectable, the whole pipeline runs with no network.
 
 ```python
 from pydantic import BaseModel
-from reactifact import StepGroup, Context, Effects, Runtime, Step, create_step_group
+from reactifact import Step, create_step_group
 from reactifact.testing import ScenarioLab
 
 
@@ -31,8 +31,8 @@ class Answerer(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Answer(text=question.text.upper()))
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
 
 
 agent = create_step_group("answerer", steps=[Answerer()])
@@ -43,7 +43,7 @@ result.artifacts(Answer).exists()          # an Answer was produced (returns its
 result.path.contains("answerer")           # the agent ran
 result.path.exact_sequence("answerer")     # ... exactly once, in this order
 result.tools.never_called("search")        # no tool was invoked
-assert result.errors.count() == 0           # no agent raised
+assert result.errors.count() == 0          # no agent raised
 ```
 
 Use `run(...)`/`turn(...)` (async) in async tests, `run_sync(...)`/

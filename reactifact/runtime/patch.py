@@ -18,12 +18,15 @@ class PatchApplicator:
     def __init__(self, context: Context) -> None:
         self.context = context
 
-    def validate_types(self, patch: Patch, agent: StepGroup) -> None:
-        """Check that every Create matches the agent steps' `produces`."""
-        if agent.steps is None:
+    def validate_types(self, patch: Patch, group: StepGroup) -> None:
+        """Check that every Create matches the group steps' `produces`."""
+        if group.steps is None:
             return
         allowed_types: set[type] = set()
-        for step in agent.steps:
+        steps = list(group.steps)
+        if group.fallback_step is not None:
+            steps.append(group.fallback_step)
+        for step in steps:
             if step.produces:
                 allowed_types.update(step.produces)
             else:
@@ -35,7 +38,7 @@ class PatchApplicator:
         for op in patch.operations:
             if isinstance(op, Create) and type(op.data) not in allowed_types:
                 raise ValueError(
-                    f"StepGroup '{agent.name}' created artifact of type "
+                    f"StepGroup '{group.name}' created artifact of type "
                     f"{type(op.data).__name__}, which is not declared in "
                     f"produces: {[t.__name__ for t in allowed_types]}. Declare "
                     "it via the step's `produces=(...)` (or `also_creates`)."

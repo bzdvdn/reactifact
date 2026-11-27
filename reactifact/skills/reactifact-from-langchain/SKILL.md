@@ -1,6 +1,6 @@
 ---
 name: reactifact-from-langchain
-description: Migrate LangChain or LangGraph agent code to reactifact, and translate between the two mental models. Use whenever the user has a LangChain/LangGraph chain, StateGraph, tool-calling agent or message-list memory and wants it in reactifact (or asks how the paradigms map), or is porting a RAG or multi-agent app off LangChain.
+description: Migrate LangChain or LangGraph agent code to reactifact, and translate between the two mental models. Use whenever the user has a LangChain/LangGraph chain, StateGraph, tool-calling agent or message-list memory and wants it in reactifact (or asks how the paradigms map), or is porting a RAG or multi-agent app off LangChain. Not for greenfield reactifact design (use `reactifact`).
 ---
 
 # Migrating from LangChain / LangGraph to reactifact
@@ -18,26 +18,27 @@ and the graph grows.
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
 | `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |
-| tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools) or `tool_use` recipes |
+| tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools), or `ToolUse` / `NativeToolUse` |
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
 | `messages: list[...]` as memory | artifacts (`Question`/`Answer`/…) across turns, or `ChatMemory` |
 | conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates |
 | `app.invoke(...)` | `Runtime(ctx, groups=[...]).arun()` |
-| LangSmith traces | `reactifact.tracing.TraceStore` (`tracing=[...]`) |
+| LangSmith traces | `reactifact.tracing.TraceStore` (`tracer=[...]`) |
 | `langchain.evaluation` / LangSmith evals | `reactifact.eval` (`docs/en/eval.md`) |
 
 ## Porting recipe
 
 1. **Name the state.** Every key the graph's state dict carries becomes a
    `BaseModel` artifact type.
-2. **Turn each node into a produce.** The node's read-set becomes `consumes`;
-   what it wrote becomes `call.effects.create/update/link(...)`. A node that
-   only computes a value creates an artifact instead of returning it.
+2. **Turn each node into a step.** The node's read-set becomes `consumes`; what
+   it wrote becomes a returned model or `effects.create/update/link(...)`. A
+   node that only computes a value still has that value become an artifact,
+   never a plain return value to the caller.
 3. **Drop the edges.** You rarely declare transitions — an agent wakes when its
    consumed artifacts exist. Use `Consume.by_status`/`by_field` for a
    conditional edge.
-4. **Replace mutation with effects.** Any `state["k"] = v` becomes
-   `call.effects.create(...)` or `update(artifact, field=v)`.
+4. **Replace mutation with effects or a returned model.** Any `state["k"] = v`
+   becomes a returned model, `effects.create(...)`, or `Edit(artifact, field=v)`.
 5. **Replace messages with artifacts.** Conversation turns are `Question` →
    `Answer` artifacts on one shared context; keep raw transcripts only where a
    model needs them (`ChatMemory`).
@@ -58,7 +59,7 @@ def node(state):
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
+    StepGroup, Context, Runtime, RuntimeResources, Step, create_step_group,
 )
 
 
@@ -74,8 +75,8 @@ class Answerer(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Answer(text=question.text.upper()))
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
 
 
 class AnswerAgent(StepGroup):

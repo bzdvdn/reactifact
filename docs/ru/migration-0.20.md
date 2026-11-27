@@ -81,9 +81,10 @@ group = StepGroup(steps=[Estimate()])
 `call.effects`:
 
 ```python
-from reactifact import Answer, Evidence, step
+from reactifact import step
 
 
+# Answer и Evidence — ваши собственные модели.
 @step(produces=Answer, consumes=Evidence)
 async def answer(call):
     return Answer(text=call.trigger.data.text)

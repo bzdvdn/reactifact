@@ -1,8 +1,8 @@
 """`reactifact.recipes.memory` — bounded conversation memory (§27, §37).
 
-`WindowSummarizer` + `WindowPruner` replace the hand-rolled Summarize/Prune
-pair that used to live only in `examples/summarize/main.py` — same behavior,
-now parametrized instead of copy-pasted per app.
+`WindowSummarizer` replaces the hand-rolled Summarize step that used to live
+only in `examples/summarize/main.py`; `WindowPruner` is the standalone pruning
+tool, and `RollingDigestSummarizer` is the folding + pruning recipe.
 """
 
 from __future__ import annotations
@@ -10,8 +10,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 from reactifact import Artifact, Consume, Context, Runtime, StepGroup, create_step_group
+from reactifact.contracts import describe_contracts
 from reactifact.recipes import RollingDigestSummarizer, WindowPruner, WindowSummarizer
 
 
@@ -65,11 +67,11 @@ async def _own_render_digest(
     return f"{previous};{','.join(parts)}" if previous else ",".join(parts)
 
 
-def _flow(*, window: int = 4, every: int = 2, keep: int = 4) -> StepGroup:
+def _flow(*, window: int = 4, every: int = 2) -> StepGroup:
     return create_step_group(
         "memory",
         consumes=[Consume(Msg)],
-        produces=[
+        steps=[
             WindowSummarizer(
                 Msg,
                 Summary,
@@ -78,17 +80,36 @@ def _flow(*, window: int = 4, every: int = 2, keep: int = 4) -> StepGroup:
                 window=window,
                 every=every,
             ),
-            WindowPruner(Msg, keep=keep),
         ],
     )
 
 
-def _run(messages: list[str]) -> Context:
+def _prune_flow(*, keep: int = 4) -> StepGroup:
+    return create_step_group(
+        "prune",
+        consumes=[Consume(Msg)],
+        steps=[WindowPruner(Msg, keep=keep)],
+    )
+
+
+def _run(messages: list[str], *, every: int = 2) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, groups=[_flow()])
+        runtime = Runtime(ctx, groups=[_flow(every=every)])
         for i, text in enumerate(messages):
             ctx.create(Msg(role="user" if i % 2 == 0 else "assistant", text=text))
+            await runtime.arun()
+        return ctx
+
+    return asyncio.run(_arun())
+
+
+def _run_prune(messages: list[str], *, keep: int = 4) -> Context:
+    async def _arun() -> Context:
+        ctx = Context()
+        runtime = Runtime(ctx, groups=[_prune_flow(keep=keep)])
+        for text in messages:
+            ctx.create(Msg(role="user", text=text))
             await runtime.arun()
         return ctx
 
@@ -103,6 +124,29 @@ def test_summarizes_every_n_messages_with_stable_round_ids():
     assert ctx.get("summary:2") is not None
 
 
+def test_summarizer_keeps_producing_rounds_without_a_pruner():
+    ctx = _run([f"msg {i}" for i in range(20)], every=4)
+    summaries = sorted(ctx.list_artifacts(Summary), key=lambda s: s.data.round)
+    assert [s.data.round for s in summaries] == [1, 2, 3, 4, 5]
+
+
+def test_summarizer_handles_a_batch_of_new_messages():
+    async def _arun() -> Context:
+        ctx = Context()
+        runtime = Runtime(ctx, groups=[_flow(every=4)])
+        for i in range(5):
+            ctx.create(Msg(role="user", text=f"m{i}"))
+        await runtime.arun()
+        for i in range(5, 9):
+            ctx.create(Msg(role="user", text=f"m{i}"))
+        await runtime.arun()
+        return ctx
+
+    ctx = asyncio.run(_arun())
+    summaries = sorted(ctx.list_artifacts(Summary), key=lambda s: s.data.round)
+    assert [s.data.round for s in summaries] == [1, 2]
+
+
 def test_offline_summarizer_produces_honest_fallback_text():
     ctx = _run(["hello", "world"])
     summary = ctx.get("summary:1")
@@ -111,15 +155,15 @@ def test_offline_summarizer_produces_honest_fallback_text():
 
 
 def test_pruner_keeps_only_the_window():
-    ctx = _run([f"msg {i}" for i in range(10)])
-    assert len(ctx.list_artifacts(Msg)) == 4  # keep=4 in _flow()
+    ctx = _run_prune([f"msg {i}" for i in range(10)])
+    assert len(ctx.list_artifacts(Msg)) == 4  # keep=4
 
 
 def test_pruner_alone_bounds_messages_without_a_summarizer():
     async def _arun() -> Context:
         ctx = Context()
         agent = create_step_group(
-            "prune-only", consumes=[Consume(Msg)], produces=[WindowPruner(Msg, keep=2)]
+            "prune-only", consumes=[Consume(Msg)], steps=[WindowPruner(Msg, keep=2)]
         )
         runtime = Runtime(ctx, groups=[agent])
         for i in range(5):
@@ -138,11 +182,60 @@ def test_no_summary_before_the_first_round_completes():
     assert ctx.list_artifacts(Summary) == []
 
 
+def test_memory_contracts_show_deletes_not_false_producers():
+    report = describe_contracts([_flow(), _prune_flow(), _digest_flow()])
+    by_name = {group.name: group for group in report.groups}
+
+    assert "Msg" not in by_name["memory"].produces
+    assert "Msg" not in by_name["prune"].produces
+    assert by_name["prune"].deletes == ("Msg",)
+
+    digest = by_name["digest"]
+    assert digest.produces == ("Digest",)
+    assert digest.deletes == ("Msg",)
+
+
+def test_memory_configuration_is_validated():
+    with pytest.raises(ValueError, match="window"):
+        WindowSummarizer(
+            Msg, Summary, summarize=_offline_summarize, build=_build, window=0
+        )
+    with pytest.raises(ValueError, match="every"):
+        WindowSummarizer(
+            Msg, Summary, summarize=_offline_summarize, build=_build, every=0
+        )
+    with pytest.raises(ValueError, match="keep"):
+        WindowPruner(Msg, keep=-1)
+    with pytest.raises(ValueError, match="window"):
+        RollingDigestSummarizer(
+            Msg, Digest, summarize=_offline_digest, build=_build_digest, window=-1
+        )
+    with pytest.raises(ValueError, match="trigger"):
+        RollingDigestSummarizer(
+            Msg, Digest, summarize=_offline_digest, build=_build_digest, trigger=0
+        )
+    with pytest.raises(ValueError, match="trigger"):
+        RollingDigestSummarizer(
+            Msg,
+            Digest,
+            summarize=_offline_digest,
+            build=_build_digest,
+            window=8,
+            trigger=4,
+        )
+    with pytest.raises(ValueError, match="digest_id"):
+        RollingDigestSummarizer(
+            Msg, Digest, summarize=_offline_digest, build=_build_digest, digest_id=""
+        )
+    with pytest.raises(TypeError, match="BaseModel"):
+        WindowPruner([Msg, "not-a-type"], keep=1)  # type: ignore[list-item]
+
+
 def _digest_flow(*, window: int = 4, trigger: int = 6) -> StepGroup:
     return create_step_group(
         "digest",
         consumes=[Consume(Msg)],
-        produces=[
+        steps=[
             RollingDigestSummarizer(
                 Msg,
                 Digest,
@@ -201,7 +294,7 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
         agent = create_step_group(
             "digest-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
-            produces=[
+            steps=[
                 RollingDigestSummarizer(
                     [Question, FinalResponse],
                     Digest,
@@ -237,7 +330,7 @@ def test_pruner_bounds_multiple_message_types():
         agent = create_step_group(
             "prune-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
-            produces=[WindowPruner([Question, FinalResponse], keep=4)],
+            steps=[WindowPruner([Question, FinalResponse], keep=4)],
         )
         runtime = Runtime(ctx, groups=[agent])
         for i in range(10):
@@ -259,7 +352,7 @@ def test_summarizer_merges_multiple_message_types():
         agent = create_step_group(
             "summarize-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
-            produces=[
+            steps=[
                 WindowSummarizer(
                     [Question, FinalResponse],
                     Summary,

@@ -8,11 +8,13 @@ from contextvars import ContextVar, Token
 from datetime import UTC, datetime
 from typing import Any
 
-from ..artifacts import Artifact
+from ..artifacts import Artifact, ArtifactConflict
+from ..authz import AuthorizationError
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects, current_effects
 from ..events import Event, EventType
+from ..guardrails import GuardrailViolation
 from ..patches import Create, Link, Patch
 from ..policy import RetryPolicy
 from ..provenance import DERIVED_FROM
@@ -97,6 +99,9 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
 
     If `run` is not overridden, the group collects inputs according to
     `consumes` and calls every step, merging the patches into one commit.
+    A failed group may declare `fallback=` (one `Step`) and
+    `fallback_on`/`fallback_skip`; it runs after retries in a fresh effects
+    slot, so the failed attempt's effects never commit.
     """
 
     name: str = ""
@@ -134,6 +139,18 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
     #: Whether the runtime auto-schedules this agent from matching events.
     #: `False` keeps it out of reactive scheduling (run it explicitly).
     wakes: bool | Callable[[Event, Context | None], bool] = True
+    #: Optional fallback step run after the group's retries are exhausted.
+    #: It writes into a fresh effects slot; the failed attempt's effects are
+    #: already discarded by the runtime.
+    fallback_step: Step[Any] | None = None
+    #: Exception types that may trigger `fallback_step`.
+    fallback_on: tuple[type[BaseException], ...] = (Exception,)
+    #: Exception types that must never be degraded to a fallback artifact.
+    fallback_skip: tuple[type[BaseException], ...] = (
+        AuthorizationError,
+        GuardrailViolation,
+        ArtifactConflict,
+    )
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -151,6 +168,9 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         wakes: bool | Callable[[Event, Context | None], bool] | None = None,
         retry: RetryPolicy | None = None,
         timeout: float | None = None,
+        fallback: Step[Any] | None = None,
+        fallback_on: Sequence[type[BaseException]] | None = None,
+        fallback_skip: Sequence[type[BaseException]] | None = None,
     ):
         self.name = name or self.name or self.__class__.__name__
 
@@ -200,7 +220,51 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             wakes if wakes is not None else getattr(self.__class__, "wakes", True)
         )
 
+        self.fallback_step = (
+            fallback
+            if fallback is not None
+            else getattr(self.__class__, "fallback_step", None)
+        )
+        if self.fallback_step is not None and not isinstance(self.fallback_step, Step):
+            raise TypeError("StepGroup.fallback must be a Step or None")
+        self.fallback_on = tuple(
+            fallback_on
+            if fallback_on is not None
+            else getattr(self.__class__, "fallback_on", (Exception,))
+        )
+        self.fallback_skip = tuple(
+            fallback_skip
+            if fallback_skip is not None
+            else getattr(
+                self.__class__,
+                "fallback_skip",
+                (AuthorizationError, GuardrailViolation, ArtifactConflict),
+            )
+        )
         self._validate_contracts()
+
+    def should_fallback(self, error: BaseException) -> bool:
+        """Whether `error` may be degraded through `fallback`."""
+        return (
+            self.fallback_step is not None
+            and isinstance(error, self.fallback_on)
+            and not isinstance(error, self.fallback_skip)
+        )
+
+    async def run_fallback(self, context: Context, event: Event | None) -> None:
+        """Runs the fallback step in the current effects slot.
+
+        Called by `Runtime` after the normal attempts failed and their effects
+        were discarded. The fallback is intentionally a single `Step`: a
+        multi-step recovery belongs in an explicit group, not hidden here.
+        """
+        if self.fallback_step is None:
+            return None
+        fallback_group = StepGroup(
+            name=f"{self.name}:fallback",
+            steps=[self.fallback_step],
+        )
+        await fallback_group.execute(context, event)
 
     def _generate_triggers_from_consumes(self) -> list[Trigger]:
         result = []
@@ -231,6 +295,11 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
                         f"StepGroup {self.name!r}: steps must contain Step "
                         f"instances, got {type(p)}"
                     )
+        if self.fallback_step is not None and not isinstance(self.fallback_step, Step):
+            raise TypeError(
+                f"StepGroup {self.name!r}: fallback must be a Step, "
+                f"got {type(self.fallback_step)}"
+            )
 
     def matches(self, event: Event, context: Context | None = None) -> bool:
         if callable(self.wakes):
@@ -459,6 +528,9 @@ def create_step_group(
     wakes: bool | Callable[[Event, Context | None], bool] = True,
     retry: RetryPolicy | None = None,
     timeout: float | None = None,
+    fallback: Step[Any] | None = None,
+    fallback_on: Sequence[type[BaseException]] | None = None,
+    fallback_skip: Sequence[type[BaseException]] | None = None,
 ) -> StepGroup:
     """Builds a StepGroup without subclassing.
 
@@ -473,8 +545,14 @@ def create_step_group(
         consumes=[Consume(Question)],
         retry=RetryPolicy(max_attempts=3),
         steps=[compute_spend, compute_variance],
+        fallback=FallbackAnswer("Не удалось посчитать"),
     )
     ```
+
+    `fallback=` is one `Step` run after the group's retries are exhausted,
+    in a fresh effects slot (the failed attempt is discarded). `fallback_on=`
+    selects exception types; `fallback_skip=` protects authz/guardrail/conflict
+    errors from being degraded.
 
     Pass `triggers` only for the rare imperative style with no `consumes` at
     all (see
@@ -494,6 +572,9 @@ def create_step_group(
         wakes=wakes,
         retry=retry,
         timeout=timeout,
+        fallback=fallback,
+        fallback_on=fallback_on,
+        fallback_skip=fallback_skip,
     )
     if consumes is not None:
         group.consumes = consumes

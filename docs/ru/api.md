@@ -121,7 +121,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 
 | Символ | Роль |
 | --- | --- |
-| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов |
+| `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`, `fallback`; триггеры выводятся из `consumes` шагов. `fallback=Step` выполняется один раз после исчерпания retry, в свежем effects-слоте (effects неудачной попытки отбрасываются) |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного. |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
@@ -269,7 +269,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 
 | Символ | Роль |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`); подставляются **только placeholder'ы-идентификаторы** — литеральный JSON `{"name": …}` / `{}` в промпте остаётся как есть, без экранирования; `.hash` — стабильный sha256 шаблона |
+| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`); подставляются **только placeholder'ы-идентификаторы** — литеральный JSON `{"name": …}` / `{}` в промпте остаётся как есть, без экранирования. Чтобы подставить placeholder внутрь JSON-объекта, удвойте внешние скобки объекта: `{{"answer": "{answer}"}}`. Неизвестные `!conversion` и вложенные format spec отклоняются; `.hash` — стабильный sha256 шаблона |
 | `MessagesPrompt([(role, template), …])` | рендерит чат-последовательность в `list[Message]`; `.hash` покрывает все строки |
 
 ## Источники (reactifact.sources)
@@ -314,8 +314,8 @@ OTLP/Langfuse-приёмников.
 | `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` — чистый поиск (ранжированные refs); `fan_out_sources` дополнительно пишет create-or-refresh refs (`source_ref_id`) в эффект-слот (или явный `effects=`) |
 | `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | ленивый реф → документ с провенансом; принимает артефакт, `SourceRef` или handle; `effects=` задаёт явный слот |
 | `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), `terminal`, `on_transition` |
-| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодическая суммаризация окна диалога, идемпотентна по числу сообщений; `message_type` может быть последовательностью типов |
-| `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов |
+| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодические чекпоинты окна диалога, идемпотентны по числу сообщений; `message_type` может быть последовательностью типов. Не комбинируйте с `WindowPruner` (prune останавливает cadence по счётчику); для ограниченного raw-окна используйте `RollingDigestSummarizer` |
+| `WindowPruner(message_type, keep=…)` | удаляет сообщения старше окна; полезен и сам по себе; `message_type` может быть последовательностью типов. Не комбинируйте с `WindowSummarizer`; fold + prune — это `RollingDigestSummarizer` |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | многоходовой разговор, обобщённый над моделью сообщения (вашей или дефолтной `ConversationMessage`): добавлять ходы, рендерить поток в провайдерские `Message` (хелперы `turn_count` / `conversation_state`) |
 | `Transcript` / `MessageSpec` | read-only view для приложений с *разными* типами на стороны (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): сливает типизированные ходы по ролям в один `Message`-список (`messages` / `state`) |
 | `llm_summarizer(system=…)` | строит колбэк `WindowSummarizer(summarize=…)` из системного промпта через `llm_reply` |

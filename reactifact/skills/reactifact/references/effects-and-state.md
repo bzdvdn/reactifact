@@ -1,12 +1,12 @@
 # Effects, state and provenance
 
-Reference material for the `reactifact` skill. Read it when a produce needs to
+Reference material for the `reactifact` skill. Read it when a step needs to
 read more than its trigger, when ids matter, or when wiring multi-turn state.
 
 ## Reading state
 
 The `Context` is the queryable artifact graph. All methods are safe to call
-inside a produce:
+inside a step:
 
 | Call | Returns |
 | --- | --- |
@@ -19,24 +19,36 @@ inside a produce:
 
 ```python
 # not-run: illustrative
-async def produce(self, call):
-    query = call.trigger.data.text
-    evidence = call.context.list_artifacts(Evidence)
+from reactifact import Artifact, Context, Emit
+
+
+async def run(
+    self,
+    context: Context,
+    question: Artifact[Question],
+) -> Emit | None:
+    evidence = context.list_artifacts(Evidence)
     best = max(evidence, key=lambda a: a.data.score, default=None)
-    if best is not None:
-        answer = call.effects.create(Answer(text=synthesize(query, best.data)))
-        answer.link("supported_by", best)
+    if best is None:
+        return None
+    return Emit(
+        Answer(text=synthesize(question.data.text, best.data)),
+        links=(("supported_by", best),),
+    )
 ```
 
 ## Ids and idempotency
 
 Every artifact has a version and a content hash; re-running a turn does not
 duplicate work when ids are stable. Prefer a deterministic id derived from the
-inputs (`f"scouted:{query_id}"`) over a random one, and use `create_once` when a
-produce may legitimately re-wake:
+inputs (`f"scouted:{query_id}"`) over a random one, and return `Ensure` when a
+step may legitimately re-wake:
 
 ```python
 # not-run: illustrative
+return Ensure(SearchDone(query_id=qid), id=f"search:{qid}")
+
+# or, when the step already holds effects:
 call.effects.create_once(SearchDone(query_id=qid), id=f"search:{qid}")
 ```
 
@@ -96,7 +108,7 @@ afterwards — see the `reactifact-testing` and `reactifact-eval` skills.
 ## Outbound side effects
 
 State changes replay; the *world* does not. Never send an email or call a
-webhook inside a produce — record it with `outbox.act(kind, key=..., payload=...)`
+webhook inside a step — record it with `outbox.act(kind, key=..., payload=...)`
 and let `Runtime(dispatcher=...)` perform it once after the commit. The stable id
 (`action:{key}`) makes retries and merged branches converge on one action, and
 state replay never re-sends it.

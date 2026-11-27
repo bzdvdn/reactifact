@@ -323,16 +323,15 @@ carry `prior_domain`/`routing_text` without reading `Context`. `consume=OnCreate
 makes it one artifact per turn; `ensure=True` makes a re-run a no-op. Combine
 with `Annotated[..., Unscoped()]` when another step also needs full history.
 
-## `WindowSummarizer` / `WindowPruner` — bounded conversation memory (§27, §37)
+## `WindowSummarizer` — periodic conversation checkpoints (§27, §37)
 
-Long-running chat memory is just state: message artifacts accumulate, and two
-plain steps keep the window bounded — a summarizer condenses the recent
-window every N messages, a pruner deletes what falls outside it. The recipe
-owns the window size, cadence, and idempotency; the domain owns *how* to
-summarize and *what* the summary artifact looks like:
+Long-running chat memory is just state: message artifacts accumulate, and a
+summarizer condenses the recent window every N messages into a checkpoint
+artifact. The recipe owns the window size, cadence, and idempotency; the domain
+owns *how* to summarize and *what* the summary artifact looks like:
 
 ```python
-from reactifact.recipes import WindowPruner, WindowSummarizer, llm_summarizer
+from reactifact.recipes import WindowSummarizer, llm_summarizer
 
 
 class Summary(BaseModel):
@@ -353,9 +352,8 @@ class Flow(StepGroup):
             summarize=llm_summarizer("Condense the recent conversation into a short memory note."),
             build=build_summary,
             window=8,   # messages fed into one summary
-            every=4,    # produce a new summary every N messages
+            every=4,    # produce a new checkpoint every N messages
         ),
-        WindowPruner(Msg, keep=8),  # standalone-useful without the summarizer too
     ]
 ```
 
@@ -367,11 +365,27 @@ class Flow(StepGroup):
   the recipe never guesses field names.
 - The summary id is derived from the message count (`summary:{round}` by
   default), so re-running the same generation never duplicates a summary.
+  Batched creation is handled: the latest completed round is produced even when
+  several messages arrive in one generation.
 - `render`/`order_key`/`id_of` are all overridable if the defaults (role/text
   rendering, `created_at` ordering) don't fit your artifact.
 - `message_type` also accepts a sequence of types (e.g. `[UserQuery, Answer]`),
-  so one window bounds a heterogeneous thread; `WindowPruner` takes the same
-  shape.
+  so one checkpoint covers a heterogeneous thread.
+
+**Do not pair it with `WindowPruner`.** The checkpoint cadence is based on the
+message count, and pruning stops that count from growing, so the next checkpoint
+never arrives. Use `RollingDigestSummarizer` when the raw window must be bounded
+(and summarized), or `WindowPruner` alone when you only need a bounded raw
+transcript:
+
+```python
+from reactifact.recipes import WindowPruner
+
+steps = [WindowPruner(Msg, keep=8)]
+```
+
+`WindowPruner` is also standalone-useful and accepts the same single type or
+sequence of types.
 
 See `tests/test_recipes_memory.py` for the runnable cases.
 
@@ -507,10 +521,11 @@ distinct cases of one route; producers outside the route still warn.
 `EphemeralCleanup` removes artifacts whose ids are derived from a terminal
 artifact's key. The chat variant has arbitrary ids but a shared scope
 (`query_id`): `ScopedCleanup` reacts to `OnCreate(Answer)` and drops every
-scratch artifact in that scope, leaving other turns untouched.
+scratch artifact in that scope, leaving other turns untouched. In the example,
+`Answer` is the app's terminal artifact type.
 
 ```python
-from reactifact import Answer, OnCreate
+from reactifact import OnCreate
 from reactifact.recipes.cleanup import ScopedCleanup
 
 cleanup = ScopedCleanup(

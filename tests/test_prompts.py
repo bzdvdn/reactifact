@@ -1,5 +1,6 @@
 """Prompt templating (§68): strict variables, defaults, model attributes, chat rows."""
 
+import pytest
 from pydantic import BaseModel
 from reactifact.prompts import MessagesPrompt, PromptTemplate
 from reactifact.providers import Message
@@ -74,6 +75,18 @@ def test_messages_prompt_hash_covers_rows():
     assert a.hash != c.hash
 
 
+def test_messages_prompt_hash_is_not_newline_ambiguous():
+    one_row = MessagesPrompt([("system", "a\nuser:b")])
+    two_rows = MessagesPrompt([("system", "a"), ("user", "b")])
+    assert one_row.hash != two_rows.hash
+
+
+def test_placeholder_inside_literal_json_needs_doubled_outer_braces():
+    tpl = PromptTemplate('{{"answer": "{answer}"}}')
+    assert tpl.variables == frozenset({"answer"})
+    assert tpl.render(answer="42") == '{"answer": "42"}'
+
+
 def test_nonempty_requirement():
     try:
         PromptTemplate("   ")
@@ -136,3 +149,27 @@ def test_messages_prompt_rejects_unknown_role_row():
         pass
     else:  # pragma: no cover
         raise AssertionError("expected ValueError for an unknown role row")
+
+
+def test_unknown_conversion_is_rejected_at_construction():
+    with pytest.raises(ValueError, match="unknown conversion"):
+        PromptTemplate("{x!z}")
+
+
+def test_nested_format_spec_is_rejected_at_construction():
+    with pytest.raises(ValueError, match="nested format spec"):
+        PromptTemplate("{x:{width}}")
+
+
+def test_malformed_braces_get_a_template_context():
+    with pytest.raises(ValueError, match="invalid prompt template"):
+        PromptTemplate("{x")
+
+
+def test_format_type_errors_are_wrapped():
+    class BadFormat:
+        def __format__(self, spec: str) -> str:
+            raise TypeError("bad format")
+
+    with pytest.raises(ValueError, match="failed to render prompt"):
+        PromptTemplate("{x:>10}").render(x=BadFormat())

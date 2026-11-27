@@ -1,6 +1,6 @@
 ---
 name: reactifact-rag
-description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web, embeddings), use the reactifact.knowledge ingestion/retrieval layer (connectors, extractors, hybrid search, MMR, metrics), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings, knowledge ingestion or a scout/resolver step.
+description: Retrieve external content in reactifact — configure Sources (filesystem, CSV, web, embeddings), use the reactifact.knowledge ingestion/retrieval layer (connectors, extractors, hybrid search, MMR, metrics), fan out and rank with fan_out_sources, materialize documents with provenance, and compose RAG, routing, plan-execute and reflection recipes. Use whenever a reactifact pipeline must search files/documents/the web, do retrieval-augmented generation, resolve citations, or when the user mentions sources, retrieval, RAG, chunking, embeddings, knowledge ingestion or a scout/resolver step. Not for prompt or tool-loop design (`reactifact-llm`).
 ---
 
 # Retrieval and recipes in reactifact
@@ -102,17 +102,24 @@ To turn a ref into a real document with provenance, call `materialize_doc`:
 
 ```python
 # not-run: illustrative
+from reactifact import Artifact, Context, Emit
 from reactifact.recipes import materialize_doc
 
-async def produce(self, call):
-    ref = call.trigger                       # a SourceRef artifact
+
+async def run(
+    self,
+    context: Context,
+    ref: Artifact[SourceRef],
+) -> Emit | None:
     doc = await materialize_doc(
-        call.context, ref, lambda ctx, r, content: Document(text=content)
+        context, ref, lambda ctx, source, content: Document(text=content)
     )
-    if doc is not None:
-        call.effects.create(Answer(text=summarize(doc.text))).link(
-            "supported_by", ref
-        )
+    if doc is None:
+        return None
+    return Emit(
+        Answer(text=summarize(doc.text)),
+        links=(("supported_by", ref),),
+    )
 ```
 
 It creates the document with a stable id and links it `materialized_from →
@@ -218,8 +225,8 @@ the hooks.
 | `ReflectionLoop` | draft → critique → rewrite, with the accept threshold |
 | `StatusMachine` | advance an artifact's `status` via a pure `next_status` |
 | `ApprovalGate` | human sign-off before finalizing |
-| `EphemeralCleanup` / `PrefixedEphemeralCleanup` | delete a turn's scratch artifacts |
-| `WindowSummarizer` / `RollingDigestSummarizer` | bounded conversation memory |
+| `EphemeralCleanup` / `PrefixedEphemeralCleanup` / `ScopedCleanup` | delete a turn's scratch artifacts, by type or by shared scope |
+| `WindowSummarizer` / `RollingDigestSummarizer` | periodic checkpoints / one growing digest (the bounded-window choice) |
 | `Conversation` / `Transcript` | multi-turn conversation as typed turns |
 | `TurnContext` / `TurnContextStep` | one artifact per turn: window, digest, previous query, follow-up flag |
 | `run_tool_loop` | a plain tool-calling loop (no full `LLMAgent`) |

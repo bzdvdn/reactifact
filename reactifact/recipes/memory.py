@@ -1,22 +1,25 @@
-"""recipes — bounded conversation memory: two memory models, pick one.
+"""recipes — bounded conversation memory: pick the model that fits.
 
 Long-running chat memory is just state (§27, §37): message artifacts
 accumulate, and a summarizer condenses the ones falling out of the window.
-Two shapes cover the common cases, and they are *not* interchangeable:
+The shapes are *not* interchangeable:
 
-- `WindowSummarizer` + `WindowPruner` — periodic checkpoints. Every `every`
-  messages, snapshot the current window into a fresh summary artifact (one
-  per round, all of them kept); `WindowPruner` separately bounds the raw
-  window by deleting what falls outside it.
-- `RollingDigestSummarizer` — one growing digest. Once the conversation
-  passes `trigger` messages, fold everything older than `window` into a
-  single digest artifact that keeps accumulating (each fold rewrites it from
-  the previous digest text plus the newly stale messages), deleting the
-  folded messages itself. `WindowPruner` alone can't do this — it deletes
-  without folding first, so using it in place of this recipe loses content
-  instead of condensing it.
+- `WindowSummarizer` — periodic checkpoints. Every `every` messages, snapshot
+  the current window into a fresh summary artifact (one per round, all of them
+  kept). This is a checkpoint recipe, not a bounded-window recipe: do not pair
+  it with `WindowPruner`, because deleting old messages makes the message count
+  stop growing and the next checkpoint never arrives.
+- `WindowPruner` — delete messages older than `keep`, on its own. Useful when
+  the app wants a bounded raw transcript and does not need summaries.
+- `RollingDigestSummarizer` — one growing digest, and the right choice when the
+  raw window must stay bounded. Once the conversation passes `trigger`
+  messages, fold everything older than `window` into a single digest artifact
+  that keeps accumulating (each fold rewrites it from the previous digest text
+  plus the newly stale messages), deleting the folded messages itself. A
+  separate `WindowPruner` cannot do this: it deletes without folding first, so
+  using it in place of this recipe loses content instead of condensing it.
 
-All are plain `Step`s — drop them into an `StepGroup.produces` list next to
+All are plain `Step`s — put them in a `StepGroup`'s `steps` list next to
 whatever else reacts to the message type.
 
 Domain owns *how* to summarize (the `summarize` callback) and *what* the
@@ -50,6 +53,10 @@ def _message_types(
     types = (message_type,) if isinstance(message_type, type) else tuple(message_type)
     if not types:
         raise ValueError("message_type must name at least one artifact type")
+    if not all(isinstance(t, type) and issubclass(t, BaseModel) for t in types):
+        raise TypeError(
+            "message_type must be a BaseModel subclass or a sequence of them"
+        )
     return types
 
 
@@ -101,8 +108,16 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
     window/round math runs — same shape `RollingDigestSummarizer` already
     supports.
 
-    Idempotent by construction: the summary id is derived from the message
-    count, so re-running the same generation never produces a duplicate.
+    The summary id is derived from the message count, so re-running the same
+    generation never produces a duplicate. Batched creation is handled: the
+    latest completed round is produced even when several messages arrive in
+    one generation (earlier missed rounds are not backfilled, because the
+    historical window is no longer available).
+
+    Keep this step away from `WindowPruner`: pruning makes the message count
+    stop growing, so the checkpoint cadence stalls. Use
+    `RollingDigestSummarizer` when the raw window must be bounded, or use
+    `WindowPruner` alone when no summaries are needed.
     """
 
     def __init__(
@@ -119,6 +134,10 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         order_key: Callable[[Artifact[MsgT]], Any] = lambda a: a.created_at,
         id_of: Callable[[int], str] = lambda round_no: f"summary:{round_no}",
     ):
+        if window < 1:
+            raise ValueError("window must be >= 1")
+        if every < 1:
+            raise ValueError("every must be >= 1")
         super().__init__(artifact_type=artifact_type)
         self.message_types = _message_types(message_type)
         self.message_type = message_type
@@ -134,9 +153,9 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
     async def run(self, context: Context) -> Emit | None:
         messages = _collect_messages(context, self.message_types)
         count = len(messages)
-        if count == 0 or count % self.every != 0:
-            return None
         round_no = count // self.every
+        if round_no == 0:
+            return None
         summary_id = self.id_of(round_no)
         # The id is derived from the message count, not from one trigger
         # artifact; IdempotentConsume cannot gate on a count.
@@ -152,9 +171,13 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
 
 class WindowPruner(Step[MsgT], Generic[MsgT]):
     """Deletes `message_type` artifacts older than `keep` (ordered by
-    `order_key`, default `created_at`). Standalone-useful — pair it with
-    `WindowSummarizer` for full sliding-window memory, or use it alone to
-    just bound how many messages a context keeps.
+    `order_key`, default `created_at`). Standalone-useful for bounding how
+    many raw messages a context keeps.
+
+    Do not pair it with `WindowSummarizer`: the summarizer's cadence is based
+    on the message count, and pruning stops that count from growing. Use
+    `RollingDigestSummarizer` when the window must be both bounded and
+    summarized.
 
     `message_type` accepts a single type or a sequence of types (e.g. a
     `UserQuery`/`Answer` pair), so one window can bound a heterogeneous
@@ -168,8 +191,10 @@ class WindowPruner(Step[MsgT], Generic[MsgT]):
         keep: int = 8,
         order_key: Callable[[Artifact[MsgT]], Any] = lambda a: a.created_at,
     ):
+        if keep < 0:
+            raise ValueError("keep must be >= 0")
         message_types = _message_types(message_type)
-        super().__init__(artifact_type=message_types[0])
+        super().__init__(produces=(), deletes=message_types)
         self.message_types = message_types
         self.message_type = message_type
         self.keep = keep
@@ -231,8 +256,17 @@ class RollingDigestSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         order_key: Callable[[Artifact[MsgT]], Any] = lambda a: a.created_at,
         digest_id: str = "digest",
     ):
-        super().__init__(artifact_type=artifact_type)
-        self.message_types = _message_types(message_type)
+        if window < 0:
+            raise ValueError("window must be >= 0")
+        if trigger < 1:
+            raise ValueError("trigger must be >= 1")
+        if trigger < window:
+            raise ValueError("trigger must be >= window")
+        if not digest_id:
+            raise ValueError("digest_id must be a non-empty string")
+        message_types = _message_types(message_type)
+        super().__init__(artifact_type=artifact_type, deletes=message_types)
+        self.message_types = message_types
         self.message_type = message_type
         self.summarize = summarize
         self.build = build
@@ -249,7 +283,7 @@ class RollingDigestSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
         )
         if len(messages) <= self.trigger:
             return None
-        stale = messages[: len(messages) - self.window]
+        stale = messages[: max(0, len(messages) - self.window)]
         if not stale:
             return None
         previous = context.get(self.digest_id)

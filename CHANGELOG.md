@@ -44,6 +44,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `@tool(progress="…")` gives per-tool localized statuses. `validate_contracts`
   now warns about `ambiguous_producer` types, suppressed for distinct cases of
   one `Route`.
+- **Group-level `fallback`.** `create_step_group(..., fallback=Step)` runs a
+  fallback step after the group retries are exhausted, in a fresh effects
+  slot; the failed attempt is discarded, and its `produces` are accepted by
+  patch validation. `fallback_on`/`fallback_skip` keep authz, guardrail and
+  conflict errors from being silently turned into answers.
 - **`ScopedCleanup` recipe.** `reactifact.recipes.cleanup.ScopedCleanup(
   Answer, scratch_types=(...,), scope="query_id")` reacts to `OnCreate(Answer)`
   and drops every scratch artifact in that scope. It declares `produces=()` and
@@ -102,6 +107,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Doctor false positives.** `Produces` in a docstring no longer counts as a
   removed `Produce`; `build_assistant`/`build_resources`-shaped objects are
   inspected when they are reachable, and a non-inspectable target says so.
+- **Memory recipe contracts and bounds.** `WindowPruner` now declares
+  `produces=()` and the real `deletes=(...)` instead of claiming to create the
+  message type; `RollingDigestSummarizer` declares its message deletes too.
+  `WindowSummarizer` handles batched messages and no longer recommends pairing
+  with `WindowPruner` (pruning stalls its count-based cadence); for a bounded
+  raw window use `RollingDigestSummarizer`. Invalid `window`/`every`/`keep`/
+  `trigger` values are rejected, and `trigger < window` no longer produces a
+  negative slice.
+- **Prompt templating edge cases.** Unknown `!conversions` and nested format
+  specs are rejected at construction, malformed braces get a template-context
+  error, and `MessagesPrompt.hash` is no longer ambiguous when a template
+  contains a newline. The docs now show the doubled-brace form for a
+  placeholder inside a literal JSON object.
 
 ## [0.24.0] — 2026-11-27
 

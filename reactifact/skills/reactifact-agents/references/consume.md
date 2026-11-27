@@ -2,7 +2,7 @@
 
 A `Consume` answers two questions: *does this agent run at all* (`wakes`) and
 *which artifacts become its inputs* (`collect`). All parameters can be class
-attributes (for an `StepGroup` subclass) or constructor arguments.
+attributes (for a `StepGroup` subclass) or constructor arguments.
 
 ## Common parameters
 
@@ -20,7 +20,7 @@ attributes (for an `StepGroup` subclass) or constructor arguments.
 
 ```python
 # not-run: illustrative
-from reactifact import Consume
+from reactifact.consume import Consume
 
 Consume(Question, condition=lambda a: len(a.data.text) > 0)
 Consume.by_status(Report, "approved")          # Report.status == "approved"
@@ -36,7 +36,7 @@ field. Both accept `wakes=`/`debounce=`.
 
 ```python
 # not-run: illustrative
-from reactifact import OnCreate, OnDelete, OnStale, OnUpdate
+from reactifact.consume import OnCreate, OnDelete, OnStale, OnUpdate
 
 OnCreate(T)   # only a new id
 OnUpdate(T)   # only an existing id / changed data
@@ -56,7 +56,8 @@ step reads history across turns:
 ```python
 # not-run: illustrative
 from typing import Annotated
-from reactifact import Artifact, Latest, Unscoped, Wakes
+from reactifact import Artifact
+from reactifact.step import Latest, Unscoped, Wakes
 
 async def run(
     self,
@@ -90,7 +91,7 @@ sharing a correlation key, and feeds all of them as inputs:
 
 ```python
 # not-run: illustrative
-from reactifact import JoinConsume
+from reactifact.consume import JoinConsume
 
 consumes = [
     JoinConsume(
@@ -109,7 +110,7 @@ consumes = [
 
 ```python
 # not-run: illustrative
-from reactifact import AbsentConsume
+from reactifact.consume import AbsentConsume
 
 # file a ticket for a thread that has none yet
 consumes = [
@@ -127,7 +128,7 @@ for a key **and** no `forbid` type is:
 
 ```python
 # not-run: illustrative
-from reactifact import CorrelatedConsume
+from reactifact.consume import CorrelatedConsume
 
 CorrelatedConsume(
     key=lambda d: d.thread_id,
@@ -146,4 +147,4 @@ group; only a *sent* notification blocks it).
 When a fan-out creates N artifacts of the same type in one commit, N events
 would wake the agent N times. `debounce=True` collapses them into a single run.
 The run still sees all of them via `context.list_artifacts(T)` — do not rely on
-`call.trigger` for "what changed" in a debounced produce.
+`call.trigger` for "what changed" in a debounced step.

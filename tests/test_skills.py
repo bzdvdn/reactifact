@@ -7,6 +7,7 @@ drift from the API.
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
@@ -16,7 +17,17 @@ from reactifact.cli import main
 
 SKILLS_DIR = Path(reactifact.__file__).resolve().parent / "skills"
 SKILL_FILES = sorted(SKILLS_DIR.glob("*/SKILL.md"))
+_MD_FILES = sorted(SKILLS_DIR.rglob("*.md"))
 _PY_BLOCK = re.compile(r"```python\n(.*?)```", re.S)
+_IMPORT = re.compile(
+    r"^[ \t]*from (reactifact(?:\.[A-Za-z_]\w*)*) import (\([^)]*\)|[^\n]+)",
+    re.M,
+)
+_IMPORT_MODULE = re.compile(
+    r"^[ \t]*import (reactifact(?:\.[A-Za-z_]\w*)*)",
+    re.M,
+)
+_REFERENCE = re.compile(r"`((?:[A-Za-z0-9_-]+/)?references/[A-Za-z0-9_.-]+\.md)`")
 
 
 def _frontmatter(text: str) -> dict[str, str]:
@@ -65,6 +76,56 @@ def test_skill_python_blocks_run(path: Path) -> None:
             exec(compile(block, f"{path}#block{index}", "exec"), namespace)
         except Exception as exc:  # noqa: BLE001 — surface which snippet failed
             pytest.fail(f"{path.name} block {index} raised {type(exc).__name__}: {exc}")
+
+
+def test_skill_imports_resolve_and_are_public() -> None:
+    """Every import in a skill or reference points at a real public name."""
+    problems: list[str] = []
+    for path in _MD_FILES:
+        text = path.read_text(encoding="utf-8")
+        for module_name, raw_names in _IMPORT.findall(text):
+            raw_names = raw_names.strip()
+            if raw_names.startswith("("):
+                raw_names = raw_names[1:-1]
+            names = [
+                name.strip().split(" as ")[0].strip()
+                for name in raw_names.split(",")
+                if name.strip()
+            ]
+            try:
+                module = importlib.import_module(module_name)
+            except Exception as exc:  # noqa: BLE001 — report the offending file
+                problems.append(f"{path}: cannot import {module_name}: {exc}")
+                continue
+            for name in names:
+                if name == "*":
+                    continue
+                if not hasattr(module, name):
+                    problems.append(f"{path}: {module_name}.{name} does not exist")
+                elif module_name == "reactifact" and name not in reactifact.__all__:
+                    problems.append(
+                        f"{path}: {module_name}.{name} is not top-level public"
+                    )
+                elif hasattr(module, "__all__") and name not in module.__all__:
+                    problems.append(f"{path}: {module_name}.{name} is not public")
+        for module_name in _IMPORT_MODULE.findall(text):
+            try:
+                importlib.import_module(module_name)
+            except Exception as exc:  # noqa: BLE001 — report the offending file
+                problems.append(f"{path}: cannot import {module_name}: {exc}")
+    assert not problems, "\n".join(problems)
+
+
+def test_skill_reference_paths_exist() -> None:
+    """A ``references/x.md`` link resolves from its skill or the bundle root."""
+    missing: list[str] = []
+    for path in _MD_FILES:
+        text = path.read_text(encoding="utf-8")
+        for target in _REFERENCE.findall(text):
+            candidates = (path.parent / target, SKILLS_DIR / target)
+            if not any(candidate.is_file() for candidate in candidates):
+                missing.append(f"{path.relative_to(SKILLS_DIR)}: {target}")
+    assert not missing, "\n".join(missing)
 
 
 def test_skills_cli_list(capsys: pytest.CaptureFixture[str]) -> None:

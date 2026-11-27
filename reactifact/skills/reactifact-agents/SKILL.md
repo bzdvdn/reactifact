@@ -1,23 +1,24 @@
 ---
 name: reactifact-agents
-description: Author reactifact agents deeply — Step/Consume contracts, scope and cross-turn history, the Consume lifecycle classes and variants (by_status, by_field, Join, Absent, Correlated), Effects and return-style instructions, ids and idempotency, provenance links, side-effect-only steps, triggers, priority and concurrency. Use when writing or reviewing the produce/consume/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates.
+description: Author reactifact agents deeply — Step/Consume contracts, scope and cross-turn history, the Consume lifecycle classes and variants (by_status, by_field, Join, Absent, Correlated), Effects and return-style instructions, ids and idempotency, provenance links, side-effect-only steps, triggers, priority and concurrency. Use when writing or reviewing the step/consume/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates. Not for model calls or prompts (`reactifact-llm`) or retrieval (`reactifact-rag`).
 ---
 
 # Authoring agents in reactifact
 
 An agent is a bundle of **consumes** (what wakes it) and **produces** (the
 transformations it may apply). There is no `run()` to override in the common
-case — you declare the contract and implement each produce's effects.
+case — you declare the contract and implement each step's effects.
 
 ```python
 # not-run: illustrative — Answerer/Question/Evidence are defined below
 agent = create_step_group("answerer", steps=[Answerer()])
 ```
 
-`create_step_group` is the constructor-style builder; subclassing `StepGroup` is only
-needed for the imperative escape hatch (overriding `run()` with no `consumes`).
+`create_step_group` is the constructor-style builder for an ad-hoc group;
+subclassing `StepGroup` gives a reusable named pipeline. Overriding `run()`
+with no `consumes` is the imperative escape hatch, not the ordinary style.
 
-## A produce reads its inputs and writes effects
+## A step reads its inputs and writes effects
 
 A class step gets typed inputs + `effects: Effects`. A `@step` function uses the
 same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`, `Context`,
@@ -38,7 +39,14 @@ Prefer a returned model, `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Artifact, Consume, Context, Effects, Runtime, RuntimeResources, Step,
+    StepGroup,
+    Artifact,
+    Consume,
+    Context,
+    Emit,
+    Runtime,
+    RuntimeResources,
+    Step,
 )
 
 
@@ -59,8 +67,8 @@ class Scout(Step):
     consumes = (Question,)
     produces = (Evidence,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Evidence(text=f"about {question.text}", score=0.9))
+    async def run(self, question: Question) -> Evidence:
+        return Evidence(text=f"about {question.text}", score=0.9)
 
 
 class Answerer(Step):
@@ -71,10 +79,11 @@ class Answerer(Step):
         self,
         question: Question,
         evidence: Artifact[Evidence],
-        effects: Effects,
-    ) -> None:
-        answer = effects.create(Answer(text=question.text.upper()))
-        answer.link("supported_by", evidence)
+    ) -> Emit:
+        return Emit(
+            Answer(text=question.text.upper()),
+            links=(("supported_by", evidence),),
+        )
 
 
 class Pipeline(StepGroup):
@@ -104,6 +113,7 @@ class attribute, in the `Step` constructor, and in `@step(scope=...)`:
 # not-run: illustrative
 @step(consumes=Question, produces=Answer, scope="query_id")
 async def answer(question: Question) -> Answer: ...
+
 
 class Compose(Step):
     consumes = (Question, Doc)
@@ -142,8 +152,9 @@ Full details and examples: `references/consume.md`.
 
 ## Effects
 
-Effects are the only way to change state. They are compiled into one atomic
-patch. `create` returns a `Handle` you can link immediately.
+Every state change is compiled into one atomic patch. You express it as effects
+or as a return-style instruction; both land in the same commit. `create`
+returns a `Handle` you can link immediately.
 
 | Call | Effect |
 | --- | --- |
@@ -179,7 +190,10 @@ class CleanupTurn(Step):
 ```
 
 `@step(consumes=Question, produces=())` is the function form. `deletes=` is
-declarative (contracts show it); the runtime does not gate deletes on it.
+declarative (contracts show it); the runtime does not gate deletes on it. For
+the common "delete this turn's scratch when the terminal artifact exists",
+reuse `ScopedCleanup` from `reactifact.recipes` instead of hand-writing the
+loop.
 
 Full details, ids and HITL: `references/effects.md`.
 
@@ -200,6 +214,51 @@ Full details, ids and HITL: `references/effects.md`.
   `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
   `AbsentConsume`, so a second wake is a no-op rather than a duplicate.
 
+## Degradation at the group boundary
+
+When a group's main step can fail on an external dependency, declare a fallback
+instead of copying try/except into the step:
+
+```python
+# not-run: illustrative
+create_step_group(
+    "answer_builder",
+    steps=[BuildAnswer()],
+    fallback=FallbackAnswer("Не удалось собрать ответ."),
+    fallback_on=(ProviderError, TimeoutError),
+)
+```
+
+The fallback itself is a small step using the return-style primitive:
+
+```python
+# not-run: illustrative
+from typing import Any
+
+from reactifact import Artifact, Ensure, Step
+
+
+class FallbackAnswer(Step):
+    produces = (Answer,)
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        super().__init__()
+
+    async def run(
+        self,
+        trigger: Artifact[Any] | None,
+    ) -> Ensure:
+        qid = getattr(trigger.data, "query_id", "unknown") if trigger else "unknown"
+        return Ensure(Answer(query_id=qid, text=self.text), id=f"answer:{qid}")
+```
+
+`fallback=` runs once after retries, in a fresh effects slot; the failed
+attempt is discarded. It accepts a `Step`, not a group. `fallback_on` /
+`fallback_skip` keep authz, guardrail and artifact-conflict errors from being
+silently converted into a normal answer. `Chat(fallback_reply=...)` remains the
+last-resort transport fallback when even the fallback step cannot answer.
+
 ## When the low-level API is justified
 
 Use `StepGroup.run(event, context) -> Patch` or direct `Context` queries only
@@ -218,11 +277,11 @@ returned model/`Emit` is enough.
 
 ## Reviewing existing agent code
 
-Look for: mutation of `context`/`.data`; a produce returning a value as its
-result; `agent.run()`/`agent.produce()` called directly; a producer and
-consumer coupled by a shared global instead of an artifact type; an agent that
-fires once per history artifact (missing `wakes=False`); duplicates on
-re-wake (missing stable id).
+Look for: mutation of `context`/`.data`; a step result read by the caller
+instead of becoming an artifact; a step or group invoked directly instead of
+through `consumes`; a step and its consumer coupled by a shared global instead
+of an artifact type; an agent that fires once per history artifact (missing
+`wakes=False`); duplicates on re-wake (missing stable id).
 
 ## Where to look
 

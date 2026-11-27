@@ -13,6 +13,11 @@ run is left **verbatim**, so a literal JSON example in a prompt
 `{"name": …}` is preserved and `{question}` is filled. A typo like `{questoin}`
 is still an identifier and still a missing-variable `KeyError`.
 
+To put a placeholder *inside* a literal JSON object, double the object's outer
+braces: `'{{"answer": "{answer}"}}'` renders to `{"answer": "..."}`. The bare
+form `'{"answer": "{answer}"}'` is one literal brace run and is not substituted,
+because the renderer cannot tell a JSON key from a format field.
+
 `template.hash` is a stable sha256 of the template text — record it with a
 trace (`LLMCall.prompt_hash`, set via `structured_llm(..., prompt_hash=…)`) so
 prompt drift is visible instead of a flaky test failure.
@@ -28,6 +33,7 @@ a general prompting framework.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import string
 from collections.abc import Mapping, Sequence
@@ -43,11 +49,16 @@ _formatter = string.Formatter()
 def _root_fields(template: str) -> frozenset[str]:
     """The top-level variable names referenced by the template."""
     roots: set[str] = set()
-    for _, field_name, _, _ in _formatter.parse(template):
+    for _, field_name, format_spec, conversion in _formatter.parse(template):
         if field_name is None or field_name == "":
             continue
-        if _FIELD.match(field_name):
-            roots.add(field_name.split(".")[0])
+        if not _FIELD.match(field_name):
+            continue
+        if conversion not in (None, "s", "r", "a"):
+            raise ValueError(f"unknown conversion !{conversion}")
+        if format_spec and "{" in format_spec:
+            raise ValueError("nested format specs are not supported")
+        roots.add(field_name.split(".")[0])
     return frozenset(roots)
 
 
@@ -66,6 +77,8 @@ def _convert(value: Any, conversion: str | None) -> Any:
         return str(value)
     if conversion == "a":
         return ascii(value)
+    if conversion is not None:
+        raise ValueError(f"unknown conversion !{conversion}")
     return value
 
 
@@ -108,7 +121,10 @@ class PromptTemplate:
             raise ValueError("prompt template must be a non-empty string")
         self._template = template
         self._defaults = dict(defaults or {})
-        self.variables = _root_fields(template)
+        try:
+            self.variables = _root_fields(template)
+        except ValueError as exc:
+            raise ValueError(f"invalid prompt template {template!r}: {exc}") from exc
 
     @property
     def template(self) -> str:
@@ -127,7 +143,7 @@ class PromptTemplate:
             raise KeyError(f"missing prompt variables: {', '.join(sorted(missing))}")
         try:
             return _render_safe(self._template, merged)
-        except (AttributeError, IndexError, KeyError, ValueError) as exc:
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
             raise ValueError(
                 f"failed to render prompt (template {self._template!r}): {exc}"
             ) from exc
@@ -161,10 +177,12 @@ class MessagesPrompt:
     @property
     def hash(self) -> str:
         """Stable sha256 of the ordered rows (role + template) — drift detector."""
-        joined = "\n".join(
-            f"{role}:{template.template}" for role, template in self._rows
+        payload = json.dumps(
+            [[role, template.template] for role, template in self._rows],
+            ensure_ascii=False,
+            separators=(",", ":"),
         )
-        return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def render(self, **values: Any) -> list[Message]:
         return [

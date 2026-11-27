@@ -84,9 +84,10 @@ The function form changes `@produce` to `@step`, and `call.effects` replaces
 `self.effects`:
 
 ```python
-from reactifact import Answer, Evidence, step
+from reactifact import step
 
 
+# Answer and Evidence are your own models.
 @step(produces=Answer, consumes=Evidence)
 async def answer(call):
     return Answer(text=call.trigger.data.text)

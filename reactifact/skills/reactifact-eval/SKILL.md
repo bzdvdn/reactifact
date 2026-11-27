@@ -1,6 +1,6 @@
 ---
 name: reactifact-eval
-description: Evaluate reactifact pipelines and other LLM apps over a dataset with deterministic multi-level metrics, typed trajectory matching, and LLM-as-judge. Use whenever the user wants to measure, benchmark, regression-test, or gate the quality of an agent pipeline or LLM app — building a dataset, scoring answers and provenance, checking an agent's path, adding an LLM judge, or wiring an eval into CI.
+description: Evaluate reactifact pipelines and other LLM apps over a dataset with deterministic multi-level metrics, typed trajectory matching, and LLM-as-judge. Use whenever the user wants to measure, benchmark, regression-test, or gate the quality of an agent pipeline or LLM app — building a dataset, scoring answers and provenance, checking an agent's path, adding an LLM judge, or wiring an eval into CI. Not for structural test assertions (`reactifact-testing`) or live tracing (`reactifact-observability`).
 ---
 
 # Evaluating pipelines with reactifact.eval
@@ -17,7 +17,7 @@ provider-agnostic and need no hosted store.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, Effects, FakeLLM, Runtime, RuntimeResources, Step, create_step_group,
+    StepGroup, Context, FakeLLM, Runtime, RuntimeResources, Step, create_step_group,
 )
 from reactifact.eval import (
     Dataset, answer_present, evaluate, from_metric, judge_relevance,
@@ -37,8 +37,8 @@ class Answerer(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Answer(text=question.text.upper()))
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
 
 
 class AnswerAgent(StepGroup):

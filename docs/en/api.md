@@ -116,7 +116,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
+| `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`, `fallback`; step `consumes` derive triggers. `fallback=Step` runs once after retries are exhausted, in a fresh effects slot (failed-attempt effects are discarded) |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one. |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
@@ -264,7 +264,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`); **identifier-shaped placeholders only** — a literal JSON `{"name": …}` / `{}` in the prompt is left verbatim, no escaping; `.hash` is a stable sha256 of the template |
+| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`); **identifier-shaped placeholders only** — a literal JSON `{"name": …}` / `{}` in the prompt is left verbatim, no escaping. To put a placeholder inside a JSON object, double the object's outer braces: `{{"answer": "{answer}"}}`. Unknown `!conversions` and nested format specs are rejected; `.hash` is a stable sha256 of the template |
 | `MessagesPrompt([(role, template), …])` | renders a chat sequence to `list[Message]`; `.hash` covers all rows |
 
 ## Sources (reactifact.sources)
@@ -309,8 +309,8 @@ current event loop**, so one provider instance stays usable across repeated
 | `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` is pure (ranked, scoped refs); `fan_out_sources` also writes create-or-refresh refs (`source_ref_id`) into the effect slot (or an explicit `effects=`) |
 | `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | lazy ref → document with provenance; accepts an artifact, `SourceRef` or handle; `effects=` selects an explicit slot |
 | `StatusMachine` / `StatusState` | deterministic artifact lifecycle: `next_status(state)` over key-scoped inputs (`all`/`any`/`latest`), `terminal`, `on_transition` |
-| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window summarization, idempotent by message count; `message_type` may be a sequence of types |
-| `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful; `message_type` may be a sequence of types |
+| `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window checkpoints, idempotent by message count; `message_type` may be a sequence of types. Do not pair with `WindowPruner` (pruning stops the count-based cadence); use `RollingDigestSummarizer` when the raw window must be bounded |
+| `WindowPruner(message_type, keep=…)` | deletes messages older than the window; standalone-useful; `message_type` may be a sequence of types. Do not pair with `WindowSummarizer`; use `RollingDigestSummarizer` for fold + prune |
 | `Conversation` / `ConversationMessage` / `create_turn` / `transcript` | multi-turn conversation generic over a message model (yours, or the default `ConversationMessage`): append turns, render the thread to provider `Message`s (`turn_count` / `conversation_state` helpers) |
 | `Transcript` / `MessageSpec` | read-only view for apps with *separate* types per side (`MessageSpec(Question, "user")`, `MessageSpec(FinalResponse, "assistant", render=…)`): merges typed turns by role into one `Message` list (`messages` / `state`) |
 | `llm_summarizer(system=…)` | builds a `WindowSummarizer(summarize=…)` callback from a system prompt via `llm_reply` |

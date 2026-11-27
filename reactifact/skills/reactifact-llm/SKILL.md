@@ -1,6 +1,6 @@
 ---
 name: reactifact-llm
-description: Add and shape LLM steps in reactifact — configure a provider, get structured output into a typed artifact, use the LLMAgent/HITL tool loops, write prompts, and bound token/cost with a Budget. Use whenever a reactifact pipeline needs a model call, structured generation, tool calling, a system prompt, retries on bad JSON, or a per-turn token/cost limit, or when an LLM step is flaky, hallucinating, or over budget.
+description: Add and shape LLM steps in reactifact — configure a provider, get structured output into a typed artifact, use the LLMAgent/HITL tool loops, write prompts, and bound token/cost with a Budget. Use whenever a reactifact pipeline needs a model call, structured generation, tool calling, a system prompt, retries on bad JSON, or a per-turn token/cost limit, or when an LLM step is flaky, hallucinating, or over budget. Not for retrieval (`reactifact-rag`) or step/consume wiring (`reactifact-agents`).
 ---
 
 # LLM steps in reactifact
@@ -208,7 +208,9 @@ resources.register(K8sClient, K8sClient())
 strictly (`KeyError` on a missing variable) and exposes a stable `.hash` for
 drift detection; `MessagesPrompt([(role, template), ...])` renders a chat
 sequence to `list[Message]`. Pass `prompt_hash=template.hash` to a structured
-call so the trace records which prompt version ran.
+call so the trace records which prompt version ran. To put a placeholder inside
+a literal JSON object, double the object's outer braces:
+`'{{"answer": "{answer}"}}'`.
 
 ## Bounding cost
 

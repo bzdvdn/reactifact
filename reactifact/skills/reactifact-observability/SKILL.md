@@ -1,6 +1,6 @@
 ---
 name: reactifact-observability
-description: Observe and persist reactifact runs — traces and TraceStore, Prometheus metrics, session save/resume and checkpoints, deterministic replay and branching, and the graph/trace/context CLI + Mermaid visualization. Use whenever the user asks to log, trace, monitor, debug, persist, resume, replay, branch, or visualize a reactifact pipeline, or to serve a traces/metrics UI or dashboard.
+description: Observe and persist reactifact runs — traces and TraceStore, Prometheus metrics, session save/resume and checkpoints, deterministic replay and branching, and the graph/trace/context CLI + Mermaid visualization. Use whenever the user asks to log, trace, monitor, debug, persist, resume, replay, branch, or visualize a reactifact pipeline, or to serve a traces/metrics UI or dashboard. Not for writing tests (`reactifact-testing`) or quality evals (`reactifact-eval`).
 ---
 
 # Observability, persistence and replay
@@ -47,7 +47,7 @@ from the same tracing hook, so one `Runtime` gives both traces and metrics:
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
+    StepGroup, Context, Runtime, RuntimeResources, Step, create_step_group,
 )
 from reactifact.metrics import Metrics, MetricsTracer
 
@@ -64,8 +64,8 @@ class Answerer(Step):
     consumes = (Question,)
     produces = (Answer,)
 
-    async def run(self, question: Question, effects: Effects) -> None:
-        effects.create(Answer(text=question.text))
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text)
 
 
 class AnswerAgent(StepGroup):
@@ -87,8 +87,9 @@ Counters cover run/budget outcomes, agent runs, LLM calls/tokens/errors/cost
 latency. `metrics.render()` is the Prometheus text exposition (no
 `prometheus_client`); `create_metrics_router(metrics)` serves `GET /metrics`
 (the `web` extra). For app-specific signals, `RuntimeResources(metrics=...)`
-exposes the same sink to produces (`call.context.resources.metrics.increment(
-"route_total", route=...)`) — it is a no-op until configured.
+exposes the same sink to steps (`context.resources.metrics.increment(
+"route_total", route=...)` or `call.context...` in the legacy form) — it is a no-op
+until configured.
 
 ## Sessions and durability
 
@@ -166,4 +167,5 @@ code, `reactifact.viz.blueprint(agents)`, `trace_to_mermaid(trace)` and
 
 - `docs/en/observability.md`, `docs/en/durability.md`, `docs/en/replay.md`,
   `docs/en/viz.md`.
-- `reactifact serve` / the tracing `web.py` router for a traces UI.
+- `create_trace_router(store)` from `reactifact.tracing.web` for a traces UI,
+  or `reactifact dev` for a local app with `/contracts` and `/traces`.

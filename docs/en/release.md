@@ -93,8 +93,10 @@ frameworks):
 - **0.10.0** — behavior-visible (non-breaking) changes to know about:
   - `PromptTemplate.render` now substitutes only *identifier-shaped* `{field}`
     placeholders and leaves other braces verbatim, so a literal JSON example in
-    a prompt needs no `{{`/`}}` escaping. Templates that relied on `str.format`
-    treating a stray `{...}` as an error/format-spec now pass it through.
+    a prompt needs no `{{`/`}}` escaping. A placeholder *inside* a JSON object
+    still needs the object's outer braces doubled (`{{"answer": "{answer}"}}`).
+    Templates that relied on `str.format` treating a stray `{...}` as an
+    error/format-spec now pass it through.
   - `reactifact.chat.ChatEvent.kind` is a closed
     `Literal["session","status","message"]`; constructing one with an arbitrary
     `kind` now fails validation.

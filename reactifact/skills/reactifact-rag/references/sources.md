@@ -83,7 +83,7 @@ refs = await fan_out_sources(
 
 Polls every source (preferred first), ranks by score, keeps the top `limit`, and
 creates each as an idempotent artifact `id=f"ref:{stable_id}:{owner_id}"`. Must
-run inside a produce (it writes into the current effects). Returns the scoped
+run inside a step (it writes into the current effects). Returns the scoped
 refs so the caller can inspect them or add a marker.
 
 ## materialize_doc
