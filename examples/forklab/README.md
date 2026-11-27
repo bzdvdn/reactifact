@@ -71,7 +71,7 @@ examples/forklab/
   steps/
     investigate.py   DepthInvestigate / BreadthInvestigate — deterministic pick + LLM wording
     evaluate.py      Evaluate — deterministic ranking/links, LLM/fallback synthesis
-  step_groups.py     StrategyGroup (per fork) · EvaluatorGroup (on merged)
+  agents.py     InvestigateAgent (per fork) · EvaluateAgent (on merged)
   pipeline.py        application orchestration (fork → run → merge → Review → evaluate)
   main.py            CLI entry — arguments + printing only
   web.py             FastAPI/SSE app streaming the pipeline + merged graph

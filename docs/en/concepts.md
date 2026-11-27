@@ -92,38 +92,39 @@ The **compiled operations** (`reactifact.operations`):
 | `Link` | connect `source →rel→ target` (provenance) |
 | `Unlink` | remove a relation |
 
-`Patch` (the container) is built by the runtime and by the `StepGroup.run` escape
+`Patch` (the container) is built by the runtime and by the `Agent.run` escape
 hatch; effects compose *within* one produce, so nothing is applied until the
 runtime compiles — atomicity is structural (§41).
 
 HITL is an `human.ask(...)` → `PendingQuestion`, answered via
 `human.resume(...)` (see [patterns](patterns.md)).
 
-## 4. StepGroup (optional container)
+## 4. Agent (optional container)
 
 Steps are the model. **`Runtime(ctx, steps=[...])`** wraps each step in an
-implicit group of one, so the common case needs no container at all. A
-**`StepGroup`** is the optional container for steps that must share something
+implicit agent of one, so the common case needs no container at all. A
+**`Agent`** is the optional container for steps that must share something
 operational: one trigger, retry policy, timeout, priority, concurrency limit, or
-one atomic commit. `Runtime` accepts `steps=` and `groups=` together (steps first).
+one atomic commit. `Runtime` accepts `steps=` and `agents=` together (steps first).
 
 ```python
-from reactifact import StepGroup
+from reactifact import Agent
 
-class RepairFlow(StepGroup):
-    name = "repair_flow"
-    steps = [
+RepairFlow = Agent(
+    "repair_flow",
+    steps=[
         CollectStage(), PickStage(), PlanStage(),
         EstimateStage(), ApprovalStage(), AssistantStage(),
-    ]
+    ],
+)
 ```
 
-- `steps` — the unit-of-work instances. A step's `consumes` both feeds its
-  typed inputs and decides which events can run it; `produces` is the allowed
+- `steps` — the unit-of-work instances. A step's `reads` feeds its
+  typed inputs and gates it until those artifacts exist; `produces` is the allowed
   create set. Put the primary output first and extra create-only types in the
   same tuple: `produces = (Primary, Extra)`; the old `also_creates=` spelling
   was removed in 0.23, so extra types belong in `produces` itself.
-- `StepGroup.consumes` still exists for the imperative escape hatch (a group
+- `Agent.consumes` still exists for the imperative escape hatch (a group
   subclass overriding `run(event, context)` directly), but declarative code
   should put contracts on steps.
 - When `consumes` is explicit, typed artifact params missing from it are added
@@ -135,20 +136,20 @@ class RepairFlow(StepGroup):
   [patterns](patterns.md).
 - The runtime wakes groups on events, respecting budget and concurrency.
 
-`StepGroup.run(event, context) -> Patch | None` remains the low-level escape
+`Agent.run(event, context) -> Patch | None` remains the low-level escape
 hatch for hand-assembling a `Patch`; it is not a third everyday style.
-The 0.x `Agent`/`create_agent` aliases are removed in 0.24; use `StepGroup`/`create_step_group`.
+The 0.x `Agent`/`create_agent` aliases are removed in 0.24; use `Agent(...)`.
 
 ## 5. Step
 
-`Step` is where the work happens. A class step declares `consumes`/`produces`
+`Step` is where the work happens. A class step declares `reads`/`produces`
 and receives typed inputs plus `effects: Effects` in `run()`:
 
 ```python
 from reactifact import Artifact, Effects, Progress, Step
 
 class EstimateStage(Step):
-    consumes = (Project,)
+    reads = (Project,)
     produces = (Project,)
 
     async def run(
@@ -171,13 +172,12 @@ An explicitly registered type wins over artifact resolution, so a pydantic
 settings object (`resources.register(Settings, Settings(...))`) can be injected
 as a resource; unregistered pydantic models stay artifacts.
 
-When `consumes` is explicit, it is the step's **wake set**; its typed signature
-is the **read set**. A typed artifact parameter that is not in `consumes` is
-added automatically as a read-only input (`Consume(T, wakes=False)`):
+A step's typed signature is its **read set**; an explicit `reads=` narrows it. A typed artifact parameter that is not in `reads` is
+added automatically as a read-only input (`Read(T, required=False)`):
 
 ```python
 class PickStage(Step):
-    consumes = (UserMsg,)          # only a new message wakes it
+    reads = (UserMsg,)          # only a new message satisfies it
 
     async def run(
         self,
@@ -188,9 +188,9 @@ class PickStage(Step):
 ```
 
 `project` is still collected, validated and recorded as an input — it just never
-wakes the step on its own. If `consumes` is omitted, the typed signature derives
-both triggers and inputs; mark an individual read-only input there with
-`Annotated[T, Wakes(False)]`. `Latest[T]` remains an ad-hoc context query, not a
+wakes the step on its own. If `reads` is omitted, the typed signature derives
+its reads; mark an individual read-only input there with
+`Annotated[T, Wakes(False)]` or use `Read(T, required=False)`. `Latest[T]` remains an ad-hoc context query, not a
 declared input.
 
 `T` injects the data model, while `Artifact[T]` injects the handle (id, version,
@@ -200,7 +200,7 @@ for `Edit`/links). Add `| None` to either form when the input may be absent:
 The function form takes one `call: StepCall` and uses `call.effects`:
 
 ```python
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer(call: StepCall) -> Answer:
     return Answer(text=call.trigger.data.text)
 ```
@@ -210,7 +210,7 @@ extra creates. `produces` validates every create type, including effect-created
 ones. See [effects](effects.md) and [patterns](patterns.md).
 
 Convention: **determinism first** (§67). Eligibility is decided by the step's
-`consumes`/`When` selectors, not by a manual graph edge; LLM use is reserved for
+`reads`/`When` selectors, not by a manual graph edge; LLM use is reserved for
 genuinely generative tasks and is wrapped with a schema + fallback.
 
 ## 6. Provenance
@@ -244,7 +244,7 @@ Why this matters:
   when an artifact's recorded dependency (§43-44) gets a newer version — opt
   in with `OnStale(Type)` (or the explicit `Consume(Type, event_types=[...])`).
 - **`Trigger`** — secondary enter conditions for a produce (e.g. a periodic or
-  timer-based wake), independent of the artifact consumes. `context_condition`
+  timer-based wake), independent of the artifact reads. `context_condition`
   is the two-artifact form (needed for joins/correlation); `debounce` is the
   hint `Runtime` reads to collapse repeat events into one run.
 - **`Session` / `SessionStore`** — durable, per-chat working memory across
@@ -260,9 +260,9 @@ when the task actually needs it.
 
 | Need | Use | Notes |
 | --- | --- | --- |
-| One typed transformation | `@step(produces=..., consumes=...)` | return the produced model, or use `call.effects` for updates/links |
+| One typed transformation | `@step(produces=..., reads=...)` | return the produced model, or use `call.effects` for updates/links |
 | Typed inputs, several effects, HITL | class `Step` with `run(..., effects: Effects)` | the full form; see [Effects](effects.md) |
-| Hand-assembled operations / imperative agent | `Patch`, `StepGroup.run(event, context)` | escape hatch, not the everyday style |
+| Hand-assembled operations / imperative agent | `Patch`, `Agent.run(event, context)` | escape hatch, not the everyday style |
 
 ### Scheduling
 
@@ -271,7 +271,7 @@ when the task actually needs it.
 | React to a type | `Consume(Type)` |
 | Only one lifecycle event | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Conditional edge | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Read without waking / latest / scoped lookup | a typed param missing from explicit `consumes` (automatic), `Annotated[T, Wakes(False)]` when `consumes` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` on `Step`/`@step` |
+| Read without waking / latest / scoped lookup | a typed param missing from explicit `reads` (automatic), `Annotated[T, Wakes(False)]` when `reads` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` on `Step`/`@step` |
 | Cross-turn history | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (add `Wakes(False)` for reads) |
 | Periodic/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 

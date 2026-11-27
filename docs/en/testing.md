@@ -163,12 +163,14 @@ needs no dummy `Step(...)` entries. Passing the model class makes it
 self-scheduling:
 
 ```python
-from reactifact import Consume, Context, RuntimeResources, StepGroup
+from reactifact import Consume, Context, Agent, RuntimeResources
 from reactifact.verify import Verify
 
-class Answerer(StepGroup):
-    consumes = [Consume(Question)]
-    steps = [BuildAnswer(), Verify(Answer)]
+Answerer = Agent(
+    "answerer",
+    consumes=[Consume(Question)],
+    steps=[BuildAnswer(), Verify(Answer)],
+)
 
 ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```

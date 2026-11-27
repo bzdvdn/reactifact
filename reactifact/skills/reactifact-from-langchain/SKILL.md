@@ -14,15 +14,15 @@ and the graph grows.
 
 | LangChain / LangGraph | reactifact |
 | --- | --- |
-| `StateGraph`, `add_node`, `add_edge` | `StepGroup(steps=[...])` / `create_step_group(name, steps=[...])` — edges are implicit in step `consumes`/`produces` |
+| `StateGraph`, `add_node`, `add_edge` | `Agent(name, steps=[...])` — edges are implicit in step `reads`/`produces` |
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
 | `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |
 | tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools) plus `steps=[...]` to turn the final `ToolAnswer` into domain artifacts, or `ToolUse` / `NativeToolUse` |
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
 | `messages: list[...]` as memory | artifacts (`Question`/`Answer`/…) across turns, or `ChatMemory` |
-| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates; `recipes.Route` when exactly one branch must run (`route.groups()`) |
-| `app.invoke(...)` | `Runtime(ctx, groups=[...]).arun()` |
+| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates; `recipes.Route` when exactly one branch must run (`route.agents()`) |
+| `app.invoke(...)` | `Runtime(ctx, agents=[...]).arun()` |
 | LangSmith traces | `reactifact.tracing.TraceStore` (`tracer=[...]`) |
 | `langchain.evaluation` / LangSmith evals | `reactifact.eval` (`docs/en/eval.md`) |
 
@@ -59,7 +59,7 @@ def node(state):
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, Runtime, RuntimeResources, Step, create_step_group,
+    Agent, Context, Runtime, RuntimeResources, Step,
 )
 
 
@@ -72,21 +72,18 @@ class Answer(BaseModel):
 
 
 class Answerer(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text.upper())
 
 
-class AnswerAgent(StepGroup):
-    steps = [Answerer()]
-
-
-agent = AnswerAgent()
+AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+agent = AnswerAgent
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, groups=[agent]).arun())
+asyncio.run(Runtime(ctx, agents=[agent]).arun())
 assert ctx.latest(Answer) is not None
 ```
 

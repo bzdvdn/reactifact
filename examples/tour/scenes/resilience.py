@@ -8,11 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Context,
     RetryPolicy,
     Runtime,
     Step,
-    create_step_group,
 )
 
 
@@ -25,7 +25,7 @@ class Done(BaseModel):
 
 
 class FlakyStep(Step):
-    consumes = (Job,)
+    reads = (Job,)
     produces = (Done,)
 
     def __init__(self) -> None:
@@ -40,7 +40,7 @@ class FlakyStep(Step):
 
 
 class SlowStep(Step):
-    consumes = (Job,)
+    reads = (Job,)
     produces = (Done,)
     timeout = 0.01
 
@@ -55,8 +55,8 @@ async def run_resilience() -> dict[str, Any]:
     context.create(Job(text="retry me"), id="job:retry")
     runtime = Runtime(
         context,
-        groups=[
-            create_step_group(
+        agents=[
+            Agent(
                 "flaky",
                 steps=[flaky],
                 retry=RetryPolicy(max_attempts=2, backoff=0),
@@ -73,7 +73,7 @@ async def run_resilience() -> dict[str, Any]:
     try:
         await Runtime(
             slow_context,
-            groups=[create_step_group("slow", steps=[SlowStep()])],
+            agents=[Agent("slow", steps=[SlowStep()])],
         ).arun()
     except TimeoutError:
         timed_out = True

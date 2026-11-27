@@ -8,7 +8,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Effects, Step, create_step_group
+from reactifact import Agent, Effects, Step
 from reactifact.consume import Consume
 from reactifact.context import Context
 from reactifact.recipes.conversation import (
@@ -140,10 +140,10 @@ class _Echo:
 def test_memory_recipes_bound_a_conversation():
     """`role`/`text` is enough for `WindowPruner` to prune the thread."""
     ctx = Context()
-    memory = create_step_group(
+    memory = Agent(
         "memory",
         consumes=[Consume(ConversationMessage)],
-        produces=[WindowPruner(ConversationMessage, keep=2)],
+        steps=[WindowPruner(ConversationMessage, keep=2)],
     )
     runtime = Runtime(ctx, groups=[memory])
 

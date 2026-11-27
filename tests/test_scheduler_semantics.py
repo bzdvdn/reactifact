@@ -9,7 +9,7 @@ this file exists so the *specification* cannot silently drift from the code.
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime
 from reactifact.budget import RunOutcome
 from reactifact.events import EventType
 
@@ -28,7 +28,7 @@ class Other(BaseModel):
 def test_commit_order_is_work_order_under_parallel_dispatch():
     """Lower `priority` commits first even when it finishes last."""
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         name = "slow"
         consumes = [Consume(Item)]
         priority = 0
@@ -37,7 +37,7 @@ def test_commit_order_is_work_order_under_parallel_dispatch():
             await asyncio.sleep(0.05)  # finishes after Fast
             return Patch().create(Other(text="slow"))
 
-    class Fast(StepGroup):
+    class Fast(Agent):
         name = "fast"
         consumes = [Consume(Item)]
         priority = 1
@@ -89,7 +89,7 @@ def test_events_are_derived_from_commits_in_fifo_order():
 
 
 def test_no_matching_agent_is_quiescence_zero_runs_and_completed():
-    class ConsumesOther(StepGroup):
+    class ConsumesOther(Agent):
         consumes = [Consume(Other)]
 
         async def run(self, event, context):

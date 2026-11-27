@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
+from ..agents import RepairFlow
 from ..models import Estimate, Project, ProjectInfo, UserMsg
 from ..services.geometry import ensure_geometry
-from ..step_groups import RepairFlow
 from ._common import resources
 
 ROOM_INFO = ensure_geometry(
@@ -37,7 +37,7 @@ ROOM_INFO = ensure_geometry(
 
 @scenario("repair: full flow from facts to approval (multi-turn)")
 async def full_flow_reaches_approval() -> None:
-    lab = ScenarioLab([RepairFlow()], resources=resources)
+    lab = ScenarioLab([RepairFlow], resources=resources)
     convo = lab.scenario()
 
     # turn 1: facts already complete -> design options offered directly

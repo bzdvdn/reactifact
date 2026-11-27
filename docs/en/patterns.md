@@ -17,6 +17,48 @@ each is concretely instantiated in `examples/`.
 
 Each row links to the fuller pattern below.
 
+## Agents and runners
+
+`Agent` is the everyday authoring unit and the runtime scheduling unit: a named
+set of steps behind one `consumes` contract and a retry/timeout/fallback/priority
+policy.
+
+```python
+from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+
+class Answerer(Step[Answer]):
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
+
+QA = Pipeline(
+    name="qa",
+    agents=[
+        Agent(
+            "answer",
+            steps=[Answerer()],
+            consumes=[Consume(Question)],
+            retry=RetryPolicy(max_attempts=2),
+            timeout=30,
+        ),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+
+runner = PipelineRunner(QA, resources=resources)
+result = runner.run(Question(text="hello"))
+```
+
+- `Agent(steps=[...])` owns the steps and policy; it **is** the scheduling
+  unit. `Route` and `Pipeline` accept it directly.
+- `Pipeline.agents=[...]` and `Pipeline.routes=[...]` are declarative structure;
+  `Pipeline.agents` flattens them for `Runtime`.
+- `PipelineRunner` owns resources/budget/tracer and does the execution.
+- `StepGroup` and `create_step_group` remain importable for 0.x app code, but
+  are not part of the authoring surface: new code uses `Agent(...)`.
+- An agent is **not** an execution barrier: it is a named group, not an ordering
+  constraint. The runtime still schedules by artifact availability.
+
 ## HITL: humans as first-class participants
 
 A human is just another reaction to the context. The runtime represents a
@@ -86,7 +128,7 @@ from reactifact import Artifact, Effects, Outbox, PendingAction, Runtime, Step
 
 
 class Notify(Step):
-    consumes = (Order,)
+    reads = (Order,)
     produces = (Receipt, PendingAction)  # outbox.act creates a PendingAction
 
     async def run(
@@ -106,7 +148,7 @@ async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
         await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
 
 
-runtime = Runtime(ctx, groups=[Notify()], dispatcher=dispatch)
+runtime = Runtime(ctx, agents=[Notify()], dispatcher=dispatch)
 ```
 
 The runtime dispatches every committed-but-undispatched `PendingAction` after a
@@ -151,7 +193,7 @@ class OpsAgent(HITLLMAgent):
     max_steps = 8
     max_asks = 2
     consumes = [Consume(Project)]
-    steps = [BuildReport()]  # your step: consumes ToolAnswer -> Report
+    steps = [BuildReport()]  # your step: reads ToolAnswer -> Report
 ```
 
 - `LLMAgent` — blocking loop: the LLM emits `tool_call`, the runtime runs the
@@ -264,8 +306,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-class FlowAgent(StepGroup):
-    steps = Flow().produces()
+FlowAgent = Agent("flow_agent", steps=Flow().produces())
 ```
 
 `PlanExecute` runs exactly one step per generation and re-triggers itself from
@@ -286,21 +327,25 @@ puts that back where it belongs — on the class declaration:
 ```python
 from reactifact.consume import AbsentConsume, JoinConsume
 
-class ApprovalGate(StepGroup):
-    consumes = [
+ApprovalGate = Agent(
+    "approval_gate",
+    consumes=[
         JoinConsume(
             Report, PendingQuestion,
             key=lambda d: d.thread_id,
             part_conditions={PendingQuestion: lambda d: d.answered},
         ),
-    ]
-    steps = [RecordApproval()]
+    ],
+    steps=[RecordApproval()],
+)
 
-class TicketGate(StepGroup):
-    consumes = [
+TicketGate = Agent(
+    "ticket_gate",
+    consumes=[
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
-    ]
-    steps = [FileTicket()]
+    ],
+    steps=[FileTicket()],
+)
 ```
 
 `JoinConsume(*parts, key=...)` fires once every listed type exists for the
@@ -316,12 +361,12 @@ way it would read a mixed list from several ordinary `Consume`s — no
 ## Selecting one of several triggers
 
 Each step owns its consume contract, so an agent with several steps does not
-need a global trigger: a step that consumes `ResolvedDocuments` simply does not
+need a global trigger: a step that reads `ResolvedDocuments` simply does not
 run for a `DecisionReply` event.
 
 ```python
 class FinalizeWithDocuments(Step):
-    consumes = (ResolvedDocuments,)
+    reads = (ResolvedDocuments,)
     produces = (DraftAnswer,)
 
     async def run(self, docs: Artifact[ResolvedDocuments]) -> DraftAnswer:
@@ -329,7 +374,7 @@ class FinalizeWithDocuments(Step):
 
 
 class DirectFinalize(Step):
-    consumes = (DecisionReply,)
+    reads = (DecisionReply,)
     produces = (DraftAnswer,)
 
     async def run(self, reply: Artifact[DecisionReply]) -> DraftAnswer:
@@ -351,7 +396,7 @@ artifact disappears includes the event type explicitly:
 from reactifact import Artifact, Consume, Context, Effects, Event, EventType, Step
 
 class ResetPlan(Step):
-    consumes = (
+    reads = (
         Consume(PlanStep, event_types=(EventType.ARTIFACT_DELETED,)),
     )
     produces = (Project,)
@@ -384,25 +429,25 @@ the deletion contract until the core grows delete→stale invalidation.
 
 ## Reading input without waking up on it
 
-An explicit `consumes` is the wake set; the typed `run()` signature is the read
-set. A type in the signature but not in `consumes` is collected as a read-only
+An explicit `reads` is the step's input set; the typed `run()` signature adds
+any remaining reads. A type in the signature but not in `reads` is collected as a read-only
 input — "read this, don't wake up on it." The recurring case: an agent that
 should run when a `Question` arrives but also wants `ConversationHistory` as
 input, without re-running once per history artifact:
 
 ```python
-consumes = (Question,)
+reads = (Question,)
 
 async def run(self, question: Question, history: ConversationHistory) -> ...:
     ...
 ```
 
 `history` is collected, validated and recorded as an input, but never wakes the
-step. `Consume(..., wakes=False)` remains for an explicit `consumes` list with
-no typed param; when `consumes` is derived from the signature,
+step. `Consume(..., wakes=False)` remains for an explicit `reads` list with
+no typed param; when `reads` is derived from the signature,
 `Annotated[T, Wakes(False)]` marks one read-only input. `triggers=` is still the
-right tool for the *imperative* style (an `StepGroup` subclass overriding
-`run()` directly, with no `consumes` at all) — there's no `Consume` there to
+right tool for the *imperative* style (an `Agent` subclass overriding
+`run()` directly, with no `reads` at all) — there's no `Consume` there to
 attach a condition to.
 
 ## Debouncing fan-out
@@ -460,13 +505,13 @@ part of the product, not a lifecycle.
 `Budget` caps a run:
 
 ```python
-runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrency=2)
+runtime = Runtime(ctx, agents=[...], budget=Budget(max_runs=200), max_concurrency=2)
 ```
 
 - `max_runs`, `max_iterations`, `max_seconds`, tool-call caps — the runtime
   stops and reports `RunOutcome` (`completed` | `budget_exhausted` | …) with
   `RunStats`.
-- `StepGroup.concurrency_limit` (LLM-bound agents default to a lower cap) + the
+- `Agent.concurrency_limit` (LLM-bound agents default to a lower cap) + the
   runtime's global `max_concurrency` keep provider rate limits happy — the
   `medic-lab` demo runs a hypothesis laboratory with a LLM-limit of 2 inside a
   global cap of 6.
@@ -497,7 +542,7 @@ See [recipes](recipes.md). The rule of thumb for choosing between patterns:
 
 | Situation | Approach |
 | --- | --- |
-| An artifact moves through phase states | `StatusMachine` + a verification step |
+| An artifact moves through agent states | `StatusMachine` + a verification step |
 | A workflow needs to roll *back* on user edits | stage guard + `_downstream_resets` |
 | Explore & compare alternative states | `branch()` + `merge()` (§39-§40) |
 | "Which of these did the model pick?" | `PickStage`-style parse + guard |

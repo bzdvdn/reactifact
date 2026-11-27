@@ -7,17 +7,17 @@ the other, and every entry points back at the session/artifact it came from.
 
 import asyncio
 
-from examples.devops.models import AnsibleReport, ChatReply, K8sReport, UserMsg
-from examples.devops.policy import POLICY, PRINCIPALS
-from examples.devops.resources import build_resources
-from examples.devops.step_groups import (
+from examples.devops.agents import (
     AnsibleAgent,
     GitlabAgent,
     K8sAgent,
-    MemoryGroup,
-    RenderGroup,
-    RouteGroup,
+    Memory,
+    Render,
+    Route,
 )
+from examples.devops.models import AnsibleReport, ChatReply, K8sReport, UserMsg
+from examples.devops.policy import POLICY, PRINCIPALS
+from examples.devops.resources import build_resources
 from reactifact import Budget, Context, PendingAction, Runtime
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.recipes import MemoryStore
@@ -41,13 +41,13 @@ def build_runtime(resources, dispatcher=MemoryStore.dispatch):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        groups=[
-            RouteGroup(),
-            K8sAgent(),
-            GitlabAgent(),
-            AnsibleAgent(),
-            RenderGroup(),
-            MemoryGroup(),
+        agents=[
+            Route,
+            K8sAgent,
+            GitlabAgent,
+            AnsibleAgent,
+            Render,
+            Memory,
         ],
         dispatcher=dispatcher,
         budget=Budget(max_runs=200, max_tool_calls=12),

@@ -6,14 +6,13 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
     Step,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -59,7 +58,7 @@ class ReplyLLM(LLMProvider):
         yield LLMResponse(text="")
 
 
-class Greeter(StepGroup):
+class Greeter(Agent):
     consumes = [Consume(Question)]
 
     async def run(self, event, context):
@@ -83,7 +82,7 @@ class Note(BaseModel):
     text: str
 
 
-class Linker(StepGroup):
+class Linker(Agent):
     """Writes two artifacts and a provenance edge via the patch."""
 
     consumes = [Consume(Question)]
@@ -251,9 +250,7 @@ def test_runtime_records_which_produce_ran(tmp_path):
         async def run(self, call):
             call.effects.create(Answer(text="nope"))
 
-    agent = create_step_group(
-        "writer", consumes=[Consume(Question)], produces=[Emit(), NeverRuns()]
-    )
+    agent = Agent("writer", consumes=[Consume(Question)], steps=[Emit(), NeverRuns()])
     store = TraceStore(str(tmp_path / "produce.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(ctx, groups=[agent], tracer=Tracer(store=store))
@@ -282,7 +279,7 @@ def test_runtime_records_a_produce_that_raised(tmp_path):
             call.effects.create(Answer(text="partial"))
             raise RuntimeError("boom")
 
-    agent = create_step_group("writer", consumes=[Consume(Question)], produces=[Boom()])
+    agent = Agent("writer", consumes=[Consume(Question)], steps=[Boom()])
     store = TraceStore(str(tmp_path / "boom.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
@@ -320,7 +317,7 @@ def test_runtime_records_llm_calls(tmp_path):
     class AnswerBody(BaseModel):
         text: str
 
-    class LlamAgent(StepGroup):
+    class LlamAgent(Agent):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):
@@ -369,7 +366,7 @@ def test_runtime_attributes_llm_call_to_its_step(tmp_path):
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(
         ctx,
-        groups=[create_step_group("stepper", steps=[LlamStep()])],
+        groups=[Agent("stepper", steps=[LlamStep()])],
         tracer=Tracer(store=store),
     )
     ctx.create(Question(text="hi"))
@@ -512,7 +509,7 @@ def test_trace_memoizes_artifact_dump(tmp_path):
     """Two agents read one artifact — model_dump is called once (memo)."""
     CountingQuestion.dumps = 0
 
-    class Greeter2(StepGroup):
+    class Greeter2(Agent):
         consumes = [Consume(CountingQuestion)]
 
         async def run(self, event, context):
@@ -1097,7 +1094,7 @@ def test_runtime_sets_span_start_within_the_run():
 def test_trace_duration_is_in_milliseconds():
     """`RunTrace.duration_ms` must be ms, not the raw `time.monotonic()` seconds."""
 
-    class Sleeper(StepGroup):
+    class Sleeper(Agent):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):
@@ -1267,9 +1264,7 @@ def test_runtime_records_tool_runs(tmp_path):
             await execute_tool(lookup, {"q": "x"})
             call.effects.create(Answer(text="ok"))
 
-    agent = create_step_group(
-        "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
-    )
+    agent = Agent("tool-user", consumes=[Consume(Question)], steps=[UsesTool()])
     store = TraceStore(str(tmp_path / "tools.db"))
     ctx = Context(resources=RuntimeResources(llm=ReplyLLM()))
     runtime = Runtime(ctx, groups=[agent], tracer=Tracer(store=store))
@@ -1303,9 +1298,7 @@ def test_tool_args_are_opt_in_and_redacted(tmp_path):
             await execute_tool(lookup, {"q": "bob@example.com"})
             call.effects.create(Answer(text="ok"))
 
-    agent = create_step_group(
-        "tool-user", consumes=[Consume(Question)], produces=[UsesTool()]
-    )
+    agent = Agent("tool-user", consumes=[Consume(Question)], steps=[UsesTool()])
 
     def _span(resources):
         store = TraceStore(str(tmp_path / f"{id(resources)}.db"))
@@ -1542,7 +1535,7 @@ def test_runtime_records_streamed_llm_calls(tmp_path):
     )
     runtime = Runtime(
         ctx,
-        groups=[create_step_group("streamer", steps=[StreamStep()])],
+        groups=[Agent("streamer", steps=[StreamStep()])],
         tracer=Tracer(store=store),
     )
     ctx.create(Question(text="hi"))
@@ -1608,7 +1601,7 @@ def test_runtime_emits_lifecycle_hooks_in_order():
     ctx = Context()
     runtime = Runtime(
         ctx,
-        groups=[create_step_group("tooler", steps=[ToolStep()])],
+        groups=[Agent("tooler", steps=[ToolStep()])],
         tracer=tracer,
     )
     ctx.create(Question(text="hi"))

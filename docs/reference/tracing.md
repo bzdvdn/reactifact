@@ -14,10 +14,6 @@ Traces, spans and stores. The narrative guide is [Observability](../en/observabi
 
 ::: reactifact.tracing.AgentSpan
 
-### `StepGroupSpan`
-
-::: reactifact.tracing.StepGroupSpan
-
 ### `ArtifactRef`
 
 ::: reactifact.tracing.ArtifactRef

@@ -26,12 +26,12 @@ Examples:
     reactifact new daemon my-worker
     reactifact demo
     reactifact doctor
-    reactifact graph examples.knowledge.step_groups
+    reactifact graph examples.knowledge.agents
     reactifact context examples/knowledge/sessions/traces.sqlite3
     reactifact trace traces.db
     reactifact skills install --target both
-    reactifact contracts examples.knowledge.step_groups
-    reactifact validate examples.knowledge.step_groups
+    reactifact contracts examples.knowledge.agents
+    reactifact validate examples.knowledge.agents
 
 Inspection commands print Mermaid source to stdout — paste it into GitHub,
 Notion or mermaid.live.
@@ -131,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  reactifact contracts <module>  static contracts (md/json)")
         print("  reactifact check <pipeline>    contracts + scenarios + evals\n")
         print("Inspect a run:")
-        print("  reactifact graph   <module:StepGroup>   static blueprint")
+        print("  reactifact graph   <module:Agent>   static blueprint")
         print("  reactifact trace   <trace.db>       run diagram\n")
         print("Advanced:")
         print("  reactifact context <sessions.sqlite3>  live provenance graph")

@@ -55,8 +55,8 @@ _Labels = tuple[tuple[str, str], ...]
 _HELP = {
     "reactifact_runs_total": "Turns run, by outcome.",
     "reactifact_budget_exceeded_total": "Turns stopped by a Budget limit, by outcome.",
-    "reactifact_agent_runs_total": "StepGroup executions, by agent and status.",
-    "reactifact_agent_latency_seconds": "StepGroup execution latency.",
+    "reactifact_agent_runs_total": "Agent executions, by agent and status.",
+    "reactifact_agent_latency_seconds": "Agent execution latency.",
     "reactifact_llm_calls_total": "LLM calls, by provider/model/agent.",
     "reactifact_llm_tokens_total": "LLM tokens, by kind (prompt/completion).",
     "reactifact_llm_errors_total": "LLM calls that returned an error.",

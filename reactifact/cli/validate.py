@@ -37,7 +37,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "module",
         nargs="?",
         default=None,
-        help='module path, e.g. "examples.knowledge.step_groups" '
+        help='module path, e.g. "examples.knowledge.agents" '
         "(default: [tool.reactifact] groups)",
     )
     p_validate.add_argument(

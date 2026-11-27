@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime
 from reactifact.events import EventType
 
 
@@ -18,7 +18,7 @@ class StalenessNotice(BaseModel):
     watched_id: str
 
 
-class Summarizer(StepGroup):
+class Summarizer(Agent):
     """Deterministic derived artifact: dependencies are visible through reads."""
 
     consumes = [Consume(Document)]
@@ -41,7 +41,7 @@ def build_doc_pipeline():
     return ctx, runtime, doc
 
 
-class StaleWatcher(StepGroup):
+class StaleWatcher(Agent):
     """Reacts specifically to ARTIFACT_STALE — proves staleness is a live event,
     not just a `stale_artifacts()` poll."""
 

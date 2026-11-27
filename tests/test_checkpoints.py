@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Patch, Runtime, SessionStore, StepGroup
+from reactifact import Agent, Consume, Patch, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.commit import ContextCheckpoint
 from reactifact.replay import replay_context
@@ -20,7 +20,7 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(StepGroup):
+class Answerer(Agent):
     consumes = [Consume(Question)]
 
     async def run(self, event, context):

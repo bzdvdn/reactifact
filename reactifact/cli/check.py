@@ -24,10 +24,10 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from ..agent import Agent, Step
 from ..budget import Budget
 from ..eval import Dataset, core_metrics, evaluate, from_metric
 from ..pipeline import Pipeline
-from ..step import Step, StepGroup
 from ..testing.record import MODE_ENV_VAR
 from ..testing.registry import collect
 from ..validate import validate_contracts
@@ -58,25 +58,25 @@ def _load_object(spec: str) -> Any:
     )
 
 
-def _units(obj: Any) -> tuple[list[Step[Any]], list[StepGroup]]:
-    """Splits a Pipeline/Step/StepGroup/list into steps and groups."""
+def _units(obj: Any) -> tuple[list[Step[Any]], list[Agent]]:
+    """Splits a Pipeline/Step/Agent/list into steps and groups."""
     if isinstance(obj, Pipeline):
-        return list(obj.steps or []), list(obj.groups or [])
+        # `Pipeline.agents` already includes implicit groups for raw steps.
+        return [], list(obj.agents)
     if isinstance(obj, Step):
         return [obj], []
-    if isinstance(obj, StepGroup):
+    if isinstance(obj, Agent):
         return [], [obj]
     if isinstance(obj, (list, tuple)):
         steps = [item for item in obj if isinstance(item, Step)]
-        groups = [item for item in obj if isinstance(item, StepGroup)]
+        groups = [item for item in obj if isinstance(item, Agent)]
         if len(steps) + len(groups) != len(obj):
             raise SystemExit(
-                "reactifact check: a list target may contain only Step/StepGroup "
-                "instances"
+                "reactifact check: a list target may contain only Step/Agent instances"
             )
         return steps, groups
     raise SystemExit(
-        "reactifact check: expected a Pipeline, Step, StepGroup or a list of them, "
+        "reactifact check: expected a Pipeline, Step, Agent or a list of them, "
         f"got {type(obj).__name__}"
     )
 
@@ -308,7 +308,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "--contracts",
         default=None,
         metavar="MODULE[:ATTR]",
-        help="check a Pipeline/Step/StepGroup/list instead of the positional target",
+        help="check a Pipeline/Step/Agent/list instead of the positional target",
     )
     p_check.add_argument(
         "--seed",

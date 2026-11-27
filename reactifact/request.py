@@ -13,7 +13,7 @@ child tasks a generation fans out to, and isolated between concurrent turns
 (each `asyncio.Task` gets its own context). Callers never touch the var: pass
 `request=` at the entry point, read `call.request` in a step.
 
-    runtime = Runtime(ctx, groups=[...])
+    runtime = Runtime(ctx, agents=[...])
     await runtime.arun(request={"user": "bob", "tenant": "acme"})
 
     @step(produces=(Answer,))

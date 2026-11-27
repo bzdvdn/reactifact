@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import ArtifactConflict, Consume, Context, Runtime, StepGroup
+from reactifact import Agent, ArtifactConflict, Consume, Context, Runtime
 from reactifact.effects import Effects, current_effects
 from reactifact.operations import Update, operation_from_dict
 
@@ -56,7 +56,7 @@ def test_update_operation_roundtrips_expected_version():
     assert restored.new_data.text == "v2"
 
 
-class Writer(StepGroup):
+class Writer(Agent):
     consumes = [Consume(Trigger)]
 
     def __init__(self, text: str):

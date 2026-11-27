@@ -118,7 +118,7 @@ def evaluate_hypothesis(
 class Evaluator(Step):
     """Deterministic scorer; re-runs as each channel round materializes."""
 
-    consumes = (
+    reads = (
         Hypothesis,
         Evidence,
         Claim,

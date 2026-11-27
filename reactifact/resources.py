@@ -176,7 +176,7 @@ class RuntimeResources:
         # Runtime-level policy for what actually goes into an agent's inputs
         # (ranking/truncation) — `None` reproduces the old, unranked
         # behavior. See `context_builder.py`; applied inside
-        # `StepGroup._collect_inputs` (`agents.py`), so both the runtime's
+        # `Agent._collect_inputs` (`agents.py`), so both the runtime's
         # provenance (`Runtime._collect_reads`) and the agent's actual
         # produce inputs go through the same builder call and stay in sync.
         self.context_builder = context_builder
@@ -418,7 +418,7 @@ class ResourceScope(AbstractAsyncContextManager["RuntimeResources"]):
     they live and die with one loop:
 
         async with RuntimeResources.scope(build_resources) as resources:
-            runtime = Runtime(Context(resources=resources), groups=[...])
+            runtime = Runtime(Context(resources=resources), agents=[...])
             await runtime.arun(request={"user": "bob"})
 
     The factory may be sync or async. `resources.aclose()` runs on exit (and on

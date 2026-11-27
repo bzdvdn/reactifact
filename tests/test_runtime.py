@@ -3,13 +3,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     EventType,
     Patch,
     Runtime,
     Step,
-    StepGroup,
     Trigger,
 )
 
@@ -18,7 +18,7 @@ class Number(BaseModel):
     value: int
 
 
-class Doubler(StepGroup):
+class Doubler(Agent):
     def __init__(self):
         super().__init__(
             name="doubler", triggers=[Trigger(EventType.ARTIFACT_CREATED, Number)]
@@ -32,7 +32,7 @@ class Doubler(StepGroup):
         return Patch().update(artifact.id, Number(value=new_value))
 
 
-class Logger(StepGroup):
+class Logger(Agent):
     def __init__(self):
         super().__init__(
             name="logger", triggers=[Trigger(EventType.ARTIFACT_UPDATED, Number)]
@@ -45,7 +45,7 @@ class Logger(StepGroup):
         return None
 
 
-class ThresholdAgent(StepGroup):
+class ThresholdAgent(Agent):
     def __init__(self):
         super().__init__(
             name="threshold_agent",
@@ -66,7 +66,7 @@ class Marker(BaseModel):
     pass
 
 
-class AsyncDoubler(StepGroup):
+class AsyncDoubler(Agent):
     def __init__(self):
         super().__init__(
             name="async_doubler", triggers=[Trigger(EventType.ARTIFACT_CREATED, Number)]
@@ -129,7 +129,7 @@ def test_produces_validation_rejects_unknown_type():
     class Output(BaseModel):
         text: str
 
-    class BadAgent(StepGroup):
+    class BadAgent(Agent):
         name = "bad_agent"
         consumes = [Consume(Input)]  # <-- now there are triggers
         produces = [Step(Output)]  # only Output declared

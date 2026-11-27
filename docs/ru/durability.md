@@ -49,14 +49,14 @@ from reactifact.checkpoints import SQLiteKVBackend
 
 store = SessionStore(SQLiteKVBackend("sessions.sqlite3"))
 session = await store.open("user-1")            # загружает или создаёт
-runtime = Runtime(session.context, groups=[...], session=session)
+runtime = Runtime(session.context, agents=[...], session=session)
 await runtime.arun()
 ```
 
 ```text
 # после краха / рестарта — новый процесс, в памяти ничего нет
 session = await store.open("user-1")
-runtime = Runtime(session.context, groups=[...], session=session)
+runtime = Runtime(session.context, agents=[...], session=session)
 await runtime.arun()   # продолжает: отложенные триггеры на месте
 ```
 
@@ -74,7 +74,7 @@ await runtime.arun()   # продолжает: отложенные тригге
 дублировал ([§42](../constitution.md)):
 
 ```python
-@step(produces=Summary, consumes=Msg)
+@step(produces=Summary, reads=Msg)
 async def summarize(call):
     doc = call.trigger
     # Stable id делает повтор идемпотентным: повторное создание вернёт тот же

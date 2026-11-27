@@ -30,6 +30,7 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
+from examples.knowledge.agents import PIPELINE
 from examples.knowledge.chat import _UNSET, build_resources
 from examples.knowledge.index import KnowledgeBackend, build_backend
 from examples.knowledge.models import (
@@ -39,7 +40,6 @@ from examples.knowledge.models import (
     Claim,
     UserQuery,
 )
-from examples.knowledge.step_groups import GROUPS
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, SessionStore
@@ -132,7 +132,7 @@ def _build_assistant(
     )
     return Chat(
         store=store,
-        groups=GROUPS,
+        pipeline=PIPELINE,
         seed_type=UserQuery,
         reply=terminal_reply,
         session_state=session_state,
@@ -205,7 +205,9 @@ def create_app(
         prefix="/knowledge",
     )
     app.include_router(create_chat_router(assistant))
-    app.include_router(create_contracts_router(GROUPS, title="knowledge-ai contracts"))
+    app.include_router(
+        create_contracts_router(PIPELINE.agents, title="knowledge-ai contracts")
+    )
 
     web_dir = ROOT / "web"
     if web_dir.exists():

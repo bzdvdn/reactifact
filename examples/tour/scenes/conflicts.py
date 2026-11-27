@@ -6,13 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     ArtifactConflict,
-    Consume,
     Context,
-    Event,
     MergeConflict,
+    Read,
     Runtime,
-    StepGroup,
+    Step,
 )
 from reactifact.effects import current_effects
 
@@ -25,14 +25,14 @@ class Trigger(BaseModel):
     text: str
 
 
-class Writer(StepGroup):
-    consumes = [Consume(Trigger)]
+class Writer(Step):
+    reads = (Read(Trigger),)
+    produces = (Note,)
 
     def __init__(self, text: str):
-        super().__init__(name=text)
         self.text = text
 
-    async def run(self, event: Event, context: Context) -> None:
+    async def run(self, trigger: Trigger, context: Context) -> None:
         note = context.get("note:1")
         assert note is not None
         effects = current_effects()
@@ -42,7 +42,6 @@ class Writer(StepGroup):
             expected_version=note.version,
             text=self.text,
         )
-        return None
 
 
 async def run_conflicts() -> dict[str, Any]:
@@ -51,7 +50,10 @@ async def run_conflicts() -> dict[str, Any]:
     context.create(Trigger(text="go"), id="trigger:1")
     runtime = Runtime(
         context,
-        groups=[Writer("a"), Writer("b")],
+        agents=[
+            Agent("writer-a", steps=[Writer("a")]),
+            Agent("writer-b", steps=[Writer("b")]),
+        ],
         max_concurrency=2,
     )
 

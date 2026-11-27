@@ -5,12 +5,12 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
 )
 from reactifact.guardrails import (
     DenyListGuardrail,
@@ -40,9 +40,7 @@ class Rewrite(Step[Note]):
 
 
 def _group():
-    return create_step_group(
-        "rewrite", consumes=[Consume(Question)], produces=[Rewrite()]
-    )
+    return Agent("rewrite", consumes=[Consume(Question)], steps=[Rewrite()])
 
 
 def _run(resources, text: str):

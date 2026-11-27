@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..agent import Agent
 from ..artifacts import Artifact
 from ..budget import Budget
 from ..context import Context
@@ -15,18 +16,17 @@ from ..recipes import find
 from ..resources import RuntimeResources
 from ..runtime import Runtime
 from ..sources import Source
-from ..step import StepGroup
 from .models import Question
 
 
 async def _arun(
     context: Context,
-    agents: Sequence[StepGroup],
+    agents: Sequence[Agent],
     *,
     budget: Budget | None,
     tracer: Any,
 ) -> None:
-    await Runtime(context, groups=list(agents), budget=budget, tracer=tracer).arun()
+    await Runtime(context, agents=list(agents), budget=budget, tracer=tracer).arun()
 
 
 def _default_resources(

@@ -3,7 +3,7 @@
 A `Budget` bounds the whole turn; this bounds one agent execution. The
 runtime applies it in `Runtime._execute`:
 
-    class Researcher(StepGroup):
+    class Researcher(Agent):
         consumes = [Consume(Question)]
         steps = [Search(), Answer()]
         retry = RetryPolicy(max_attempts=3, backoff=0.5)
@@ -30,7 +30,7 @@ class RetryPolicy:
     enough that a programming error is not retried.
 
     `CancelledError` is never retried (it is not an `Exception`); a timeout
-    raised by `StepGroup.timeout` is an `Exception` and is retried only when
+    raised by `Agent.timeout` is an `Exception` and is retried only when
     `retry_on` includes `TimeoutError` (the default `(Exception,)` does).
 
     `max_attempts` bounds the retries; actual token/cost/time spend is still

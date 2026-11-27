@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import inspect
 import json
@@ -23,13 +24,14 @@ from typing import (
 from pydantic import BaseModel
 from typing_extensions import TypeVar
 
-from ..artifacts import Artifact, ArtifactType
-from ..consume import Consume
-from ..context import Context
-from ..effects import Effects
-from ..patches import Patch
-from ..policy import RetryPolicy
-from ..provenance import DERIVED_FROM, RelationName
+from ...artifacts import Artifact, ArtifactType
+from ...consume import Consume
+from ...context import Context
+from ...effects import Effects
+from ...patches import Patch
+from ...policy import RetryPolicy
+from ...provenance import DERIVED_FROM, RelationName
+from ...read import Read
 from .annotations import Latest, Scope, Wakes, When
 from .call import (
     StepCall,
@@ -38,8 +40,8 @@ from .call import (
 )
 
 if TYPE_CHECKING:
-    from ..interaction import Progress
-    from ..request import CurrentRequest
+    from ...interaction import Progress
+    from ...request import CurrentRequest
 
 TOut = TypeVar("TOut", bound=BaseModel, default=BaseModel)
 
@@ -179,12 +181,13 @@ class Step(Generic[TOut]):
     constructor / `@step`). `Runtime._validate_patch_types` checks every
     `Create` against the union of `produces` across the group's steps.
 
-    `consumes` does double duty: it gates which events run the step and feeds
-    its typed inputs. `Consume(..., wakes=False)` reads an input without
-    waking on it. `call.trigger` is the artifact behind the current event —
-    guaranteed live for CREATED/UPDATED/STALE events when `consumes` is
-    declared; for a DELETED event it is `None` (use `call.event`), which is
-    the event, not a race.
+    `reads` is the step's input set: the runtime calls the step when those
+    artifacts exist and feeds them as typed inputs. `Agent.consumes` decides
+    when the agent wakes; a step never needs its own wake contract. `Consume`
+    conditions and `wakes=False` still refine reads when needed. `call.trigger`
+    is the artifact behind the current event — guaranteed live for
+    CREATED/UPDATED/STALE events once `reads` is declared; for a DELETED event
+    it is `None` (use `call.event`), which is the event, not a race.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -206,8 +209,10 @@ class Step(Generic[TOut]):
     #: Declarative delete contract for side-effect-only steps. Contracts show
     #: it; the runtime does not gate deletes on it.
     deletes: tuple[ArtifactType, ...] = ()
-    #: Input contract: the artifact types this step reads and reacts to. The
-    #: runtime gates the step on these and collects them into `StepCall.inputs`.
+    #: Input contract: the artifacts this step reads. The runtime gates the
+    #: step on their availability and collects them into `StepCall.inputs`.
+    reads: tuple[Any, ...] | None = None
+    #: Deprecated alias for `reads` (0.x spelling); normalized to `Consume`.
     consumes: tuple[Any, ...] | None = None
     #: Correlation scope for same-run lookups, e.g. `scope = "query_id"` or
     #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
@@ -216,8 +221,8 @@ class Step(Generic[TOut]):
     #: Primary-output alias, kept for `Step[Foo]`/`@step(Foo)` and 0.1.x code.
     artifact_type: ArtifactType | None = None
     #: Hard per-step deadline, in seconds. The runtime cancels this step when
-    #: it passes; the agent then fails (and `StepGroup.retry`, if set, may retry
-    #: the whole agent). `StepGroup.timeout` remains the outer bound.
+    #: it passes; the agent then fails (and `Agent.retry`, if set, may retry
+    #: the whole agent). `Agent.timeout` remains the outer bound.
     timeout: float | None = None
     #: Scheduling priority within a generation (lower runs earlier), copied to
     #: the implicit group that `Runtime(steps=...)` creates.
@@ -231,13 +236,16 @@ class Step(Generic[TOut]):
     #: are allowed.
     provenance: RelationName | str | bool | None = None
     #: Retry policy for this step, copied to the implicit group created by
-    #: `Runtime(steps=...)`. `StepGroup` remains for shared retry across steps.
+    #: `Runtime(steps=...)`. `Agent` remains for shared retry across steps.
     retry: RetryPolicy | None = None
     #: Stable id for return-style creates: when true, a created model gets
     #: `type:trigger:content-hash` instead of a random id, so a re-trigger
     #: refreshes the same artifact instead of duplicating it. The decorator
     #: turns this on when `produces` is inferred from the return annotation.
     once: bool = False
+    #: Set by `bind()` for `@step`-decorated methods; the owner is passed as
+    #: the first positional argument by `invoke_step`.
+    _owner: Any = None
 
     @staticmethod
     def _normalize_types(
@@ -260,6 +268,23 @@ class Step(Generic[TOut]):
         else:
             items = value
         return tuple(_as_consume(item) for item in items)
+
+    @staticmethod
+    def _normalize_reads(value: Any) -> tuple[Consume, ...] | None:
+        """Normalize `Read`/type/`Annotated`/legacy `Consume` into Consume specs."""
+        if value is None:
+            return None
+        if isinstance(value, (Read, Consume, type)) or get_origin(value) is Annotated:
+            items: Sequence[Any] = (value,)
+        else:
+            items = value
+        specs: list[Consume] = []
+        for item in items:
+            if isinstance(item, Read):
+                specs.append(item.to_consume())
+            else:
+                specs.append(_as_consume(item))
+        return tuple(specs)
 
     @staticmethod
     def _derive_consumes(target: Callable[..., Any]) -> tuple[Consume, ...] | None:
@@ -310,12 +335,12 @@ class Step(Generic[TOut]):
     def _merge_read_only_consumes(
         existing: tuple[Consume, ...], target: Callable[..., Any]
     ) -> tuple[Consume, ...]:
-        """Add typed artifact params missing from an explicit `consumes` as reads.
+        """Add typed artifact params missing from explicit `reads`.
 
-        An explicit `consumes` is the step's **wake set**; its typed signature is
-        the **read set**. A type in `run()`/the function but absent from
-        `consumes` becomes `Consume(T, wakes=False)` (preserving `When`), so
-        reads need no `wakes=False` boilerplate. Types already covered by an
+        An explicit `reads` narrows the input set; the typed signature may name
+        more inputs. A type in `run()`/the function but absent from `reads`
+        becomes `Consume(T, wakes=False)` (preserving `When`), so reads need no
+        `wakes=False` boilerplate. Types already covered by an
         explicit `Consume` are skipped — `Context.list_artifacts` is
         subclass-inclusive, so an explicit superclass already collects them.
         """
@@ -354,10 +379,20 @@ class Step(Generic[TOut]):
         *,
         produces: ArtifactType | Sequence[ArtifactType] | None = None,
         deletes: ArtifactType | Sequence[ArtifactType] | None = None,
-        consumes: Consume
-        | ArtifactType
-        | Sequence[Consume | ArtifactType]
-        | None = None,
+        reads: (
+            Read
+            | Consume
+            | ArtifactType
+            | Sequence[Read | Consume | ArtifactType]
+            | None
+        ) = None,
+        consumes: (
+            Read
+            | Consume
+            | ArtifactType
+            | Sequence[Read | Consume | ArtifactType]
+            | None
+        ) = None,
         timeout: float | None = None,
         provenance: RelationName | str | bool | None = None,
         scope: Scope | str | None = None,
@@ -390,21 +425,34 @@ class Step(Generic[TOut]):
             )
         self.deletes = resolved_deletes or ()
 
-        resolved_consumes = self._normalize_consumes(consumes)
+        if reads is not None and consumes is not None:
+            raise TypeError("Pass only one of reads= or consumes=")
+        resolved_consumes = self._normalize_reads(
+            reads if reads is not None else consumes
+        )
         if resolved_consumes is None:
-            resolved_consumes = self._normalize_consumes(
+            resolved_consumes = self._normalize_reads(
+                getattr(self.__class__, "reads", None)
+            )
+        if resolved_consumes is None:
+            resolved_consumes = self._normalize_reads(
                 getattr(self.__class__, "consumes", None)
             )
         if resolved_consumes is None:
             if type(self).run is not Step.run:
                 resolved_consumes = self._derive_consumes(type(self).run)
         elif type(self).run is not Step.run:
-            # Explicit consumes = the wake set; the typed signature = the read
-            # set. Missing typed artifact params become read-only inputs.
+            # Explicit reads = the input set; the typed signature adds any
+            # remaining typed params as read-only inputs.
             resolved_consumes = self._merge_read_only_consumes(
                 resolved_consumes, type(self).run
             )
         self.consumes = resolved_consumes
+        self.reads = (
+            tuple(Read.from_consume(consume) for consume in resolved_consumes)
+            if resolved_consumes is not None
+            else None
+        )
         # Deprecated aliases: 0.1.x code reads `.reacts_to` (types, not specs).
         self.reacts_to = (
             tuple(
@@ -453,13 +501,34 @@ class Step(Generic[TOut]):
         if not isinstance(self.once, bool):
             raise TypeError("Step.once must be a bool")
 
+    def read_specs(self) -> tuple[Consume, ...] | None:
+        """The runtime `Consume` view of `reads`."""
+        if "consumes" in self.__dict__:
+            return self.consumes
+        raw = getattr(self.__class__, "reads", None)
+        if raw is None:
+            raw = getattr(self.__class__, "consumes", None)
+        return self._normalize_reads(raw)
+
+    def bind(self, owner: Any) -> Step[Any]:
+        """Bind a `@step`-decorated method to its `Agent` instance.
+
+        A method step is declared at class level, so its function still has an
+        unbound `self`. The agent clones the step per instance and the runtime
+        passes that owner as the first positional argument.
+        """
+        clone = copy.copy(self)
+        if getattr(self, "_func", None) is not None:
+            clone._owner = owner
+        return cast("Step[Any]", clone)
+
     def consume_specs(self) -> tuple[Consume, ...] | None:
-        """The normalized (always-`Consume`) form of `consumes`."""
-        return cast("tuple[Consume, ...] | None", self.consumes)
+        """Deprecated alias for `read_specs()`."""
+        return self.read_specs()
 
     def collect_inputs(self, context: Context) -> list[Artifact[Any]]:
-        """Artifacts this step consumes, in declaration order."""
-        specs = self.consume_specs()
+        """Artifacts this step reads, in declaration order."""
+        specs = self.read_specs()
         if not specs:
             return []
         inputs: list[Artifact[Any]] = []
@@ -488,7 +557,7 @@ class Step(Generic[TOut]):
         The same data as `StepCall.request` / `current_request()`, as a small
         read-only `CurrentRequest` mapping. Empty outside a request.
         """
-        from ..request import CurrentRequest, current_request
+        from ...request import CurrentRequest, current_request
 
         return CurrentRequest(current_request())
 
@@ -500,7 +569,7 @@ class Step(Generic[TOut]):
         custom `ToolUse` subclass) without adding a `progress` parameter:
         `self.progress("Planning…")`.
         """
-        from ..interaction import Progress
+        from ...interaction import Progress
 
         return Progress(self.context.announce)
 

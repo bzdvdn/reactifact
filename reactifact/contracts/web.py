@@ -14,10 +14,15 @@ if TYPE_CHECKING:
 
 
 def create_contracts_router(
+    agents: (
+        Sequence[Any] | ContractReport | Callable[[], Sequence[Any] | ContractReport]
+    )
+    | None = None,
+    *,
     groups: (
         Sequence[Any] | ContractReport | Callable[[], Sequence[Any] | ContractReport]
-    ),
-    *,
+    )
+    | None = None,
     prefix: str = "",
     title: str = "reactifact contracts",
     username: str | None = None,
@@ -25,7 +30,7 @@ def create_contracts_router(
 ) -> APIRouter:
     """Serve the static agent contracts as a FastAPI page + JSON + Markdown.
 
-    `groups` is a sequence of `StepGroup`s, a ready `ContractReport` (e.g.
+    `agents` is a sequence of `Agent`s, a ready `ContractReport` (e.g.
     `Pipeline.describe()`), or a zero-arg callable returning either — for
     dynamic registries. Routes (relative to `prefix`): `/contracts` (HTML),
     `/api/contracts` (JSON, including seed/answer schemas when the report has
@@ -33,8 +38,14 @@ def create_contracts_router(
 
     This is opt-in and not mounted by default — tool descriptions and schemas
     can be sensitive. Pass `username`/`password` for HTTP Basic auth, the same
-    way as the trace dashboard.
+    way as the trace dashboard. `groups=` is a compatibility alias for
+    `agents=`.
     """
+    if agents is not None and groups is not None:
+        raise TypeError("Pass only one of agents= or groups=")
+    source = agents if agents is not None else groups
+    if source is None:
+        raise TypeError("create_contracts_router requires agents=")
     require_extra("contracts.web.create_contracts_router", "fastapi", "web")
     from fastapi import APIRouter, Depends, HTTPException
     from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -46,7 +57,7 @@ def create_contracts_router(
     globals().setdefault("Response", Response)
 
     def _report() -> ContractReport:
-        value = groups() if callable(groups) else groups
+        value = source() if callable(source) else source
         if isinstance(value, ContractReport):
             return value
         return describe_contracts(value)

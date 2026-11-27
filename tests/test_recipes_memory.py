@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Runtime, StepGroup, create_step_group
+from reactifact import Agent, Artifact, Consume, Context, Runtime
 from reactifact.contracts import describe_contracts
 from reactifact.recipes import RollingDigestSummarizer, WindowPruner, WindowSummarizer
 
@@ -67,8 +67,8 @@ async def _own_render_digest(
     return f"{previous};{','.join(parts)}" if previous else ",".join(parts)
 
 
-def _flow(*, window: int = 4, every: int = 2) -> StepGroup:
-    return create_step_group(
+def _flow(*, window: int = 4, every: int = 2) -> Agent:
+    return Agent(
         "memory",
         consumes=[Consume(Msg)],
         steps=[
@@ -84,8 +84,8 @@ def _flow(*, window: int = 4, every: int = 2) -> StepGroup:
     )
 
 
-def _prune_flow(*, keep: int = 4) -> StepGroup:
-    return create_step_group(
+def _prune_flow(*, keep: int = 4) -> Agent:
+    return Agent(
         "prune",
         consumes=[Consume(Msg)],
         steps=[WindowPruner(Msg, keep=keep)],
@@ -162,7 +162,7 @@ def test_pruner_keeps_only_the_window():
 def test_pruner_alone_bounds_messages_without_a_summarizer():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_step_group(
+        agent = Agent(
             "prune-only", consumes=[Consume(Msg)], steps=[WindowPruner(Msg, keep=2)]
         )
         runtime = Runtime(ctx, groups=[agent])
@@ -231,8 +231,8 @@ def test_memory_configuration_is_validated():
         WindowPruner([Msg, "not-a-type"], keep=1)  # type: ignore[list-item]
 
 
-def _digest_flow(*, window: int = 4, trigger: int = 6) -> StepGroup:
-    return create_step_group(
+def _digest_flow(*, window: int = 4, trigger: int = 6) -> Agent:
+    return Agent(
         "digest",
         consumes=[Consume(Msg)],
         steps=[
@@ -291,7 +291,7 @@ def test_no_digest_before_trigger_is_reached():
 def test_digest_merges_multiple_message_types_and_calls_own_render():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_step_group(
+        agent = Agent(
             "digest-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             steps=[
@@ -327,7 +327,7 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
 def test_pruner_bounds_multiple_message_types():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_step_group(
+        agent = Agent(
             "prune-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             steps=[WindowPruner([Question, FinalResponse], keep=4)],
@@ -349,7 +349,7 @@ def test_pruner_bounds_multiple_message_types():
 def test_summarizer_merges_multiple_message_types():
     async def _arun() -> Context:
         ctx = Context()
-        agent = create_step_group(
+        agent = Agent(
             "summarize-multi",
             consumes=[Consume(Question), Consume(FinalResponse)],
             steps=[

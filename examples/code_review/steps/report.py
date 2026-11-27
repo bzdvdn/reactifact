@@ -38,7 +38,7 @@ def render_report(request_id: str, reviews: list[FileReview]) -> ReviewReport:
 
 
 class BuildReportStep(Step):
-    consumes = (FileReview,)
+    reads = (FileReview,)
     produces = (ReviewReport,)
     scope = "request_id"
 

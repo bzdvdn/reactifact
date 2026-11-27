@@ -96,7 +96,7 @@ def test_llm_failure_not_empty_reply(tmp_path):
 
 
 def test_sse_calculation_and_claims_payload(tmp_path):
-    """Phase 5/6: the answer to a calculation question carries claims + calculations."""
+    """Agent 5/6: the answer to a calculation question carries claims + calculations."""
     app = create_app(llm=EmptyLLM(), store_dir=str(tmp_path))
     client = TestClient(app)
 

@@ -38,7 +38,7 @@ to fill them in — the recipe stamps the real values on every create.
         async def on_approve(self, context, report) -> FinalReply: ...
         async def on_reject(self, context, report, answer) -> FinalReply: ...
 
-    class Flow(StepGroup):
+    class Flow(Agent):
         consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
                     Consume(PendingQuestion)]
         steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
@@ -58,12 +58,12 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
+from ..agent import Emit, Step
 from ..artifacts import Artifact
-from ..consume import IdempotentConsume
 from ..context import Context
 from ..interaction import Human
 from ..interrupt import PendingQuestion
-from ..step import Emit, Step
+from ..read import Read
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 TaskT = TypeVar("TaskT", bound=BaseModel)
@@ -159,8 +159,8 @@ class _RouteStep(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.task_type,
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     owner.request_type,
                     id_of=lambda request: f"task:{request.id}",
                 ),

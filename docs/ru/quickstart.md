@@ -89,10 +89,10 @@ asyncio.run(
 моделей, сессии сохраняются, стриминг и history готовы.
 
 ```python
-from reactifact import Chat
+from reactifact import Chat, Agent
 
 chat = Chat(
-    steps=[search, answer],
+    agents=[Agent("answer", steps=[search, answer])],
     store="sessions.db",
     seed_type=Question,
     answer_type=Answer,
@@ -132,16 +132,24 @@ app = chat.http(
 `/docs`, `/api/contracts` и `/api/traces` тоже монтируются; `reactifact dev`
 поднимает приложение.
 
-## Один объект: `Pipeline`
+## Одно определение: `Pipeline` + `PipelineRunner`
 
-`Pipeline` — короткий путь, когда шаги уже есть: он держит шаги, ресурсы и
-дефолты, а на каждый запуск создаёт свежие `Context` + `Runtime`.
+`Pipeline` — декларативное определение: агенты, ресурсы и дефолты.
+`PipelineRunner` исполняет его и на каждый запуск создаёт свежие
+`Context` + `Runtime`.
 
 ```python
-from reactifact import Pipeline
+from reactifact import Agent, Pipeline, PipelineRunner
 
-pipeline = Pipeline(steps=[compute_spend, compute_variance, answer])
-result = pipeline.run(Question(text="какая дисперсия за Q2?"))
+pipeline = Pipeline(
+    agents=[
+        Agent("audit", steps=[compute_spend, compute_variance, answer]),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+runner = PipelineRunner(pipeline)
+result = runner.run(Question(text="какая дисперсия за Q2?"))
 
 print(result.latest(Answer).data.text)
 print(result.sources(result.latest(Answer)))
@@ -155,11 +163,12 @@ Async-варианты — `arun(seed)` и `astream(seed)`; низкоуровн
 пайплайна:
 
 ```python
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question, llm: LLMProvider) -> Answer: ...
 
-pipeline = Pipeline(steps=[answer], llm=default_llm)
-pipeline.override(LLMProvider, FakeLLM())
+pipeline = Pipeline(agents=[Agent("answer", steps=[answer])])
+runner = PipelineRunner(pipeline, llm=default_llm)
+runner.override(LLMProvider, FakeLLM())
 ```
 
 Для долгоживущих ресурсов (HTTP-клиенты, индексы) — lifespan, как в FastAPI:
@@ -170,8 +179,8 @@ async def lifespan():
     yield build_resources()
     await close_resources()
 
-async with Pipeline(steps=[answer], lifespan=lifespan) as pipeline:
-    result = await pipeline.arun(Question(text="..."))
+async with PipelineRunner(pipeline, lifespan=lifespan) as runner:
+    result = await runner.arun(Question(text="..."))
 ```
 
 Тесты получают in-memory trace store и изолированные overrides:
@@ -182,6 +191,40 @@ client.override(LLMProvider, FakeLLM())
 result = client.run(Question(text="..."))
 assert asyncio.run(client.traces.query())["total"] >= 1
 client.close()
+```
+
+## Маленькие агенты: `@agent`
+
+Для одной функции декоратор — короткий путь. Типизированные параметры — это
+чтение функции, аннотация возврата — её `produces`:
+
+```python
+from pydantic import BaseModel
+from reactifact.agent import agent
+
+
+class Route(BaseModel):
+    kind: str
+
+
+@agent
+async def classify(question: Question) -> Route:
+    return Route(kind="billing" if "invoice" in question.text else "general")
+```
+
+`classify` — это `Agent`; монтируйте его в `Pipeline` или `Runtime` как любой
+другой. Передайте `@agent(consumes=[...])`, когда условию пробуждения нужен
+`Consume` (`by_field`, `debounce`, событие approval, …). Если работы несколько
+шагов — используйте явную форму:
+
+```python
+from reactifact import Agent, Consume
+
+answer = Agent(
+    "answer",
+    consumes=[Consume(Question), Consume(Evidence, debounce=True)],
+    steps=[Scout(), Answerer()],
+)
 ```
 
 ## Одна команда: `check`
@@ -208,7 +251,7 @@ Web-адаптер опционален; когда нужен HTTP, он пол
 
 ```python
 pipeline = Pipeline(
-    steps=[extract, classify, answer],
+    agents=[Agent("answer", steps=[extract, classify, answer])],
     seed_type=Question,
     answer_type=Answer,
     traces=True,
@@ -252,7 +295,7 @@ t = tools_agent("You are ops. Use the tools.", [check_status])  # @tool (§1)
 text = await t.ask("is checkout-api healthy?")
 
 # 4) чат-ассистент с сессиями (provider через llm=; store=None → в памяти)
-assistant = chat_agent(groups=[...], llm=provider)
+assistant = chat_agent(agents=[...], llm=provider)
 ```
 
 Каждая точка входа принимает `llm=` — любой `LLMProvider` (`from_env()`,
@@ -260,10 +303,10 @@ assistant = chat_agent(groups=[...], llm=provider)
 настроенный `.env` просто работает; передайте явно, чтобы выбрать модель/эндпоинт.
 
 Это **сахар над теми же примитивами**, а не второй фреймворк. У каждого объекта
-есть настоящий `StepGroup` и `Context` последнего запуска:
+есть настоящий `Agent` и `Context` последнего запуска:
 
 ```python
-qa.agent      # реактивный StepGroup — можно смонтировать в свой Runtime
+qa.agent      # реактивный Agent — можно смонтировать в свой Runtime
 qa.context    # артефакты/провенанс последнего ask()
 ```
 
@@ -331,7 +374,7 @@ class OpsAgent(HITLLMAgent):
 
 async def main():
     ctx = Context(resources=RuntimeResources(llm=from_env()))
-    runtime = Runtime(ctx, groups=[OpsAgent()])
+    runtime = Runtime(ctx, agents=[OpsAgent()])
     ctx.create(Ticket(text="is checkout-api healthy?"))
     await runtime.arun()
 
@@ -405,7 +448,7 @@ resources.register(K8sClient, K8sClient())
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Context, Runtime, RuntimeResources, create_step_group, step
+from reactifact import Context, Runtime, RuntimeResources, Agent, step
 from reactifact.recipes import fan_out_sources, materialize_doc, find, keyword_score
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -423,19 +466,19 @@ class Answer(BaseModel):
     sources: list[str] = []
 
 
-@step(produces=SourceRef, consumes=Question)
+@step(produces=SourceRef, reads=Question)
 async def search(call):
     question = call.trigger
     await fan_out_sources(call.context, question.data.text, owner_id=question.id, limit=3)
 
 
-@step(produces=Doc, consumes=SourceRef)
+@step(produces=Doc, reads=SourceRef)
 async def resolve(call):
     ref = call.trigger
     await materialize_doc(call.context, ref, lambda ctx, ref, content: Doc(text=content))
 
 
-@step(produces=Answer, consumes=Doc)
+@step(produces=Answer, reads=Doc)
 async def answer(call):
     docs = call.inputs
     d = docs[0]
@@ -443,9 +486,9 @@ async def answer(call):
     return Answer(text=d.data.text.strip(), sources=[s.data.locator for s in sources])
 
 
-search_group = create_step_group("search", steps=[search])
-resolve_group = create_step_group("resolve", steps=[resolve])
-answer_group = create_step_group("answer", steps=[answer])
+search_group = Agent("search", steps=[search])
+resolve_group = Agent("resolve", steps=[resolve])
+answer_group = Agent("answer", steps=[answer])
 
 
 async def main():
@@ -455,7 +498,7 @@ async def main():
         sources={"docs": FileSystemSource("./docs", source_id="docs", scorer=keyword_score)},
     )
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, groups=[search_group, resolve_group, answer_group])
+    runtime = Runtime(ctx, agents=[search_group, resolve_group, answer_group])
     ctx.create(Question(text="what is your refunds policy?"))
     await runtime.arun()
     a = ctx.latest(Answer)
@@ -489,7 +532,7 @@ keyword-триггерный skill. Запуск: `.venv/bin/python examples/kno
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Chat, RuntimeResources, SessionStore, create_step_group
+from reactifact import Chat, RuntimeResources, SessionStore, Agent
 from reactifact.checkpoints import FileKVBackend
 from reactifact import step
 
@@ -504,13 +547,13 @@ class Reply(BaseModel):
     text: str
 
 
-@step(produces=Reply, consumes=UserMsg)
+@step(produces=Reply, reads=UserMsg)
 async def echo(call):
     msg = call.trigger
     return Reply(query_id=msg.id, text=f"you said: {msg.data.text}")
 
 
-echo_group = create_step_group("echo", steps=[echo])
+echo_group = Agent("echo", steps=[echo])
 
 
 def reply(ctx, msg_id):
@@ -522,7 +565,7 @@ async def main():
     store = SessionStore(FileKVBackend("./sessions"))
     assistant = Chat(
         store=store,
-        groups=[echo_group],
+        agents=[echo_group],
         seed_type=UserMsg,
         reply=reply,
         resources=RuntimeResources,  # свежий RuntimeResources на каждый ход

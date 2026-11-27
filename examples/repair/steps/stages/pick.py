@@ -15,7 +15,7 @@ from .redesign import _handle_style_change, _regenerate_options
 class PickStage(Step):
     """Parses the user's choice → plan."""
 
-    consumes = (UserMsg,)
+    reads = (UserMsg,)
     produces = (Project, ChatReply)
 
     async def run(

@@ -4,7 +4,7 @@ Pure functions returning Mermaid source strings (no rendering dependency).
 Render them anywhere Mermaid works (GitHub, Notion, mermaid.live), or view the
 trace diagram directly in the dashboard and the CLI:
 
-    python -m reactifact graph examples.knowledge.step_groups
+    python -m reactifact graph examples.knowledge.agents
     python -m reactifact context <sessions-db>
     python -m reactifact trace traces.db [run_id]
 
@@ -20,9 +20,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
+from .agent import Agent
 from .consume import Consume
 from .context import Context
-from .step import StepGroup
 
 if TYPE_CHECKING:
     from .tracing.models import RunTrace
@@ -44,14 +44,14 @@ def _artifact_node(lines: list[str], node_ids: dict[str, str], type_name: str) -
 
 
 def blueprint(
-    agents: Sequence[StepGroup],
+    agents: Sequence[Agent],
     *,
     with_stages: bool = True,
     title: str = "reactifact blueprint",
 ) -> str:
     """Static map of the system: artifact types = nodes, agents = edges.
 
-    For every `StepGroup` renders its `consumes` (input edge) and `produces`
+    For every `Agent` renders its `consumes` (input edge) and `produces`
     (create edge; a `lifecycle` edge for `StatusMachine`-style produces).
     """
     lines: list[str] = ["flowchart LR"]

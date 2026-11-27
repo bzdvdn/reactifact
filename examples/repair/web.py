@@ -18,9 +18,9 @@ if __package__ in (None, ""):  # run as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
+from examples.repair.agents import PIPELINE
 from examples.repair.models import ChatReply, Project, UserMsg
 from examples.repair.services import Catalog, ImageRenderSettings
-from examples.repair.step_groups import RepairFlow
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, Context, RuntimeResources, SessionStore
@@ -142,7 +142,7 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
 
     assistant = Chat(
         store=store,
-        groups=[RepairFlow()],
+        pipeline=PIPELINE,
         seed_type=UserMsg,
         reply=terminal_reply,
         session_state=session_state,
@@ -190,7 +190,7 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
     )
     app.include_router(create_chat_router(assistant))
     app.include_router(
-        create_contracts_router([RepairFlow()], title="repair-ai contracts")
+        create_contracts_router(PIPELINE.agents, title="repair-ai contracts")
     )
 
     @app.get("/api/runs/{session_id}/estimate.csv")

@@ -160,7 +160,7 @@ from reactifact.recipes import Handoff, swarm
 
 result = await swarm(
     context,
-    groups={"triage": triage, "billing": billing},
+    agents={"triage": triage, "billing": billing},
     start="triage",
     input=Question(text="refund please"),
     final_type=Answer,
@@ -257,13 +257,13 @@ machine = StatusMachine.from_funcs(
 ```
 
 Конструктор принимает те же опции:
-`StatusMachine(artifact_type=..., next_status=..., terminal=..., consumes=...)`.
+`StatusMachine(artifact_type=..., next_status=..., terminal=..., reads=...)`.
 
 Механика (всё унаследовано от `Step`):
 
 - Generic `StatusMachine[ResearchTurn]` задаёт `artifact_type`; явный
   `artifact_type` тоже работает.
-- По умолчанию будится любым событием; `consumes=` сужает набор событий.
+- Выполняется, когда есть его `reads`; `reads=` сужает набор входов.
   Событие сопоставляется с жизненным циклом через `owner_key(artifact)` (по
   умолчанию читает `query_id_field` данных артефакта с фолбэком на его `id`).
   Переопределите `owner_key`, если домен использует другой ключ; входы
@@ -316,13 +316,13 @@ turn_context = TurnContextStep(
     digest_type=Digest,         # опционально; читает digest_id="digest"
     artifact_type=DialogueContext,  # цель custom build
     window=12,
-    consume=OnCreate(UserQuery),    # или обычный Consume
+    read=OnCreate(UserQuery),    # или обычный Consume
     ensure=True,                    # идемпотентно на ход
     follow_up=my_follow_up,         # опционально; детерминированный дефолт
     build=build_dialogue,           # TurnFacts -> ваш артефакт
 )
 
-# groups=[turn_context, *answer_steps]
+# agents=[turn_context, *answer_steps]
 ```
 
 Шаг создаёт `TurnContext` (или `artifact_type=`) с id `turn:{trigger.id}`;
@@ -330,7 +330,7 @@ turn_context = TurnContextStep(
 сохраняет поля `turn`/`session_id`. `TurnFacts` содержит trigger,
 текущий/предыдущий запрос, предыдущие artifact/answer, историю, digest и
 follow-up — поэтому доменный контекст может нести
-`prior_domain`/`routing_text` без чтения `Context`. `consume=OnCreate` — один
+`prior_domain`/`routing_text` без чтения `Context`. `read=OnCreate` — один
 артефакт на ход; `ensure=True` делает повторный запуск no-op. Комбинируйте с
 `Annotated[..., Unscoped()]`, когда другому шагу тоже нужна полная история.
 
@@ -355,10 +355,10 @@ def build_summary(round_no: int, text: str) -> Summary:
     return Summary(round=round_no, text=text)
 
 
-class Flow(StepGroup):
-    name = "chat"
-    consumes = [Consume(Msg)]
-    steps = [
+Flow = Agent(
+    "chat",
+    consumes=[Consume(Msg)],
+    steps=[
         WindowSummarizer(
             Msg, Summary,
             summarize=llm_summarizer("Сожми недавний диалог в короткую заметку-память."),
@@ -366,7 +366,8 @@ class Flow(StepGroup):
             window=8,   # сколько сообщений идёт в один саммари
             every=4,    # новый чекпоинт каждые N сообщений
         ),
-    ]
+    ],
+)
 ```
 
 - `summarize(context, history) -> str | None` — ваш колбэк (или
@@ -423,10 +424,10 @@ def build_digest(text: str) -> Digest:
     return Digest(text=text)
 
 
-class Flow(StepGroup):
-    name = "chat"
-    consumes = [Consume(Msg)]
-    steps = [
+Flow = Agent(
+    "chat",
+    consumes=[Consume(Msg)],
+    steps=[
         RollingDigestSummarizer(
             Msg, Digest,
             summarize=llm_digest_summarizer("Fold the new messages into the running memory note."),
@@ -434,7 +435,8 @@ class Flow(StepGroup):
             window=8,    # сколько сообщений остаются сырыми
             trigger=12,  # порог длины диалога, после которого сворачиваем
         ),
-    ]
+    ],
+)
 ```
 
 - `message_type` принимает как один тип, так и последовательность типов —
@@ -504,7 +506,7 @@ LLM при `context.resources.llm is None`, и откатывается на
 ## `Route` — одна группа на значение артефакта
 
 `Route` — для частого случая «в ходе есть ключ ветвления; должна выполниться
-только одна downstream-группа». Это builder над обычными `StepGroup`, без
+только одна downstream-группа». Это builder над обычными `Agent`, без
 вложенных групп в runtime. Каждая case-группа сохраняет свои шаги и поздние
 триггеры; сужаются только совпадения события `on` по `key(value) == case`.
 
@@ -521,7 +523,7 @@ route = Route(
     default="rag",       # значения вне map идут в rag
 )
 
-Runtime(ctx, groups=[*route.groups(), planner, ...])
+Runtime(ctx, agents=[*route.agents(), planner, ...])
 ```
 
 Сгенерированные группы несут `route_case`-маркер. `validate_contracts`
@@ -545,10 +547,10 @@ cleanup = ScopedCleanup(
     Answer,
     scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
     scope="query_id",          # или Scope(...)
-    consume=OnCreate(Answer),  # дефолт
+    read=OnCreate(Answer),  # дефолт
 )
 
-# groups=[create_step_group("cleanup", steps=[cleanup])]
+# agents=[Agent("cleanup", steps=[cleanup])]
 ```
 
 Он объявляет `produces=()` и реальные `deletes=(...)`, поэтому контракты
@@ -562,7 +564,7 @@ cleanup = ScopedCleanup(
 `reactifact.tools.native` намеренно даёт хелперы на один ход, а не цикл.
 Когда цикл всё-таки нужен — ограниченные раунды, параллельные вызовы,
 форсированный финальный ответ — `run_tool_loop` это opt-in рецепт, а не
-реактивный `StepGroup`:
+реактивный `Agent`:
 
 ```python
 from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
@@ -705,9 +707,11 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
         ...  # собрать результаты всех шагов по порядку
 
 
-class FlowAgent(StepGroup):
-    consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-    steps = Flow().produces()
+FlowAgent = Agent(
+    "flow_agent",
+    consumes=[Consume(Goal), Consume(PlanStep), Consume(StepResult)],
+    steps=Flow().produces(),
+)
 ```
 
 Тот же поток без подкласса — и с автоматической сборкой группы/пайплайна:
@@ -724,8 +728,10 @@ flow = PlanExecute.from_funcs(
     execute_step=execute_step,
     finish=finish,
 )
-pipeline = flow.pipeline(seed_type=Goal)   # или flow.group() в Runtime
-result = pipeline.run(Goal(text="ship it"))
+from reactifact import PipelineRunner
+
+pipeline = flow.pipeline(seed_type=Goal)   # или flow.agent() в Runtime
+result = PipelineRunner(pipeline).run(Goal(text="ship it"))
 ```
 
 - `step_type`/`result_type` должны нести поля `goal_field`/`index_field`
@@ -780,11 +786,13 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
     async def on_reject(self, context, report, answer) -> FinalReply: ...
 
 
-class Flow(StepGroup):
-    consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
-                Consume(PendingQuestion)]
-    steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
-             Step(PendingQuestion)]  # Router/ApprovalGate зовут human.ask в runtime
+Flow = Agent(
+    "flow",
+    consumes=[Consume(Request), Consume(Task), Consume(SpecialistReport),
+              Consume(PendingQuestion)],
+    steps=[MyRouter().produce(), Specialist(), MyGate().produce(),
+           Step(PendingQuestion)],  # Router/ApprovalGate зовут human.ask в runtime
+)
 ```
 
 `Specialist` — собственно работа маршрута — остаётся полностью вашим
@@ -818,9 +826,11 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
     async def finish(self, context, draft) -> Final: ...
 
 
-class Flow(StepGroup):
-    consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-    steps = MyLoop().produces()
+Flow = Agent(
+    "flow",
+    consumes=[Consume(Topic), Consume(Draft), Consume(Review)],
+    steps=MyLoop().produces(),
+)
 ```
 
 То же самое функциями:

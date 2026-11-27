@@ -18,8 +18,8 @@ from reactifact import Budget, Runtime, SessionStore
 from reactifact.interrupt import PendingQuestion
 from reactifact.tracing import Tracer
 
+from ..agents import medic_lab_scheduler
 from ..models import Question, ResearchReport
-from ..step_groups import medic_lab_scheduler
 
 #: Runs per request before the runtime gives up (budget, §58).
 MAX_RUNS = 400
@@ -81,7 +81,7 @@ async def _run_and_stream(
 def create_router(
     *,
     store: SessionStore,
-    groups: list[Any],
+    agents: list[Any],
     resources_factory: Callable[[], Any],
     trace_store: Any = None,
 ) -> APIRouter:
@@ -89,7 +89,7 @@ def create_router(
 
     Args:
         store: session store shared with the app factory.
-        groups: the runtime group set (see `medic_lab_groups`).
+        agents: the runtime agent set (see `PIPELINE.agents`).
         resources_factory: returns a `RuntimeResources` (llm + sources) per call.
         trace_store: optional TraceStore — run traces land here (§54).
     """
@@ -98,7 +98,7 @@ def create_router(
         session = await store.open(session_id, resources=resources_factory())
         runtime = Runtime(
             session.context,
-            groups=groups,
+            agents=agents,
             session=session,
             budget=Budget(max_runs=MAX_RUNS),
             max_concurrency=6,

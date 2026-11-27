@@ -10,7 +10,7 @@ response's usage when a turn's budget tracks cost.
         return (prompt_tokens * 0.15 + completion_tokens * 0.60) / 1_000_000
 
     resources = RuntimeResources(llm=..., pricer=openai_prices)
-    runtime = Runtime(ctx, groups=[...], budget=Budget(max_cost=0.50))
+    runtime = Runtime(ctx, agents=[...], budget=Budget(max_cost=0.50))
 """
 
 from __future__ import annotations

@@ -14,7 +14,7 @@ from ...services.estimate import build_estimate, qa_budget_warning
 class EstimateStage(Step):
     """Estimate — deterministically, via the catalog (no LLM) → final_approval."""
 
-    consumes = (Project,)
+    reads = (Project,)
     produces = (Project,)
 
     async def run(

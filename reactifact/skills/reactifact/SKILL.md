@@ -7,7 +7,7 @@ description: Build, extend, refactor, review or debug Python agents with reactif
 
 reactifact is a reactive runtime over **typed, versioned, provenance-aware
 artifacts**. There is no imperative orchestration and no mutable state dict. A
-step declares the artifacts it consumes (`consumes`) and may produce
+step declares the artifacts it reads (`reads`) and may produce
 (`produces`); it writes changes as **effects**; the runtime compiles a turn's
 effects into one atomic patch and loops until nothing new can run. The graph of
 artifacts *is* the program state.
@@ -24,9 +24,9 @@ reactifact code look like LangChain wearing a costume.
    declares `effects: Effects` in `run()`; a function step uses
    `call.effects`. Never assign to the context or mutate `artifact.data`.
    The runtime commits the effect set as one atomic patch.
-2. **A step declares its contract.** `consumes = (Question,)` feeds typed
+2. **A step declares its contract.** `reads = (Question,)` feeds typed
    inputs and decides which events run it; `produces = (Answer,)` is the
-   allowed create set. A `StepGroup` groups steps; triggers derive from their
+   allowed create set. A `Agent` groups steps; triggers derive from their
    `consumes`.
 3. **Everything is a typed artifact with provenance.** Answers link to their
    evidence (`answer.link("supported_by", evidence)`); downstream code and
@@ -36,10 +36,10 @@ reactifact code look like LangChain wearing a costume.
 
 Start at the top; only move down when the higher-level form genuinely cannot
 express the task. Most "framework friction" is reaching for `Context`, a
-hand-built `Patch`, or an imperative `StepGroup.run` when a typed step would
+hand-built `Patch`, or an imperative `Agent.run` when a typed step would
 do.
 
-1. **`Step` / `@step` with typed inputs.** Declare `consumes`/`produces`; return
+1. **`Step` / `@step` with typed inputs.** Declare `reads`/`produces`; return
    a model or `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or write `effects`.
    `scope=` and `Unscoped()` cover correlation and cross-turn history;
    `CurrentRequest`, `Progress`, `Human` and `Outbox` are injected by type.
@@ -47,12 +47,12 @@ do.
    `OnUpdate`, `OnDelete`, `OnStale`; `IdempotentConsume` for "only while the
    target id is absent"; `JoinConsume`/`AbsentConsume` for set-shaped wakes.
 3. **A recipe** when the flow is a known pattern: `TurnContextStep` for a
-   conversation window + digest, `Route` (expand with `route.groups()`) for
+   conversation window + digest, `Route` (expand with `route.agents()`) for
    mutually exclusive cases, `ApprovalGate`, `ReflectionLoop`, `PlanExecute`,
    `StatusMachine`, `WindowPruner`, `materialize_doc`. Use `Verify(Answer)` for
    live quality checks without a dummy `Step(...)`.
 4. **Low-level API only when the flow is genuinely imperative:** a hand-written
-   `StepGroup.run(event, context) -> Patch`, direct `Context` queries that
+   `Agent.run(event, context) -> Patch`, direct `Context` queries that
    cannot be expressed as typed inputs, or a custom `Patch` for an integration.
    This is an escape hatch, not the authoring style; document why in a
    comment.
@@ -65,13 +65,13 @@ deliberately want no history.
 
 ## Canonical example
 
-The smallest end-to-end pipeline: seed a `Question`, a step consumes it and
+The smallest end-to-end pipeline: seed a `Question`, a step reads it and
 creates an `Answer`, the runtime runs to a fixpoint.
 
 ```python
 import asyncio
 from pydantic import BaseModel
-from reactifact import StepGroup, Context, Runtime, Step
+from reactifact import Agent, Context, Runtime, Step
 
 
 class Question(BaseModel):
@@ -83,20 +83,18 @@ class Answer(BaseModel):
 
 
 class Answerer(Step):
-    consumes = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text.upper())
 
 
-class AnswerAgent(StepGroup):
-    steps = [Answerer()]
+AnswerAgent = Agent("answerer", consumes=[Question], steps=[Answerer()])
 
 
 ctx = Context()
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, groups=[AnswerAgent()]).arun())
+asyncio.run(Runtime(ctx, agents=[AnswerAgent]).arun())
 
 assert ctx.latest(Answer).data.text == "HELLO"
 ```
@@ -109,28 +107,33 @@ single-pass variants.
 
 | Need | Use | Why |
 | --- | --- | --- |
-| one run of a pipeline (script, job, service) | `Pipeline(steps=[...])` | owns resources/defaults, `run/arun`, `answer()`/`aanswer()`, `seed_type`/`answer_type`, optional `traces=` |
-| a persisted multi-turn chat | `Chat(steps=[...], seed_type=..., answer_type=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()` |
-| a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| groups=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
+| one run of a pipeline (script, job, service) | `Pipeline(agents=[...])` + `PipelineRunner` | `Pipeline` owns structure and defaults; the runner owns resources/budget/tracing, `run/arun`, `answer()`/`aanswer()` |
+| a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()` |
+| a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| agents=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
 
 For example, the same `Answerer` as a one-shot pipeline:
 
 ```python
 # not-run: illustrative — Answerer/Question/Answer from the example above
-from reactifact import Pipeline
+from reactifact import Agent, Pipeline, PipelineRunner
 
-pipeline = Pipeline(steps=[Answerer()], seed_type=Question)
-result = pipeline.run(Question(text="hello"))
+pipeline = Pipeline(
+    agents=[Agent("answer", steps=[Answerer()])],
+    seed_type=Question,
+    answer_type=Answer,
+)
+result = PipelineRunner(pipeline).run(Question(text="hello"))
 assert result.context.latest(Answer).data.text == "HELLO"
 ```
 
 `Chat` is the FastAPI-shaped facade for conversations; `Pipeline` is the
-FastAPI-shaped facade for one request. Reach for `Runtime` only when you need
-the session, a scheduler, or a long-lived context.
+declarative definition for one request and `PipelineRunner` executes it. Reach
+for `Runtime` only when you need the session, a scheduler, or a long-lived
+context.
 
-Inspect the declared surface — steps, consumes/produces, tools, timeout/retry —
+Inspect the declared surface — steps, reads/produces, tools, timeout/retry —
 with `reactifact contracts <module>` (Markdown/JSON), or mount
-`create_contracts_router(groups)` from `reactifact.contracts.web` as an opt-in
+`create_contracts_router(agents)` from `reactifact.contracts.web` as an opt-in
 FastAPI page (`/contracts`, `/api/contracts`, `/contracts.md`).
 
 ## The working loop
@@ -146,8 +149,8 @@ do not skip ahead, because a wrong artifact model is expensive to unwind.
 3. **Implement the steps.** Effects or a returned model; deterministic logic in
    Python, the LLM only for reasoning. Exit when no step mutates and every
    answer links its evidence. → `reactifact-agents`, `reactifact-llm`
-4. **Wire and run.** Group steps into an `StepGroup`, build
-   `Runtime(ctx, groups=[...])`, seed inputs, `arun()`. Exit when the run
+4. **Wire and run.** Group steps into a `Agent`, build
+   `Runtime(ctx, agents=[...])`, seed inputs, `arun()`. Exit when the run
    reaches a fixpoint and produces the target artifact.
 5. **Test, then evaluate.** Assert on the produced graph with `ScenarioLab`
    (deterministic, no network), then measure quality over a dataset.
@@ -161,7 +164,7 @@ mutate state or call agents directly, and turn those into the model above —
 
 | Task | Skill | Key reference |
 | --- | --- | --- |
-| Write/review steps, consumes, effects, provenance | `reactifact-agents` | `reactifact-agents/references/consume.md`, `reactifact-agents/references/effects.md` |
+| Write/review steps, reads, effects, provenance | `reactifact-agents` | `reactifact-agents/references/consume.md`, `reactifact-agents/references/effects.md` |
 | Add an LLM step, structured output, tools, budget | `reactifact-llm` | `reactifact-llm/references/providers.md`, `reactifact-llm/references/tools.md` |
 | Retrieve from files/CSV/web/knowledge, RAG, fan-out | `reactifact-rag` | `reactifact-rag/references/sources.md` |
 | Guardrails, authorization/scopes, per-tenant quota | this skill | `reactifact/references/trust-and-safety.md` |
@@ -185,7 +188,7 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
 | --- | --- |
 | `context.state["x"] = v`, or mutating `artifact.data` | `effects.create/update(...)` / `call.effects` |
 | treating a step's return value as a function result | return the model/Emit — the runtime commits it as an artifact; downstream steps consume it |
-| calling another agent/step directly | declare `consumes`/`produces`; let the runtime schedule |
+| calling another agent/step directly | declare `reads`/`produces`; let the runtime schedule |
 | a fresh `Runtime` per request with an empty context | seed the context; keep one session across turns |
 | state in a module global or a plain dict | make it an artifact (typed, versioned, traced) |
 | free-text answer with no links | create source artifacts and `link("supported_by")` |
@@ -199,9 +202,9 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
   `.version`, `.content_hash`). History lives in the context store.
 - **Context** — the queryable artifact graph (`latest`, `list_artifacts`,
   `related`, `relations`, `get`, `artifact_version`).
-- **Step** — the unit of transformation: `consumes`/`produces`, `run()`;
+- **Step** — the unit of transformation: `reads`/`produces`, `run()`;
   return a model for create-sugar or write `effects`.
-- **StepGroup** — a thin container of `steps`; triggers derive from their
+- **Agent** — a group of `steps`; triggers derive from their
   `consumes`.
 - **Consume** — a subscription to artifacts of a type (see `reactifact-agents`
   for the variants and lifecycle subclasses).

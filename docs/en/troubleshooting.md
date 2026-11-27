@@ -18,7 +18,7 @@ code order — so "it never ran" almost always means either the event that
 should have triggered it never fired, or its `Consume.by_field`/`by_status`
 condition was false for the artifact that exists.
 
-- `reactifact graph <module>` (e.g. `reactifact graph examples.knowledge.step_groups`)
+- `reactifact graph <module>` (e.g. `reactifact graph examples.knowledge.agents`)
   prints the *static* blueprint — every agent's declared `consumes`/`produces`.
   Confirm the agent is actually subscribed to the artifact type you expect;
   a typo'd or stale `Consume(WrongType)` is the most common cause.

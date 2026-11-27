@@ -48,10 +48,12 @@ from examples.starter_app.models import (
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from reactifact import (
+    Agent,
     Artifact,
     Chat,
     Context,
     LLMProvider,
+    Pipeline,
     configure_logging,
     step,
 )
@@ -80,7 +82,7 @@ async def add(a: float, b: float) -> str:
     return str(a + b)
 
 
-@step(produces=ChatReply, consumes=Question)
+@step(produces=ChatReply, reads=Question)
 async def _chat_reply(context: Context, question: Artifact[Question]) -> ChatReply:
     text = await llm_reply(
         context.resources.llm,
@@ -88,6 +90,15 @@ async def _chat_reply(context: Context, question: Artifact[Question]) -> ChatRep
         user=question.data.text,
     )
     return ChatReply(text=text or OFFLINE_REPLY)
+
+
+#: The chat shape: one agent, typed seed and answer.
+CHAT_PIPELINE = Pipeline(
+    agents=[Agent("chat", steps=[_chat_reply])],
+    seed_type=Question,
+    answer_type=ChatReply,
+    name="starter-chat",
+)
 
 
 def _from_env() -> LLMProvider | None:
@@ -122,9 +133,7 @@ def create_app(
         tracer=tracer,
     )
     chat_agent_instance = Chat(
-        steps=[_chat_reply],
-        seed_type=Question,
-        answer_type=ChatReply,
+        pipeline=CHAT_PIPELINE,
         store=str(directory / "sessions"),
         llm=provider,
         tracer=tracer,

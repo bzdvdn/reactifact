@@ -214,7 +214,6 @@ def test_bundled_skills_do_not_teach_removed_api() -> None:
         "effects.act",
         "create_agent",
         "validate_agents",
-        "agents=",
         "consume(",
     )
     for skill in _skill_dirs():

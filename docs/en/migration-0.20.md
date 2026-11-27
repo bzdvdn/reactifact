@@ -60,7 +60,7 @@ from reactifact import Artifact, Effects, Step
 
 
 class Estimate(Step):
-    consumes = (Project,)
+    reads = (Project,)
     produces = (Project,)
 
     async def run(self, project: Artifact[Project], effects: Effects) -> None:
@@ -90,7 +90,7 @@ from reactifact import step
 
 
 # Answer and Evidence are your own models.
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer(call):
     return Answer(text=call.trigger.data.text)
 ```
@@ -98,7 +98,7 @@ async def answer(call):
 Function steps may also take typed inputs:
 
 ```python
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer(evidence: Evidence, effects: Effects) -> Answer:
     return Answer(text=evidence.text)
 ```
@@ -117,7 +117,7 @@ In 0.20.0 the input contract is the type annotation:
 
 ```python
 class Research(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question, effects: Effects) -> Answer:
@@ -131,7 +131,7 @@ Correlation that used to be a stable-id lookup is now a `Scope`:
 
 ```python
 class BuildAnswer(Step):
-    consumes = (
+    reads = (
         Consume(ResearchTurn),
         Consume(Evidence, wakes=False),
     )

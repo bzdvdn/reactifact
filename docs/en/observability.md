@@ -281,7 +281,7 @@ from reactifact.tracing import LangfuseTracer, PostgresStore, TraceStore
 
 runtime = Runtime(
     ctx,
-    groups=[...],
+    agents=[...],
     tracer=[
         TraceStore("traces.db"),                        # local dashboard
         LangfuseTracer(public_key="...", private_key="...",
@@ -317,7 +317,7 @@ from reactifact.tracing import OTLPTracer
 
 runtime = Runtime(
     ctx,
-    groups=[...],
+    agents=[...],
     tracer=OTLPTracer(endpoint="http://localhost:4318/v1/traces"),
 )
 ```
@@ -371,7 +371,7 @@ beyond the core: an in-process collector plus a `Tracer` that fills it, and a
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 
 metrics = Metrics()
-runtime = Runtime(ctx, groups=GROUPS, tracer=MetricsTracer(metrics))
+runtime = Runtime(ctx, agents=PIPELINE.agents, tracer=MetricsTracer(metrics))
 app.include_router(create_metrics_router(metrics))   # GET /metrics
 ```
 
@@ -400,7 +400,7 @@ there is no `None` to check:
 metrics = Metrics()
 runtime = Runtime(
     Context(resources=RuntimeResources(metrics=metrics)),
-    groups=GROUPS,
+    agents=PIPELINE.agents,
     tracer=MetricsTracer(metrics),
 )
 

@@ -35,7 +35,7 @@ distinguishes chunks of one document and participates in `stable_id()`.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Context, Effects, Runtime, RuntimeResources, Step, create_step_group,
+    Context, Effects, Agent, Runtime, RuntimeResources, Step,
 )
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import Source, SourceRef
@@ -78,7 +78,7 @@ class MemorySource(Source):
 
 
 class Scout(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Note, SourceRef)  # fan_out_sources also writes SourceRef artifacts
 
     async def run(
@@ -95,8 +95,8 @@ ctx = Context(
     )
 )
 ctx.create(Question(text="gpu costs"))
-agent = create_step_group("scout", steps=[Scout()])
-asyncio.run(Runtime(ctx, groups=[agent]).arun())
+agent = Agent("scout", steps=[Scout()])
+asyncio.run(Runtime(ctx, agents=[agent]).arun())
 
 assert ctx.list_artifacts(Note)              # ranked hits became artifacts
 assert ctx.list_artifacts(SourceRef)         # the refs were created too
@@ -231,7 +231,7 @@ the hooks.
 | --- | --- |
 | `fan_out_sources` / `materialize_doc` | retrieval + provenance (above) |
 | `Router` | classify into a route with a deterministic fallback |
-| `Route` / `RouteCase` | mutually exclusive case groups over one artifact field; expand with `route.groups()` |
+| `Route` / `RouteCase` | mutually exclusive case groups over one artifact field; expand with `route.agents()` |
 | `PlanExecute` | plan → execute → finish, gating each step on its predecessor |
 | `ReflectionLoop` | draft → critique → rewrite, with the accept threshold |
 | `StatusMachine` | advance an artifact's `status` via a pure `next_status` |

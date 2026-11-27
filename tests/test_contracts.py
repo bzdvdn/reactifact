@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from pydantic import BaseModel
-from reactifact import RetryPolicy, Step, create_step_group, tool
+from reactifact import Agent, RetryPolicy, Step, tool
 from reactifact.cli import main
 from reactifact.contracts import describe_contracts
 
@@ -35,7 +35,7 @@ class Answerer(Step):
         return Answer(text=question.text)
 
 
-GROUPS = [create_step_group("answer", steps=[Answerer()])]
+GROUPS = [Agent("answer", steps=[Answerer()])]
 
 
 def test_contract_report_has_steps_consumes_and_tools():

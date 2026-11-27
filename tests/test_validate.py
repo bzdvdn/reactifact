@@ -5,10 +5,9 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Step,
-    StepGroup,
     ValidationError,
-    create_step_group,
     validate_contracts,
 )
 from reactifact.consume import JoinConsume
@@ -42,12 +41,12 @@ class ConsumerStep(Step):
         return Final(text=item.text)
 
 
-def _producer() -> StepGroup:
-    return create_step_group("producer", steps=[ProducerStep()])
+def _producer() -> Agent:
+    return Agent("producer", steps=[ProducerStep()])
 
 
-def _consumer() -> StepGroup:
-    return create_step_group("consumer", steps=[ConsumerStep()])
+def _consumer() -> Agent:
+    return Agent("consumer", steps=[ConsumerStep()])
 
 
 def test_valid_contracts_are_clean():
@@ -106,7 +105,7 @@ def test_cycle_without_budget_is_a_warning():
         async def run(self, item: Middle) -> Question:
             return Question(text=item.text)
 
-    cycle = create_step_group("cycle", steps=[CycleStep()])
+    cycle = Agent("cycle", steps=[CycleStep()])
     report = validate_contracts(
         groups=[_producer(), cycle],
         seeds=[Question],
@@ -124,7 +123,7 @@ def test_correlated_consume_requires_all_parts():
         async def run(self, item: Question) -> Final:
             return Final(text=item.text)
 
-    agent = create_step_group("join", steps=[Join()])
+    agent = Agent("join", steps=[Join()])
     report = validate_contracts(
         groups=[agent],
         seeds=[Question, Middle],
@@ -157,5 +156,5 @@ def test_validate_contracts_merges_steps_and_groups_in_order():
 def test_validate_contracts_rejects_wrong_types():
     with pytest.raises(TypeError, match="steps= accepts Step"):
         validate_contracts(steps=[_producer()])
-    with pytest.raises(TypeError, match="groups= accepts StepGroup"):
+    with pytest.raises(TypeError, match="agents= accepts Agent"):
         validate_contracts(groups=[ProducerStep()])

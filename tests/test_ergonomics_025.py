@@ -7,6 +7,7 @@ from typing import Annotated
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Consume,
     Context,
@@ -16,7 +17,6 @@ from reactifact import (
     Runtime,
     Step,
     StepCall,
-    StepGroup,
     Unscoped,
     step,
 )
@@ -140,7 +140,7 @@ def test_side_effect_only_step_allows_empty_produces_and_reports_deletes():
 
     from reactifact.contracts import describe_contracts
 
-    report = describe_contracts([StepGroup(steps=[Cleanup()])]).to_dict()
+    report = describe_contracts([Agent(steps=[Cleanup()])]).to_dict()
     step_contract = report["groups"][0]["steps"][0]
     assert step_contract["produces"] == []
     assert step_contract["deletes"] == ["Answer"]
@@ -226,7 +226,7 @@ def test_turn_context_ignores_messages_after_its_trigger():
         Question,
         assistant_type=Answer,
         window=None,
-        consume=Consume(Question),
+        read=Consume(Question),
     )
     asyncio.run(Runtime(context, steps=[builder]).arun())
 
@@ -350,7 +350,7 @@ def test_turn_context_build_receives_prior_artifacts_and_can_ensure():
         Question,
         assistant_type=Answer,
         artifact_type=CustomContext,
-        consume=OnCreate(Question),
+        read=OnCreate(Question),
         ensure=True,
         build=build,
     )

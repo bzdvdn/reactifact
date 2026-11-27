@@ -16,7 +16,8 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
-from reactifact import Chat, Step, StepGroup, When, create_step_group
+from reactifact import Chat, Pipeline, When
+from reactifact.agent import agent
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.context import Context
@@ -27,24 +28,24 @@ KEEP = 4  # ChatMemory keeps the last N messages
 SESSION_ID = "demo"
 
 
-class Echo(Step):
+@agent
+async def echo(
+    message: Annotated[ConversationMessage, When(lambda m: m.role == "user")],
+) -> ConversationMessage:
     """A deterministic stand-in for a real assistant (no LLM)."""
-
-    consumes = (
-        Annotated[ConversationMessage, When(lambda message: message.role == "user")],
+    return ConversationMessage(
+        role="assistant",
+        text=f"[echo] {message.text}",
+        turn=message.turn,
     )
-    produces = (ConversationMessage,)
-
-    async def run(self, message: ConversationMessage) -> ConversationMessage:
-        return ConversationMessage(
-            role="assistant",
-            text=f"[echo] {message.text}",
-            turn=message.turn,
-        )
 
 
-def _group() -> StepGroup:
-    return create_step_group("echo", steps=[Echo()])
+#: The declarative structure; `Chat` owns sessions and the transport hooks.
+PIPELINE = Pipeline(
+    agents=[echo],
+    seed_type=ConversationMessage,
+    name="chat",
+)
 
 
 def _reply(ctx: Context, msg_id: str) -> dict[str, Any]:
@@ -63,8 +64,7 @@ def build() -> tuple[Chat, Conversation, SessionStore]:
     store = SessionStore(InMemoryKVBackend())
     assistant = Chat(
         store=store,
-        groups=[_group()],
-        seed_type=ConversationMessage,
+        pipeline=PIPELINE,
         create_message=conv.create_turn,  # record each user turn
         reply=_reply,
         session_state=conv.state,  # history() shape

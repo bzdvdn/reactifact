@@ -6,13 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Budget,
     Context,
     Emit,
     Runtime,
     RuntimeResources,
-    create_step_group,
     step,
 )
 from reactifact.providers import LLMProvider
@@ -27,7 +27,7 @@ class TourBrief(BaseModel):
     text: str
 
 
-@step(produces=TourBrief, consumes=TourFacts)
+@step(produces=TourBrief, reads=TourFacts)
 async def write_brief(
     context: Context,
     facts: Artifact[TourFacts],
@@ -59,7 +59,7 @@ async def run_model(provider: LLMProvider | None) -> dict[str, Any]:
     )
     runtime = Runtime(
         context,
-        groups=[create_step_group("model", steps=[write_brief])],
+        agents=[Agent("model", steps=[write_brief])],
         budget=Budget(max_runs=10),
     )
     await runtime.arun()

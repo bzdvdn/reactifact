@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, RuntimeResources, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime, RuntimeResources
 from reactifact.tracing import RunTrace, TraceColumn, TraceLimits, Tracer, TraceStore
 from reactifact.tracing.columns import SpanArtifacts, extract_columns
 from reactifact.tracing.models import ArtifactRef
@@ -127,7 +127,7 @@ class Answer(BaseModel):
     sources: list[dict]
 
 
-class Producer(StepGroup):
+class Producer(Agent):
     name = "producer"
     consumes = [Consume(Question)]
 
@@ -313,7 +313,7 @@ class BigAnswer(BaseModel):
     deep: dict[str, str]
 
 
-class BigProducer(StepGroup):
+class BigProducer(Agent):
     name = "producer"
     consumes = [Consume(Question)]
 

@@ -15,7 +15,7 @@ import asyncio
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Chat, Consume, Human, PendingQuestion, Step
+from reactifact import Agent, Chat, Human, PendingQuestion, Read, Step
 from reactifact.recipes import ApprovalDecision, ApprovalFlow
 
 
@@ -31,7 +31,7 @@ class Deployment(BaseModel):
 class AskApproval(Step):
     """Ask a human to confirm the request."""
 
-    consumes = (Request,)
+    reads = (Request,)
     produces = (PendingQuestion,)
 
     async def run(self, request: Request, human: Human) -> None:
@@ -47,7 +47,7 @@ class DeployOnApproval(Step):
     """Domain example: only an explicit `approve` runs the action."""
 
     # Wait for the decision; Request is only a read-only input.
-    consumes = (Consume(ApprovalDecision),)
+    reads = (Read(ApprovalDecision),)
     produces = (Deployment,)
 
     async def run(
@@ -58,14 +58,21 @@ class DeployOnApproval(Step):
         return Deployment(text=f"deployed {request.text!r}")
 
 
+#: Ask for approval, then let `ApprovalFlow` interpret the answer.
+APPROVAL = Agent(
+    "approval",
+    steps=[
+        AskApproval(),  # create the PendingQuestion
+        *ApprovalFlow(
+            steps=[DeployOnApproval()],  # domain action
+        ),
+    ],
+)
+
+
 def build_chat() -> Chat:
     return Chat(
-        steps=[
-            AskApproval(),  # create the PendingQuestion
-            *ApprovalFlow(
-                steps=[DeployOnApproval()],  # domain action
-            ),
-        ],
+        agents=[APPROVAL],
         seed_type=Request,
         answer_type=Deployment,
         resume_pending=True,

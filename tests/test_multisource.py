@@ -2,12 +2,12 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
-    StepGroup,
 )
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -24,7 +24,7 @@ class TypedDoc(BaseModel):
     content: str
 
 
-class SearchScout(StepGroup):
+class SearchScout(Agent):
     """Fan-out across sources: each source searches in its own way (§8)."""
 
     consumes = [Consume(Question)]
@@ -42,7 +42,7 @@ class SearchScout(StepGroup):
         return patch
 
 
-class TypedResolver(StepGroup):
+class TypedResolver(Agent):
     """Materializes a lazy reference into a typed artifact."""
 
     consumes = [Consume(SourceRef)]
@@ -149,7 +149,7 @@ def test_patch_create_idempotent_by_id():
 
     from reactifact import EventType, Trigger
 
-    class Counter(StepGroup):
+    class Counter(Agent):
         def __init__(self):
             super().__init__(
                 name="counter",

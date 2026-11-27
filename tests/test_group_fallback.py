@@ -1,4 +1,4 @@
-"""StepGroup fallback after retries, with atomic effects replacement."""
+"""Agent fallback after retries, with atomic effects replacement."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Effects,
     RetryPolicy,
     Runtime,
     Step,
-    create_step_group,
 )
 
 
@@ -59,7 +59,7 @@ def _run(group, *, isolate_errors: bool = False) -> Context:
 
 def test_fallback_runs_after_failure_and_discards_partial_effects():
     context = _run(
-        create_step_group(
+        Agent(
             "answer_builder",
             steps=[FailingStep()],
             fallback=FallbackAnswer(),
@@ -72,7 +72,7 @@ def test_fallback_runs_after_failure_and_discards_partial_effects():
 def test_fallback_runs_only_after_retries_are_exhausted():
     step = FailingStep()
     context = _run(
-        create_step_group(
+        Agent(
             "answer_builder",
             steps=[step],
             retry=RetryPolicy(max_attempts=2),
@@ -96,7 +96,7 @@ def test_fallback_does_not_swallow_authorization_errors():
     errors: list[BaseException] = []
     context = Context()
     context.create(Question(text="go"))
-    group = create_step_group(
+    group = Agent(
         "denied",
         steps=[Denied()],
         fallback=FallbackAnswer(),
@@ -123,7 +123,7 @@ def test_fallback_failure_propagates_without_isolation():
 
     with pytest.raises(RuntimeError, match="fallback broke"):
         _run(
-            create_step_group(
+            Agent(
                 "answer_builder",
                 steps=[FailingStep()],
                 fallback=BrokenFallback(),

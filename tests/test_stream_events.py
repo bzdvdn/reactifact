@@ -8,13 +8,12 @@ from collections.abc import AsyncIterator
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -100,7 +99,7 @@ class ToolStep(Step):
 def _runtime(step: Step, *, llm: LLMProvider | None = None) -> Runtime:
     context = Context(resources=RuntimeResources(llm=llm))
     context.create(Question(text="hi"))
-    return Runtime(context, groups=[create_step_group("agent", steps=[step])])
+    return Runtime(context, groups=[Agent("agent", steps=[step])])
 
 
 async def _collect(runtime: Runtime, **kwargs):
@@ -165,7 +164,7 @@ def test_debug_includes_tool_lifecycle():
 
 
 def test_run_failure_emits_terminal_event_and_reraises():
-    class Boom(StepGroup):
+    class Boom(Agent):
         consumes = [Consume(Question)]
 
         async def run(self, event, context):

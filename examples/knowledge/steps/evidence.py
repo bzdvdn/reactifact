@@ -28,7 +28,7 @@ from .common import (
 class ExtractEvidence(Step):
     """A key fact from the document (schema → fact, §18)."""
 
-    consumes = (TypedDoc,)
+    reads = (TypedDoc,)
     produces = (Evidence,)
 
     async def run(
@@ -75,7 +75,7 @@ class VerifyClaims(Step):
     state rather than something hidden in a string (§36, §69).
     """
 
-    consumes = (Evidence,)
+    reads = (Evidence,)
     produces = (Claim,)
     scope = "query_id"
 

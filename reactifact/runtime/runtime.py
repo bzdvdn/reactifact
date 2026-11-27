@@ -10,6 +10,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from ..agent import Agent
+from ..agent.agent import (
+    begin_produce_runs,
+    end_produce_runs,
+    normalize_units,
+    produce_runs,
+)
+from ..agent.step.resolve import MissingInputError
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
 from ..commit import Commit, Read
 from ..context import Context
@@ -21,14 +29,6 @@ from ..request import current_request, reset_request, set_request
 from ..resources import RuntimeResources
 from ..scheduler import Scheduler
 from ..session import Session
-from ..step import StepGroup
-from ..step.group import (
-    begin_produce_runs,
-    end_produce_runs,
-    normalize_units,
-    produce_runs,
-)
-from ..step.resolve import MissingInputError
 from ..streaming import (
     RUN_EVENT_MODES,
     CustomEvent,
@@ -57,7 +57,7 @@ from .patch import PatchApplicator
 logger = get_logger("reactifact.runtime")
 
 
-def _producer_index(groups: list[StepGroup]) -> dict[str, set[str]]:
+def _producer_index(groups: list[Agent]) -> dict[str, set[str]]:
     """Artifact type name -> group names that produce it."""
     index: dict[str, set[str]] = {}
     for group in groups:
@@ -68,13 +68,13 @@ def _producer_index(groups: list[StepGroup]) -> dict[str, set[str]]:
 
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
-PatchWork = tuple[Patch, StepGroup, list[Read], AgentSpan | None]
+PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
 #: One agent execution result: patch (if any), the agent/event/reads that
 #: produced it, latency, the exception if the produce raised and
 #: `isolate_errors` was set, and the produces that ran (name/ops/latency).
 AgentResult = tuple[
     Patch | None,
-    StepGroup,
+    Agent,
     Event,
     list[Read],
     float,
@@ -138,18 +138,25 @@ class Runtime:
         tracer: Tracer | list[Tracer] | None = None,
         scheduler: Scheduler | None = None,
         isolate_errors: bool = False,
-        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
+        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
         trace_scope: str = "",
+        agents: list[Any] | None = None,
         groups: list[Any] | None = None,
         steps: list[Any] | None = None,
     ):
+        if agents is not None and groups is not None:
+            raise TypeError("Runtime takes either agents= or groups=, not both")
         self.context = context
         #: The merged dispatch units. `steps=` wraps each step in an implicit
-        #: group of one; `groups=` adds explicit groups.
-        self.groups = normalize_units(steps=steps, groups=groups)
+        #: agent of one; `agents=` adds explicit agents (`groups=` is the
+        #: deprecated alias kept for compatibility).
+        self.agents = normalize_units(
+            steps=steps,
+            agents=agents if agents is not None else groups,
+        )
         self.max_concurrency = max_concurrency
         self.session = session
         self.budget = budget
@@ -199,6 +206,7 @@ class Runtime:
         # live there — Runtime just calls into it at a few points below.
         self._trace = RunTracer(context, self.tracer)
         self.outcome: RunOutcome = RunOutcome.COMPLETED
+        #: The agents this runtime dispatches (`groups` remains an alias).
         self.last_stats: RunStats | None = None
         self._turn_budget = TurnBudget()
         self._turn_started = False
@@ -235,6 +243,15 @@ class Runtime:
         #: Set by `request_stop()`; checked between generations (§59/§69).
         self._stop_requested = asyncio.Event()
 
+    @property
+    def groups(self) -> list[Agent]:
+        """Legacy alias for `agents`."""
+        return self.agents
+
+    @groups.setter
+    def groups(self, value: list[Agent]) -> None:
+        self.agents = value
+
     def _enter_turn(self) -> None:
         if self._in_turn:
             raise RuntimeError(
@@ -249,8 +266,8 @@ class Runtime:
     def _exit_turn(self) -> None:
         self._in_turn = False
 
-    def register(self, group: StepGroup) -> None:
-        self.groups.append(group)
+    def register(self, group: Agent) -> None:
+        self.agents.append(group)
 
     def request_stop(self) -> None:
         """Ask the run to stop at the next generation boundary (§59).
@@ -411,7 +428,7 @@ class Runtime:
 
         # Collect work (event, agent), accounting for priority: agents with lower
         # values run earlier, "finishers" last.
-        work: list[tuple[StepGroup, Event, list[Read]]] = []
+        work: list[tuple[Agent, Event, list[Read]]] = []
         # An agent whose *every* matching trigger for a given event asks for
         # `debounce` gets collapsed to at most one run per generation here —
         # the last matching event in this batch wins, replacing any earlier
@@ -422,8 +439,8 @@ class Runtime:
         # mix of debounced and non-debounced matching triggers for the same
         # event is treated as non-debounced for that event — debouncing only
         # kicks in when nothing about the match demands immediacy.
-        debounced: dict[StepGroup, tuple[Event, list[Read]]] = {}
-        ordered_agents = sorted(self.groups, key=lambda a: a.priority)
+        debounced: dict[Agent, tuple[Event, list[Read]]] = {}
+        ordered_agents = sorted(self.agents, key=lambda a: a.priority)
         for event in events:
             if self._budget_exhausted():
                 break
@@ -501,7 +518,7 @@ class Runtime:
         return runs
 
     async def _dispatch(
-        self, work: list[tuple[StepGroup, Event, list[Read]]]
+        self, work: list[tuple[Agent, Event, list[Read]]]
     ) -> list[AgentResult]:
         """Runs the generation's workers.
 
@@ -529,7 +546,7 @@ class Runtime:
         )
         limit_semaphores = {limit: asyncio.Semaphore(limit) for limit in limiters}
 
-        async def _worker(item: tuple[StepGroup, Event, list[Read]]) -> AgentResult:
+        async def _worker(item: tuple[Agent, Event, list[Read]]) -> AgentResult:
             agent = item[0]
             acquired: list[asyncio.Semaphore] = []
             tier = agent.concurrency_limit
@@ -664,7 +681,7 @@ class Runtime:
         finally:
             self._exit_turn()
 
-    def _collect_reads(self, agent: StepGroup, event: Event) -> list[Read]:
+    def _collect_reads(self, agent: Agent, event: Event) -> list[Read]:
         """Records consumed artifacts: the trigger event + inputs per consumes.
 
         This is the actual link of an agent to its ancestors (git-like provenance),
@@ -684,7 +701,7 @@ class Runtime:
 
     async def _execute(
         self,
-        item: tuple[StepGroup, Event, list[Read]],
+        item: tuple[Agent, Event, list[Read]],
         semaphore: asyncio.Semaphore | None = None,
     ) -> AgentResult:
         """Runs a single agent (parallel section of a generation).
@@ -845,7 +862,7 @@ class Runtime:
         latency = (time.monotonic() - started) * 1000
         if error is not None:
             if isinstance(error, MissingInputError):
-                error.annotate(_producer_index(self.groups))
+                error.annotate(_producer_index(self.agents))
             logger.warning(
                 "agent failed",
                 extra={
@@ -857,7 +874,7 @@ class Runtime:
             if not self.isolate_errors:
                 raise error
             logger.warning(
-                "StepGroup %r raised %r; isolated (isolate_errors=True)",
+                "Agent %r raised %r; isolated (isolate_errors=True)",
                 agent.name,
                 error,
             )
@@ -916,7 +933,7 @@ class Runtime:
             # trigger batch is not consumed, so a resume re-dispatches it.
             #
             # Only *this* timeout is the turn deadline: an agent/tool timeout
-            # (`StepGroup.timeout`) is an ordinary error and must propagate, not be
+            # (`Agent.timeout`) is an ordinary error and must propagate, not be
             # misreported as `budget_time_exceeded`.
             try:
                 async with asyncio.timeout(remaining):
@@ -1024,18 +1041,18 @@ class Runtime:
         if self._no_runs_warned:
             return
         self._no_runs_warned = True
-        if not self.groups:
+        if not self.agents:
             return
         consumed = sorted(
             {
                 c.artifact_type.__name__
-                for agent in self.groups
+                for agent in self.agents
                 for c in (agent.consumes or [])
                 if c.artifact_type is not None
             }
         )
         hint = (
-            f" None of the {len(self.groups)} groups ran — nothing consumed the"
+            f" None of the {len(self.agents)} agents ran — nothing consumed the"
             " artifacts present."
         )
         if consumed:

@@ -8,8 +8,8 @@ from __future__ import annotations
 from reactifact.providers import LLMProvider, openrouter_llm
 from reactifact.testing import ScenarioLab, ScenarioSkip, mode_from_env, scenario
 
+from ..agents import RepairFlow
 from ..models import Project, UserMsg
-from ..step_groups import RepairFlow
 from ._common import FIXTURE, ModelStub, load_recorded_model, resources
 
 ROOM_DESCRIPTION = "Кухня 12 кв.м, потолок 2.7м, бюджет 150000 рублей, стиль минимализм"
@@ -36,7 +36,7 @@ async def collect_stage_against_the_model() -> None:
         )
 
     lab = ScenarioLab(
-        [RepairFlow()],
+        [RepairFlow],
         resources=lambda: resources(llm),
         mode=mode,
         recording_path=FIXTURE,

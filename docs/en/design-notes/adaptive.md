@@ -52,7 +52,7 @@ from reactifact.scheduler import uncertainty_policy
 
 runtime = Runtime(
     ctx,
-    groups=[...],
+    agents=[...],
     scheduler=uncertainty_policy(
         rules=[not_refuted],        # Rule = (context, agent, event) -> bool
         metric=support_split,       # Metric = (context, agent, event) -> float
@@ -62,7 +62,7 @@ runtime = Runtime(
 )
 ```
 
-`StepGroup.capabilities` (§25) is metadata the policy and the LLM tie-break use to
+`Agent.capabilities` (§25) is metadata the policy and the LLM tie-break use to
 describe candidates; it changes nothing on its own.
 
 `reactifact.scheduler.relation_balance_metric` is the built-in
@@ -90,7 +90,7 @@ afterward.
 
 - `reactifact/scheduler.py` — `Scheduler`, `uncertainty_policy`,
   `relation_balance_metric`, types.
-- Runtime hook (`scheduler=` param), `StepGroup.capabilities`.
+- Runtime hook (`scheduler=` param), `Agent.capabilities`.
 - `examples/medic_lab` — `medic_lab_scheduler()` wires `relation_balance_metric`
   into both the console (`chat.py`) and web (`api/chat.py`) entrypoints.
   offline skip, HITL pin, demo runs, `relation_balance_metric` (weights,

@@ -25,7 +25,7 @@ from pathlib import Path
 if __package__ in (None, ""):  # run as a script — add the repo root to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from reactifact import Budget, Context, Runtime, RuntimeResources
+from reactifact import Agent, Budget, Context, Pipeline, Runtime, RuntimeResources
 from reactifact.audit import build_report, context_hash, report_to_markdown
 from reactifact.recipes import keyword_score
 from reactifact.sources import CSVSource, FileSystemSource
@@ -40,6 +40,14 @@ from examples.fintech_audit.steps import (
 )
 
 STEPS = [search_sources, materialize, compute_spend, compute_variance, answer]
+
+#: The reusable definition: one deterministic agent, typed seed and answer.
+PIPELINE = Pipeline(
+    agents=[Agent("audit", steps=STEPS)],
+    seed_type=Question,
+    answer_type=AuditAnswer,
+    name="fintech-audit",
+)
 
 DATA = Path(__file__).parent / "data"
 QUESTION = "What is the Q2 cloud spend variance, and does policy require approval?"
@@ -62,8 +70,8 @@ def build_resources() -> RuntimeResources:
 async def run_pipeline() -> Context:
     """One full run. Called twice in `main` to prove the state is reproducible."""
     context = Context(resources=build_resources())
-    runtime = Runtime(context, steps=STEPS, budget=Budget(max_runs=50))
-    context.create(Question(text=QUESTION), id="q2")
+    context.create(Question(text=QUESTION), id="q2")  # stable id → stable hash
+    runtime = Runtime(context, agents=PIPELINE.agents, budget=Budget(max_runs=50))
     await runtime.arun()
     return context
 

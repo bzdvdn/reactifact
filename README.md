@@ -22,7 +22,7 @@ built in, local-first, with three core dependencies and no API key.
 
 ## The three things that matter
 
-- **No graph to draw.** `@step(consumes=Question) -> Answer` is the route. The
+- **No graph to draw.** `@step(reads=Question) -> Answer` is the route. The
   runtime derives execution from which artifacts exist — fan-out, joins,
   retries and loops are state changes, not edges you maintain.
 - **Proof, not logs.** Every derived artifact links to its inputs, every answer
@@ -77,18 +77,26 @@ The same typed pipeline runs as a library, CLI, HTTP service, daemon or MCP
 tool. Web and MCP are adapters, not the core.
 
 ```python
-pipeline = Pipeline(steps=[...], seed_type=Question, answer_type=Answer, traces=True)
+from reactifact import Agent, Pipeline, PipelineRunner
 
-pipeline.run(seed)                         # library
-app = pipeline.http()                      # /run, /stream, /docs, /contracts, /traces
+pipeline = Pipeline(
+    agents=[Agent("answer", consumes=[Question], steps=[...])],
+    seed_type=Question,
+    answer_type=Answer,
+    traces=True,
+)
+runner = PipelineRunner(pipeline)
+
+runner.run(seed)                           # library
+app = runner.http()                        # /run, /stream, /docs, /contracts, /traces
 ```
 
 | Surface | One line |
 | --- | --- |
 | **CLI** | `reactifact run app:pipeline "hello"` |
-| **HTTP** | `app = pipeline.http()` — typed `/run`, SSE `/stream`, OpenAPI `/docs` |
+| **HTTP** | `app = runner.http()` — typed `/run`, SSE `/stream`, OpenAPI `/docs` |
 | **Daemon** | `Daemon(pipeline, seed_source=next_tick, interval=60).serve()` |
-| **MCP** | `create_mcp_server([pipeline.as_tool()])` |
+| **MCP** | `create_mcp_server([runner.as_tool()])` |
 
 Need sessions and history? `Chat(..., store="sessions.db").http()` adds
 `/chat/stream` plus `/runs/{id}`; pass `ChatRoutes(invoke="/chat",
@@ -102,7 +110,7 @@ Approval is a `PendingQuestion`, not a separate service. Ask from a step, let
 ```python
 from reactifact import Chat, Human, PendingQuestion, step
 
-@step(consumes=Question, produces=PendingQuestion)
+@step(reads=Question, produces=PendingQuestion)
 def approve(question: Question, human: Human) -> None:
     human.ask("Deploy to production?", kind="approval")
 
@@ -150,7 +158,7 @@ LLM calls are provider methods now: a step takes `llm: LLMProvider` and calls
 
 ```python
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Agent, Pipeline, PipelineRunner, step
 
 class Question(BaseModel):
     text: str
@@ -158,19 +166,26 @@ class Question(BaseModel):
 class Answer(BaseModel):
     text: str
 
-@step(consumes=Question)                 # produces=Answer inferred from ->
+@step                                     # consumes/produces inferred from the signature
 def answer(question: Question) -> Answer:
     return Answer(text=f"you asked: {question.text}")
 
-pipeline = Pipeline(steps=[answer], seed_type=Question, answer_type=Answer)
-result = pipeline.run(Question(text="why did cloud spend jump in Q2?"))
+pipeline = Pipeline(
+    agents=[Agent("answer", consumes=[Question], steps=[answer])],
+    seed_type=Question,
+    answer_type=Answer,
+)
+result = PipelineRunner(pipeline).run(
+    Question(text="why did cloud spend jump in Q2?")
+)
 
 print(result.latest(Answer).data.text)
 print(result.sources(result.latest(Answer)))   # citations, as a query
 print(result.hash)                              # reproducible fingerprint
 ```
 
-`Pipeline` owns steps, resources and defaults and builds a fresh `Context` +
+`Pipeline` owns the agent structure, seed/answer types and defaults;
+`PipelineRunner` owns resources and execution and builds a fresh `Context` +
 `Runtime` per run. The CLI is the same pipeline:
 
 ```bash

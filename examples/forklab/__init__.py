@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .step_groups import EvaluatorGroup, StrategyGroup
+from .agents import EvaluateAgent, InvestigateAgent
 
-__all__ = ["EvaluatorGroup", "StrategyGroup"]
+__all__ = ["EvaluateAgent", "InvestigateAgent"]

@@ -6,7 +6,7 @@ from abc import ABC
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from ..artifacts import Artifact, ArtifactConflict
 from ..authz import AuthorizationError
@@ -20,20 +20,20 @@ from ..policy import RetryPolicy
 from ..provenance import DERIVED_FROM
 from ..tools import reset_current_produce, set_current_produce
 from ..triggers import Trigger
-from .call import (
+from .step.call import (
     StepCall,
     reset_step_call,
     reset_step_context,
     set_step_call,
     set_step_context,
 )
-from .core import Step, _scope_matches, _scope_value
-from .resolve import invoke_step
+from .step.core import Step, _scope_matches, _scope_value
+from .step.resolve import invoke_step
 
 #: Per-task log of the produces that ran for the current agent execution:
 #: ``(produce_class_name, operations_authored, latency_ms, started_at)``. ``Runtime._execute``
-#: opens it (and later records the span), ``StepGroup.execute`` appends — a
-#: contextvar so concurrent executions sharing one ``StepGroup`` instance never race.
+#: opens it (and later records the span), ``Agent.execute`` appends — a
+#: contextvar so concurrent executions sharing one ``Agent`` instance never race.
 _produce_runs: ContextVar[list[tuple[str, int, float, datetime]] | None] = ContextVar(
     "reactifact_produce_runs", default=None
 )
@@ -89,13 +89,13 @@ def _apply_provenance(
             slot.operations.append(Link(source_id, relation, artifact.id))
 
 
-class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run() has a default
-    """An optional group of steps sharing trigger, retry and timeout.
+class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() has a default
+    """A group of steps sharing trigger, retry and timeout.
 
-    Steps are the model; a `StepGroup` is the operational unit that answers
+    Steps are the model; an `Agent` is the operational unit that answers
     "wake these together, retry them together, trace them under one name".
-    `Runtime` accepts a list of groups, and `create_step_group` builds one
-    without subclassing.
+    `Runtime` accepts a list of agents, `Agent(...)` builds one without
+    subclassing, and `Agent`/`StepGroup` remain compatibility aliases.
 
     If `run` is not overridden, the group collects inputs according to
     `consumes` and calls every step, merging the patches into one commit.
@@ -113,7 +113,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
     produces: Sequence[Step[Any]] | None = None
     #: Declarative capability labels (§25), consumed by the adaptive policy.
     capabilities: tuple[str, ...] = ()
-    #: Explicit trigger override — for the *imperative* style (`StepGroup`
+    #: Explicit trigger override — for the *imperative* style (`Agent`
     #: subclass overriding `run()` directly, no `consumes`/`steps` at all,
     #: see `run()`'s own docstring). That style never calls
     #: `_collect_inputs()`, so `Consume` has nothing to attach to; `triggers`
@@ -165,13 +165,17 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         priority: int | None = None,
         *,
         steps: Sequence[Step[Any]] | None = None,
+        consumes: Any | None = None,
         wakes: bool | Callable[[Event, Context | None], bool] | None = None,
         retry: RetryPolicy | None = None,
         timeout: float | None = None,
         fallback: Step[Any] | None = None,
         fallback_on: Sequence[type[BaseException]] | None = None,
         fallback_skip: Sequence[type[BaseException]] | None = None,
+        concurrency_limit: int | None = None,
+        capabilities: tuple[str, ...] | None = None,
     ):
+        consumes = Step._normalize_consumes(consumes)
         self.name = name or self.name or self.__class__.__name__
 
         self.priority = (
@@ -184,9 +188,18 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             timeout if timeout is not None else getattr(self.__class__, "timeout", None)
         )
         if self.retry is not None and not isinstance(self.retry, RetryPolicy):
-            raise TypeError("StepGroup.retry must be a RetryPolicy or None")
+            raise TypeError("Agent.retry must be a RetryPolicy or None")
         if self.timeout is not None and self.timeout <= 0:
-            raise ValueError("StepGroup.timeout must be > 0")
+            raise ValueError("Agent.timeout must be > 0")
+
+        declared_steps: list[Step[Any]] = []
+        for base in reversed(type(self).__mro__):
+            for attr, value in vars(base).items():
+                if isinstance(value, Step) and getattr(type(self), attr, None) is value:
+                    step_value = cast("Step[Any]", value)
+                    bound = step_value.bind(self)
+                    setattr(self, attr, bound)
+                    declared_steps.append(bound)
 
         existing_steps = self.__dict__.get("steps")
         existing_produces = self.__dict__.get("produces")
@@ -202,8 +215,15 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             if resolved is None:
                 resolved = getattr(self.__class__, "produces", None)
         self.steps = list(resolved) if resolved is not None else None
+        if declared_steps:
+            self.steps = [*declared_steps, *(self.steps or [])]
+        if self.steps is not None and not self.steps and type(self).run is Agent.run:
+            raise ValueError("Agent requires at least one step")
         # Deprecated instance-level alias: keep it in sync with `steps`.
         self.produces = self.steps
+
+        if consumes is not None:
+            self.consumes = list(consumes)
 
         if triggers is not None:
             self.triggers = list(triggers)
@@ -219,6 +239,16 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         self.wakes = (
             wakes if wakes is not None else getattr(self.__class__, "wakes", True)
         )
+        self.concurrency_limit = (
+            concurrency_limit
+            if concurrency_limit is not None
+            else getattr(self.__class__, "concurrency_limit", None)
+        )
+        self.capabilities = (
+            tuple(capabilities)
+            if capabilities is not None
+            else getattr(self.__class__, "capabilities", ())
+        )
 
         self.fallback_step = (
             fallback
@@ -226,7 +256,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             else getattr(self.__class__, "fallback_step", None)
         )
         if self.fallback_step is not None and not isinstance(self.fallback_step, Step):
-            raise TypeError("StepGroup.fallback must be a Step or None")
+            raise TypeError("Agent.fallback must be a Step or None")
         self.fallback_on = tuple(
             fallback_on
             if fallback_on is not None
@@ -242,6 +272,14 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             )
         )
         self._validate_contracts()
+
+    def agents(self) -> list[Agent]:
+        """The agent itself, for `Route`/`Pipeline` expansion."""
+        return [self]
+
+    def groups(self) -> list[Agent]:
+        """Deprecated alias for `agents()`."""
+        return self.agents()
 
     def should_fallback(self, error: BaseException) -> bool:
         """Whether `error` may be degraded through `fallback`."""
@@ -260,7 +298,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         """
         if self.fallback_step is None:
             return None
-        fallback_group = StepGroup(
+        fallback_group = Agent(
             name=f"{self.name}:fallback",
             steps=[self.fallback_step],
         )
@@ -276,7 +314,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         """Derive the agent's wake set from its steps' `consumes` contracts."""
         result: list[Trigger] = []
         for step in self.steps or []:
-            for consume in step.consume_specs() or ():
+            for consume in step.read_specs() or ():
                 result.extend(consume.to_triggers())
         return result
 
@@ -285,19 +323,19 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             for c in self.consumes:
                 if not isinstance(c, Consume):
                     raise TypeError(
-                        f"StepGroup {self.name!r}: consumes must contain Consume "
+                        f"Agent {self.name!r}: consumes must contain Consume "
                         f"instances, got {type(c)}"
                     )
         if self.steps is not None:
             for p in self.steps:
                 if not isinstance(p, Step):
                     raise TypeError(
-                        f"StepGroup {self.name!r}: steps must contain Step "
+                        f"Agent {self.name!r}: steps must contain Step "
                         f"instances, got {type(p)}"
                     )
         if self.fallback_step is not None and not isinstance(self.fallback_step, Step):
             raise TypeError(
-                f"StepGroup {self.name!r}: fallback must be a Step, "
+                f"Agent {self.name!r}: fallback must be a Step, "
                 f"got {type(self.fallback_step)}"
             )
 
@@ -391,7 +429,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         and return None; the *runtime* compiles the effect slot into one
         atomic patch. This method
         only *runs* the produces — it does not build a patch. (`run` remains the
-        group-level escape hatch for custom StepGroup subclasses that assemble a
+        group-level escape hatch for custom Agent subclasses that assemble a
         change-set by hand; the runtime merges its result after the effects.)
         """
         if not self.steps:
@@ -403,7 +441,7 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
             runs, trigger = self._resolve_produce_call(p, event, context)
             if not runs:
                 continue
-            step_inputs = p.collect_inputs(context) if p.consumes else inputs
+            step_inputs = p.collect_inputs(context) if p.reads else inputs
             scope_value = _scope_value(p.scope, trigger)
             cursor_artifacts = (
                 [*step_inputs, trigger] if trigger is not None else step_inputs
@@ -494,20 +532,20 @@ class StepGroup(ABC):  # noqa: B024 — interface without abstract methods, run(
         not a race, so the produce still runs with `trigger=None` —
         deletion-reacting code is expected to handle that itself.
         """
-        consumes = p.consume_specs()
+        reads = p.read_specs()
         if event is None:
-            return (consumes is None), None
-        if consumes is not None:
+            return (reads is None), None
+        if reads is not None:
             matched = any(
                 trigger.matches(event, context)
-                for consume in consumes
+                for consume in reads
                 for trigger in consume.to_triggers()
             )
             if not matched:
                 return False, None
         trigger = context.get(event.artifact_id)
         if (
-            consumes is not None
+            reads is not None
             and trigger is None
             and event.type is not EventType.ARTIFACT_DELETED
         ):
@@ -531,8 +569,8 @@ def create_step_group(
     fallback: Step[Any] | None = None,
     fallback_on: Sequence[type[BaseException]] | None = None,
     fallback_skip: Sequence[type[BaseException]] | None = None,
-) -> StepGroup:
-    """Builds a StepGroup without subclassing.
+) -> Agent:
+    """Builds an `Agent` without subclassing (compatibility constructor).
 
     A group is only needed when steps should share a trigger, retry policy,
     timeout, priority or concurrency limit; a single step can be passed to the
@@ -540,12 +578,12 @@ def create_step_group(
     knobs:
 
     ```
-    analysis = create_step_group(
-        name="analysis",
+    analysis = Agent(
+        "analysis",
         consumes=[Consume(Question)],
         retry=RetryPolicy(max_attempts=3),
         steps=[compute_spend, compute_variance],
-        fallback=FallbackAnswer("Не удалось посчитать"),
+        fallback=FallbackAnswer("Could not compute"),
     )
     ```
 
@@ -556,7 +594,7 @@ def create_step_group(
 
     Pass `triggers` only for the rare imperative style with no `consumes` at
     all (see
-    `StepGroup.triggers`'s own docstring) — the ordinary declarative case
+    `Agent.triggers`'s own docstring) — the ordinary declarative case
     should leave it unset and use `Consume(..., wakes=False)` instead.
     """
     if steps is not None and produces is not None:
@@ -564,11 +602,12 @@ def create_step_group(
             "Pass either steps= or produces=, not both: produces is the deprecated alias for steps."
         )
     resolved_steps = steps if steps is not None else produces
-    group = StepGroup(
+    group = Agent(
         name=name,
         triggers=triggers,
         priority=priority,
         steps=resolved_steps,
+        consumes=consumes,
         wakes=wakes,
         retry=retry,
         timeout=timeout,
@@ -576,10 +615,6 @@ def create_step_group(
         fallback_on=fallback_on,
         fallback_skip=fallback_skip,
     )
-    if consumes is not None:
-        group.consumes = consumes
-        if triggers is None:
-            group.triggers = group._generate_triggers_from_consumes()
     group.capabilities = capabilities
     group.concurrency_limit = concurrency_limit
     group._validate_contracts()
@@ -589,46 +624,54 @@ def create_step_group(
 def normalize_units(
     *,
     steps: list[Any] | None = None,
+    agents: list[Any] | None = None,
     groups: list[Any] | None = None,
-) -> list[StepGroup]:
+) -> list[Agent]:
     """Normalizes the constructor keywords into dispatch units.
 
-    `steps=` accepts only `Step` and wraps each in a `StepGroup` of one,
-    copying `priority`/`concurrency_limit`; `groups=` accepts only `StepGroup`.
-    Result order is steps, then groups, preserving each list.
+    `steps=` accepts only `Step` and wraps each in an `Agent` of one, copying
+    `priority`/`concurrency_limit`; `agents=` accepts only `Agent`.
+    Result order is steps, then agents, preserving each list.
     """
+    if agents is not None and groups is not None:
+        raise TypeError("Pass only one of agents= or groups=")
+    declared_agents = agents if agents is not None else groups
 
-    def check_groups(items: list[Any], keyword: str) -> list[StepGroup]:
-        checked: list[StepGroup] = []
+    def check_agents(items: list[Any], keyword: str) -> list[Agent]:
+        checked: list[Agent] = []
         for item in items:
             if isinstance(item, Step):
                 raise TypeError(
-                    f"{keyword}= accepts StepGroup, not Step; pass raw steps "
+                    f"{keyword}= accepts Agent, not Step; pass raw steps "
                     "to steps=[...] instead"
                 )
-            if not isinstance(item, StepGroup):
+            if not isinstance(item, Agent):
                 raise TypeError(
-                    f"{keyword}= expects StepGroup instances, got {type(item).__name__}"
+                    f"{keyword}= expects Agent instances, got {type(item).__name__}"
                 )
             checked.append(item)
         return checked
 
-    merged: list[StepGroup] = []
+    merged: list[Agent] = []
     if steps is not None:
         for item in steps:
-            if isinstance(item, StepGroup):
+            if isinstance(item, Agent):
                 raise TypeError(
-                    "steps= accepts Step, not StepGroup; pass groups=[...] "
-                    "for explicit groups"
+                    "steps= accepts Step, not Agent; pass agents=[...] "
+                    "for explicit agents"
                 )
             if not isinstance(item, Step):
                 raise TypeError(
                     f"steps= expects Step instances, got {type(item).__name__}"
                 )
-            group = StepGroup(name=item.name, steps=[item], priority=item.priority)
+            group = Agent(name=item.name, steps=[item], priority=item.priority)
             group.concurrency_limit = item.concurrency_limit
             group.retry = item.retry
             merged.append(group)
-    if groups is not None:
-        merged.extend(check_groups(groups, "groups"))
+    if declared_agents is not None:
+        merged.extend(check_agents(declared_agents, "agents"))
     return merged
+
+
+#: Deprecated compatibility alias; new code uses `Agent`.
+StepGroup = Agent

@@ -10,7 +10,7 @@ from .patches import Operation, operation_from_dict
 
 
 @dataclass
-class Read:
+class CommitRead:
     """A record of a consumed artifact: the runtime builds links from consumes.
 
     Records the fact that the artifact was read at a specific revision
@@ -24,7 +24,7 @@ class Read:
         return {"artifact_id": self.artifact_id, "version": self.version}
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Read:
+    def from_dict(cls, d: dict[str, Any]) -> CommitRead:
         return cls(artifact_id=d["artifact_id"], version=d["version"])
 
 
@@ -101,7 +101,7 @@ class Commit:
     #: backward compatibility.
     parent_ids: list[str] = field(default_factory=list)
     context_version: int | None = None
-    reads: list[Read] = field(default_factory=list)
+    reads: list[CommitRead] = field(default_factory=list)
     writes: list[Write] = field(default_factory=list)
 
     def to_dict(self, blobs: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -141,7 +141,7 @@ class Commit:
                 d.get("parent_ids") or ([d["parent_id"]] if d.get("parent_id") else [])
             ),
             context_version=d.get("context_version"),
-            reads=[Read.from_dict(r) for r in d.get("reads", [])],
+            reads=[CommitRead.from_dict(r) for r in d.get("reads", [])],
             writes=[Write.from_dict(w) for w in d.get("writes", [])],
         )
 
@@ -175,3 +175,7 @@ class ContextCheckpoint:
             "message": self.message,
             "writes": [write.to_dict() for write in self.writes],
         }
+
+
+#: Deprecated compatibility alias; use `CommitRead`.
+Read = CommitRead

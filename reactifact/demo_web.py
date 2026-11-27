@@ -14,11 +14,11 @@ import webbrowser
 from typing import Any
 from urllib.parse import quote
 
+from .agent.agent import normalize_units
 from .audit import context_hash
 from .contracts.report import describe_contracts
 from .contracts.web import create_contracts_router
 from .demo import QUESTION, STEPS, Answer, Spend, Variance, run_demo
-from .step.group import normalize_units
 from .tracing import Tracer, TraceStore
 from .tracing.web import create_trace_router
 from .viz import context_to_mermaid

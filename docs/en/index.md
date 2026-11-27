@@ -30,7 +30,7 @@ message or a graph edge.
 
 | Celery | reactifact |
 | --- | --- |
-| a task | `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact |
+| a task | `Step` / `@step(produces=Model, reads=Input)` — a unit of work that writes an artifact |
 | `delay()` / `apply_async()` | you don't call it: creating the input artifact **is** the trigger |
 | routing key / queue | `Consume(Type)` — which artifact type wakes the task |
 | chain / group / chord | several step `Consume`s / `produces`; the runtime derives the order |
@@ -170,7 +170,7 @@ DOCS = {
 }
 
 
-@step(produces=Evidence, consumes=Question)
+@step(produces=Evidence, reads=Question)
 async def find_evidence(call):
     question = call.trigger
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
@@ -178,7 +178,7 @@ async def find_evidence(call):
         call.effects.create(Evidence(text=hit))
 
 
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer_from_evidence(call):
     evidence = call.trigger
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
@@ -213,7 +213,7 @@ it's trimmed from.
   graph, why determinism, why versioned state.
 - [Comparison](comparison.md) — reactifact vs LangGraph/CrewAI, feature by
   feature, and when *not* to use reactifact.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Step, StepGroup.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
 
 **Build with it**
 

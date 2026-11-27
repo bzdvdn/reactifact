@@ -11,12 +11,12 @@ from contextlib import contextmanager
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Patch,
     Runtime,
     RuntimeResources,
-    StepGroup,
     configure_logging,
     get_logger,
 )
@@ -125,7 +125,7 @@ class _Answer(BaseModel):
     text: str
 
 
-class _Echo(StepGroup):
+class _Echo(Agent):
     consumes = [Consume(_Question)]
     produces = []
 

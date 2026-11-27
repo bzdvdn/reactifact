@@ -3,7 +3,7 @@
 This is the OpenAPI-shaped view of a reactifact graph: not a run trace, but the
 declared surface a module exposes. It is intentionally read-only and
 deterministic — `reactifact contracts <module>` renders Markdown/JSON from the
-same `StepGroup` objects the runtime uses, so docs cannot drift from code.
+same `Agent` objects the runtime uses, so docs cannot drift from code.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..agent import Agent, Step
 from ..consume import Consume
-from ..step import Step, StepGroup
 
 
 @dataclass(frozen=True)
@@ -65,10 +65,10 @@ class GroupContract:
 
 @dataclass(frozen=True)
 class ContractReport:
-    """The declared contract of one or more `StepGroup`s.
+    """The declared contract of one or more `Agent`s.
 
     `seed_schema` / `answer_schema` are optional JSON Schemas attached by
-    `Pipeline.describe()`; the group-only `describe_contracts()` leaves them
+    `Pipeline.describe()`; the agent-only `describe_contracts()` leaves them
     `None`, so existing callers and pages are unchanged.
     """
 
@@ -290,7 +290,7 @@ def _step_contract(step: Step[Any]) -> StepContract:
     )
 
 
-def _group_contract(group: StepGroup) -> GroupContract:
+def _group_contract(group: Agent) -> GroupContract:
     steps = tuple(
         _step_contract(step) for step in (getattr(group, "steps", None) or ())
     )
@@ -306,9 +306,19 @@ def _group_contract(group: StepGroup) -> GroupContract:
     )
 
 
-def describe_contracts(groups: Sequence[StepGroup]) -> ContractReport:
-    """Describe the declared surface of `groups` (no run, no LLM)."""
-    return ContractReport(groups=tuple(_group_contract(group) for group in groups))
+def describe_contracts(
+    agents: Sequence[Agent] | None = None,
+    *,
+    groups: Sequence[Agent] | None = None,
+) -> ContractReport:
+    """Describe the declared surface of `agents` (no run, no LLM).
+
+    `groups=` is a compatibility alias for `agents=`.
+    """
+    if agents is not None and groups is not None:
+        raise TypeError("Pass only one of agents= or groups=")
+    resolved = agents if agents is not None else groups or ()
+    return ContractReport(groups=tuple(_group_contract(group) for group in resolved))
 
 
 def _mermaid_escape(value: Any) -> str:

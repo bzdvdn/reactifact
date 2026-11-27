@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Context, Runtime, Step, StepGroup
+from reactifact import Agent, Context, Runtime, Step
 from reactifact.consume import CorrelatedConsume
 
 
@@ -31,7 +31,7 @@ class RecordApproval(Step[Approval]):
         )
 
 
-class ApprovalGate(StepGroup):
+class ApprovalGate(Agent):
     """A case `JoinConsume`/`AbsentConsume` alone can't express: require
     BOTH a Report and an answered PendingQuestion, AND forbid an existing
     HelpdeskTicket for the same thread — combining "join" and "absent" in

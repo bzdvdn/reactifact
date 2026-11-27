@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime
 from reactifact.patches import Link, Relation, Unlink, operation_from_dict
 
 
@@ -13,7 +13,7 @@ class Evidence(BaseModel):
     content: str
 
 
-class Linker(StepGroup):
+class Linker(Agent):
     consumes = [Consume(Claim)]
 
     async def run(self, event, context):

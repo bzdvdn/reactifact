@@ -22,9 +22,11 @@ round, as an audit trail the loop itself never re-reads past the latest one.
         async def rewrite(self, context, draft, feedback) -> Draft: ...
         async def finish(self, context, draft) -> Final: ...
 
-    class Flow(StepGroup):
-        consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-        produces = MyLoop().produces()
+    flow = Agent(
+        "reflection",
+        consumes=[Consume(Topic), Consume(Draft), Consume(Review)],
+        steps=MyLoop().produces(),
+    )
 
 `draft_type` needs `topic_field`/`round_field`/`status_field` with defaults
 (e.g. `topic: str = ""`, `round: int = 0`, `status: str = "draft"`) —
@@ -47,10 +49,11 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
+from ..agent import Agent, Edit, Emit, Step
 from ..artifacts import Artifact
-from ..consume import Consume, IdempotentConsume, JoinConsume
+from ..consume import Consume
 from ..context import Context
-from ..step import Edit, Emit, Step, StepGroup, create_step_group
+from ..read import Read
 from .inputs import correlation_id_of
 
 if TYPE_CHECKING:
@@ -64,7 +67,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     """Subclass with the four domain hooks; `produces()` gives the four
-    `Step`s to wire into an `StepGroup` (see module docstring)."""
+    `Step`s to wire into a `Agent` (see module docstring)."""
 
     topic_type: type[TopicT]
     draft_type: type[DraftT]
@@ -153,7 +156,7 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
     def produces(self) -> list[Step[Any]]:
         return [_Draft(self), _Critic(self), _Rewrite(self), _Finalize(self)]
 
-    def consumes(self) -> list[Consume]:
+    def reads(self) -> list[Consume]:
         """The artifact types the loop reads: topic, draft and review."""
         return [
             Consume(self.topic_type),
@@ -161,17 +164,22 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
             Consume(self.review_type),
         ]
 
-    def group(self, name: str = "reflection", **kwargs: Any) -> StepGroup:
-        """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
-        return create_step_group(
-            name, consumes=self.consumes(), steps=self.produces(), **kwargs
-        )
+    def consumes(self) -> list[Consume]:
+        """Deprecated alias for `reads()`."""
+        return self.reads()
+
+    def agent(self, name: str = "reflection", **kwargs: Any) -> Agent:
+        """A ready `Agent` (consumes inferred) for `Runtime(agents=...)`."""
+        return Agent(name, consumes=self.reads(), steps=self.produces(), **kwargs)
+
+    #: Compatibility alias for `agent()`.
+    group = agent
 
     def pipeline(self, *, name: str = "reflection", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this loop already grouped and wired."""
         from ..pipeline import Pipeline
 
-        return Pipeline(groups=[self.group(name)], **kwargs)
+        return Pipeline(agents=[self.agent(name)], **kwargs)
 
     def _draft_id(self, topic_id: str) -> str:
         return f"draft:{topic_id}"
@@ -268,8 +276,8 @@ class _Draft(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.draft_type,
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     owner.topic_type,
                     id_of=lambda topic: owner._draft_id(topic.id),
                 ),
@@ -310,8 +318,8 @@ class _Critic(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.review_type,
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     owner.draft_type,
                     id_of=lambda draft: owner._review_id(
                         draft.id, getattr(draft.data, owner.round_field)
@@ -367,8 +375,8 @@ class _Rewrite(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.draft_type,
-            consumes=(
-                JoinConsume(
+            reads=(
+                Read.join(
                     owner.draft_type,
                     owner.review_type,
                     key=lambda data: (
@@ -413,8 +421,8 @@ class _Finalize(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.final_type,
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     owner.draft_type,
                     id_of=lambda draft: owner._final_id(
                         getattr(draft.data, owner.topic_field)

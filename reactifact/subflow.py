@@ -8,11 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .agent import Agent
 from .artifacts import Artifact
 from .budget import Budget, RunStats
 from .context import Context
 from .runtime import Runtime
-from .step import StepGroup
 
 
 @dataclass
@@ -31,7 +31,8 @@ class SubflowResult:
 async def run_subflow(
     parent: Context,
     *,
-    groups: StepGroup | Sequence[StepGroup] | None = None,
+    agents: Agent | Sequence[Agent] | None = None,
+    groups: Agent | Sequence[Agent] | None = None,
     input: BaseModel | Artifact[Any],
     output_type: type[BaseModel] | None = None,
     isolate: bool = True,
@@ -43,9 +44,9 @@ async def run_subflow(
     max_iterations: int = 100,
     name: str = "subflow",
 ) -> SubflowResult:
-    """Runs `groups` on a child Context and returns its state and outputs.
+    """Runs `agents` on a child Context and returns its state and outputs.
 
-    `groups=` is one `StepGroup` or a sequence.
+    `agents=` is one `Agent` or a sequence; `groups=` is a compatibility alias.
 
     `isolate=True` starts from an empty Context (just the seeded input);
     `isolate=False` starts from a `parent.branch()` so the child sees the
@@ -58,10 +59,12 @@ async def run_subflow(
     the parent's `BudgetLLM` wrapper still counts the child's usage — do not
     add it twice).
     """
-    resolved = groups
+    if agents is not None and groups is not None:
+        raise TypeError("Pass only one of agents= or groups=")
+    resolved = agents if agents is not None else groups
     if resolved is None:
-        raise TypeError("run_subflow requires groups=")
-    group_list = [resolved] if isinstance(resolved, StepGroup) else list(resolved)
+        raise TypeError("run_subflow requires agents=")
+    group_list = [resolved] if isinstance(resolved, Agent) else list(resolved)
     parent_versions = {
         artifact.id: artifact.version for artifact in parent.list_artifacts()
     }

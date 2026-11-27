@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Context, Runtime, StepGroup
+from reactifact import Agent, Context, Runtime
 from reactifact.contracts import describe_contracts
 from reactifact.recipes.cleanup import ScopedCleanup
 
@@ -42,7 +42,7 @@ def test_scoped_cleanup_deletes_only_the_terminal_turn():
 
 def test_scoped_cleanup_contract_is_honest():
     cleanup = ScopedCleanup(Final, scratch_types=(Scratch,), scope="query_id")
-    report = describe_contracts([StepGroup(steps=[cleanup])]).to_dict()
+    report = describe_contracts([Agent(steps=[cleanup])]).to_dict()
     step = report["groups"][0]["steps"][0]
     assert step["produces"] == []
     assert step["deletes"] == ["Scratch"]

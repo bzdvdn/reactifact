@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Step, StepCall, create_step_group
+from reactifact import Agent, Step, StepCall
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
@@ -35,10 +35,10 @@ class _Echo(Step[ConversationMessage]):
 
 
 def _echo_group():
-    return create_step_group(
+    return Agent(
         "echo",
         consumes=[Consume(ConversationMessage)],
-        produces=[_Echo()],
+        steps=[_Echo()],
     )
 
 
@@ -170,10 +170,10 @@ def _hetero_assistant(keep: int) -> tuple[ChatAssistant, SessionStore]:
     assistant = ChatAssistant(
         store=store,
         groups=[
-            create_step_group(
+            Agent(
                 "bot",
                 consumes=[Consume(_UserMsg)],
-                produces=[_Bot()],
+                steps=[_Bot()],
             )
         ],
         user_message=_UserMsg,

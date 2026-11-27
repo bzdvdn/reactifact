@@ -19,7 +19,7 @@ The shapes are *not* interchangeable:
   separate `WindowPruner` cannot do this: it deletes without folding first, so
   using it in place of this recipe loses content instead of condensing it.
 
-All are plain `Step`s — put them in a `StepGroup`'s `steps` list next to
+All are plain `Step`s — put them in a `Agent`'s `steps` list next to
 whatever else reacts to the message type.
 
 Domain owns *how* to summarize (the `summarize` callback) and *what* the
@@ -36,10 +36,10 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
+from ..agent import Drop, Emit, Step
 from ..artifacts import Artifact
 from ..context import Context
 from ..prompts import PromptTemplate
-from ..step import Drop, Emit, Step
 from ..structured import OnStructuredError, llm_reply
 
 MsgT = TypeVar("MsgT", bound=BaseModel)
@@ -158,7 +158,7 @@ class WindowSummarizer(Step[SummaryT], Generic[MsgT, SummaryT]):
             return None
         summary_id = self.id_of(round_no)
         # The id is derived from the message count, not from one trigger
-        # artifact; IdempotentConsume cannot gate on a count.
+        # artifact; Read.idempotent cannot gate on a count.
         if context.get(summary_id) is not None:
             return None  # this round's summary already exists (§42)
         recent = sorted(messages, key=self.order_key)[-self.window :]

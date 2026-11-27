@@ -48,14 +48,14 @@ from reactifact.checkpoints import SQLiteKVBackend
 
 store = SessionStore(SQLiteKVBackend("sessions.sqlite3"))
 session = await store.open("user-1")            # loads, or creates if absent
-runtime = Runtime(session.context, groups=[...], session=session)
+runtime = Runtime(session.context, agents=[...], session=session)
 await runtime.arun()
 ```
 
 ```text
 # after a crash / restart — a brand-new process, nothing in memory
 session = await store.open("user-1")
-runtime = Runtime(session.context, groups=[...], session=session)
+runtime = Runtime(session.context, agents=[...], session=session)
 await runtime.arun()   # continues: pending triggers are still there
 ```
 
@@ -72,7 +72,7 @@ Give steps a **stable id** so a re-run upserts instead of duplicating
 ([§42](../constitution.md)):
 
 ```python
-@step(produces=Summary, consumes=Msg)
+@step(produces=Summary, reads=Msg)
 async def summarize(call):
     doc = call.trigger
     # A stable id makes the re-run idempotent: creating it twice returns the

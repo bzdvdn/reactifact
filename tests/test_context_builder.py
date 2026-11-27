@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, RuntimeResources, Step, StepGroup
+from reactifact import Agent, Consume, Context, Runtime, RuntimeResources, Step
 from reactifact.context_builder import HeuristicTokenCounter, TokenBudgetContextBuilder
 
 
@@ -20,7 +20,7 @@ class RecordSeen(Step[Seen]):
         call.effects.create(Seen(texts=[i.data.text for i in call.inputs]))
 
 
-class Collector(StepGroup):
+class Collector(Agent):
     consumes = [Consume(Item)]
     produces = [RecordSeen()]
 
@@ -39,7 +39,7 @@ class RecordItemsOnly(Step[Seen]):
         )
 
 
-class MarkerAwareCollector(StepGroup):
+class MarkerAwareCollector(Agent):
     consumes = [Consume(Item), Consume(Marker)]
     produces = [RecordItemsOnly()]
 
@@ -93,7 +93,7 @@ def test_token_budget_never_drops_to_zero_inputs():
 
 
 def test_provenance_reads_match_the_truncated_inputs():
-    """Runtime._collect_reads and StepGroup._collect_inputs must agree: the
+    """Runtime._collect_reads and Agent._collect_inputs must agree: the
     commit's recorded reads reflect what the builder actually let through,
     not the pre-truncation candidate set."""
     builder = TokenBudgetContextBuilder(max_tokens=5)
@@ -153,7 +153,7 @@ class Pinned(BaseModel):
     text: str
 
 
-class MinKeepCollector(StepGroup):
+class MinKeepCollector(Agent):
     consumes = [Consume(Item), Consume(Pinned)]
     produces = [RecordSeen()]
 

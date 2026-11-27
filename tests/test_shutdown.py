@@ -5,6 +5,7 @@ import contextlib
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Consume,
     Context,
@@ -12,7 +13,6 @@ from reactifact import (
     RunOutcome,
     Runtime,
     RuntimeResources,
-    StepGroup,
 )
 from reactifact.runtime import active_runs, cancel_run
 
@@ -38,7 +38,7 @@ def _ctx_with_question() -> Context:
 def test_hard_deadline_cancels_a_hung_agent_and_keeps_the_batch():
     started = asyncio.Event()
 
-    class Hang(StepGroup):
+    class Hang(Agent):
         consumes = [Consume(Question)]
         produces = []
 
@@ -64,7 +64,7 @@ def test_hard_deadline_cancels_a_hung_agent_and_keeps_the_batch():
 def test_request_stop_ends_at_the_next_boundary():
     holder: dict[str, Runtime] = {}
 
-    class First(StepGroup):
+    class First(Agent):
         consumes = [Consume(Question)]
         produces = []
 
@@ -72,7 +72,7 @@ def test_request_stop_ends_at_the_next_boundary():
             holder["runtime"].request_stop()  # stop after this generation
             return Patch().create(Step1(text="one"))
 
-    class Second(StepGroup):
+    class Second(Agent):
         consumes = [Consume(Step1)]
         produces = []
 
@@ -96,7 +96,7 @@ def test_request_stop_ends_at_the_next_boundary():
 def test_registry_tracks_and_clears_in_flight_runs():
     started = asyncio.Event()
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         consumes = [Consume(Question)]
         produces = []
 
@@ -123,7 +123,7 @@ def test_registry_tracks_and_clears_in_flight_runs():
 def test_cancel_run_cancels_a_specific_turn():
     started = asyncio.Event()
 
-    class Hang(StepGroup):
+    class Hang(Agent):
         consumes = [Consume(Question)]
         produces = []
 
@@ -150,7 +150,7 @@ def test_cancel_run_cancels_a_specific_turn():
 def test_ashutdown_waits_for_the_turn_to_finish():
     started = asyncio.Event()
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         consumes = [Consume(Question)]
         produces = []
 
@@ -178,7 +178,7 @@ def test_ashutdown_waits_for_the_turn_to_finish():
 def test_ashutdown_timeout_force_cancels():
     started = asyncio.Event()
 
-    class Hang(StepGroup):
+    class Hang(Agent):
         consumes = [Consume(Question)]
         produces = []
 

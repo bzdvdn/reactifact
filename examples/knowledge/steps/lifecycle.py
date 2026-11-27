@@ -37,7 +37,7 @@ def _log_llm_outage(reason: str, exc: BaseException | None) -> None:
 class EvaluateTurn(StatusMachine[ResearchTurn]):
     """Moves the turn's status when state changes (deterministic, §24, §69)."""
 
-    consumes = (
+    reads = (
         ResearchTurn,
         SourceRef,
         TypedDoc,
@@ -74,9 +74,7 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
 class BuildAnswer(Step):
     """Projection of all the query's evidence into an answer (§17, §34)."""
 
-    consumes = (
-        Annotated[ResearchTurn, When(lambda turn: turn.status == "answerable")],
-    )
+    reads = (Annotated[ResearchTurn, When(lambda turn: turn.status == "answerable")],)
     produces = (Answer,)
     scope = "query_id"
 

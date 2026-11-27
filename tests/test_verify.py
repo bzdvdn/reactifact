@@ -3,12 +3,12 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     PendingQuestion,
     Runtime,
     RuntimeResources,
-    StepGroup,
 )
 from reactifact.eval import answer_present
 from reactifact.verify import (
@@ -29,7 +29,7 @@ class Evidence(BaseModel):
 
 
 def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
-    class VerifierGroup(StepGroup):
+    class VerifierGroup(Agent):
         consumes = [Consume(Answer)]
         produces = [Verify(**verify_kwargs)]
 

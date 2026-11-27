@@ -7,7 +7,7 @@ instead of spinning forever:
 
     result = await swarm(
         context,
-        groups={"triage": triage, "billing": billing},
+        agents={"triage": triage, "billing": billing},
         start="triage",
         input=Question(text="refund please"),
         final_type=Answer,
@@ -23,10 +23,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..agent import Agent
 from ..artifacts import Artifact
 from ..budget import RunStats
 from ..context import Context
-from ..step import StepGroup
 from ..subflow import run_subflow
 
 
@@ -81,8 +81,9 @@ def _final_of(
 
 async def swarm(
     parent: Context,
-    groups: Mapping[str, StepGroup] | None = None,
+    agents: Mapping[str, Agent] | None = None,
     *,
+    groups: Mapping[str, Agent] | None = None,
     start: str,
     input: BaseModel | Artifact[Any],
     final_type: type[BaseModel] | None = None,
@@ -98,9 +99,11 @@ async def swarm(
     Context, links it to the previous step, and continues. `max_hops` is a hard
     cap; `allow_repeat=False` also rejects revisiting an agent.
     """
-    mapping = groups
+    if agents is not None and groups is not None:
+        raise TypeError("Pass only one of agents= or groups=")
+    mapping = agents if agents is not None else groups
     if mapping is None:
-        raise TypeError("swarm requires groups=")
+        raise TypeError("swarm requires agents=")
     if start not in mapping:
         raise SwarmError(f"unknown start agent {start!r}")
     if max_hops < 1:
@@ -125,7 +128,7 @@ async def swarm(
 
         result = await run_subflow(
             work,
-            groups=[mapping[current]],
+            agents=[mapping[current]],
             input=current_input,
             output_type=None,
             isolate=True,

@@ -1,6 +1,6 @@
 """`reactifact skills` — list and install the bundled agent skills.
 
-reactifact ships official StepGroup Skills inside the package
+reactifact ships official Agent Skills inside the package
 (`reactifact/skills/<name>/SKILL.md`), so the skills a user installs always
 match the version of reactifact they have. Coding agents discover skills from a
 project's `.agents/skills/` (Codex, Cursor, Gemini CLI, Copilot, …); Claude

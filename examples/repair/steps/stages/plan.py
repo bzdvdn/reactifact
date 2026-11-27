@@ -71,7 +71,7 @@ async def _make_plan(
 class PlanStage(Step):
     """Plan (LLM + geometry) → estimate."""
 
-    consumes = (Project,)
+    reads = (Project,)
     produces = (Project,)
 
     async def run(

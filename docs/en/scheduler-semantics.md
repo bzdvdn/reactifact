@@ -54,7 +54,7 @@ Implemented by `Runtime._arun_once_impl` (`reactifact/runtime/runtime.py`).
 
 4. **Order.** Non-debounced work is collected in `(event order × agent priority)`
    order; debounced entries are appended afterwards, then the whole list is
-   **stable-sorted by `StepGroup.priority`** (ascending). So `priority` is the outer
+   **stable-sorted by `Agent.priority`** (ascending). So `priority` is the outer
    ordering key, and ties keep insertion order.
 
 5. **Schedule (optional).** If a `Scheduler` is configured,
@@ -134,7 +134,7 @@ bounds a slow one.
 - **Serialized commit.** Patches are applied only after every worker in the
   generation has finished — a generation is a barrier.
 - **Bounded parallelism.** `Runtime.max_concurrency` caps globally;
-  `StepGroup.concurrency_limit` caps a single agent (useful to throttle LLM-bound
+  `Agent.concurrency_limit` caps a single agent (useful to throttle LLM-bound
   produces separately from cheap I/O).
 - **Isolated effect slots.** One `Effects` slot per produce (a contextvar pushed
   by the runtime) means concurrent produces cannot observe each other's pending
@@ -234,7 +234,7 @@ decisions deterministically; see [Replay](replay.md).
 | Concept | Code | Constitution |
 | --- | --- | --- |
 | Generation loop | `reactifact/runtime/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
-| Matching | `reactifact/triggers.py` `Trigger.matches`, `reactifact/step/group.py` `matching_triggers` | §22 |
+| Matching | `reactifact/triggers.py` `Trigger.matches`, `reactifact/agent/agent.py` `matching_triggers` | §22 |
 | Debounce / order / budget slice | `reactifact/runtime/runtime.py` `_arun_once_impl` | §24, §58 |
 | Scheduling policy | `reactifact/scheduler.py` `Scheduler` | §26 |
 | Concurrency | `reactifact/runtime/runtime.py` `_dispatch` | §42, §58 |

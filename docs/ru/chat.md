@@ -28,7 +28,7 @@
 монтирует его как SSE на вашем FastAPI-приложении. Настройка через хуки:
 
 ```python
-from reactifact import Chat, Consume, RuntimeResources, create_step_group
+from reactifact import Chat, Consume, RuntimeResources, Agent
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.recipes.conversation import (
     ConversationMessage, conversation_state, create_turn,
@@ -37,7 +37,7 @@ from reactifact.session import SessionStore
 
 assistant = Chat(
     store=SessionStore(SQLiteKVBackend("./sessions.db")),
-    groups=[create_step_group("answer", steps=[ANSWER])],
+    agents=[Agent("answer", steps=[ANSWER])],
     seed_type=ConversationMessage,
     create_message=create_turn,          # записать сообщение пользователя как ConversationMessage
     reply=my_reply,                      # (ctx, msg_id) -> {"reply": ...}
@@ -49,7 +49,7 @@ await assistant.invoke("what's the refund policy?", session_id="user-1")
 await assistant.history(session_id="user-1")   # поток на данный момент
 ```
 
-Готовый `quick.chat_agent(groups, store=…)` делает то же с дефолтами.
+Готовый `quick.chat_agent(agents, store=…)` делает то же с дефолтами.
 
 Фасад повторяет `Pipeline` там, где это важно: `Chat(traces=True|path)`
 открывает `TraceStore`, `trace_sample=` применяет ту же политику сэмплинга,

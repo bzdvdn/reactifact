@@ -28,9 +28,33 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.Patch
 
-### StepGroup
+### Pipeline
 
-::: reactifact.StepGroup
+::: reactifact.Pipeline
+
+### PipelineRunner
+
+::: reactifact.PipelineRunner
+
+### Agent
+
+::: reactifact.Agent
+
+### Read
+
+::: reactifact.Read
+
+### Step
+
+::: reactifact.Step
+
+### @agent
+
+::: reactifact.agent
+
+### @step
+
+::: reactifact.step
 
 ### Consume
 

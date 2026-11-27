@@ -6,15 +6,16 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Budget,
     Consume,
     Context,
     Emit,
     Latest,
+    Read,
     Runtime,
     Step,
-    create_step_group,
 )
 
 
@@ -38,7 +39,7 @@ class Digest(BaseModel):
 
 
 class FanOutFacts(Step):
-    consumes = (Topic,)
+    reads = (Topic,)
     produces = (Fact,)
 
     async def run(self, topic: Topic) -> list[Emit]:
@@ -50,7 +51,7 @@ class FanOutFacts(Step):
 
 
 class CollectFacts(Step):
-    consumes = (Consume(Fact, debounce=True),)
+    reads = (Read(Fact),)
     produces = (Digest,)
 
     async def run(
@@ -75,7 +76,13 @@ async def run_reactive() -> dict[str, Any]:
     context.create(Policy(max_facts=3), id="policy:1")
     runtime = Runtime(
         context,
-        groups=[create_step_group("reactive", steps=[FanOutFacts(), CollectFacts()])],
+        agents=[
+            Agent(
+                "reactive",
+                consumes=[Consume(Topic), Consume(Fact, debounce=True)],
+                steps=[FanOutFacts(), CollectFacts()],
+            )
+        ],
         budget=Budget(max_runs=20),
     )
     await runtime.arun()

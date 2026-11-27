@@ -64,7 +64,7 @@ class RunStats:
     #: Wall-clock duration of the turn, in **seconds** (`time.monotonic()`).
     #: Distinct from `RunTrace.duration_ms`, which is in milliseconds.
     duration: float
-    #: StepGroup executions that raised and were isolated (`Runtime(isolate_errors=True)`).
+    #: Agent executions that raised and were isolated (`Runtime(isolate_errors=True)`).
     #: Always 0 when isolation is off — an exception propagates instead (§69).
     errors: int = 0
     #: LLM usage totalled over the turn. Available without a tracer (the

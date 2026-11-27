@@ -128,7 +128,7 @@ next to it:
 - `Outbox.act(...)` — outbound side-effect intent, backed by `PendingAction`.
 
 ```python
-@step(produces=PendingAction, consumes=Ticket)
+@step(produces=PendingAction, reads=Ticket)
 def notify(ticket: Ticket, outbox: Outbox) -> None:
     outbox.act("notify", key=f"notify:{ticket.id}", payload={"to": ticket.email})
 ```
@@ -146,7 +146,7 @@ once per committed intent, recording `dispatched`/`failed`. See
 signal:
 
 ```python
-@step(produces=Answer, consumes=Question)
+@step(produces=Answer, reads=Question)
 async def answer(question: Question, progress: Progress, llm: LLMProvider | None) -> Answer:
     progress("Считаю…", count=3)
     ...
@@ -185,7 +185,7 @@ not "about ids".
 
 ## Where `Patch` still shows up
 
-- **`StepGroup.run`** — the escape hatch for custom agents that assemble a
+- **`Agent.run`** — the escape hatch for custom agents that assemble a
   change-set by hand.
 - **Recipes** (`fan_out_sources`, `materialize_doc`) write into the slot;
   return-style steps such as `StatusMachine` return an `Edit` instead. The
@@ -210,7 +210,7 @@ A decorated function receives `call` and uses `call.effects`:
 ```python
 from reactifact import StepCall, step
 
-@step(produces=Answer, consumes=Question)
+@step(produces=Answer, reads=Question)
 async def answer_turn(call: StepCall) -> None:
     question = call.trigger
     answer = call.effects.create(
@@ -231,7 +231,7 @@ case short without hiding the edges:
 ```python
 from reactifact import CALCULATED_FROM
 
-@step(produces=Variance, consumes=Spend, provenance=CALCULATED_FROM)
+@step(produces=Variance, reads=Spend, provenance=CALCULATED_FROM)
 def compute_variance(spend: Spend) -> Variance:
     return Variance(actual=spend.total, ...)
 ```
@@ -260,5 +260,5 @@ answers/claims; compute steps are `CALCULATED_FROM` or `DERIVED_FROM`.
 
 The subclass and `@step` function are the two canonical styles — pick subclass
 when the step has logic worth naming as a class, `@step` for a short one-off.
-Overriding `StepGroup.run(self, event, context) -> Patch` remains a low-level
+Overriding `Agent.run(self, event, context) -> Patch` remains a low-level
 escape hatch, not an everyday authoring style.

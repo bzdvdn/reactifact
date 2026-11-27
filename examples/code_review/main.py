@@ -8,18 +8,25 @@ python -m examples.code_review.main --diff changes.diff --json
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import sys
 from pathlib import Path
 
-from reactifact import Context, Runtime, RuntimeResources
+from reactifact import Agent, Pipeline, PipelineRunner, RuntimeResources
 from reactifact.providers import LLMProvider
 
 from .models import ReviewReport, ReviewRequest
 from .steps import BuildReportStep, ParseDiffStep, ReviewFileStep
 
 STEPS = [ParseDiffStep(), ReviewFileStep(), BuildReportStep()]
+
+#: The reusable definition: one agent, typed seed and answer.
+PIPELINE = Pipeline(
+    agents=[Agent("review", steps=STEPS)],
+    seed_type=ReviewRequest,
+    answer_type=ReviewReport,
+    name="code-review",
+)
 
 DEMO_DIFF = """\
 diff --git a/app.py b/app.py
@@ -41,10 +48,9 @@ def run_review(
     llm: LLMProvider | None = None,
 ) -> ReviewReport | None:
     """Run the review pipeline; returns the final report (or None)."""
-    context = Context(resources=RuntimeResources(llm=llm))
-    context.create(ReviewRequest(diff=diff, instructions=instructions))
-    asyncio.run(Runtime(context, steps=STEPS).arun())
-    report = context.latest(ReviewReport)
+    runner = PipelineRunner(PIPELINE, resources=RuntimeResources(llm=llm))
+    result = runner.run(ReviewRequest(diff=diff, instructions=instructions))
+    report = result.context.latest(ReviewReport)
     return report.data if report is not None else None
 
 

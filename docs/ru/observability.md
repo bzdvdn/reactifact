@@ -284,7 +284,7 @@ from reactifact.tracing import LangfuseTracer, PostgresStore, TraceStore
 
 runtime = Runtime(
     ctx,
-    groups=[...],
+    agents=[...],
     tracer=[
         TraceStore("traces.db"),                        # локальный дашборд
         LangfuseTracer(public_key="...", private_key="...",
@@ -319,7 +319,7 @@ from reactifact.tracing import OTLPTracer
 
 runtime = Runtime(
     ctx,
-    groups=[...],
+    agents=[...],
     tracer=OTLPTracer(endpoint="http://localhost:4318/v1/traces"),
 )
 ```
@@ -373,7 +373,7 @@ OpenTelemetry Collector; `RuntimeResources.redactor` уже вырезает т�
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 
 metrics = Metrics()
-runtime = Runtime(ctx, groups=GROUPS, tracer=MetricsTracer(metrics))
+runtime = Runtime(ctx, agents=PIPELINE.agents, tracer=MetricsTracer(metrics))
 app.include_router(create_metrics_router(metrics))   # GET /metrics
 ```
 
@@ -402,7 +402,7 @@ agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 metrics = Metrics()
 runtime = Runtime(
     Context(resources=RuntimeResources(metrics=metrics)),
-    groups=GROUPS,
+    agents=PIPELINE.agents,
     tracer=MetricsTracer(metrics),
 )
 

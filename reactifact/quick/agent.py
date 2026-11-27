@@ -6,13 +6,13 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
+from ..agent import Agent, Step
 from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
 from ..providers import LLMProvider
-from ..step import Step, create_step_group
 from ..structured import structured_llm
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Question
@@ -83,7 +83,7 @@ def _structured_produce(
 
 
 class QuickAgent(Generic[TSchema]):
-    """One LLM call → one typed artifact, as a real reactive `StepGroup`.
+    """One LLM call → one typed artifact, as a real reactive `Agent`.
 
     Built by `agent(...)`. `ask()` is the convenience path (fresh `Context`,
     create the `Question`, run, return the model); `.agent` and `.context` are
@@ -113,8 +113,8 @@ class QuickAgent(Generic[TSchema]):
         # Eager, so `.context` is a real `Context`, never `None` — the run
         # replaces it, but callers (and type checkers) never see a `None`.
         self.context: Context = Context(resources=self.resources)
-        self.agent = create_step_group(
-            name=name,
+        self.agent = Agent(
+            name,
             consumes=[Consume(question_type)],
             steps=[
                 _structured_produce(
@@ -154,7 +154,7 @@ def agent(
     """A one-shot structured agent: `system` prompt + pydantic `schema`.
 
     Equivalent to the hand-written `structured_llm` pattern, but materialized as
-    a reactive `StepGroup` (so it composes, traces, and re-runs on state like any
+    a reactive `Agent` (so it composes, traces, and re-runs on state like any
     other). Returns `None` from `.ask()` on the same honest-failure contract the
     rest of reactifact uses (no provider / provider error / unparseable reply).
 

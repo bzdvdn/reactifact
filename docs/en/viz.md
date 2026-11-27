@@ -18,11 +18,11 @@ GitHub, Notion, or [mermaid.live](https://mermaid.live).
 
 ```bash
 python -m reactifact run app:pipeline "why is checkout down?"
-reactifact graph examples.knowledge.step_groups        # all groups of a module
-python -m reactifact graph examples.knowledge.step_groups:Planner # one agent
-python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
-reactifact contracts examples.knowledge.step_groups          # Markdown contracts
-reactifact contracts examples.knowledge.step_groups --format json
+reactifact graph examples.knowledge.agents        # all agents of a module
+python -m reactifact graph examples.knowledge.agents:Planner # one agent
+python -m reactifact graph examples.knowledge.agents --check --seed UserQuery --terminal Answer
+reactifact contracts examples.knowledge.agents          # Markdown contracts
+reactifact contracts examples.knowledge.agents --format json
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
 reactifact check app.pipeline:pipeline --scenarios app.scenarios
@@ -42,12 +42,13 @@ reactifact demo --web
   tick); `new agent` writes a minimal one-file pipeline; `dev` boots an ASGI
   app with reload and prints the app/`/contracts`/`/traces` URLs; `demo --web`
   serves the no-key demo in a browser.
-- `graph` instantiates every `StepGroup` subclass defined in the module (or a
-  single one via `module:Attr`) and prints the blueprint. With `--check` it
+- `graph` discovers module-level `Agent` instances (and instantiates legacy
+  `Agent` subclasses) or takes a single one via `module:Attr`, then prints the
+  blueprint. With `--check` it
   runs `validate_contracts` instead: unknown inputs are errors (exit 1), dead
   outputs/unreachable/cycles are warnings; `--seed TYPE`/`--terminal TYPE` are
   repeatable.
-- `contracts` prints the declared surface (steps, consumes/produces, tools,
+- `contracts` prints the declared surface (steps, reads/produces, tools,
   timeout/retry) as Markdown or JSON; no run and no LLM.
 - `context` reads a saved session from a KV backend (file directory or
   SQLite) and prints its provenance graph; `--session` picks a session,
@@ -57,7 +58,7 @@ reactifact demo --web
 ## In the dashboard
 
 Apps can also mount the same contracts as a page with
-`reactifact.contracts.web.create_contracts_router(groups)` — `/contracts` (HTML), `/api/contracts`
+`reactifact.contracts.web.create_contracts_router(agents)` — `/contracts` (HTML), `/api/contracts`
 (JSON) and `/contracts.md` (Markdown). It is opt-in and supports Basic auth.
 
 The run page (`/traces/<run_id>`) renders the trace diagram live via Mermaid,

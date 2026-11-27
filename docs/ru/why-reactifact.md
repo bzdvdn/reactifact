@@ -13,7 +13,7 @@
 сам её выполнит; результат попадает в result backend. `reactifact` применяет
 ровно это к агентам:
 
-- **задача** — это `Step` / `@step(produces=Model, consumes=Input)`: единица работы, которая пишет артефакт;
+- **задача** — это `Step` / `@step(produces=Model, reads=Input)`: единица работы, которая пишет артефакт;
 - **триггер** — не сообщение, которое вы пушите: создание входного артефакта
   *и есть* триггер, а `Consume(Type)` говорит, какой тип артефакта будит задачу;
 - **chain / group / chord** — это просто несколько `consumes` / `produces`;
@@ -80,7 +80,7 @@ Answer —supported_by→ Claim —derived_from→ Evidence —extracted_from→
 возвращает типизированный артефакт:
 
 ```python
-@step(consumes=Question, produces=Answer)
+@step(reads=Question, produces=Answer)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 ```
@@ -103,7 +103,7 @@ Runtime проверяет результат по `produces`, коммитит 
 
 - **Расчёты считаются по-настоящему.** `Spreadsheet → Calculation` над CSV —
   детерминированный код, а не правдоподобно выдуманное число.
-- **Сработать или нет — решает состояние.** `consumes`/`When` шага решают,
+- **Сработать или нет — решает состояние.** `reads`/`When` шага решают,
   запускаться ли ему; LLM вызывается только на по-настоящему генеративных
   шагах.
 - **Честность важнее имитации.** При сбое шаг возвращает `None` (или не
@@ -130,7 +130,7 @@ Runtime проверяет результат по `produces`, коммитит 
 
 1. Применение коммита порождает **`Event`** — `artifact_created`,
    `artifact_updated`, `artifact_deleted` — каждый ссылается на артефакт по
-   типу и id (CONSTITUTION, фаза 4 «Реактивный рантайм»).
+   типу и id (CONSTITUTION, этап 4 «Реактивный рантайм»).
 2. Рантайм **забирает** эти события (`arun_once` → `drain_events()`) и для
    каждого спрашивает каждого агента: *ты реагируешь?* (`agent.matches(event)`).
 3. Решение о реакции — это ровно ваши объявления **`Consume`**: тип артефакта
@@ -171,18 +171,18 @@ Runtime проверяет результат по `produces`, коммитит 
 запуска, `Chat` — для разговора:
 
 ```python
-from reactifact import Chat, Pipeline
+from reactifact import Chat, Agent, Pipeline, PipelineRunner
 
 pipeline = Pipeline(
-    steps=[search, answer],
+    agents=[Agent("answer", steps=[search, answer])],
     seed_type=Question,
     answer_type=Answer,
     traces=True,
 )
-result = pipeline.run(Question(text="почему выросли расходы во Q2?"))
+result = PipelineRunner(pipeline).run(Question(text="почему выросли расходы во Q2?"))
 
 chat = Chat(
-    steps=[search, answer],
+    agents=[Agent("answer", steps=[search, answer])],
     store="sessions.db",
     seed_type=Question,
     answer_type=Answer,

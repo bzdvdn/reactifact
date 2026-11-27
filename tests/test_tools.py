@@ -2,6 +2,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Consume,
     Context,
@@ -10,7 +11,6 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
     tool,
 )
 from reactifact.effects import Effects
@@ -114,7 +114,7 @@ def test_single_agent_loop_and_report():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class K8sAgent(StepGroup):
+    class K8sAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [
             ToolUse(
@@ -179,7 +179,7 @@ def test_deferred_tool_group_loads_on_demand_once():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class DeferredAgent(StepGroup):
+    class DeferredAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [
             ToolUse(
@@ -237,7 +237,7 @@ def test_two_agents_do_not_crossfire():
                 return None
             call.effects.create(GitlabReport(text=a.data.text))
 
-    class K8sAgent(StepGroup):
+    class K8sAgent(Agent):
         consumes = [
             Consume(K8sProblems),
             Consume.by_field(ToolAnswer, "agent", "k8s"),  # only its own answers
@@ -251,7 +251,7 @@ def test_two_agents_do_not_crossfire():
             BuildK8sReport(),
         ]
 
-    class GitlabAgent(StepGroup):
+    class GitlabAgent(Agent):
         # reacts to GitlabProblems and AnsibleProblems; woken only by its own answers
         consumes = [
             Consume(GitlabProblems),
@@ -308,7 +308,7 @@ def test_tool_failure_is_returned_to_llm():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class Agent1(StepGroup):
+    class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("У тебя есть тул flaky.", [flaky]), BuildReport()]
 
@@ -339,7 +339,7 @@ def test_budget_max_tool_calls_stops_loop():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class Agent1(StepGroup):
+    class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl]), BuildReport()]
 
@@ -369,7 +369,7 @@ def test_unknown_tool_reported_to_llm():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class Agent1(StepGroup):
+    class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl]), BuildReport()]
 
@@ -443,7 +443,7 @@ def test_llm_agent_tools_only_no_produces():
                 return None
             call.effects.create(ChatReply(text=a.data.text))
 
-    class BaseChat(StepGroup):
+    class BaseChat(Agent):
         consumes = [Consume.by_field(ToolAnswer, "agent", "helperagent")]
         produces = [RenderFromBaseChat()]
 
@@ -477,7 +477,7 @@ def test_forced_answer_when_loop_hits_step_limit():
                 return None
             call.effects.create(K8sReport(text=a.data.text))
 
-    class Agent1(StepGroup):
+    class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl], max_steps=2), BuildReport()]
 

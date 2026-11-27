@@ -8,13 +8,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Consume,
     Context,
     Runtime,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.audit import context_hash
 
@@ -35,7 +35,7 @@ class Increment(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1), id="counter")
 
 
-class IncrementAgent(StepGroup):
+class IncrementAgent(Agent):
     name = "increment"
     consumes = [Consume(Number)]
     produces = [Increment()]

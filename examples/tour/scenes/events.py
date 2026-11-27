@@ -7,12 +7,12 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Context,
     Progress,
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
     tool,
 )
 from reactifact.providers import (
@@ -58,7 +58,7 @@ async def echo_tool(text: str) -> str:
 
 
 class EchoStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(
@@ -86,7 +86,7 @@ async def run_events() -> dict[str, Any]:
     context.create(Question(text="hi"), id="question:1")
     runtime = Runtime(
         context,
-        groups=[create_step_group("events", steps=[EchoStep()])],
+        agents=[Agent("events", steps=[EchoStep()])],
     )
 
     events = [

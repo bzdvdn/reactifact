@@ -92,40 +92,41 @@ async def run(self, effects: Effects) -> None:
 | `Link` | соединить `source →rel→ target` (провенанс) |
 | `Unlink` | убрать связь |
 
-`Patch` (контейнер) собирает рантайм и escape-хук `StepGroup.run`; эффекты
+`Patch` (контейнер) собирает рантайм и escape-хук `Agent.run`; эффекты
 сочетаются *внутри* одного produce, поэтому ничего не применяется до компиляции
 рантаймом — атомарность структурная (§41).
 
 HITL — это `human.ask(...)` → `PendingQuestion`, ответ через
 `human.resume(...)` (см. [patterns](patterns.md)).
 
-## 4. StepGroup (опциональный контейнер)
+## 4. Agent (опциональный контейнер)
 
 Модель — это шаги. **`Runtime(ctx, steps=[...])`** оборачивает каждый шаг в
-неявную группу из одного, так что в обычном случае контейнер не нужен вовсе.
-**`StepGroup`** — необязательный контейнер для шагов, которым нужно что-то
+неявного агента из одного, так что в обычном случае контейнер не нужен вовсе.
+**`Agent`** — необязательный контейнер для шагов, которым нужно что-то
 общее: один триггер, retry-политика, timeout, priority, лимит параллельности
-или один атомарный коммит. `Runtime` принимает `steps=` и `groups=` вместе
+или один атомарный коммит. `Runtime` принимает `steps=` и `agents=` вместе
 (сначала шаги).
 
 ```python
-from reactifact import StepGroup
+from reactifact import Agent
 
-class RepairFlow(StepGroup):
-    name = "repair_flow"
-    steps = [
+RepairFlow = Agent(
+    "repair_flow",
+    steps=[
         CollectStage(), PickStage(), PlanStage(),
         EstimateStage(), ApprovalStage(), AssistantStage(),
-    ]
+    ],
+)
 ```
 
-- `steps` — экземпляры шагов. `consumes` шага питает его типизированные входы и
-  решает, какие события могут его запустить; `produces` — разрешённый набор
+- `steps` — экземпляры шагов. `reads` шага питает его типизированные входы и
+  не даёт шагу выполниться, пока этих артефактов нет; `produces` — разрешённый набор
   Create-типов. Основной output идёт первым, дополнительные create-only типы —
   в том же tuple: `produces = (Primary, Extra)`; старое написание
   `also_creates=` удалено в 0.23, поэтому дополнительные типы указываются
   прямо в `produces`.
-- `StepGroup.consumes` остаётся для imperative escape hatch (группа
+- `Agent.consumes` остаётся для imperative escape hatch (группа
   переопределяет `run(event, context)`), но декларативный код держит контракты
   на шагах.
 - Если `consumes` задан явно, типизированные артефактные параметры, которых там
@@ -137,9 +138,9 @@ class RepairFlow(StepGroup):
   `AbsentConsume` коррелируют типы — см. [patterns](patterns.md).
 - Runtime будит группы по событиям, соблюдая бюджет и параллельность.
 
-`StepGroup.run(event, context) -> Patch | None` остаётся низкоуровневым escape
+`Agent.run(event, context) -> Patch | None` остаётся низкоуровневым escape
 hatch для ручной сборки `Patch`; это не третий повседневный стиль.
-Алиасы `Agent`/`create_agent` удалены в 0.24; используйте `StepGroup`/`create_step_group`.
+Алиасы `Agent`/`create_agent` удалены в 0.24; используйте `Agent(...)`.
 
 ## 5. Step
 
@@ -151,7 +152,7 @@ hatch для ручной сборки `Patch`; это не третий пов�
 from reactifact import Artifact, Effects, Progress, Step
 
 class EstimateStage(Step):
-    consumes = (Project,)
+    reads = (Project,)
     produces = (Project,)
 
     async def run(
@@ -175,14 +176,14 @@ pydantic-настройки (`resources.register(Settings, Settings(...))`) мо
 инжектить как ресурс; незарегистрированные pydantic-модели остаются
 артефактами.
 
-Когда `consumes` задан явно, это **набор пробуждений** шага, а типизированная
-подпись — **набор чтений**. Типизированный артефактный параметр, которого нет в
-`consumes`, автоматически добавляется как read-only вход
-(`Consume(T, wakes=False)`):
+Явный `reads` — это **набор входов** шага; типизированная подпись добавляет
+остальные чтения. Типизированный артефактный параметр, которого нет в
+`reads`, автоматически добавляется как read-only вход
+(`Read(T, required=False)`):
 
 ```python
 class PickStage(Step):
-    consumes = (UserMsg,)          # будит только новое сообщение
+    reads = (UserMsg,)          # только новое сообщение даёт вход
 
     async def run(
         self,
@@ -193,9 +194,9 @@ class PickStage(Step):
 ```
 
 `project` по-прежнему собирается, валидируется и попадает в provenance — он
-просто никогда не будит шаг сам по себе. Если `consumes` не задан, типизированная
-подпись выводит и триггеры, и входы; отдельный read-only вход там помечается
-`Annotated[T, Wakes(False)]`. `Latest[T]` остаётся разовым запросом к контексту,
+просто никогда не будит шаг сам по себе. Если `reads` не задан, типизированная
+подпись выводит его чтения; отдельный read-only вход там помечается
+`Annotated[T, Wakes(False)]` или `Read(T, required=False)`. `Latest[T]` остаётся разовым запросом к контексту,
 а не объявленным входом.
 
 `T` инжектит модель данных, а `Artifact[T]` — handle (id, версия, для `Edit`/
@@ -206,7 +207,7 @@ class PickStage(Step):
 `call.effects`:
 
 ```python
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer(call: StepCall) -> Answer:
     return Answer(text=call.trigger.data.text)
 ```
@@ -216,7 +217,7 @@ async def answer(call: StepCall) -> Answer:
 созданные эффектами. См. [effects](effects.md) и [patterns](patterns.md).
 
 Соглашение: **сначала детерминизм** (§67). Право на запуск решают
-`consumes`/`When` шага, а не ручное ребро графа; LLM применяется только к
+`reads`/`When` шага, а не ручное ребро графа; LLM применяется только к
 генеративным задачам и оборачивается схемой + фолбэком.
 
 ## 6. Провенанс
@@ -265,9 +266,9 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 
 | Что нужно | Что использовать | Заметка |
 | --- | --- | --- |
-| Одно типизированное преобразование | `@step(produces=..., consumes=...)` | верните модель или используйте `call.effects` для update/link |
+| Одно типизированное преобразование | `@step(produces=..., reads=...)` | верните модель или используйте `call.effects` для update/link |
 | Типизированные входы, несколько эффектов, HITL | класс `Step` с `run(..., effects: Effects)` | полная форма; см. [Effects](effects.md) |
-| Ручная сборка операций / императивный агент | `Patch`, `StepGroup.run(event, context)` | escape hatch, не повседневный стиль |
+| Ручная сборка операций / императивный агент | `Patch`, `Agent.run(event, context)` | escape hatch, не повседневный стиль |
 
 ### Планирование
 

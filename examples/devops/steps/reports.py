@@ -29,19 +29,19 @@ class _ReportBuilder(Step):
 
 
 class K8sReportBuilder(_ReportBuilder):
-    consumes = (ToolAnswer,)
+    reads = (ToolAnswer,)
     produces = (K8sReport,)
     report_type = K8sReport
 
 
 class GitlabReportBuilder(_ReportBuilder):
-    consumes = (ToolAnswer,)
+    reads = (ToolAnswer,)
     produces = (GitlabReport,)
     report_type = GitlabReport
 
 
 class AnsibleReportBuilder(_ReportBuilder):
-    consumes = (ToolAnswer,)
+    reads = (ToolAnswer,)
     produces = (AnsibleReport,)
     report_type = AnsibleReport
 

@@ -33,7 +33,7 @@ from .models import (
     TaskQueryParams,
 )
 
-#: Well-known StepGroup Card paths (v0.3 recommends `agent-card.json`; v0.2 used
+#: Well-known Agent Card paths (v0.3 recommends `agent-card.json`; v0.2 used
 #: `agent.json` — the server serves both).
 AGENT_CARD_PATH = "/.well-known/agent-card.json"
 LEGACY_AGENT_CARD_PATH = "/.well-known/agent.json"
@@ -83,7 +83,7 @@ def _parse_result(result: Any) -> Task | Message | dict[str, Any]:
 class A2AClient:
     """A JSON-RPC A2A client for one server `url`.
 
-    `url` is the JSON-RPC endpoint from the server's StepGroup Card; the card is
+    `url` is the JSON-RPC endpoint from the server's Agent Card; the card is
     fetched from the well-known path on the same origin unless `card_url` is
     given. `headers` are sent on every request (auth lives here, per the spec:
     credentials travel in HTTP headers, not in A2A messages). Pass `client=` to

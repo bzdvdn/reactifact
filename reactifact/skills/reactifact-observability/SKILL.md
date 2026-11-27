@@ -19,7 +19,7 @@ from reactifact.tracing import TraceStore
 from reactifact import Runtime
 
 store = TraceStore("traces.db", max_runs=200)
-runtime = Runtime(ctx, groups=agents, tracer=store)
+runtime = Runtime(ctx, agents=agents, tracer=store)
 await runtime.arun()
 ```
 
@@ -33,7 +33,7 @@ and `LangfuseTracer`; `TraceStore` also has a `PostgresStore` variant.
 
 ## Contracts page
 
-`create_contracts_router(groups)` (`reactifact.contracts.web`) serves the
+`create_contracts_router(agents)` (`reactifact.contracts.web`) serves the
 declared surface as `/contracts` (HTML), `/api/contracts` (JSON) and
 `/contracts.md`; it is opt-in, supports Basic auth, and complements the trace
 dashboard. `reactifact contracts <module>` is the CLI form.
@@ -47,7 +47,7 @@ from the same tracing hook, so one `Runtime` gives both traces and metrics:
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, Runtime, RuntimeResources, Step, create_step_group,
+    Agent, Context, Runtime, RuntimeResources, Step,
 )
 from reactifact.metrics import Metrics, MetricsTracer
 
@@ -61,23 +61,20 @@ class Answer(BaseModel):
 
 
 class Answerer(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text)
 
 
-class AnswerAgent(StepGroup):
-    steps = [Answerer()]
-
-
-agent = AnswerAgent()
+AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+agent = AnswerAgent
 
 metrics = Metrics()
 ctx = Context(resources=RuntimeResources(metrics=metrics))
 ctx.create(Question(text="hi"))
-asyncio.run(Runtime(ctx, groups=[agent], tracer=MetricsTracer(metrics)).arun())
+asyncio.run(Runtime(ctx, agents=[agent], tracer=MetricsTracer(metrics)).arun())
 
 assert 'reactifact_runs_total{outcome="completed"} 1' in metrics.render()
 ```
@@ -103,7 +100,7 @@ from reactifact.checkpoints import FileKVBackend
 
 store = SessionStore(FileKVBackend("./sessions"))
 session = await store.open("user-42", resources=resources)
-runtime = Runtime(session.context, groups=agents, session=session)
+runtime = Runtime(session.context, agents=agents, session=session)
 await runtime.arun()          # saves per commit (session_save_policy="per_commit")
 # later, in a new process:
 session = await store.open("user-42", resources=resources)

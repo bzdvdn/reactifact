@@ -6,16 +6,16 @@ import inspect
 import types
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
 
-from ..artifacts import Artifact
-from ..context import Context
-from ..effects import Effects
-from ..events import Event
-from ..interaction import Human, Outbox, Progress
-from ..request import CurrentRequest
+from ...artifacts import Artifact
+from ...context import Context
+from ...effects import Effects
+from ...events import Event
+from ...interaction import Human, Outbox, Progress
+from ...request import CurrentRequest
 from .annotations import Latest, Scope, Unscoped
 from .call import StepCall
 from .core import Step, _annotation_types, _scope_matches, _scope_value
@@ -417,14 +417,18 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
         # 0.1.x class-style step: override `produce`, inherited `run`.
         return await step.run(call)
     target = func if func is not None else step.run
+    owner = getattr(step, "_owner", None)
+    prefix: tuple[Any, ...] = (owner,) if owner is not None else ()
     signature = inspect.signature(target)
     params = list(signature.parameters.values())
+    if owner is not None and params and params[0].name == "self":
+        params = params[1:]
     if not params:
-        return await _call_target(cast(Any, target))
+        return await _call_target(target, *prefix)
     if len(params) == 1 and (
         params[0].name in {"call", "step_call"} or params[0].annotation is StepCall
     ):
-        return await _call_target(target, call)
+        return await _call_target(target, *prefix, call)
     hints = _resolved_hints(target)
     scope = getattr(step, "scope", None)
     scope_value = call.scope
@@ -441,4 +445,4 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
         )
         for param in params
     }
-    return await _call_target(target, **kwargs)
+    return await _call_target(target, *prefix, **kwargs)

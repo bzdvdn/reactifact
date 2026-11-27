@@ -42,7 +42,7 @@ Python-разработчик уже знает эту модель по Celery:
 
 | Celery | reactifact |
 | --- | --- |
-| задача (task) | `Step` / `@step(produces=Model, consumes=Input)` — единица работы, пишущая артефакт |
+| задача (task) | `Step` / `@step(produces=Model, reads=Input)` — единица работы, пишущая артефакт |
 | `delay()` / `apply_async()` | вызывать не нужно: создание входного артефакта **и есть** триггер |
 | routing key / очередь | `Consume(Type)` — какой тип артефакта будит задачу |
 | chain / group / chord | несколько `consumes` / `produces`; порядок рантайм выводит сам |
@@ -172,7 +172,7 @@ DOCS = {
 }
 
 
-@step(produces=Evidence, consumes=Question)
+@step(produces=Evidence, reads=Question)
 async def find_evidence(call):
     question = call.trigger
     hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
@@ -180,7 +180,7 @@ async def find_evidence(call):
         call.effects.create(Evidence(text=hit))
 
 
-@step(produces=Answer, consumes=Evidence)
+@step(produces=Answer, reads=Evidence)
 async def answer_from_evidence(call):
     evidence = call.trigger
     call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
@@ -215,7 +215,7 @@ print("supported_by:", evidence.data.text)  # провенанс, который
   без графа, почему детерминизм, почему версионируемое состояние.
 - [Сравнение](comparison.md) — reactifact vs LangGraph/CrewAI по пунктам, и когда
   reactifact *не* стоит использовать.
-- [Concepts](concepts.md) — Context, Artifact, Patch, Step, StepGroup.
+- [Concepts](concepts.md) — Context, Artifact, Patch, Step, Agent.
 
 **Строить на этом**
 

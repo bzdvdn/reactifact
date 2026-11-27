@@ -27,7 +27,7 @@ keeps **typed, versioned artifacts** — so a turn's provenance, the ability to
 mounts it as SSE on your FastAPI app. Configure it with types and hooks:
 
 ```python
-from reactifact import Chat, Consume, RuntimeResources, create_step_group
+from reactifact import Chat, Consume, RuntimeResources, Agent
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.recipes.conversation import (
     ConversationMessage, conversation_state, create_turn,
@@ -36,7 +36,7 @@ from reactifact.session import SessionStore
 
 assistant = Chat(
     store=SessionStore(SQLiteKVBackend("./sessions.db")),
-    groups=[create_step_group("answer", steps=[ANSWER])],
+    agents=[Agent("answer", steps=[ANSWER])],
     seed_type=ConversationMessage,
     create_message=create_turn,          # record the user message as a ConversationMessage
     reply=my_reply,                      # (ctx, msg_id) -> {"reply": ...}
@@ -48,7 +48,7 @@ await assistant.invoke("what's the refund policy?", session_id="user-1")
 await assistant.history(session_id="user-1")   # the thread so far
 ```
 
-A ready-made `quick.chat_agent(groups, store=…)` does the same with defaults.
+A ready-made `quick.chat_agent(agents, store=…)` does the same with defaults.
 
 The facade mirrors `Pipeline` where it matters: `Chat(traces=True|path)`
 opens a `TraceStore`, `trace_sample=` applies the same sampling policy,

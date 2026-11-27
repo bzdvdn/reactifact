@@ -18,7 +18,7 @@ Seventeen independent scenes, all runnable offline:
 - `swarm`      — peer handoff chain with a hop/cycle guard;
 - `replay`     — record a tool call, then replay the run without I/O;
 - `experiment` — A/B variants on a dataset, scored, with a winner;
-- `validate`   — static consumes/produces contract check;
+- `validate`   — static reads/produces contract check;
 - `memory`     — namespaced long-term memory with search/TTL.
 
 Run:  .venv/bin/python -m examples.tour.main

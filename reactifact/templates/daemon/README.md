@@ -23,7 +23,7 @@ APP_RUN_ONCE=true uv run python -m app.main
 app/
   main.py       # signal handling + interval loop
   runner.py     # one tick: Context -> Runtime -> Report
-  monitor.py    # MonitorAgent / MonitorStep
+  monitor.py    # monitor_agent / MonitorStep
   models.py     # Tick, Report
   prompts.py    # prompt text outside the step
   resources.py  # per-tick RuntimeResources (LLM + service principal)

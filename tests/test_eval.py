@@ -163,18 +163,18 @@ def test_report_render_and_dict():
 
 
 def _run_knowledge_calc() -> Context:
-    from examples.knowledge.models import UserQuery
-    from examples.knowledge.step_groups import (
+    from examples.knowledge.agents import (
         AnswerBuilder,
-        CalculatorGroup,
+        Calculator,
         EvidenceBuilder,
         Planner,
         ProgressEvaluator,
-        ResolverGroup,
+        Resolver,
         SearchScout,
         TableResolver,
-        VerifierGroup,
+        Verifier,
     )
+    from examples.knowledge.models import UserQuery
     from reactifact import Budget, Runtime
     from reactifact.recipes import keyword_score
     from reactifact.sources import CSVSource, FileSystemSource
@@ -195,16 +195,16 @@ def _run_knowledge_calc() -> Context:
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        groups=[
-            Planner(),
-            SearchScout(),
-            ResolverGroup(),
-            TableResolver(),
-            EvidenceBuilder(),
-            VerifierGroup(),
-            CalculatorGroup(),
-            ProgressEvaluator(),
-            AnswerBuilder(),
+        agents=[
+            Planner,
+            SearchScout,
+            Resolver,
+            TableResolver,
+            EvidenceBuilder,
+            Verifier,
+            Calculator,
+            ProgressEvaluator,
+            AnswerBuilder,
         ],
         budget=Budget(max_runs=80),
     )

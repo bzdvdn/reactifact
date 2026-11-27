@@ -27,13 +27,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from ..agent import Agent, Step
 from ..artifacts import Artifact
 from ..consume import Consume
 from ..context import Context
 from ..effects import Effects
 from ..interaction import Human
 from ..interrupt import PendingQuestion
-from ..step import Step, StepGroup, create_step_group
 from .client import A2AClient
 from .models import Message, Task
 
@@ -155,8 +155,8 @@ def remote_agent(
     card_url: str | None = None,
     headers: dict[str, str] | None = None,
     client: Any | None = None,
-) -> StepGroup:
-    """Builds an `StepGroup` that runs a remote A2A agent as a scheduled node.
+) -> Agent:
+    """Builds a `Agent` that runs a remote A2A agent as a scheduled node.
 
     `consumes` are the local artifact types that wake it; `output_type` is what
     it produces. A `PendingQuestion` resume is wired automatically (scoped by
@@ -179,7 +179,7 @@ def remote_agent(
             and artifact.data.notes.get("a2a_agent") == name
         ),
     )
-    return create_step_group(name, consumes=[*consumes, resume], steps=[produce])
+    return Agent(name, consumes=[*consumes, resume], steps=[produce])
 
 
 __all__ = [

@@ -6,7 +6,7 @@ from typing import Annotated, Any
 import pytest
 from pydantic import BaseModel
 from reactifact import Artifact, Context, Latest, Runtime, Step, Wakes
-from reactifact.step.resolve import MissingInputError
+from reactifact.agent.step.resolve import MissingInputError
 
 
 class Question(BaseModel):

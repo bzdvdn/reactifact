@@ -27,7 +27,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     )
     p_contracts.add_argument(
         "module",
-        help='module path, e.g. "examples.knowledge.step_groups" or "pkg.mod:Pipeline"',
+        help='module path, e.g. "examples.knowledge.agents" or "pkg.mod:Pipeline"',
     )
     p_contracts.add_argument(
         "--format",

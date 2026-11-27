@@ -72,7 +72,7 @@ uv run python -m examples.knowledge.eval    # метрики retrieval без AP
 ```
 
 Ключевые файлы: `steps/` (common, router, search, evidence, calc, lifecycle),
-`step_groups.py`, `web.py`.
+`agents.py` (определения `Agent`), `web.py`.
 
 ## `knowledge_base` — code-first индексация и поиск
 

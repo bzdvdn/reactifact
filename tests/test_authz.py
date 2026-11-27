@@ -5,12 +5,12 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
 )
 from reactifact.authz import (
     Access,
@@ -38,9 +38,7 @@ class Rewrite(Step[Note]):
 def _run(resources):
     ctx = Context(resources=resources)
     ctx.create(Question(text="hi"))
-    agent = create_step_group(
-        "rewrite", consumes=[Consume(Question)], produces=[Rewrite()]
-    )
+    agent = Agent("rewrite", consumes=[Consume(Question)], steps=[Rewrite()])
     asyncio.run(Runtime(ctx, groups=[agent]).arun())
     return ctx
 
@@ -159,6 +157,6 @@ def test_access_is_injectable_into_a_step():
     )
     context = Context(resources=resources)
     context.create(Question(text="hi"))
-    agent = create_step_group("rewrite", steps=[Probe()])
+    agent = Agent("rewrite", steps=[Probe()])
     asyncio.run(Runtime(context, groups=[agent]).arun())
     assert context.latest(Note).data.text == "yes"

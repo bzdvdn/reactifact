@@ -8,6 +8,7 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Consume,
     Context,
@@ -16,7 +17,6 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -61,7 +61,7 @@ class Chatty(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1))
 
 
-class ChattyAgent(StepGroup):
+class ChattyAgent(Agent):
     name = "chatty"
     consumes = [Consume(Number)]
     produces = [Chatty()]
@@ -98,7 +98,7 @@ class Streaming(Step[Number]):
         call.effects.create(Number(value=trigger.data.value + 1))
 
 
-class StreamingAgent(StepGroup):
+class StreamingAgent(Agent):
     name = "streaming"
     consumes = [Consume(Number)]
     produces = [Streaming()]
@@ -109,7 +109,7 @@ def _price(model: str, prompt: int, completion: int) -> float:
 
 
 def _run(
-    agent: StepGroup,
+    agent: Agent,
     budget: Budget,
     llm: LLMProvider,
     *,

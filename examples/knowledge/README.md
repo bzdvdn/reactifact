@@ -21,7 +21,7 @@ knowledge/
 ├── eval.py            # offline retrieval metrics (no API key)
 ├── web.py            # FastAPI/SSE app + traces + /knowledge status
 ├── models.py         # artifact types (Question, Evidence, Claim, Answer, …)
-├── step_groups.py    # thin containers + the shared GROUPS list
+├── agents.py    # Agent containers + the shared PIPELINE
 ├── steps/            # staged pipeline (each Step is its concern):
 │   ├── common.py     #   routing regexes, chat memory, claim/verdict helpers
 │   ├── router.py     #   greeting / direct reply vs research
@@ -81,7 +81,7 @@ There is no orchestration to wire up: each agent declares what it
 The picture above simplifies the flagship question (`how much does gpu cost
 in total?`) down to its two independent branches. This is the actual static
 map of all 9 agents in this demo
-(`python -m reactifact graph examples.knowledge.step_groups`):
+(`python -m reactifact graph examples.knowledge.agents`):
 
 ```mermaid
 flowchart LR

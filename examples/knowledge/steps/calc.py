@@ -65,7 +65,7 @@ class CalculateAggregate(Step):
     Provenance: Calculation —derived_from→ Spreadsheet.
     """
 
-    consumes = (Spreadsheet,)
+    reads = (Spreadsheet,)
     produces = (Calculation,)
     scope = "query_id"
 

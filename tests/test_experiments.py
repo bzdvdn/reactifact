@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Step, StepGroup
+from reactifact import Agent, Consume, Context, Step
 from reactifact.eval.dataset import Dataset
 from reactifact.experiments import Experiment
 
@@ -34,14 +34,14 @@ class LowerStep(Step):
         return Answer(text=question.text.lower())
 
 
-class UpperAgent(StepGroup):
+class UpperAgent(Agent):
     consumes = [Consume(Question)]
 
     def __init__(self) -> None:
         super().__init__(name="upper", steps=[UpperStep()])
 
 
-class LowerAgent(StepGroup):
+class LowerAgent(Agent):
     consumes = [Consume(Question)]
 
     def __init__(self) -> None:

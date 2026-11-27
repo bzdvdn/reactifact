@@ -55,7 +55,7 @@
 
 4. **Order.** Не-debounced работа собирается в порядке `(порядок событий ×
    приоритет агента)`; debounced-записи добавляются после, затем весь список
-   **стабильно сортируется по `StepGroup.priority`** (по возрастанию). То есть
+   **стабильно сортируется по `Agent.priority`** (по возрастанию). То есть
    `priority` — внешний ключ упорядочивания, а при равенстве сохраняется
    порядок вставки.
 
@@ -140,7 +140,7 @@
 - **Сериализованный коммит.** Патчи применяются только после того, как все
   воркеры поколения завершились — поколение это барьер.
 - **Ограниченный параллелизм.** `Runtime.max_concurrency` ограничивает глобально;
-  `StepGroup.concurrency_limit` — отдельного агента (удобно тормозить LLM-bound
+  `Agent.concurrency_limit` — отдельного агента (удобно тормозить LLM-bound
   produces отдельно от дешёвого I/O).
 - **Изолированные слоты эффектов.** Один слот `Effects` на produce (contextvar,
   который пушит рантайм) — параллельные produces не наблюдают незакоммиченные
@@ -243,7 +243,7 @@
 | Понятие | Код | Конституция |
 | --- | --- | --- |
 | Цикл поколений | `reactifact/runtime/runtime.py` `_arun_once_impl`, `_arun_impl` | §21, §23, §24 |
-| Матчинг | `reactifact/triggers.py` `Trigger.matches`, `reactifact/step/group.py` `matching_triggers` | §22 |
+| Матчинг | `reactifact/triggers.py` `Trigger.matches`, `reactifact/agent/agent.py` `matching_triggers` | §22 |
 | Debounce / порядок / обрезка бюджета | `reactifact/runtime/runtime.py` `_arun_once_impl` | §24, §58 |
 | Политика планирования | `reactifact/scheduler.py` `Scheduler` | §26 |
 | Конкурентность | `reactifact/runtime/runtime.py` `_dispatch` | §42, §58 |

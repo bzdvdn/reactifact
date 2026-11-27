@@ -9,13 +9,12 @@ import httpx
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     Step,
     StepCall,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -153,7 +152,7 @@ class Ask(Step[Answer]):
 
 
 def test_router_works_inside_a_runtime():
-    agent = create_step_group("ask", consumes=[Consume(Question)], produces=[Ask()])
+    agent = Agent("ask", consumes=[Consume(Question)], steps=[Ask()])
     resources = RuntimeResources(
         llm=RouterLLM([Boom(ConnectionError("primary down")), OK("answered")])
     )
@@ -162,6 +161,6 @@ def test_router_works_inside_a_runtime():
 
     asyncio.run(Runtime(ctx, groups=[agent]).arun())
 
-    assert isinstance(agent, StepGroup)
+    assert isinstance(agent, Agent)
     assert ctx.latest(Answer) is not None
     assert ctx.latest(Answer).data.text == "answered"

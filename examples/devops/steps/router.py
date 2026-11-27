@@ -27,7 +27,7 @@ class RouteProblem(Step):
     is unavailable or did not answer — the keyword fallback (§67).
     """
 
-    consumes = (UserMsg,)
+    reads = (UserMsg,)
     produces = (K8sProblem, GitlabProblem, AnsibleProblem, ChatReply)
 
     async def run(

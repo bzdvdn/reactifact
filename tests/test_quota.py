@@ -4,6 +4,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     FakeLLM,
@@ -11,7 +12,6 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
 )
 from reactifact.authz import Principal
 from reactifact.providers.contracts import (
@@ -105,9 +105,7 @@ def _resources(quota: QuotaTracker) -> RuntimeResources:
 
 
 def _group():
-    return create_step_group(
-        "classify", consumes=[Consume(Question)], produces=[Classify()]
-    )
+    return Agent("classify", consumes=[Consume(Question)], steps=[Classify()])
 
 
 def test_runtime_counts_then_stops_on_quota():

@@ -18,7 +18,7 @@ the same ground-truth-free metrics inside a run.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup, Context, FakeLLM, Runtime, RuntimeResources, Step, create_step_group,
+    Agent, Context, FakeLLM, Runtime, RuntimeResources, Step,
 )
 from reactifact.eval import (
     Dataset, answer_present, evaluate, from_metric, judge_relevance,
@@ -35,25 +35,22 @@ class Answer(BaseModel):
 
 
 class Answerer(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text.upper())
 
 
-class AnswerAgent(StepGroup):
-    steps = [Answerer()]
-
-
-agent = AnswerAgent()
+AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+agent = AnswerAgent
 
 
 def target(inputs):
     # A target may return a Context, a ScenarioResult, an outputs dict, or RunResult.
     ctx = Context(resources=RuntimeResources())
     ctx.create(Question(text=inputs["text"]))
-    asyncio.run(Runtime(ctx, groups=[agent]).arun())
+    asyncio.run(Runtime(ctx, agents=[agent]).arun())
     return ctx
 
 
@@ -201,11 +198,10 @@ self-scheduling:
 
 ```python
 # not-run: illustrative
-from reactifact import StepGroup
+from reactifact import Agent
 from reactifact.verify import Verify
 
-class Answerer(StepGroup):
-    steps = [BuildAnswer(), Verify(Answer)]
+Answerer = Agent("answerer", steps=[BuildAnswer(), Verify(Answer)])
 ```
 
 The containing group needs no dummy `Step(...)` entries: `Verify` declares its

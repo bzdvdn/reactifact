@@ -11,12 +11,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
 )
 from reactifact.a2a import (
     A2AAgentTool,
@@ -72,7 +72,7 @@ class AskOrAnswer(Step[Answer]):
 
 
 def _echo_group():
-    return create_step_group("echo", consumes=[Consume(UserMessage)], produces=[Echo()])
+    return Agent("echo", consumes=[Consume(UserMessage)], steps=[Echo()])
 
 
 def _app(agents):
@@ -192,7 +192,7 @@ def test_server_stream_cancels_run_when_the_client_disconnects():
     from reactifact.a2a.models import MessageSendParams
     from reactifact.a2a.server import _A2AServer, default_create_message, default_reply
 
-    slow = create_step_group("slow", consumes=[Consume(UserMessage)], produces=[Slow()])
+    slow = Agent("slow", consumes=[Consume(UserMessage)], steps=[Slow()])
     server = _A2AServer(
         [slow],
         context_factory=Context,
@@ -220,10 +220,10 @@ def test_server_stream_cancels_run_when_the_client_disconnects():
 
 
 def test_hitl_input_required_then_resume():
-    agent = create_step_group(
+    agent = Agent(
         "asker",
         consumes=[Consume(UserMessage), Consume(PendingQuestion)],
-        produces=[AskOrAnswer()],
+        steps=[AskOrAnswer()],
     )
     client = TestClient(_app([agent]))
     first = _rpc(
@@ -374,10 +374,10 @@ def test_remote_agent_runs_as_a_local_node():
 
 
 def test_remote_agent_maps_input_required_to_hitl():
-    asker = create_step_group(
+    asker = Agent(
         "asker",
         consumes=[Consume(UserMessage), Consume(PendingQuestion)],
-        produces=[AskOrAnswer()],
+        steps=[AskOrAnswer()],
     )
     app = _app([asker])
     a2a, http = _client_for(app)

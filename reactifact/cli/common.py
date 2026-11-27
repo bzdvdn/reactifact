@@ -7,8 +7,8 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
+from ..agent import Agent
 from ..pipeline import Pipeline
-from ..step import StepGroup
 
 #: Where `reactifact run` writes traces and `reactifact trace` reads them.
 DEFAULT_TRACE_PATH = ".reactifact/traces.db"
@@ -42,7 +42,7 @@ def load_pipeline(spec: str) -> Pipeline:
     return value
 
 
-def load_agents(spec: str) -> list[StepGroup]:
+def load_agents(spec: str) -> list[Agent]:
     module_name, has_attr, attr = spec.partition(":")
     try:
         module = importlib.import_module(module_name)
@@ -54,35 +54,35 @@ def load_agents(spec: str) -> list[StepGroup]:
         ) from exc
     if has_attr:
         obj = getattr(module, attr)
-        if isinstance(obj, StepGroup):
+        if isinstance(obj, Agent):
             return [obj]
         if isinstance(obj, (list, tuple)):
             if not obj:
                 raise SystemExit(f"{spec!r} resolved to an empty list")
-            agents = [o for o in obj if isinstance(o, StepGroup)]
+            agents = [o for o in obj if isinstance(o, Agent)]
             if len(agents) != len(obj):
                 raise SystemExit(
-                    f"{spec!r} must resolve to an StepGroup or a list of Agents"
+                    f"{spec!r} must resolve to an Agent or a list of agents"
                 )
             return agents
-        raise SystemExit(f"expected an StepGroup or list[StepGroup] at {spec!r}")
+        raise SystemExit(f"expected an Agent or list[Agent] at {spec!r}")
 
-    agents = [value for value in vars(module).values() if isinstance(value, StepGroup)]
+    agents = [value for value in vars(module).values() if isinstance(value, Agent)]
     if not agents:
         # The demos instantiate their agents inline — synthesize the blueprint
-        # from every StepGroup subclass defined in the module (stateless containers).
+        # from every Agent subclass defined in the module (stateless containers).
         classes = [
             value
             for _name, value in sorted(vars(module).items())
             if isinstance(value, type)
-            and issubclass(value, StepGroup)
-            and value is not StepGroup
+            and issubclass(value, Agent)
+            and value is not Agent
             and value.__module__ == module_name
         ]
         agents = [cls() for cls in classes]
     if not agents:
         raise SystemExit(
-            f"no StepGroup instances or subclasses found in {module_name!r}; "
+            f"no Agent instances or subclasses found in {module_name!r}; "
             'use the "module:Attr" form'
         )
     return agents

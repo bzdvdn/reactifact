@@ -16,7 +16,7 @@ Scenes:
 | `reactive` | typed inputs, `Latest`, implicit read-only inputs, `Consume(..., debounce=True)` |
 | `durable` | `SQLiteKVBackend` + `SessionStore`, restart, pending-event resume, `replay_context` |
 | `model` | an optional LLM step through `llm_reply`, with an offline fallback |
-| `resilience` | `StepGroup.retry` with `RetryPolicy`, `Step.timeout` |
+| `resilience` | `Agent.retry` with `RetryPolicy`, `Step.timeout` |
 | `hitl` | `human.ask(..., schema=Model)` + typed `context.resume(...)` |
 | `knowledge` | offline ingestion, hybrid retrieval, diagnostics and retrieval metrics |
 | `time_travel` | `context.checkpoints()`, `context.at(checkpoint)`, `SessionStore.fork` |

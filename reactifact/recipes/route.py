@@ -7,7 +7,7 @@ exclusivity lives only in the conditions; nothing checks that two groups cannot
 both produce the terminal artifact.
 
 `Route` keeps the runtime flat (no nested groups): it wraps each case
-`StepGroup` and narrows only matches of the route's `on` event by
+`Agent` and narrows only matches of the route's `on` event by
 `key(value) == case`. Downstream steps that react to later events
 (`SearchDone`, `ToolAnswer`, …) are untouched. Generated groups carry a
 `route_case` marker, so `validate_contracts` can treat the cases as exclusive
@@ -22,9 +22,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..agent import Agent
 from ..context import Context
 from ..events import Event
-from ..step import StepGroup
 
 
 @dataclass(frozen=True)
@@ -36,10 +36,10 @@ class RouteCase:
     default: bool = False
 
 
-class _RoutedGroup(StepGroup):
+class _RoutedGroup(Agent):
     def __init__(
         self,
-        inner: StepGroup,
+        inner: Agent,
         route_case: RouteCase,
         *,
         label: str,
@@ -64,7 +64,7 @@ class _RoutedGroup(StepGroup):
             fallback_on=inner.fallback_on,
             fallback_skip=inner.fallback_skip,
         )
-        # `StepGroup.__init__` has no `consumes=` parameter, so preserve the
+        # `Agent.__init__` cannot overwrite inherited state here, so preserve the
         # inner group's contract explicitly. Besides validation, this keeps
         # `collect_inputs()` (reads/provenance) aligned with the inner group.
         self.consumes = list(inner.consumes) if inner.consumes is not None else None
@@ -99,6 +99,14 @@ class _RoutedGroup(StepGroup):
         return await self.inner.run(event, context)
 
 
+def _case_agents(
+    value: Agent | Sequence[Agent],
+) -> tuple[Agent, ...]:
+    if isinstance(value, Agent):
+        return tuple(value.agents())
+    return tuple(group for item in value for group in _case_agents(item))
+
+
 class Route:
     """Builds one routed copy of each case group.
 
@@ -108,13 +116,13 @@ class Route:
             cases={"meta": kb_react_group, "rag": rag_group},
             default="rag",
         )
-        Runtime(ctx, groups=[*route.groups(), planner])
+        Runtime(ctx, agents=[*route.agents(), planner])
 
-    `cases` values are a `StepGroup` or a sequence of them. A group can be
-    routed when it reacts to `on` (group-level `consumes` or one of its step
-    consumes); other triggers keep working unchanged. `default` must name a
-    case and covers values not present in `cases`; without it, an unknown value
-    wakes no case.
+    `cases` values are an `Agent` or a sequence of them. An
+    agent can be routed when it reacts to `on` (agent `consumes` or one of its
+    step `reads`); other triggers keep working unchanged. `default`
+    must name a case and covers values not present in `cases`; without it, an
+    unknown value wakes no case.
     """
 
     def __init__(
@@ -122,7 +130,7 @@ class Route:
         *,
         on: type[BaseModel],
         key: Callable[[Any], Any],
-        cases: Mapping[str, StepGroup | Sequence[StepGroup]],
+        cases: Mapping[str, Agent | Sequence[Agent]],
         default: str | None = None,
         name: str | None = None,
     ) -> None:
@@ -136,15 +144,15 @@ class Route:
         self.default = default
         self.name = name or on.__name__.lower()
 
-    def groups(self) -> list[StepGroup]:
-        """The routed case groups, ready for `Runtime(groups=...)`."""
-        generated: list[StepGroup] = []
+    def agents(self) -> list[Agent]:
+        """The routed case agents, ready for `Runtime(agents=...)`."""
+        generated: list[Agent] = []
         for case, value in self.cases.items():
-            groups = (value,) if isinstance(value, StepGroup) else tuple(value)
-            if not groups:
-                raise ValueError(f"Route case {case!r} has no groups")
-            for index, group in enumerate(groups):
-                suffix = f":{index}" if len(groups) > 1 else ""
+            agents = _case_agents(value)
+            if not agents:
+                raise ValueError(f"Route case {case!r} has no agents")
+            for index, group in enumerate(agents):
+                suffix = f":{index}" if len(agents) > 1 else ""
                 marker = RouteCase(
                     route=self.name,
                     case=case,
@@ -161,6 +169,10 @@ class Route:
                     )
                 )
         return generated
+
+    def groups(self) -> list[Agent]:
+        """Deprecated alias for `agents()`."""
+        return self.agents()
 
 
 __all__ = ["Route", "RouteCase"]

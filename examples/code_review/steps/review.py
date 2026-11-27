@@ -81,7 +81,7 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
 
 
 class ReviewFileStep(Step):
-    consumes = (ChangedFile,)
+    reads = (ChangedFile,)
     produces = (FileReview,)
     scope = Scope("request_id", owner=ReviewRequest)
 

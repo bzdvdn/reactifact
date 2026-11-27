@@ -161,7 +161,7 @@ from reactifact.recipes import Handoff, swarm
 
 result = await swarm(
     context,
-    groups={"triage": triage, "billing": billing},
+    agents={"triage": triage, "billing": billing},
     start="triage",
     input=Question(text="refund please"),
     final_type=Answer,
@@ -259,13 +259,13 @@ machine = StatusMachine.from_funcs(
 ```
 
 The constructor form takes the same options:
-`StatusMachine(artifact_type=..., next_status=..., terminal=..., consumes=...)`.
+`StatusMachine(artifact_type=..., next_status=..., terminal=..., reads=...)`.
 
 Mechanics (all inherited from `Step`):
 
 - The generic `StatusMachine[ResearchTurn]` supplies `artifact_type`; an
   explicit `artifact_type` still works.
-- Woken by any event by default; pass `consumes=` to narrow the wake set. The
+- Runs when its `reads` exist; pass `reads=` to narrow them. The
   event maps to a lifecycle via `owner_key(artifact)` (by default it reads
   `query_id_field` of the artifact data, falling back to its `id`). Override
   `owner_key` when a domain uses a different key; `StatusState.inputs` is
@@ -316,13 +316,13 @@ turn_context = TurnContextStep(
     digest_type=Digest,         # optional; reads digest_id="digest"
     artifact_type=DialogueContext,  # custom build target
     window=12,
-    consume=OnCreate(UserQuery),    # or a plain Consume
+    read=OnCreate(UserQuery),    # or a plain Consume
     ensure=True,                    # idempotent per turn
     follow_up=my_follow_up,         # optional; deterministic default
     build=build_dialogue,           # turns TurnFacts into your artifact
 )
 
-# groups=[turn_context, *answer_steps]
+# agents=[turn_context, *answer_steps]
 ```
 
 The step emits `TurnContext` (or `artifact_type=`) with id `turn:{trigger.id}`;
@@ -330,7 +330,7 @@ The step emits `TurnContext` (or `artifact_type=`) with id `turn:{trigger.id}`;
 keeps the `turn`/`session_id` fields. `TurnFacts` includes the trigger,
 current/previous query, previous artifact/answer, history, digest and follow-up
 flag — so a domain context can carry `prior_domain`/`routing_text` without
-reading `Context`. `consume=OnCreate` makes it one artifact per turn;
+reading `Context`. `read=OnCreate` makes it one artifact per turn;
 `ensure=True` makes a re-run a no-op. Combine with
 `Annotated[..., Unscoped()]` when another step also needs full history.
 
@@ -354,10 +354,10 @@ def build_summary(round_no: int, text: str) -> Summary:
     return Summary(round=round_no, text=text)
 
 
-class Flow(StepGroup):
-    name = "chat"
-    consumes = [Consume(Msg)]
-    steps = [
+Flow = Agent(
+    "chat",
+    consumes=[Consume(Msg)],
+    steps=[
         WindowSummarizer(
             Msg, Summary,
             summarize=llm_summarizer("Condense the recent conversation into a short memory note."),
@@ -365,7 +365,8 @@ class Flow(StepGroup):
             window=8,   # messages fed into one summary
             every=4,    # produce a new checkpoint every N messages
         ),
-    ]
+    ],
+)
 ```
 
 - `summarize(context, history) -> str | None` — your callback (or
@@ -422,10 +423,10 @@ def build_digest(text: str) -> Digest:
     return Digest(text=text)
 
 
-class Flow(StepGroup):
-    name = "chat"
-    consumes = [Consume(Msg)]
-    steps = [
+Flow = Agent(
+    "chat",
+    consumes=[Consume(Msg)],
+    steps=[
         RollingDigestSummarizer(
             Msg, Digest,
             summarize=llm_digest_summarizer("Fold the new messages into the running memory note."),
@@ -433,7 +434,8 @@ class Flow(StepGroup):
             window=8,    # messages kept raw
             trigger=12,  # fold once the conversation passes this length
         ),
-    ]
+    ],
+)
 ```
 
 - `message_type` takes a single type or a sequence of types — e.g.
@@ -502,7 +504,7 @@ the LLM when `context.resources.llm is None`, and falls back to
 ## `Route` — one case group per artifact value
 
 `Route` is for the common "the turn carries a branch key; only one downstream
-group should run" shape. It stays a builder over ordinary `StepGroup`s — no
+group should run" shape. It stays a builder over ordinary `Agent`s — no
 nested groups in the runtime. Each case group keeps its own steps and later
 triggers; only matches of the route's `on` event are narrowed by
 `key(value) == case`.
@@ -520,7 +522,7 @@ route = Route(
     default="rag",       # values outside the map use the rag group
 )
 
-Runtime(ctx, groups=[*route.groups(), planner, ...])
+Runtime(ctx, agents=[*route.agents(), planner, ...])
 ```
 
 Generated groups carry a `route_case` marker. `validate_contracts` uses it to
@@ -543,10 +545,10 @@ cleanup = ScopedCleanup(
     Answer,
     scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
     scope="query_id",          # or a Scope(...)
-    consume=OnCreate(Answer),  # default
+    read=OnCreate(Answer),  # default
 )
 
-# groups=[create_step_group("cleanup", steps=[cleanup])]
+# agents=[Agent("cleanup", steps=[cleanup])]
 ```
 
 It declares `produces=()` and the real `deletes=(...)`, so contracts no longer
@@ -559,7 +561,7 @@ cleanup).
 
 `reactifact.tools.native` deliberately ships one-turn helpers, not a loop.
 When you *do* want the loop — bounded rounds, parallel calls, a forced final
-answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `StepGroup`:
+answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `Agent`:
 
 ```python
 from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
@@ -701,9 +703,11 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
         ...  # combine every step's result, in order
 
 
-class FlowAgent(StepGroup):
-    consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-    steps = Flow().produces()
+FlowAgent = Agent(
+    "flow_agent",
+    consumes=[Consume(Goal), Consume(PlanStep), Consume(StepResult)],
+    steps=Flow().produces(),
+)
 ```
 
 The same flow without a subclass — and with the group/pipeline wiring inferred:
@@ -720,8 +724,10 @@ flow = PlanExecute.from_funcs(
     execute_step=execute_step,
     finish=finish,
 )
-pipeline = flow.pipeline(seed_type=Goal)   # or flow.group() in a Runtime
-result = pipeline.run(Goal(text="ship it"))
+from reactifact import PipelineRunner
+
+pipeline = flow.pipeline(seed_type=Goal)   # or flow.agent() in a Runtime
+result = PipelineRunner(pipeline).run(Goal(text="ship it"))
 ```
 
 - `step_type`/`result_type` need `goal_field`/`index_field` (defaults:
@@ -776,11 +782,13 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
     async def on_reject(self, context, report, answer) -> FinalReply: ...
 
 
-class Flow(StepGroup):
-    consumes = [Consume(Request), Consume(Task), Consume(SpecialistReport),
-                Consume(PendingQuestion)]
-    steps = [MyRouter().produce(), Specialist(), MyGate().produce(),
-             Step(PendingQuestion)]  # Router/ApprovalGate call human.ask at runtime
+Flow = Agent(
+    "flow",
+    consumes=[Consume(Request), Consume(Task), Consume(SpecialistReport),
+              Consume(PendingQuestion)],
+    steps=[MyRouter().produce(), Specialist(), MyGate().produce(),
+           Step(PendingQuestion)],  # Router/ApprovalGate call human.ask at runtime
+)
 ```
 
 `Specialist` — actually doing the routed work — stays fully your own
@@ -814,9 +822,11 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
     async def finish(self, context, draft) -> Final: ...
 
 
-class Flow(StepGroup):
-    consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-    steps = MyLoop().produces()
+Flow = Agent(
+    "flow",
+    consumes=[Consume(Topic), Consume(Draft), Consume(Review)],
+    steps=MyLoop().produces(),
+)
 ```
 
 Function-first is the same shape:

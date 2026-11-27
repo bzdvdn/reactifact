@@ -77,7 +77,7 @@ def test_open_store_picks_backend_by_extension(tmp_path):
 
 
 def test_load_agents_synthesizes_instances_from_a_module():
-    agents = load_agents("examples.knowledge.step_groups")
+    agents = load_agents("examples.knowledge.agents")
     assert agents
     assert all(hasattr(a, "consumes") for a in agents)
 
@@ -88,7 +88,7 @@ def test_load_agents_rejects_unknown_module():
 
 
 def test_graph_command_prints_mermaid(capsys):
-    assert main(["graph", "examples.knowledge.step_groups"]) == 0
+    assert main(["graph", "examples.knowledge.agents"]) == 0
     out = capsys.readouterr().out
     assert "graph" in out or "-->" in out
 

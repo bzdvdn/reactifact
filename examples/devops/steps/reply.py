@@ -9,11 +9,11 @@ from ..models import AnsibleReport, ChatReply, GitlabReport, K8sReport
 
 
 class RenderReply(Step):
-    """StepGroup report → chat reply."""
+    """A report artifact → a chat reply."""
 
     # Only these three report types should ever trigger a reply — the
     # declaration replaces the old isinstance guard in the body.
-    consumes = (K8sReport, GitlabReport, AnsibleReport)
+    reads = (K8sReport, GitlabReport, AnsibleReport)
     produces = (ChatReply,)
     scope = "query_id"
     provenance = SUPPORTED_BY

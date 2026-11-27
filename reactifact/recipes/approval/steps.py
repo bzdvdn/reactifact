@@ -6,12 +6,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from ...artifacts import Artifact
-from ...consume import IdempotentConsume
 from ...context import Context
 from ...interaction import Human
 from ...interrupt import PendingQuestion
 from ...provenance import DERIVED_FROM
 from ...providers import LLMProvider
+from ...read import Read
 from ...step import Emit, Step
 from .classify import classify_approval
 from .models import APPROVAL_KINDS, Approval, ApprovalDecision
@@ -21,8 +21,8 @@ from .policy import ApprovalPolicy
 class InterpretApproval(Step):
     """Turn one answered approval question into an `ApprovalDecision`."""
 
-    consumes = (
-        IdempotentConsume(
+    reads = (
+        Read.idempotent(
             PendingQuestion,
             id_of=lambda question: f"approval:{question.id}",
             condition=lambda question: (
@@ -65,7 +65,7 @@ class ClarifyApproval(Step):
     buttons. One round only; a still-ambiguous answer stays ambiguous.
     """
 
-    consumes = (ApprovalDecision,)
+    reads = (ApprovalDecision,)
     produces = (PendingQuestion,)
     question_text = (
         "I couldn't read that as a clear approval. "
@@ -108,8 +108,8 @@ class ApprovalFlow(list[Step[Any]]):
         )
         pipeline = Pipeline(steps=[AskApproval(), *flow])
 
-    The result is a plain step list, not a `StepGroup`: the runtime still
-    derives scheduling from each step's `consumes`. Pass `clarify=False` when
+    The result is a plain step list, not a `Agent`: the runtime still
+    derives scheduling from each step's `reads`. Pass `clarify=False` when
     the app handles ambiguous answers itself.
     """
 

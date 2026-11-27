@@ -34,11 +34,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..agent import Agent
 from ..budget import Budget
 from ..context import Context
 from ..resources import RuntimeResources
 from ..runtime import Runtime
-from ..step import StepGroup
 from .base import Tool
 from .contracts import ToolOutput
 from .use import ToolAnswer
@@ -60,7 +60,7 @@ class AgentAsTool(Tool):
         *,
         name: str,
         description: str,
-        agent_factory: Callable[[], StepGroup],
+        agent_factory: Callable[[], Agent],
         resources: RuntimeResources,
         input_type: type[BaseModel] = SubTask,
         output_type: type[BaseModel] | None = None,
@@ -91,7 +91,7 @@ class AgentAsTool(Tool):
         sub_context = Context(resources=self.resources)
         sub_agent = self.agent_factory()
         sub_runtime = Runtime(
-            sub_context, groups=[sub_agent], budget=Budget(max_runs=self.max_runs)
+            sub_context, agents=[sub_agent], budget=Budget(max_runs=self.max_runs)
         )
         sub_context.create(self.input_type(text=query))
         await sub_runtime.arun()

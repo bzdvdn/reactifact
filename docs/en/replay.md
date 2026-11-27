@@ -90,7 +90,7 @@ from reactifact.replay import verify_run
 async def build(resources):
     context = Context(resources=resources)
     context.create(Question(...))
-    await Runtime(context, groups=GROUPS).arun()
+    await Runtime(context, agents=PIPELINE.agents).arun()
     return context
 
 

@@ -18,13 +18,13 @@ runtime выводит исполнение из изменений состоя
 
 ```bash
 python -m reactifact run app:pipeline "почему checkout недоступен?"
-reactifact graph examples.knowledge.step_groups        # все группы модуля
-python -m reactifact graph examples.knowledge.step_groups:Planner # один агент
-python -m reactifact graph examples.knowledge.step_groups --check --seed Question --terminal Answer
+reactifact graph examples.knowledge.agents        # все агенты модуля
+python -m reactifact graph examples.knowledge.agents:Planner # один агент
+python -m reactifact graph examples.knowledge.agents --check --seed UserQuery --terminal Answer
 python -m reactifact context examples/knowledge/sessions/sessions.sqlite3
 python -m reactifact trace traces.db [run_id]
-python -m reactifact contracts examples.knowledge.step_groups  # контракты в Markdown
-python -m reactifact contracts examples.knowledge.step_groups --format json
+python -m reactifact contracts examples.knowledge.agents  # контракты в Markdown
+python -m reactifact contracts examples.knowledge.agents --format json
 reactifact check app.pipeline:pipeline --scenarios app.scenarios
 reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60
 reactifact new agent my-agent
@@ -44,8 +44,8 @@ reactifact demo --web
   `new agent` создаёт минимальный one-file pipeline; `dev` поднимает ASGI-апп
   с reload и печатает URL приложения/`/contracts`/`/traces`; `demo --web`
   показывает demo без ключей в браузере.
-- `graph` инстансирует каждый подкласс `StepGroup`, определённый в модуле (или один
-  через `module:Attr`), и печатает blueprint. С `--check` вместо отрисовки
+- `graph` находит module-level экземпляры `Agent` (и инстансирует legacy
+  подклассы) или берёт один через `module:Attr`, затем печатает blueprint. С `--check` вместо отрисовки
   запускает `validate_contracts`: неизвестные входы — errors (exit 1), dead
   outputs/unreachable/cycles — warnings; `--seed TYPE`/`--terminal TYPE` можно
   повторять.
@@ -59,7 +59,7 @@ reactifact demo --web
 ## В дашборде
 
 Приложение может смонтировать те же контракты как страницу через
-`reactifact.contracts.web.create_contracts_router(groups)` — `/contracts` (HTML), `/api/contracts`
+`reactifact.contracts.web.create_contracts_router(agents)` — `/contracts` (HTML), `/api/contracts`
 (JSON) и `/contracts.md` (Markdown). Это opt-in, с поддержкой Basic auth.
 
 Страница запуска (`/traces/<run_id>`) рендерит диаграмму трассы вживую через

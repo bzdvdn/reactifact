@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Context,
     EventType,
     Patch,
     RunOutcome,
     Runtime,
-    StepGroup,
     Trigger,
 )
 
@@ -17,7 +17,7 @@ class Number(BaseModel):
     value: int
 
 
-class Ripper(StepGroup):
+class Ripper(Agent):
     """An agent that chains: each step doubles the value and spawns a new one."""
 
     def __init__(self):
@@ -75,7 +75,7 @@ def test_budget_per_turn_reset():
 
 def test_budget_time_exceeded():
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         def __init__(self):
             super().__init__(
                 name="slow", triggers=[Trigger(EventType.ARTIFACT_CREATED, Number)]
@@ -94,7 +94,7 @@ def test_budget_time_exceeded():
 
 
 def test_run_stats_completed():
-    class Doubler(StepGroup):
+    class Doubler(Agent):
         def __init__(self):
             super().__init__(
                 name="doubler",

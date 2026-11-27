@@ -14,7 +14,7 @@ from .common import GREETING_RE, GREETING_TEXT, RESEARCH_RE
 class PlannerReply(Step):
     """ChatReply: greeting / direct reply; research goes to PlannerTurn."""
 
-    consumes = (
+    reads = (
         Annotated[UserQuery, When(lambda query: not RESEARCH_RE.search(query.text))],
     )
     produces = (ChatReply,)
@@ -50,7 +50,7 @@ class PlannerReply(Step):
 class PlannerTurn(Step):
     """ResearchTurn: for questions that need a source search."""
 
-    consumes = (
+    reads = (
         Annotated[UserQuery, When(lambda query: bool(RESEARCH_RE.search(query.text)))],
     )
     produces = (ResearchTurn,)

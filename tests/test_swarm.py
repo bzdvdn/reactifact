@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Context, Effects, Step, create_step_group
+from reactifact import Agent, Context, Effects, Step
 from reactifact.recipes.swarm import (
     Handoff,
     SwarmCycle,
@@ -48,7 +48,7 @@ class BillingStep(Step):
 
 
 def _agent(name: str, step: Step):
-    return create_step_group(name, steps=[step])
+    return Agent(name, steps=[step])
 
 
 def test_swarm_hands_off_and_records_provenance():

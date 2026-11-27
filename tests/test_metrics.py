@@ -9,13 +9,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     Step,
     StepCall,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 from reactifact.resources import RuntimeResources
@@ -199,9 +198,7 @@ class Bump(Step[Number]):
 
 
 def test_metrics_tracer_runs_inside_a_runtime():
-    agent: StepGroup = create_step_group(
-        "bump", consumes=[Consume(Number)], produces=[Bump()]
-    )
+    agent: Agent = Agent("bump", consumes=[Consume(Number)], steps=[Bump()])
     metrics = Metrics()
     ctx = Context(resources=RuntimeResources(metrics=metrics))
     ctx.create(Number(value=0))

@@ -27,12 +27,12 @@ from examples.fintech_audit.models import (
 POLICY_THRESHOLD = 0.10
 
 
-@step(produces=SourceRef, consumes=Question)
+@step(produces=SourceRef, reads=Question)
 async def search_sources(context: Context, question: Artifact[Question]) -> None:
     await fan_out_sources(context, question.data.text, owner_id=question.id, limit=5)
 
 
-@step(produces=(Table, Policy), consumes=SourceRef)
+@step(produces=(Table, Policy), reads=SourceRef)
 async def materialize(context: Context, ref: Artifact[SourceRef]) -> Emit | None:
     """Resolves a `SourceRef` into a `Table` (CSV) or a `Policy` (Markdown)."""
     source = context.resources.get_source(ref.data.source_id)
@@ -74,7 +74,7 @@ def _budget_for(table: Table, category: str) -> float | None:
     return None
 
 
-@step(produces=Spend, consumes=(Table,))
+@step(produces=Spend, reads=(Table,))
 async def compute_spend(
     table: Artifact[Table],
     question: Artifact[Question],
@@ -103,7 +103,7 @@ async def compute_spend(
 
 @step(
     produces=Variance,
-    consumes=(Spend,),
+    reads=(Spend,),
 )
 async def compute_variance(
     spend: Artifact[Spend],
@@ -160,7 +160,7 @@ def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
     return locators
 
 
-@step(produces=AuditAnswer, consumes=(Variance,))
+@step(produces=AuditAnswer, reads=(Variance,))
 async def answer(
     context: Context,
     variance: Artifact[Variance],

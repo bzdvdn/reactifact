@@ -9,6 +9,7 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     MergeConflict,
@@ -16,7 +17,6 @@ from reactifact import (
     PendingAction,
     Runtime,
     RuntimeResources,
-    StepGroup,
 )
 from reactifact.effects import Effects, current_effects
 from reactifact.replay import replay_summary
@@ -26,7 +26,7 @@ class Doc(BaseModel):
     text: str
 
 
-class Notifier(StepGroup):
+class Notifier(Agent):
     consumes = [Consume(Doc)]
 
     async def run(self, event, context):
@@ -36,7 +36,7 @@ class Notifier(StepGroup):
         return None
 
 
-class TwinNotifier(StepGroup):
+class TwinNotifier(Agent):
     consumes = [Consume(Doc)]
 
     async def run(self, event, context):

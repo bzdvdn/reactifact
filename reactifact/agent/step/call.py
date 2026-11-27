@@ -6,13 +6,13 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ..artifacts import Artifact
-from ..context import Context
-from ..effects import Effects
-from ..events import Event
+from ...artifacts import Artifact
+from ...context import Context
+from ...effects import Effects
+from ...events import Event
 
 if TYPE_CHECKING:
-    from ..request import CurrentRequest
+    from ...request import CurrentRequest
 
 _ACTIVE_CONTEXT: ContextVar[Context | None] = ContextVar(
     "reactifact_step_context", default=None
@@ -49,7 +49,7 @@ def reset_step_call(token: Token[Any]) -> None:
 
 
 if TYPE_CHECKING:
-    from ..interaction import Human, Outbox, Progress
+    from ...interaction import Human, Outbox, Progress
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +58,7 @@ class StepCall:
     `@step`-decorated functions.
 
     - `context` — the working `Context` (queries, `list_artifacts`, ...).
-    - `inputs` — this agent's whole declared working set (via `consumes`),
+    - `inputs` — this agent's whole declared working set (via `reads`),
       identical for every produce this agent runs in this call — not
       filtered per produce, and not specific to whichever event triggered
       this particular run (see `trigger` for that).
@@ -74,7 +74,7 @@ class StepCall:
       `reacts_to` type, where `None` here *is* the event, not a gap).
       Without `reacts_to`, still resolved and passed whenever `event` isn't
       `None`, but purely as a convenience — there's no per-type contract to
-      enforce, so it's never a reason `StepGroup.execute()` skips the call.
+      enforce, so it's never a reason `Agent.execute()` skips the call.
     - `effects` — the produce-scoped `Effects` authoring surface (the same
       contextvar-backed slot as a class-style `Step`'s `effects` parameter;
       exposed here too since a `@step`-decorated function has no `self`
@@ -98,7 +98,7 @@ class StepCall:
     @property
     def effects(self) -> Effects:
         """See `Step.effects` — same contextvar slot, same guard."""
-        from ..effects import current_effects
+        from ...effects import current_effects
 
         slot = current_effects()
         if slot is None:
@@ -112,21 +112,21 @@ class StepCall:
     @property
     def human(self) -> Human:
         """HITL collaborator bound to this call's effect slot."""
-        from ..interaction import Human
+        from ...interaction import Human
 
         return Human(self.effects)
 
     @property
     def outbox(self) -> Outbox:
         """Outbound side-effect collaborator bound to this call's effect slot."""
-        from ..interaction import Outbox
+        from ...interaction import Outbox
 
         return Outbox(self.effects)
 
     @property
     def progress(self) -> Progress:
         """Progress collaborator bound to this call's context."""
-        from ..interaction import Progress
+        from ...interaction import Progress
 
         return Progress(self.context.announce)
 
@@ -138,6 +138,6 @@ class StepCall:
         data (an authenticated user, a tenant id, a correlation id) instead of
         a hand-rolled `ContextVar` or a `resources`-side dict (§52).
         """
-        from ..request import CurrentRequest, current_request
+        from ...request import CurrentRequest, current_request
 
         return CurrentRequest(current_request())

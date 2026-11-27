@@ -60,11 +60,9 @@ def _run_with(redactor) -> tuple[Context, CapturingTracer]:
         _ = body
         return None
 
-    from reactifact import create_step_group
+    from reactifact import Agent
 
-    agent = create_step_group(
-        "contact", consumes=[Consume(Question)], produces=[make_contact]
-    )
+    agent = Agent("contact", consumes=[Consume(Question)], steps=[make_contact])
     resources = RuntimeResources(
         llm=ScriptedLLM(['{"text":"reply to reply@secret.com"}']),
         redactor=redactor,

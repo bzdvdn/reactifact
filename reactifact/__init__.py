@@ -25,6 +25,31 @@ of the names you see by default even though they were always cheap to import
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 
+# Load the legacy `reactifact.step` shim once, then rebind the decorator: the
+# import machinery would otherwise overwrite `reactifact.step` with the module
+# on the first explicit import.
+from . import step as _step_compat  # noqa: F401
+from .agent import (
+    Agent,
+    Drop,
+    Edit,
+    Emit,
+    Ensure,
+    Latest,
+    Relate,
+    Scope,
+    Step,
+    StepCall,
+    Unscoped,
+    Wakes,
+    When,
+)
+
+# `StepGroup` and `create_step_group` stay importable for 0.x compatibility,
+# but are intentionally not in `__all__`: new code uses `Agent`.
+from .agent import StepGroup as StepGroup
+from .agent import create_step_group as create_step_group
+from .agent.step import step
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
@@ -47,7 +72,7 @@ from .interaction import Human, Outbox, Progress
 from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
-from .pipeline import Pipeline
+from .pipeline import Pipeline, PipelineRunner
 from .policy import RetryPolicy
 from .provenance import (
     CALCULATED_FROM,
@@ -70,27 +95,11 @@ from .providers import (
     LLMResponseChunk,
     Message,
 )
+from .read import Read
 from .request import CurrentRequest, current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import RunResult, Runtime
 from .session import Session, SessionStore
-from .step import (
-    Drop,
-    Edit,
-    Emit,
-    Ensure,
-    Latest,
-    Relate,
-    Scope,
-    Step,
-    StepCall,
-    StepGroup,
-    Unscoped,
-    Wakes,
-    When,
-    create_step_group,
-    step,
-)
 from .subflow import SubflowResult, run_subflow
 from .tools import FunctionTool, Tool, ToolError, ToolOutput, tool
 from .triggers import Trigger
@@ -108,7 +117,6 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
     __version__ = "0.0.0"
 
 __all__ = [
-    "StepGroup",
     "Unscoped",
     "Artifact",
     "ArtifactConflict",
@@ -149,7 +157,10 @@ __all__ = [
     "Outbox",
     "Inject",
     "Patch",
+    "Agent",
+    "Read",
     "Pipeline",
+    "PipelineRunner",
     "PendingAction",
     "PendingQuestion",
     "Progress",
@@ -196,7 +207,6 @@ __all__ = [
     "When",
     "bind",
     "configure_logging",
-    "create_step_group",
     "current_request",
     "get_logger",
     "register_type",

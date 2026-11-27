@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime
 from reactifact.streaming import EventHub, ProgressEvent
 
 
@@ -14,7 +14,7 @@ class Done(BaseModel):
     text: str
 
 
-class Announcer(StepGroup):
+class Announcer(Agent):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):
@@ -23,7 +23,7 @@ class Announcer(StepGroup):
         return Patch().create(Done(text="ok"))
 
 
-class Slow(StepGroup):
+class Slow(Agent):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):
@@ -31,7 +31,7 @@ class Slow(StepGroup):
         return Patch().create(Done(text="ok"))
 
 
-class Stubborn(StepGroup):
+class Stubborn(Agent):
     consumes = [Consume(UserMsg)]
 
     async def run(self, event, context):

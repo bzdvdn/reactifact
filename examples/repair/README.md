@@ -72,7 +72,7 @@ examples/repair/
     images.py          preview render settings (`ImageRenderSettings`) + renderer
   fallbacks.py         demo-mode fallbacks (no model)
   image_prompt.py      photo-preview prompt builder
-  step_groups.py       RepairFlow (thin container over the stages)
+  agents.py       RepairFlow (thin container over the stages)
   chat.py · web.py     entrypoints (console · FastAPI/SSE)
   scenarios/           ScenarioLab scenarios (see above; recorded fixtures in scenarios/data/)
   data/ · web/ · sessions/

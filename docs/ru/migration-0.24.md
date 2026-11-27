@@ -66,7 +66,7 @@ body = await structured_llm(context, schema=Answer, user=text)
 Стало — используйте инжектированный провайдер (обычный случай в шаге):
 
 ```python
-@step(consumes=Question)
+@step(reads=Question)
 async def answer(question: Question, llm: LLMProvider) -> Answer:
     return await llm.structured(Answer, user=question.text)
 ```

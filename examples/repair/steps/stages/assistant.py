@@ -14,7 +14,7 @@ from ..common import _assistant_context, _conversation_text, _reply
 class AssistantStage(Step):
     """Open-ended dialogue after approval."""
 
-    consumes = (UserMsg,)
+    reads = (UserMsg,)
     produces = (Project, ChatReply)
 
     async def run(

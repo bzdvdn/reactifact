@@ -5,7 +5,7 @@
 > **Purpose:** Define the architectural philosophy, invariants, terminology, design rules, examples, and decision criteria for a new agent framework based on evolving typed artifacts and context rather than explicit execution graphs.
 >
 > **Terminology:** this document uses *agent* for the conceptual state
-> transformer. In the public API the container is `StepGroup` (a group of
+> transformer. In the public API the container is `Agent` (a group of
 > `Step`s that share triggers/retry/timeout); the old `Agent` name and the
 > `agents=` keyword were removed in 0.24.
 
@@ -190,7 +190,7 @@ Example:
 
 ```python
 class Researcher(Step):
-    consumes = (Task,)
+    reads = (Task,)
     produces = (Evidence,)
 
     async def run(self, task: Artifact[Task], effects: Effects) -> None:
@@ -622,11 +622,11 @@ into a `Patch`.
 Minimal conceptual interface:
 
 ```python
-class StepGroup:
+class Agent:
     steps: list[Step]
 ```
 
-The conceptual "agent" of this document is the public `StepGroup`; an agent is
+The conceptual "agent" of this document is the public `Agent`; an agent is
 therefore a group of steps, not a second execution primitive.
 
 An Agent may use:
@@ -654,7 +654,7 @@ Example:
 
 ```python
 class Verifier(Step):
-    consumes = (Claim, Evidence)
+    reads = (Claim, Evidence)
     produces = (VerifiedClaim, MissingEvidence)
 ```
 
@@ -662,7 +662,7 @@ Another:
 
 ```python
 class DataAnalyst(Step):
-    consumes = (Spreadsheet, Hypothesis)
+    reads = (Spreadsheet, Hypothesis)
     produces = (Calculation, Finding)
 ```
 
@@ -670,14 +670,14 @@ Another:
 
 ```python
 class Researcher(Step):
-    consumes = (Question, Reference)
+    reads = (Question, Reference)
     produces = (Evidence, Claim)
 ```
 
 An `Agent` groups these steps:
 
 ```python
-class ResearchFlow(StepGroup):
+class ResearchFlow(Agent):
     steps = [Researcher(), Verifier(), Analyst()]
 ```
 
@@ -694,7 +694,7 @@ surface is `effects` (§24): a step writes
 `create/update/delete/link/upsert` (or returns `Emit`/`Ensure`/`Edit`/`Drop`/
 `Relate`) and the runtime compiles the effect set into one atomic `Patch`
 (commit, events, validation, trace). `Patch` is transport — applications rarely
-build one directly (exceptions: the `StepGroup.run` escape hatch and advanced
+build one directly (exceptions: the `Agent.run` escape hatch and advanced
 assembly).
 
 The compiled operations:
@@ -2012,7 +2012,7 @@ Example:
 
 ```python
 class DataAnalyst(Step):
-    consumes = (Spreadsheet, CSV, Hypothesis)
+    reads = (Spreadsheet, CSV, Hypothesis)
     produces = (Calculation, Finding)
 ```
 
@@ -2384,7 +2384,7 @@ prefer:
 
 ```python
 class Verifier(Step):
-    consumes = (UnverifiedClaim,)
+    reads = (UnverifiedClaim,)
 ```
 
 The runtime derives execution.
@@ -2580,7 +2580,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepGroup,
+    Agent,
 )
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -2604,7 +2604,7 @@ contracts that drive the scheduler:
 
 ```python
 class Researcher(Step):
-    consumes = (Question, SourceRef)
+    reads = (Question, SourceRef)
     produces = (Evidence,)
 
     async def run(
@@ -2614,7 +2614,7 @@ class Researcher(Step):
 
 
 class Verifier(Step):
-    consumes = (Evidence,)
+    reads = (Evidence,)
     produces = (VerifiedClaim,)
 
     async def run(self, evidence: Evidence, effects: Effects) -> None:
@@ -2622,21 +2622,21 @@ class Verifier(Step):
 
 
 class Answerer(Step):
-    consumes = (VerifiedClaim,)
+    reads = (VerifiedClaim,)
     produces = (Answer,)
 
     async def run(self, claim: VerifiedClaim, effects: Effects) -> None:
         ...
 
 
-class ResearcherAgent(StepGroup):
+class ResearcherAgent(Agent):
     name = "researcher"
     steps = [Researcher(), Verifier(), Answerer()]
 
 
 runtime = Runtime(
     ctx,
-    groups=[ResearcherAgent(), VerifierAgent(), AnswererAgent()],
+    agents=[ResearcherAgent(), VerifierAgent(), AnswererAgent()],
     budget=Budget(max_runs=80),
 )
 runtime.run()
@@ -2665,7 +2665,7 @@ session = SessionStore(FileKVBackend("./sessions")).open("knowledge", resources=
 
 runtime = Runtime(
     session.context,
-    groups=[
+    agents=[
         Planner(), SearchScout(), ResolverAgent(), TableResolver(),
         EvidenceBuilder(), VerifierAgent(), CalculatorAgent(),
         ProgressEvaluator(), AnswerBuilder(),
@@ -2727,7 +2727,7 @@ Answer #5
 
 # 74. MVP Roadmap
 
-## Phase 1 — Core state model
+## Stage 1 — Core state model
 
 Implement only:
 
@@ -2749,7 +2749,7 @@ create → update → diff → rollback
 
 ---
 
-## Phase 2 — Reference sources
+## Stage 2 — Reference sources
 
 Reference sources shipped in the core, each demonstrating a retrieval strategy
 (§8-§9):
@@ -2776,27 +2776,27 @@ connectors**: application code on top of the `Source` API (typically under
 
 ---
 
-## Phase 3 — Step / StepGroup contract
+## Stage 3 — Step and Agent contract
 
 Implement:
 
 ```python
 Step.run(...) -> Model | None             # writes effects.*; runtime compiles
 # Effects(create/update/delete/link/upsert) -▶ Patch: the atomic change
-# plus the thin StepGroup container: a list of Steps
+# plus the thin Agent container: a list of Steps
 ```
 
 Add:
 
 ```text
-StepGroup.steps
+Agent.steps
 Step.consumes
 Step.produces
 ```
 
 ---
 
-## Phase 4 — Reactive Runtime
+## Stage 4 — Reactive Runtime
 
 Implement:
 
@@ -2815,7 +2815,7 @@ Artifact changes → relevant Agent executes
 
 ---
 
-## Phase 5 — Knowledge Chat
+## Stage 5 — Knowledge Chat
 
 Implement:
 
@@ -2834,7 +2834,7 @@ Goal:
 
 ---
 
-## Phase 6 — Structured data
+## Stage 6 — Structured data
 
 Add:
 
@@ -2852,7 +2852,7 @@ Goal:
 
 ---
 
-## Phase 7 — Provenance and UI
+## Stage 7 — Provenance and UI
 
 Add:
 
@@ -2866,7 +2866,7 @@ Claim inspection
 
 ---
 
-## Phase 8 — Branching and advanced reasoning
+## Stage 8 — Branching and advanced reasoning
 
 Add:
 
@@ -2879,7 +2879,7 @@ Conflict resolution
 
 ---
 
-## Phase 9 — Adaptive scheduler
+## Stage 9 — Adaptive scheduler
 
 Add:
 
@@ -3186,7 +3186,7 @@ strict, ruff, import-linter and the docs build are clean.
 | Knowledge ingestion / retrieval layer | §7-§9, §9.1 | implemented — optional `reactifact.knowledge`: code-first `Connector -> RawDocument -> Document -> Chunk -> Index`, `DocStore` protocol (`JsonDocStore`/`SqliteDocStore`), BM25/RRF hybrid retrieval, `MemoryIndex`/`SqliteIndex`/`QdrantIndex`/`ChromaIndex`/`PgVectorIndex`, MMR diversity, dense/keyword/rerank ranks, retrieval metrics in `reactifact.eval`, `IndexSource`/`IngestStep` bridges; no YAML/CLI/plugin registry |
 | Knowledge connectors and extractors | §74 P2 | implemented — `HttpConnector` (URLs/sitemap with `ETag`/`Last-Modified`) and `S3Connector` (`knowledge-s3`); dependency-free CSV/JSON extractors and optional PDF/DOCX (`knowledge-pdf`/`knowledge-office`); GitLab/Confluence stay domain examples |
 | CLI, daemon, HTTP/MCP/A2A adapters | §23, §52-§53 | implemented — `reactifact run/dev/demo/check/new/daemon/trace/graph/contracts`; `Daemon` interval loop; `Pipeline.router()/http()/as_tool()` and `Chat.http()`; MCP server/client and A2A interop (official SDK) |
-| StepGroup / Step / Consume contract | §10-§13, §63 | implemented — `StepGroup.steps` (the 0.x `Agent` name is gone); each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, explicit `consumes` plus automatic read-only inputs, `Annotated[T, Wakes(False)]`/`Consume(..., wakes=False)`, `Scope(field, owner=Type, key=fn)`; `Consume(..., debounce=True)`; lifecycle `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale`; `IdempotentConsume`, `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` |
+| Agent / Step / Consume contract | §10-§13, §63 | implemented — `Agent.steps` (the 0.x `Agent` name is gone); each `Step` declares `consumes`/`produces` and typed `run()` inputs. `Annotated[T, When(...)]` conditions, explicit `consumes` plus automatic read-only inputs, `Annotated[T, Wakes(False)]`/`Consume(..., wakes=False)`, `Scope(field, owner=Type, key=fn)`; `Consume(..., debounce=True)`; lifecycle `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale`; `IdempotentConsume`, `CorrelatedConsume`/`JoinConsume`/`AbsentConsume` |
 | Reactive runtime, events, budget | §21-§24, §58 | implemented (subscriptions, outcomes, replan); opt-in per-agent error isolation (`Runtime(isolate_errors=True, on_agent_error=...)`) — default stays fail-loud (§69); `Budget` also caps `max_tokens`/`max_cost` via a tracer-independent `BudgetTracker`/`BudgetLLM` (streaming usage included, totals on `RunStats`, cost through an injected `Pricer`) |
 | Provider reliability (retries, HTTP client lifecycle) | §69 | implemented — `with_retry` (429/5xx/transport errors, exponential backoff, never on 4xx) on every provider's network call; `RuntimeResources.aclose()`, auto-closed per turn by `ChatAssistant` for a callable `resources=` |
 | Tools / tool loop / HITL tool use | §46-§47, §60 | implemented (`tools`, `ToolUse`, `ToolUseHITL`) |
@@ -3199,7 +3199,7 @@ strict, ruff, import-linter and the docs build are clean.
 | Crash durability / resume | §41, §42, §55 | implemented — sessions persist the pending trigger queue (`Context.pending_events`/`consume_events`, serialized in `to_dict`) and save at each generation boundary *after* consuming it; reopening a session and calling `arun()` resumes an interrupted run (at-least-once — stable ids for idempotent steps); a failed generation keeps its triggers for a retry |
 | Context compaction (bounded revisions) | §14, §45 | implemented — `Context.compact(keep_commits=…, keep_versions=…)` collapses old commits into a baseline snapshot; absolute version/head and `context_hash` are preserved, `checkout`/`diff` below the baseline refuse, `compacted_at` reports it; `Artifact.version` is an absolute counter so history trimming never perturbs the hash |
 | Staleness / invalidation from recorded reads | §43-§44 | implemented for updates (`stale_artifacts`; reactive via `EventType.ARTIFACT_STALE`). `delete()` currently emits `ARTIFACT_DELETED` only; dependents are not auto-staled — use an explicit deletion-reactive step until delete→stale lands |
-| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/delete/link/upsert` and return-style `Emit`/`Ensure`/`Edit`/`Drop`/`Relate` compile into one atomic `Patch`; class `run()` and `@step` functions both accept typed inputs + `effects: Effects` (or a legacy `call: StepCall`). `Wakes`/`When`/`Scope` annotations and `Consume.by_*` select inputs; `.trigger` is live for `consumes`-matched CREATED/UPDATED/DELETED/STALE events; `StepGroup.run()` is a low-level escape hatch |
+| Step authoring — Effects (§24) | §12, §24 | implemented — `effects.create/update/delete/link/upsert` and return-style `Emit`/`Ensure`/`Edit`/`Drop`/`Relate` compile into one atomic `Patch`; class `run()` and `@step` functions both accept typed inputs + `effects: Effects` (or a legacy `call: StepCall`). `Wakes`/`When`/`Scope` annotations and `Consume.by_*` select inputs; `.trigger` is live for `consumes`-matched CREATED/UPDATED/DELETED/STALE events; `Agent.run()` is a low-level escape hatch |
 | Conversation memory via views | §37-§38 | implemented (`context.view` based chat memory) |
 | Turn lifecycle / honest fallbacks | §24, §59, §69 | implemented in demos (outcomes, linguistic fallbacks) |
 | Branching (`context.branch()`) | §39-§40 | implemented — three-way `merge()` with `MergeConflict`, `BranchStore` over KV, CLI |

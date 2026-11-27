@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Consume, SessionStore, create_step_group, step
+from reactifact import Agent, Consume, SessionStore, step
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.web import create_chat_router
@@ -26,7 +26,7 @@ async def make_answer(call):
 
 
 ASSISTANT_PROD = step(A)(make_answer)
-ANSWER_AGENT = create_step_group("a", consumes=[Consume(Q)], produces=[ASSISTANT_PROD])
+ANSWER_AGENT = Agent("a", consumes=[Consume(Q)], steps=[ASSISTANT_PROD])
 
 
 def make_assistant(tmp_path: str) -> ChatAssistant:
@@ -203,7 +203,7 @@ def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = Agent("cap", consumes=[Consume(Q)], steps=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
@@ -243,7 +243,7 @@ def test_web_router_async_request_factory_is_awaited(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = Agent("cap", consumes=[Consume(Q)], steps=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
@@ -281,7 +281,7 @@ def test_web_router_without_request_factory_has_no_request(tmp_path):
         return None
 
     prod = step(A)(capture)
-    agent = create_step_group("cap", consumes=[Consume(Q)], produces=[prod])
+    agent = Agent("cap", consumes=[Consume(Q)], steps=[prod])
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
@@ -312,7 +312,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     """
     import contextlib
 
-    from reactifact import Step, StepGroup
+    from reactifact import Agent, Step
 
     state = {"started": False, "cancelled": False}
 
@@ -325,7 +325,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
                 state["cancelled"] = True
                 raise
 
-    class SlowAgent(StepGroup):
+    class SlowAgent(Agent):
         name = "slow"
         consumes = [Consume(Q)]
         produces = [Slow()]
@@ -374,7 +374,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     for mod in [m for m in sys.modules if m == "fastapi" or m.startswith("fastapi.")]:
         monkeypatch.delitem(sys.modules, mod)
     monkeypatch.setattr(builtins, "__import__", blocked)
-    from reactifact import Consume, create_step_group, step
+    from reactifact import Agent, Consume, step
     from reactifact.chat import ChatAssistant
 
     class _Q(BaseModel):
@@ -384,7 +384,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
     async def _m(call):
         return None
 
-    agent = create_step_group("a", consumes=[Consume(_Q)], produces=[step(_Q)(_m)])
+    agent = Agent("a", consumes=[Consume(_Q)], steps=[step(_Q)(_m)])
     with pytest.raises(ImportError, match=r"reactifact\[web\]"):
         create_chat_router(
             ChatAssistant(
@@ -399,13 +399,13 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
 def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     """A crashing produce must not escape as an exception from stream()."""
 
-    from reactifact import Step, StepGroup
+    from reactifact import Agent, Step
 
     class Boom(Step[A]):
         async def run(self, call):
             raise RuntimeError("boom inside the agent")
 
-    class BoomAgent(StepGroup):
+    class BoomAgent(Agent):
         name = "boom"
         consumes = [Consume(Q)]
         produces = [Boom()]

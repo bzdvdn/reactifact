@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, SessionStore, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend
 from reactifact.interrupt import PendingQuestion
 
@@ -20,7 +20,7 @@ class Estimate(BaseModel):
     total: int
 
 
-class ApprovalGate(StepGroup):
+class ApprovalGate(Agent):
     """Requests budget approval and waits for a human answer."""
 
     consumes = [Consume(Project)]
@@ -39,7 +39,7 @@ class ApprovalGate(StepGroup):
         )
 
 
-class Estimator(StepGroup):
+class Estimator(Agent):
     """Computes the estimate only after approval."""
 
     consumes = [

@@ -65,7 +65,7 @@ def added_lines(patch: str) -> Iterator[tuple[int, str]]:
 
 
 class ParseDiffStep(Step):
-    consumes = (ReviewRequest,)
+    reads = (ReviewRequest,)
     produces = (ChangedFile,)
 
     async def run(self, request: Artifact[ReviewRequest]) -> list[Emit]:

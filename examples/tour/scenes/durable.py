@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Budget, Emit, Runtime, Step, create_step_group
+from reactifact import Agent, Budget, Emit, Runtime, Step
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.replay import replay_context
 from reactifact.session import SessionStore
@@ -22,7 +22,7 @@ class Done(BaseModel):
 
 
 class FinishJob(Step):
-    consumes = (Job,)
+    reads = (Job,)
     produces = (Done,)
 
     async def run(self, job: Job) -> Emit:
@@ -47,7 +47,7 @@ async def _run_durable(path: Path) -> dict[str, Any]:
         loaded = session.loaded
         runtime = Runtime(
             session.context,
-            groups=[create_step_group("durable", steps=[FinishJob()])],
+            agents=[Agent("durable", steps=[FinishJob()])],
             session=session,
             budget=Budget(max_runs=10),
         )

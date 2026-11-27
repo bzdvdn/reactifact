@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Context, Runtime, Step, StepGroup
+from reactifact import Agent, Context, Runtime, Step
 from reactifact.consume import AbsentConsume
 
 
@@ -26,7 +26,7 @@ class FileTicket(Step[Filed]):
             call.effects.create(Filed(thread_id=i.data.thread_id))
 
 
-class TicketGate(StepGroup):
+class TicketGate(Agent):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id)
     ]
@@ -72,7 +72,7 @@ def test_unrelated_ticket_key_does_not_block():
 def test_absent_condition_narrows_what_counts_as_blocking():
     """A drafted-but-unsent ticket doesn't block; only a `sent` one does."""
 
-    class SentOnlyGate(StepGroup):
+    class SentOnlyGate(Agent):
         consumes = [
             AbsentConsume(
                 Report,

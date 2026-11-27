@@ -6,13 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel
 from reactifact import (
-    Consume,
+    Agent,
     Context,
     Human,
     PendingQuestion,
+    Read,
     Runtime,
     Step,
-    create_step_group,
 )
 
 
@@ -31,7 +31,7 @@ class Decision(BaseModel):
 
 
 class AskApproval(Step):
-    consumes = (RefundRequest,)
+    reads = (RefundRequest,)
     produces = (PendingQuestion,)
 
     async def run(self, request: RefundRequest, human: Human) -> None:
@@ -45,7 +45,7 @@ class AskApproval(Step):
 
 
 class Publish(Step):
-    consumes = (Consume.by_field(PendingQuestion, "answered", True),)
+    reads = (Read.by_field(PendingQuestion, "answered", True),)
     produces = (Decision,)
 
     async def run(self, question: PendingQuestion) -> Decision:
@@ -61,7 +61,7 @@ async def run_hitl() -> dict[str, Any]:
     context.create(RefundRequest(order_id="A-17", amount=4200), id="refund:1")
     runtime = Runtime(
         context,
-        groups=[create_step_group("refunds", steps=[AskApproval(), Publish()])],
+        agents=[Agent("refunds", steps=[AskApproval(), Publish()])],
     )
 
     await runtime.arun()

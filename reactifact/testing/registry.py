@@ -3,7 +3,7 @@
 Scenarios are plain functions (usually `async def`, wrapping one or more
 `ScenarioLab.run()` calls) registered with `@scenario(...)` at import time —
 mirroring how `reactifact.cli.common.load_agents` resolves a module path to
-`StepGroup` instances, `collect()` resolves a list of module paths to the
+`Agent` instances, `collect()` resolves a list of module paths to the
 `@scenario`-decorated functions found inside them. There is deliberately no
 directory-scanning convention (no `scenario_*.py` globbing): a scenario
 module is just a module, imported by its dotted path like any other.

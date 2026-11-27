@@ -108,14 +108,17 @@ async def search(query: str) -> str:
     return lookup(query)
 
 
-class Researcher(LLMAgent):
-    system = "Use search before answering."
-    tools = [search]
-    consumes = [Consume(Question)]
-
-
-agent = Researcher()
+agent = LLMAgent(
+    name="researcher",
+    system="Use search before answering.",
+    tools=[search],
+    consumes=[Consume(Question)],
+)
 ```
+
+Configure the agent by keyword — `system`, `tools`, `consumes`, `steps` for
+the final answer, `max_steps`, and the sampling options. Subclassing is only for
+when class attributes read better; it is never required.
 
 Mark a tool `destructive=True` to route it through the HITL approval gate
 (`HITLLMAgent`/`ToolUseHITL`); blocking `LLMAgent`/`ToolUse` does not offer
@@ -234,7 +237,7 @@ Wrap a turn in a `Budget`:
 # not-run: illustrative
 from reactifact import Budget, Runtime
 
-runtime = Runtime(ctx, groups=agents, budget=Budget(max_tokens=20_000, max_cost=0.50))
+runtime = Runtime(ctx, agents=agents, budget=Budget(max_tokens=20_000, max_cost=0.50))
 ```
 
 Budgets bound **runs, iterations, seconds, tool calls, tokens and cost**; a

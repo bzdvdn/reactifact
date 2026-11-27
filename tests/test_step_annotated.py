@@ -3,17 +3,17 @@ from typing import Annotated
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Consume,
     Context,
     Effects,
     Runtime,
-    StepGroup,
     Wakes,
     When,
     step,
 )
-from reactifact.step import Step
+from reactifact.agent import Step
 
 
 class Ticket(BaseModel):
@@ -36,7 +36,7 @@ class PickOpen(Step):
         effects.upsert(Out(text=ticket.text), id=f"out:{ticket.text}")
 
 
-class PickAgent(StepGroup):
+class PickAgent(Agent):
     steps = [PickOpen()]
 
 
@@ -59,7 +59,7 @@ class DeclaredConsume(Step):
         effects.upsert(Out(text=ticket.text), id=f"declared:{ticket.text}")
 
 
-class DeclaredAgent(StepGroup):
+class DeclaredAgent(Agent):
     steps = [DeclaredConsume()]
 
 
@@ -100,7 +100,7 @@ def test_wakes_false_annotation_reads_without_waking():
     context.create(History(text="h"))
 
     asyncio.run(
-        Runtime(context, groups=[StepGroup(name="with-history", steps=[step])]).arun()
+        Runtime(context, groups=[Agent(name="with-history", steps=[step])]).arun()
     )
     assert context.latest(Out).data.text == "q:h"
 
@@ -117,7 +117,7 @@ def test_step_decorator_accepts_typed_parameters():
 
     context = Context()
     context.create(Ticket(status="open", text="hello"))
-    asyncio.run(Runtime(context, groups=[StepGroup(name="typed", steps=[step])]).arun())
+    asyncio.run(Runtime(context, groups=[Agent(name="typed", steps=[step])]).arun())
     assert context.latest(Out).data.text == "typed:hello"
 
 
@@ -145,12 +145,12 @@ def test_explicit_consumes_adds_missing_typed_params_as_reads():
     context = Context()
     context.create(Ticket(status="open", text="q"))
     history = context.create(History(text="h"))
-    asyncio.run(Runtime(context, groups=[StepGroup(name="reads", steps=[step])]).arun())
+    asyncio.run(Runtime(context, groups=[Agent(name="reads", steps=[step])]).arun())
     assert context.latest(Out).data.text == "q:h"
 
     # A read-only input never wakes the step on its own.
     context.update(history.id, History(text="h2"))
-    asyncio.run(Runtime(context, groups=[StepGroup(name="reads", steps=[step])]).arun())
+    asyncio.run(Runtime(context, groups=[Agent(name="reads", steps=[step])]).arun())
     assert context.latest(Out).data.text == "q:h"
 
 
@@ -176,7 +176,7 @@ def test_function_step_explicit_consumes_adds_reads():
     context.create(Ticket(status="open", text="q"))
     context.create(History(text="h"))
     asyncio.run(
-        Runtime(context, groups=[StepGroup(name="fn", steps=[read_history])]).arun()
+        Runtime(context, groups=[Agent(name="fn", steps=[read_history])]).arun()
     )
     assert context.latest(Out).data.text == "fn:q:h"
     assert runs == ["h"]
@@ -206,7 +206,7 @@ def test_explicit_consumes_preserves_when_on_auto_reads():
     context.create(Ticket(status="open", text="q"))
     context.create(History(text="no"))
     context.create(History(text="yes"))
-    asyncio.run(Runtime(context, groups=[StepGroup(name="when", steps=[step])]).arun())
+    asyncio.run(Runtime(context, groups=[Agent(name="when", steps=[step])]).arun())
     assert context.latest(Out).data.text == "yes"
 
 
@@ -259,9 +259,7 @@ def test_explicit_superclass_does_not_duplicate_a_typed_subclass():
     context = Context()
     context.create(Ticket(status="open", text="q"))
     context.create(Child(text="c"))
-    asyncio.run(
-        Runtime(context, groups=[StepGroup(name="covered", steps=[step])]).arun()
-    )
+    asyncio.run(Runtime(context, groups=[Agent(name="covered", steps=[step])]).arun())
     assert context.latest(Out).data.text == "c"
 
 
@@ -288,9 +286,7 @@ def test_artifact_params_derive_consumes():
     context = Context()
     context.create(Ticket(status="open", text="q"))
     context.create(History(text="h"))
-    asyncio.run(
-        Runtime(context, groups=[StepGroup(name="artifact", steps=[step])]).arun()
-    )
+    asyncio.run(Runtime(context, groups=[Agent(name="artifact", steps=[step])]).arun())
     assert context.latest(Out).data.text == "q:h"
 
 
@@ -323,7 +319,7 @@ def test_optional_artifact_handle_is_none_when_absent():
 
     context = Context()
     context.create(Ticket(status="open", text="q"))
-    asyncio.run(Runtime(context, groups=[StepGroup(name="opt", steps=[step])]).arun())
+    asyncio.run(Runtime(context, groups=[Agent(name="opt", steps=[step])]).arun())
     assert context.latest(Out).data.text == "none"
 
 
@@ -334,7 +330,7 @@ def test_optional_artifact_handle_returns_the_artifact():
 
     asyncio.run(
         Runtime(
-            context, groups=[StepGroup(name="opt", steps=[ReadsOptionalArtifact()])]
+            context, groups=[Agent(name="opt", steps=[ReadsOptionalArtifact()])]
         ).arun()
     )
 

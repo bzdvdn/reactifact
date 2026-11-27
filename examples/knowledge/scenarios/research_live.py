@@ -9,9 +9,9 @@ from typing import Any
 
 from reactifact.testing import ScenarioLab, ScenarioSkip, mode_from_env, scenario
 
+from ..agents import AGENTS
 from ..chat import build_llm
 from ..models import Answer, UserQuery
-from ..step_groups import GROUPS
 from ._common import (
     FIXTURE,
     GPU_COST_QUESTION,
@@ -46,7 +46,7 @@ async def research_answer_against_the_model() -> None:
         )
 
     lab = ScenarioLab(
-        list(GROUPS),
+        list(AGENTS),
         resources=lambda: resources(llm),
         mode=mode,
         recording_path=FIXTURE,

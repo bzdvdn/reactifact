@@ -16,10 +16,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from .agent import Agent
+from .agent.agent import normalize_units
 from .budget import Budget
 from .consume import Consume, CorrelatedConsume
-from .step import StepGroup
-from .step.group import normalize_units
 
 Severity = Literal["error", "warning"]
 
@@ -86,7 +86,7 @@ def _name(value: type | str) -> str:
     return value if isinstance(value, str) else value.__name__
 
 
-def _consume_types(agent: StepGroup) -> set[str]:
+def _consume_types(agent: Agent) -> set[str]:
     specs: Iterable[Consume]
     if agent.consumes is not None:
         specs = agent.consumes
@@ -105,7 +105,7 @@ def _consume_types(agent: StepGroup) -> set[str]:
     return names
 
 
-def _produced_types(agent: StepGroup) -> set[str]:
+def _produced_types(agent: Agent) -> set[str]:
     names: set[str] = set()
     for step in agent.steps or ():
         for part in step.produces or ():
@@ -149,6 +149,7 @@ def _cycle_types(
 def validate_contracts(
     *,
     steps: Iterable[Any] | None = None,
+    agents: Iterable[Any] | None = None,
     groups: Iterable[Any] | None = None,
     seeds: Iterable[type | str] = (),
     terminal: Iterable[type | str] = (),
@@ -157,8 +158,9 @@ def validate_contracts(
     """Checks artifact-contract reachability without running anything.
 
     Mirrors `Runtime`: `steps=` accepts raw `Step`s (each is wrapped in an
-    implicit group of one) and `groups=` accepts `StepGroup`s; both can be
-    passed together, steps first.
+    implicit agent of one) and `agents=` accepts `Agent`s; `groups=` is the
+    deprecated alias for `agents=`. Both steps and agents can be passed
+    together, steps first.
 
     - consumed type with no producer and not in `seeds` → **error**
       `unknown_input`;
@@ -172,9 +174,11 @@ def validate_contracts(
       `ambiguous_producer` (suppressed when they are distinct cases of one
       `Route`).
     """
+    if agents is not None and groups is not None:
+        raise TypeError("validate_contracts takes either agents= or groups=, not both")
     agent_list = normalize_units(
         steps=list(steps) if steps is not None else None,
-        groups=list(groups) if groups is not None else None,
+        agents=list(agents if agents is not None else groups or ()),
     )
     seed_names = {_name(type_) for type_ in seeds}
     terminal_names = {_name(type_) for type_ in terminal}

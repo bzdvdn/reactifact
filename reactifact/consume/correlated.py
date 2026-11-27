@@ -151,7 +151,7 @@ class CorrelatedConsume(Consume):
         self.forbid = tuple(forbid)
         self.forbid_conditions = dict(forbid_conditions or {})
         # Base Consume fields exist for isinstance/API compatibility
-        # (`StepGroup._validate_contracts`'s `isinstance(c, Consume)` check) —
+        # (`Agent._validate_contracts`'s `isinstance(c, Consume)` check) —
         # `artifact_type` is nominally the first required type;
         # `to_triggers()`/`collect()` below never actually consult it.
         super().__init__(

@@ -2,6 +2,17 @@ import asyncio
 import logging
 from pathlib import Path
 
+from examples.knowledge.agents import (
+    AnswerBuilder,
+    Calculator,
+    EvidenceBuilder,
+    Planner,
+    ProgressEvaluator,
+    Resolver,
+    SearchScout,
+    TableResolver,
+    Verifier,
+)
 from examples.knowledge.models import (
     Answer,
     Calculation,
@@ -11,17 +22,6 @@ from examples.knowledge.models import (
     ResearchTurn,
     Spreadsheet,
     UserQuery,
-)
-from examples.knowledge.step_groups import (
-    AnswerBuilder,
-    CalculatorGroup,
-    EvidenceBuilder,
-    Planner,
-    ProgressEvaluator,
-    ResolverGroup,
-    SearchScout,
-    TableResolver,
-    VerifierGroup,
 )
 from reactifact import (
     Budget,
@@ -53,16 +53,16 @@ def build_runtime(extra_sources=None, replace=False):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        groups=[
-            Planner(),
-            SearchScout(),
-            ResolverGroup(),
-            TableResolver(),
-            EvidenceBuilder(),
-            VerifierGroup(),
-            CalculatorGroup(),
-            ProgressEvaluator(),
-            AnswerBuilder(),
+        agents=[
+            Planner,
+            SearchScout,
+            Resolver,
+            TableResolver,
+            EvidenceBuilder,
+            Verifier,
+            Calculator,
+            ProgressEvaluator,
+            AnswerBuilder,
         ],
         budget=Budget(max_runs=80),
     )
@@ -194,7 +194,7 @@ def test_multiturn_no_runaway_cascade():
         assert runtime.last_stats.outcome.value == "completed"
 
 
-# ---- Phase 5: verification of claims (§35, §36) ----
+# ---- Agent 5: verification of claims (§35, §36) ----
 
 
 def test_verification_produces_claims_with_provenance():
@@ -228,7 +228,7 @@ def test_claims_ranked_into_answer():
     assert any(type(a.data) is Claim for a in supported) or supported
 
 
-# ---- Phase 6: structured data (§29, §67) ----
+# ---- Agent 6: structured data (§29, §67) ----
 
 
 def test_csv_source_preserves_structure():
@@ -281,7 +281,7 @@ def test_non_calculation_question_ignores_table():
     assert "guide:auth.md" in answer.data.sources
 
 
-# ---- Phase 7: reliability — LLM provider outage (structured_llm on_error) ----
+# ---- Agent 7: reliability — LLM provider outage (structured_llm on_error) ----
 
 
 class AlwaysFailsLLM(LLMProvider):

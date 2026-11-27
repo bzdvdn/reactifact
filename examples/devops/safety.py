@@ -18,12 +18,12 @@ from pathlib import Path
 if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from examples.devops.agents import Route
 from examples.devops.guardrails import (
     ProductionChangeGuardrail,
     devops_guardrail_policy,
 )
 from examples.devops.models import K8sProblem, UserMsg
-from examples.devops.step_groups import RouteGroup
 from reactifact import Context, Runtime, RuntimeResources
 from reactifact.guardrails import GuardrailViolation
 from reactifact.metrics import Metrics
@@ -61,7 +61,7 @@ def demo_block_end_to_end() -> None:
     context = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
     context.create(UserMsg(text="delete the prod pods"))
     try:
-        asyncio.run(Runtime(context, groups=[RouteGroup()]).arun())
+        asyncio.run(Runtime(context, agents=[Route]).arun())
     except GuardrailViolation as exc:
         _show("GuardrailViolation", str(exc))
     _show("K8sProblem committed", str(bool(context.list_artifacts(K8sProblem))))
@@ -77,7 +77,7 @@ def demo_flag_metric() -> None:
         )
     )
     context.create(UserMsg(text="delete the prod pods"))
-    asyncio.run(Runtime(context, groups=[RouteGroup()]).arun())
+    asyncio.run(Runtime(context, agents=[Route]).arun())
     _show("K8sProblem committed", str(bool(context.list_artifacts(K8sProblem))))
     for line in metrics.render().splitlines():
         if "guardrail" in line:

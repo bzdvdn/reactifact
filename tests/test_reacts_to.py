@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, Step, StepGroup, step
+from reactifact import Agent, Consume, Context, Runtime, Step, step
 
 
 class ResolvedDocuments(BaseModel):
@@ -44,7 +44,7 @@ class DirectFinalize(Step[DraftAnswer]):
         )
 
 
-class FinalAgent(StepGroup):
+class FinalAgent(Agent):
     consumes = [
         Consume(ResolvedDocuments),
         Consume.by_field(DecisionReply, "route_action", "final"),
@@ -86,7 +86,7 @@ class UnrestrictedRecorder(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q1", source="unrestricted"))
 
 
-class UnrestrictedAgent(StepGroup):
+class UnrestrictedAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [UnrestrictedRecorder()]
 
@@ -115,7 +115,7 @@ class SingleTypeReactor(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q1", source="single-type"))
 
 
-class SingleTypeAgent(StepGroup):
+class SingleTypeAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [SingleTypeReactor()]
 
@@ -138,7 +138,7 @@ def decorated_reactor(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
 
-class DecoratedAgent(StepGroup):
+class DecoratedAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [decorated_reactor]
 

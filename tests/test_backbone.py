@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, EventType, Patch, Runtime, StepGroup, Trigger
+from reactifact import Agent, Consume, Context, EventType, Patch, Runtime, Trigger
 from reactifact.commit import Read, Write
 
 
@@ -17,7 +17,7 @@ class Answer(BaseModel):
     text: str
 
 
-class Researcher(StepGroup):
+class Researcher(Agent):
     consumes = [Consume(Question)]
     produces = []
 
@@ -28,7 +28,7 @@ class Researcher(StepGroup):
         return Patch().create(Evidence(content=q.data.text))
 
 
-class Answerer(StepGroup):
+class Answerer(Agent):
     consumes = [Consume(Evidence)]
     produces = []
 
@@ -134,7 +134,7 @@ def test_reactive_doubling_provenance():
     class Number(BaseModel):
         value: int
 
-    class Doubler(StepGroup):
+    class Doubler(Agent):
         def __init__(self):
             super().__init__(
                 name="doubler",

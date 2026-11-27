@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, Step, StepGroup
+from reactifact import Agent, Consume, Context, Runtime, Step
 from reactifact.budget import Budget
 
 
@@ -30,17 +30,17 @@ class RecordCollected(Step[Collected]):
         )
 
 
-class DebouncedCollector(StepGroup):
+class DebouncedCollector(Agent):
     consumes = [Consume(Evidence, debounce=True)]
     produces = [RecordCollected()]
 
 
-class NonDebouncedCollector(StepGroup):
+class NonDebouncedCollector(Agent):
     consumes = [Consume(Evidence)]
     produces = [RecordCollected()]
 
 
-class MixedAgent(StepGroup):
+class MixedAgent(Agent):
     """Evidence is debounced, Marker isn't — proves debounce is scoped to
     the `Consume` it's set on, not the whole agent."""
 

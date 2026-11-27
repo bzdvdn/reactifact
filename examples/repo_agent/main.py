@@ -80,22 +80,23 @@ class ChangeReport(BaseModel):
 
 
 class BuildChangeReport(Step):
-    consumes = (ToolAnswer,)
+    reads = (ToolAnswer,)
     produces = (ChangeReport,)
 
     async def run(self, answer: ToolAnswer) -> ChangeReport:
         return ChangeReport(summary=answer.text, commits=list(COMMITS))
 
 
-class RepoAgent(HITLLMAgent):
-    name = "repo"
-    system = (
+RepoAgent = HITLLMAgent(
+    name="repo",
+    system=(
         "You are a coding agent. Read files and run tests freely; commit only "
         "when the ticket asks you to."
-    )
-    tools = [read_file, run_tests, git_commit]
-    consumes = [Consume(Ticket)]
-    steps = [BuildChangeReport()]
+    ),
+    tools=[read_file, run_tests, git_commit],
+    consumes=[Consume(Ticket)],
+    steps=[BuildChangeReport()],
+)
 
 
 class ScriptedLLM(LLMProvider):
@@ -118,7 +119,7 @@ class ScriptedLLM(LLMProvider):
 
 def _context(script: list[str]) -> tuple[Context, Runtime]:
     context = Context(resources=RuntimeResources(llm=ScriptedLLM(script)))
-    runtime = Runtime(context, groups=[RepoAgent()])
+    runtime = Runtime(context, agents=[RepoAgent])
     return context, runtime
 
 

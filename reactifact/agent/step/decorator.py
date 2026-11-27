@@ -8,10 +8,11 @@ from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
 
-from ..artifacts import ArtifactType
-from ..consume import Consume
-from ..policy import RetryPolicy
-from ..provenance import DERIVED_FROM, RelationName
+from ...artifacts import ArtifactType
+from ...consume import Consume
+from ...policy import RetryPolicy
+from ...provenance import DERIVED_FROM, RelationName
+from ...read import Read
 from .annotations import Scope
 from .call import StepCall
 from .core import Step
@@ -61,7 +62,16 @@ def step(
     *,
     produces: ArtifactType | Sequence[ArtifactType] | None = None,
     deletes: ArtifactType | Sequence[ArtifactType] | None = None,
-    consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
+    reads: Read
+    | Consume
+    | ArtifactType
+    | Sequence[Read | Consume | ArtifactType]
+    | None = None,
+    consumes: Read
+    | Consume
+    | ArtifactType
+    | Sequence[Read | Consume | ArtifactType]
+    | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
     scope: Scope | str | None = None,
@@ -75,15 +85,15 @@ def step(
 
     The canonical spellings:
 
-        @step(produces=(Answer,), consumes=(Question,))
+        @step(produces=(Answer,), reads=(Question,))
         async def answer(call: StepCall) -> None: ...
 
-        @step(produces=Answer, consumes=Question)
+        @step(produces=Answer, reads=Question)
         def answer(call): return Answer(...)
 
     `artifact_type` is the 0.1.x spelling kept for compatibility (the same as a
     one-element `produces`); `also_creates=`/`reacts_to=` are not accepted here
-    — put extra creates in `produces` and triggers in `consumes`.
+    — put extra creates in `produces` and inputs in `reads`.
 
     The function may take one `call: StepCall` (the 0.1.x shape) or a typed
     signature — parameter annotations are artifact types (`T`, `list[T]`,
@@ -98,6 +108,14 @@ def step(
       ``call.effects.create/update/delete/link/upsert/...`` and return ``None`` — the
       function behaves exactly like a class step with ``call.effects``.
     """
+
+    if (
+        artifact_type is not None
+        and not isinstance(artifact_type, type)
+        and callable(artifact_type)
+    ):
+        # Bare `@step`: infer `produces` from the return annotation.
+        return step()(artifact_type)
 
     inferred = produces is None and artifact_type is None
     resolved_produces = produces if produces is not None else artifact_type
@@ -125,6 +143,7 @@ def step(
         instance = _FunctionStep(
             produces=final_produces,
             deletes=deletes,
+            reads=reads,
             consumes=consumes,
             timeout=timeout,
             provenance=chosen_provenance,
@@ -138,13 +157,19 @@ def step(
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func
         if instance.consumes is None:
-            instance.consumes = Step._derive_consumes(func)
+            resolved_consumes = Step._derive_consumes(func)
         else:
-            instance.consumes = Step._merge_read_only_consumes(instance.consumes, func)
-        if instance.consumes is not None:
+            resolved_consumes = Step._merge_read_only_consumes(instance.consumes, func)
+        instance.consumes = resolved_consumes
+        instance.reads = (
+            tuple(Read.from_consume(consume) for consume in resolved_consumes)
+            if resolved_consumes is not None
+            else None
+        )
+        if resolved_consumes is not None:
             instance.reacts_to = tuple(
                 consume.artifact_type
-                for consume in instance.consumes
+                for consume in resolved_consumes
                 if consume.artifact_type is not None
             )
         return instance

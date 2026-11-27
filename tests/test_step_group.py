@@ -7,6 +7,7 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Budget,
     Consume,
@@ -44,6 +45,17 @@ def answer(question: Question) -> Answer:
 )
 def named(question: Question) -> Answer:
     return Answer(text=question.text)
+
+
+def test_legacy_grouping_names_stay_importable() -> None:
+    import importlib
+
+    step_module = importlib.import_module("reactifact.step")
+    assert StepGroup is Agent
+    assert step_module.StepGroup is Agent  # type: ignore[attr-defined]
+    assert "StepGroup" not in step_module.__all__
+    assert callable(create_step_group)
+    assert "create_step_group" not in step_module.__all__
 
 
 def test_create_step_group_builds_a_group() -> None:
@@ -90,7 +102,7 @@ def test_runtime_rejects_wrong_types_with_a_useful_message() -> None:
     group = create_step_group("g", steps=[answer])
     with pytest.raises(TypeError, match="steps= accepts Step"):
         Runtime(Context(), steps=[group])
-    with pytest.raises(TypeError, match="groups= accepts StepGroup"):
+    with pytest.raises(TypeError, match="agents= accepts Agent"):
         Runtime(Context(), groups=[answer])
 
 

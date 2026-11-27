@@ -72,7 +72,7 @@ uv run python -m examples.knowledge.eval    # offline retrieval metrics
 ```
 
 Key files: `steps/` (common, router, search, evidence, calc, lifecycle),
-`step_groups.py`, `web.py`.
+`agents.py` (the `Agent` definitions), `web.py`.
 
 ## `knowledge_base` — code-first ingestion and retrieval
 

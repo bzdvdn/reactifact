@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Budget, Chat, SessionStore, StepGroup
+from reactifact import Budget, Chat, Agent, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import (
     FileKVBackend,
@@ -12,7 +12,7 @@ from reactifact.checkpoints import (
 )
 from reactifact.tracing import TraceStore
 
-from app.agent.pipeline import AnswerAgent, build_assistant
+from app.agent.pipeline import build_answer_agent, build_assistant
 from app.config import Settings
 from app.models import Answer, UserQuery
 
@@ -59,8 +59,8 @@ def build_chat_memory(settings: Settings) -> ChatMemory | None:
     )
 
 
-def build_agents(settings: Settings) -> list[StepGroup]:
-    return [AnswerAgent(timeout=settings.agent_timeout_seconds)]
+def build_agents(settings: Settings) -> list[Agent]:
+    return [build_answer_agent(timeout=settings.agent_timeout_seconds)]
 
 
 def build_assistant_from_settings(
@@ -72,7 +72,7 @@ def build_assistant_from_settings(
         settings=settings,
         store=store,
         trace_store=trace_store,
-        groups=build_agents(settings),
+        agents=build_agents(settings),
         budget=build_budget(settings),
         memory=build_chat_memory(settings),
     )

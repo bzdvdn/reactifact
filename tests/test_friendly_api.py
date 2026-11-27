@@ -2,10 +2,10 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
-    create_step_group,
     step,
 )
 
@@ -26,22 +26,22 @@ async def echo(call):
     return None
 
 
-def test_create_step_group_builds_container_without_subclass():
-    agent = create_step_group(
+def test_Agent_builds_container_without_subclass():
+    agent = Agent(
         name="echo",
         consumes=[Consume(Input)],
-        produces=[echo],
+        steps=[echo],
     )
     assert agent.name == "echo"
     assert len(agent.triggers) == 2
     assert agent.matches.__self__ is agent
 
 
-def test_create_step_group_reacts():
+def test_Agent_reacts():
     ctx = Context()
     runtime = Runtime(
         ctx,
-        groups=[create_step_group("echo", consumes=[Consume(Input)], produces=[echo])],
+        groups=[Agent("echo", consumes=[Consume(Input)], steps=[echo])],
     )
     ctx.create(Input(text="hello"))
     asyncio.run(runtime.arun())
@@ -71,12 +71,12 @@ def test_warn_no_runs_once(capsys):
     ctx.create(Input(text="quiet"))
     runtime = Runtime(
         ctx,
-        groups=[create_step_group("echo", consumes=[Consume(Output)], produces=[echo])],
+        groups=[Agent("echo", consumes=[Consume(Output)], steps=[echo])],
     )
     asyncio.run(runtime.arun())
 
     err = capsys.readouterr().err
-    assert "None of the 1 groups ran" in err
+    assert "None of the 1 agents ran" in err
     assert "consume" in err
 
     asyncio.run(runtime.arun())

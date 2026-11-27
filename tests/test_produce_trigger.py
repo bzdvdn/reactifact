@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Event,
     EventType,
     Runtime,
     Step,
-    StepGroup,
     step,
 )
 
@@ -73,7 +73,7 @@ class BestEffortReactor(Step[DraftAnswer]):
         call.effects.create(DraftAnswer(query_id="q", source=source))
 
 
-class FinalAgent(StepGroup):
+class FinalAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
     produces = [FinalizeWithDocuments()]
 
@@ -91,7 +91,7 @@ def test_reacts_to_with_trigger_needs_no_guard():
     assert drafts[0].data.source == "documents"
 
 
-class TwoTypeAgent(StepGroup):
+class TwoTypeAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
     produces = [TwoTypeReactor()]
 
@@ -109,7 +109,7 @@ def test_reacts_to_with_several_types_resolves_whichever_fired():
     assert drafts == {"q1": "ResolvedDocuments", "q2": "DecisionReply"}
 
 
-class BestEffortAgent(StepGroup):
+class BestEffortAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
     produces = [BestEffortReactor()]
 
@@ -142,7 +142,7 @@ class DeletionAware(Step[Marker]):
 # The remaining two cases — an agent run with no event at all (the
 # scheduler-driven path), and an event whose artifact was deleted earlier in
 # the same generation (the race `Trigger.matches()` documents) — are
-# exercised directly against `StepGroup._resolve_produce_call`. Both need a
+# exercised directly against `Agent._resolve_produce_call`. Both need a
 # `Context`/`Event` combination that a normal sequential `Runtime.arun()`
 # can't produce on its own (patches within one generation only apply once
 # every agent in it has finished), and neither needs the full effects/patch
@@ -154,7 +154,7 @@ def test_resolve_produce_call_trigger_is_none_without_event():
     with no specific triggering event) — nothing to resolve `trigger` from,
     but a produce with no `reacts_to` still runs."""
     ctx = Context()
-    runs, trigger = StepGroup._resolve_produce_call(BestEffortReactor(), None, ctx)
+    runs, trigger = Agent._resolve_produce_call(BestEffortReactor(), None, ctx)
     assert runs is True
     assert trigger is None
 
@@ -169,7 +169,7 @@ def test_resolve_produce_call_skips_when_the_artifact_was_deleted_meanwhile():
     ctx.delete(doc.id)
     stale_event = Event(EventType.ARTIFACT_CREATED, ResolvedDocuments, doc.id)
 
-    runs, trigger = StepGroup._resolve_produce_call(
+    runs, trigger = Agent._resolve_produce_call(
         FinalizeWithDocuments(), stale_event, ctx
     )
     assert runs is False
@@ -185,7 +185,7 @@ def test_resolve_produce_call_deleted_event_still_runs_with_trigger_none():
     ctx.delete(marker.id)
     deleted_event = Event(EventType.ARTIFACT_DELETED, Marker, marker.id)
 
-    runs, trigger = StepGroup._resolve_produce_call(DeletionAware(), deleted_event, ctx)
+    runs, trigger = Agent._resolve_produce_call(DeletionAware(), deleted_event, ctx)
     assert runs is True
     assert trigger is None
 
@@ -195,7 +195,7 @@ def decorated_with_trigger(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
 
-class DecoratedAgent(StepGroup):
+class DecoratedAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
     produces = [decorated_with_trigger]
 

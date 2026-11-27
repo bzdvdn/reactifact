@@ -12,12 +12,12 @@ contract and implement each step's effects.
 
 ```python
 # not-run: illustrative — Answerer/Question/Evidence are defined below
-agent = create_step_group("answerer", steps=[Answerer()])
+agent = Agent("answerer", steps=[Answerer()])
 ```
 
-`create_step_group` is the constructor-style builder for an ad-hoc group;
-subclassing `StepGroup` gives a reusable named pipeline. Overriding `run()`
-with no `consumes` is the imperative escape hatch, not the ordinary style.
+`Agent(...)` is the constructor for every group; do not subclass it in app
+code. Overriding `run()` with no `consumes` is the imperative escape hatch,
+not the ordinary style.
 
 ## A step reads its inputs and writes effects
 
@@ -26,7 +26,7 @@ same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`, `Context`,
 `Effects`, `Progress`, `CurrentRequest`, `Event`), or the legacy single
 `call: StepCall` with
 `call.trigger`/`call.context`/`call.effects`/`call.inputs`/`call.request`.
-Typed parameters derive the step's `consumes`; when `consumes` is explicit, it is
+Typed parameters derive the step's `reads`; when `reads` is explicit, it is
 the wake set and typed artifact params missing from it are added as read-only
 inputs automatically. `Annotated[T, When(...)]` conditions a type;
 `Annotated[T, Wakes(False)]` marks one read-only input when `consumes` is
@@ -40,7 +40,7 @@ Prefer a returned model, `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    StepGroup,
+    Agent,
     Artifact,
     Consume,
     Context,
@@ -65,7 +65,7 @@ class Answer(BaseModel):
 
 
 class Scout(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Evidence,)
 
     async def run(self, question: Question) -> Evidence:
@@ -73,7 +73,7 @@ class Scout(Step):
 
 
 class Answerer(Step):
-    consumes = (Evidence,)  # Question is auto-added as a read-only input
+    reads = (Evidence,)  # Question is auto-added as a read-only input
     produces = (Answer,)
 
     async def run(
@@ -87,13 +87,12 @@ class Answerer(Step):
         )
 
 
-class Pipeline(StepGroup):
-    steps = [Scout(), Answerer()]
+Pipeline = Agent("pipeline", steps=[Scout(), Answerer()])
 
 
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, groups=[Pipeline()]).arun())
+asyncio.run(Runtime(ctx, agents=[Pipeline]).arun())
 
 answer = ctx.latest(Answer)
 assert answer is not None
@@ -113,12 +112,12 @@ class attribute, in the `Step` constructor, and in `@step(scope=...)`:
 
 ```python
 # not-run: illustrative
-@step(consumes=Question, produces=Answer, scope="query_id")
+@step(reads=Question, produces=Answer, scope="query_id")
 async def answer(question: Question) -> Answer: ...
 
 
 class Compose(Step):
-    consumes = (Question, Doc)
+    reads = (Question, Doc)
     produces = (Answer,)
     scope = "query_id"
 ```
@@ -135,7 +134,7 @@ is a read rather than a wake reason. `Latest[T]` composes the same way:
 | --- | --- |
 | `Consume(T)` | a `T` is created or updated |
 | `Consume(T, condition=lambda a: ...)` | a matching `T` appears (condition on the `Artifact`) |
-| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes — needed when `consumes` is derived (an explicit `consumes` already makes unlisted typed params reads) |
+| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes — needed when `reads` is derived (an explicit `reads` already makes unlisted typed params reads) |
 | `IdempotentConsume(T, id_of=...)` | wakes on `T` only while `id_of(artifact)` is absent (the declarative idempotency guard) |
 | `Annotated[T, When(fn)]` | wakes when `fn(data)` is true |
 | `Scope(field, owner=Type, key=fn)` / `scope=` | correlate typed inputs; owner matches by artifact id, `key` overrides extraction; pass `scope=` to `@step`/`Step(...)` |
@@ -184,20 +183,129 @@ Side-effect-only steps declare no creates honestly:
 class CleanupTurn(Step):
     produces = ()
     deletes = (Answer,)
-    consumes = (Question,)
+    reads = (Question,)
 
     async def run(self, context: Context, effects: Effects) -> None:
         for artifact in context.list_artifacts(Answer):
             effects.delete(artifact)
 ```
 
-`@step(consumes=Question, produces=())` is the function form. `deletes=` is
+`@step(reads=Question, produces=())` is the function form. `deletes=` is
 declarative (contracts show it); the runtime does not gate deletes on it. For
 the common "delete this turn's scratch when the terminal artifact exists",
 reuse `ScopedCleanup` from `reactifact.recipes` instead of hand-writing the
 loop.
 
 Full details, ids and HITL: `references/effects.md`.
+
+## Agents and structured pipelines
+
+`Agent` is the user-facing group of steps. It owns `consumes` (wake); each step
+owns `reads` (input) and `produces`. `Read` is the input descriptor:
+
+```python
+# not-run: illustrative
+class Handler(Step):
+    reads = (
+        Read.on_create(Query),
+        Read(Evidence, required=False),
+    )
+    produces = (Answer,)
+```
+
+For delete-only cleanup, use `Read.after_delete(Scratch)` and take `event: Event`
+in `run()` — the deleted artifact has no data to read.
+
+For one function, prefer `@agent`:
+
+```python
+from pydantic import BaseModel
+from reactifact.agent import agent
+
+
+class Question(BaseModel):
+    text: str
+
+
+class Answer(BaseModel):
+    text: str
+
+
+@agent
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
+```
+
+`answer` is an `Agent`; mount it in a `Pipeline` or `Runtime`. Use the explicit
+form when the work needs several steps:
+
+```python
+from pydantic import BaseModel
+from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+
+
+class Question(BaseModel):
+    text: str
+
+
+class Answer(BaseModel):
+    text: str
+
+
+class Answerer(Step[Answer]):
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
+
+
+QA = Pipeline(
+    name="qa",
+    agents=[
+        Agent(
+            "answer",
+            steps=[Answerer()],
+            consumes=[Consume(Question)],
+            retry=RetryPolicy(max_attempts=2),
+            timeout=30,
+        ),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+
+result = PipelineRunner(QA).run(Question(text="hello"))
+assert result.context.latest(Answer).data.text == "HELLO"
+```
+
+- `Agent(steps=[...])` owns the steps and `consumes`/retry/timeout/fallback/
+  priority policy; it **is** the scheduling unit.
+- `Pipeline(agents=[...], routes=[...])` is declarative structure;
+  `Pipeline.agents` expands agents and `Route.agents()` for `Runtime`.
+- `PipelineRunner` owns resources/budget/tracer and runs; `Chat(pipeline=...)`
+  reuses a pipeline for a conversation.
+- An agent is a named group, not an execution barrier: `Runtime` still schedules
+  by artifact availability.
+
+For stateful class-oriented code, `Agent` can be subclassed and `@step` applied
+to its methods. The method is a step declaration, not a callable: the runtime
+binds it to the instance.
+
+```python
+# not-run: illustrative
+class AnswerAgent(Agent):
+    name = "answer"
+    consumes = [Consume(Question)]
+
+    def __init__(self, model: str):
+        self.model = model
+        super().__init__()
+
+    @step(produces=Answer)
+    async def answer(self, question: Question) -> Answer:
+        return Answer(text=f"{self.model}: {question.text}")
+```
+
+Prefer `Agent(consumes=..., steps=[...])` or `@agent` for simple, stateless
+agents; use the subclass form when methods need `self` state.
 
 ## Scheduling and ordering
 
@@ -207,12 +315,12 @@ Full details, ids and HITL: `references/effects.md`.
 - **`priority`** (lower runs earlier in a generation) and
   **`concurrency_limit`** tune scheduling but should not carry correctness —
   the fixpoint does. `Step.priority` applies when steps go through
-  `Runtime(steps=...)`; inside an explicit `StepGroup`, steps run in list
-  order, and `StepGroup.priority` orders groups within a generation. Avoid
+  `Runtime(steps=...)`; inside an explicit `Agent`, steps run in list
+  order, and `Agent.priority` orders agents within a generation. Avoid
   relying on intra-generation order; make the dependency an artifact instead.
 - **Mutually exclusive cases**: when one artifact field selects one of several
   downstream groups, build them with `recipes.Route(on=..., key=..., cases=...)`
-  and expand with `Runtime(groups=[*route.groups(), ...])`; `validate_contracts`
+  and expand with `Runtime(agents=[*route.agents(), ...])`; `validate_contracts`
   warns about `ambiguous_producer` outside a route.
 - **Idempotency**: agents may re-wake on an update. Use stable ids with
   `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
@@ -225,7 +333,7 @@ instead of copying try/except into the step:
 
 ```python
 # not-run: illustrative
-create_step_group(
+Agent(
     "answer_builder",
     steps=[BuildAnswer()],
     fallback=FallbackAnswer("Не удалось собрать ответ."),
@@ -265,7 +373,7 @@ last-resort transport fallback when even the fallback step cannot answer.
 
 ## When the low-level API is justified
 
-Use `StepGroup.run(event, context) -> Patch` or direct `Context` queries only
+Use `Agent.run(event, context) -> Patch` or direct `Context` queries only
 when the task is genuinely imperative:
 
 - a third-party integration whose behaviour cannot be expressed as typed

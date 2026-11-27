@@ -5,14 +5,14 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
+from ..agents import RepairFlow
 from ..models import Estimate, PlanStep, Project
-from ..step_groups import RepairFlow
 from ._common import resources
 
 
 @scenario("repair: estimate stage prices the plan from the catalog")
 async def estimate_prices_from_catalog() -> None:
-    lab = ScenarioLab([RepairFlow()], resources=resources)
+    lab = ScenarioLab([RepairFlow], resources=resources)
 
     plan = [
         PlanStep(

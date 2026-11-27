@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Effects, Step, StepGroup
+from reactifact import Artifact, Effects, Agent, Step
 from reactifact.structured import structured_llm
 
 from app.models import Report, ReportBody, Tick
@@ -45,9 +45,13 @@ class MonitorStep(Step):
         return None
 
 
-class MonitorAgent(StepGroup):
-    name = "monitor"
-    steps = [MonitorStep()]
+def monitor_agent(*, timeout: float | None = None) -> Agent:
+    """The daemon's agent, with an optional per-tick deadline."""
+    return Agent("monitor", steps=[MonitorStep()], timeout=timeout)
 
 
-__all__ = ["MonitorAgent", "MonitorStep"]
+#: The default agent (no deadline); `runner.py` builds one with the setting.
+MonitorAgent = monitor_agent()
+
+
+__all__ = ["MonitorAgent", "MonitorStep", "monitor_agent"]

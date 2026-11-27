@@ -19,8 +19,8 @@ devops/
 ├── models.py         # artifact types (UserMsg, *Problem, *Report) + tool results
 ├── policy.py         # demo identities + PermissionPolicy (pure)
 ├── resources.py      # per-user RuntimeResources (principal, memory, guardrails, clients)
-├── step_groups.py    # thin containers: RouteGroup, K8sAgent, GitlabAgent,
-│                      #   AnsibleAgent (HITLLMAgent), RenderGroup, MemoryGroup
+├── agents.py    # Agent containers: Route, K8sAgent, GitlabAgent,
+│                      #   AnsibleAgent (HITLLMAgent), Render, Memory + PIPELINE
 ├── branches.py       # branch/merge prototype: 3 investigations, traces, conflict
 ├── tools.py           # typed @tool + fake K8s/GitLab/Ansible clients (DI, retry)
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
@@ -138,7 +138,7 @@ execution from state changes.
 
 The picture above walks the HITL ask/resume path through the `k8s` agent.
 This is the actual static map of all 6 agents in this demo
-(`python -m reactifact graph examples.devops.step_groups`):
+(`python -m reactifact graph examples.devops.agents`):
 
 ```mermaid
 flowchart LR
@@ -234,7 +234,7 @@ Sessions are per-user by convention (`admin1:<uuid>`, stored under that key in
 resources = build_resources(llm, "admin1")   # MemoryStore(namespace="user:admin1")
 ctx = Context(resources=resources)
 ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
-await Runtime(ctx, groups=GROUPS, dispatcher=MemoryStore.dispatch).arun()
+await Runtime(ctx, agents=PIPELINE.agents, dispatcher=MemoryStore.dispatch).arun()
 ```
 
 `MemoryStore` is **not** a copy of the chat. `RememberReport` calls

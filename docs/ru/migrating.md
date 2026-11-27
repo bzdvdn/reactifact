@@ -72,14 +72,14 @@ class Reply(BaseModel):
     text: str
 
 
-@step(produces=Route, consumes=Question)
+@step(produces=Route, reads=Question)
 async def classify(call: StepCall) -> None:
     question = call.trigger
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
     call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
-@step(produces=Reply, consumes=Route)
+@step(produces=Reply, reads=Route)
 async def answer(call: StepCall) -> None:
     route = call.trigger  # этот шаг запускается, потому что создан Route
     # ... вызов модели с входом, ограниченным ходом ...
@@ -87,10 +87,10 @@ async def answer(call: StepCall) -> None:
 ```
 
 ```python
-from reactifact import Context, Runtime, create_step_group
+from reactifact import Context, Runtime, Agent
 
-classifier = create_step_group("classifier", steps=[classify])
-answerer = create_step_group("answerer", steps=[answer])
+classifier = Agent("classifier", steps=[classify])
+answerer = Agent("answerer", steps=[answer])
 ```
 
 Две вещи, на которые стоит обратить внимание — это и есть реальная работа при
@@ -197,7 +197,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 ## 10. Чеклист переезда
 
 - [ ] Каждое промежуточное значение — **типизированный `Artifact`**, не dict/`TypedDict`.
-- [ ] Каждая единица — `Step`, объявляющий `consumes`/`produces`; ни один узел
+- [ ] Каждая единица — `Step`, объявляющий `reads`/`produces`; ни один узел
       не зовёт другой напрямую.
 - [ ] Право на запуск — guard (`return None`), а не порядок планирования.
 - [ ] Id **стабильны и перевыводимы** (`f"answer:{qid}"`,

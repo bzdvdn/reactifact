@@ -7,12 +7,12 @@ import asyncio
 from pydantic import BaseModel
 from reactifact import (
     SUPPORTED_BY,
+    Agent,
     Artifact,
     Budget,
     Context,
     Effects,
     Runtime,
-    create_step_group,
     step,
 )
 
@@ -67,28 +67,28 @@ def edges(context: Context, artifact_type: type[BaseModel]) -> list[tuple[str, s
 
 
 def test_provenance_points_at_the_input_the_step_resolved():
-    context = run([create_step_group("a", steps=[auto])], [("in", 1)])
+    context = run([Agent("a", steps=[auto])], [("in", 1)])
     assert edges(context, Output) == [("derived_from", "in")]
 
 
 def test_provenance_off_by_default():
-    context = run([create_step_group("a", steps=[manual])], [("in", 1)])
+    context = run([Agent("a", steps=[manual])], [("in", 1)])
     assert edges(context, Output) == []
 
 
 def test_provenance_accepts_a_relation_constant():
-    context = run([create_step_group("a", steps=[named_relation])], [("in", 1)])
+    context = run([Agent("a", steps=[named_relation])], [("in", 1)])
     assert edges(context, Output) == [("supported_by", "in")]
 
 
 def test_provenance_uses_the_latest_match_not_every_input():
     context = run(
-        [create_step_group("a", steps=[auto])],
+        [Agent("a", steps=[auto])],
         [("old", 1), ("new", 2)],
     )
     assert edges(context, Output) == [("derived_from", "new")]
 
 
 def test_explicit_link_wins_over_provenance():
-    context = run([create_step_group("a", steps=[explicit])], [("in", 1)])
+    context = run([Agent("a", steps=[explicit])], [("in", 1)])
     assert edges(context, Output) == [("custom", "in")]

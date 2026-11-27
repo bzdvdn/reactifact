@@ -19,9 +19,11 @@ an LLM, that's on your hooks.
         async def execute_step(self, context, step, history) -> StepResult: ...
         async def finish(self, context, goal, results) -> FinalAnswer: ...
 
-    class FlowAgent(StepGroup):
-        consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-        produces = Flow().produces()
+    flow = Agent(
+        "plan-execute",
+        consumes=[Consume(Goal), Consume(PlanStep), Consume(StepResult)],
+        steps=Flow().produces(),
+    )
 
 `step_type` and `result_type` must each declare `goal_field`/`index_field`
 (defaults: `"goal"` / `"index"`, matching the ported example's own field
@@ -43,10 +45,11 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
+from ..agent import Agent, Emit, Step
 from ..artifacts import Artifact
-from ..consume import Consume, IdempotentConsume
+from ..consume import Consume
 from ..context import Context
-from ..step import Emit, Step, StepGroup, create_step_group
+from ..read import Read
 from .inputs import correlation_id_of
 
 if TYPE_CHECKING:
@@ -60,7 +63,7 @@ FinalT = TypeVar("FinalT", bound=BaseModel)
 
 class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     """Subclass with the three domain hooks; `produces()` gives the three
-    `Step`s to wire into an `StepGroup` (see module docstring)."""
+    `Step`s to wire into a `Agent` (see module docstring)."""
 
     goal_type: type[GoalT]
     step_type: type[StepT]
@@ -138,7 +141,7 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
     def produces(self) -> list[Step[Any]]:
         return [_Planner(self), _Executor(self), _Finisher(self)]
 
-    def consumes(self) -> list[Consume]:
+    def reads(self) -> list[Consume]:
         """The artifact types the flow reads: goal, step and result."""
         return [
             Consume(self.goal_type),
@@ -146,11 +149,16 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
             Consume(self.result_type),
         ]
 
-    def group(self, name: str = "plan-execute", **kwargs: Any) -> StepGroup:
-        """A ready `StepGroup` (consumes inferred) for `Runtime(groups=...)`."""
-        return create_step_group(
-            name, consumes=self.consumes(), steps=self.produces(), **kwargs
-        )
+    def consumes(self) -> list[Consume]:
+        """Deprecated alias for `reads()`."""
+        return self.reads()
+
+    def agent(self, name: str = "plan-execute", **kwargs: Any) -> Agent:
+        """A ready `Agent` (consumes inferred) for `Runtime(agents=...)`."""
+        return Agent(name, consumes=self.reads(), steps=self.produces(), **kwargs)
+
+    #: Compatibility alias for `agent()`.
+    group = agent
 
     def pipeline(self, *, name: str = "plan-execute", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this flow already grouped and wired.
@@ -162,7 +170,7 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
         """
         from ..pipeline import Pipeline
 
-        return Pipeline(groups=[self.group(name)], **kwargs)
+        return Pipeline(agents=[self.agent(name)], **kwargs)
 
     def _step_id(self, goal_id: str, index: int) -> str:
         return f"step:{goal_id}:{index}"
@@ -248,7 +256,7 @@ class _Planner(Step[Any]):
         goal = trigger
         if goal is None or not isinstance(goal.data, owner.goal_type):
             return None
-        # A plan is a set of Step artifacts, not one derived id: IdempotentConsume
+        # A plan is a set of Step artifacts, not one derived id: Read.idempotent
         # cannot express "no steps for this goal", so the guard stays explicit.
         if owner._ordered_steps(context, goal.id):
             return None  # already planned (§42)
@@ -309,8 +317,8 @@ class _Finisher(Step[Any]):
         self.owner = owner
         super().__init__(
             artifact_type=owner.final_type,
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     owner.result_type,
                     id_of=lambda result: owner._final_id(
                         getattr(result.data, owner.goal_field)

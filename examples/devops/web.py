@@ -20,19 +20,12 @@ if __package__ in (None, ""):  # running as a script — add src to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
+from examples.devops.agents import PIPELINE
 from examples.devops.guardrails import devops_guardrail_policy, screen
 from examples.devops.models import ChatReply, UserMsg
 from examples.devops.online_eval import build_evaluator
 from examples.devops.policy import PRINCIPALS, user_from_request
 from examples.devops.resources import build_resources
-from examples.devops.step_groups import (
-    AnsibleAgent,
-    GitlabAgent,
-    K8sAgent,
-    MemoryGroup,
-    RenderGroup,
-    RouteGroup,
-)
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from reactifact import Budget, Chat, SessionStore
@@ -69,16 +62,6 @@ ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 
 FALLBACK_REPLY = "Failed to assemble the answer. Try rephrasing the question."
-
-
-GROUPS = [
-    RouteGroup(),
-    K8sAgent(),
-    GitlabAgent(),
-    AnsibleAgent(),
-    RenderGroup(),
-    MemoryGroup(),
-]
 
 #: Guardrails for the running assistant (see examples/devops/guardrails.py).
 GUARDRAILS = devops_guardrail_policy()
@@ -173,7 +156,7 @@ def create_app(
 
     assistant = Chat(
         store=store,
-        groups=GROUPS,
+        pipeline=PIPELINE,
         seed_type=UserMsg,
         reply=terminal_reply,
         session_state=session_state,
@@ -227,7 +210,7 @@ def create_app(
     app.include_router(create_chat_router(assistant, request_factory=_request_user))
     app.include_router(
         create_contracts_router(
-            GROUPS,
+            PIPELINE.agents,
             title="devops-ai contracts",
             username=os.environ.get("TRACE_USER") or None,
             password=os.environ.get("TRACE_PASSWORD") or None,

@@ -8,10 +8,11 @@ from typing import Any, Generic, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel
 
+from ..agent import Edit, Step
 from ..artifacts import Artifact, ArtifactType
 from ..consume import Consume
 from ..context import Context
-from ..step import Edit, Step
+from ..read import Read
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 T = TypeVar("T", bound=BaseModel)
@@ -106,6 +107,11 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         *,
         next_status: NextStatus | None = None,
         terminal: Iterable[str] | None = None,
+        reads: Read
+        | Consume
+        | ArtifactType
+        | Sequence[Read | Consume | ArtifactType]
+        | None = None,
         consumes: Consume
         | ArtifactType
         | Sequence[Consume | ArtifactType]
@@ -128,11 +134,17 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
             if terminal is not None
             else frozenset(getattr(type(self), "terminal", ()))
         )
+        if reads is not None and consumes is not None:
+            raise TypeError("Pass only one of reads= or consumes=")
         self.query_id_field = query_id_field
         self.status_field = status_field
         # A status machine updates its target; it does not create it. Keep
         # `artifact_type` for target selection and viz, but declare no creates.
-        super().__init__(produces=(), consumes=consumes, name=name)
+        super().__init__(
+            produces=(),
+            reads=reads if reads is not None else consumes,
+            name=name,
+        )
         self.artifact_type = resolved
 
     @classmethod
@@ -145,6 +157,11 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         on_transition: TransitionHook | None = None,
         query_id_field: str = "query_id",
         status_field: str = "status",
+        reads: Read
+        | Consume
+        | ArtifactType
+        | Sequence[Read | Consume | ArtifactType]
+        | None = None,
         consumes: Consume
         | ArtifactType
         | Sequence[Consume | ArtifactType]
@@ -159,6 +176,7 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
             on_transition=on_transition,
             query_id_field=query_id_field,
             status_field=status_field,
+            reads=reads,
             consumes=consumes,
             name=name,
         )

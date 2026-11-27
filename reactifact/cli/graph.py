@@ -38,7 +38,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "agents",
         nargs="?",
         default=None,
-        help='module path, e.g. "examples.knowledge.step_groups" '
+        help='module path, e.g. "examples.knowledge.agents" '
         "(default: [tool.reactifact] groups)",
     )
     p_graph.add_argument("--title", default="reactifact blueprint")

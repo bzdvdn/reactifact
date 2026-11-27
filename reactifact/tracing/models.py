@@ -173,7 +173,7 @@ class AgentSpan(BaseModel):
 
     @property
     def group(self) -> str:
-        """The StepGroup name (alias for `agent`, kept for compatibility)."""
+        """The agent name (alias for `agent`, kept for compatibility)."""
         return self.agent
 
 

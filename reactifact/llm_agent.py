@@ -16,12 +16,12 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .agent import Agent, Step
 from .artifacts import Artifact
 from .consume import Consume
 from .context import Context
 from .events import Event
 from .interrupt import PendingQuestion
-from .step import Step, StepGroup
 from .structured import SYSTEM_STRUCTURED, structured_llm
 from .tools import Tool
 from .tools.use import DeferredToolGroup, Observation, ToolAnswer, ToolUse, ToolUseHITL
@@ -38,7 +38,7 @@ def _require_consumes(
         )
 
 
-class StructuredGenerateAgent(StepGroup):
+class StructuredGenerateAgent(Agent):
     """Base agent: LLM → pydantic schema → Artifact.
 
     Declare `schema`, override `build_prompt(inputs)`; optionally
@@ -96,7 +96,7 @@ class StructuredGenerateAgent(StepGroup):
         return None
 
 
-class _ToolAgentBase(StepGroup):
+class _ToolAgentBase(Agent):
     """Shared constructor for `LLMAgent` and `HITLLMAgent`."""
 
     system: str = ""
@@ -124,10 +124,35 @@ class _ToolAgentBase(StepGroup):
         *,
         name: str | None = None,
         steps: Sequence[Step[Any]] | None = None,
+        system: str | None = None,
+        tools: Sequence[Tool] | dict[str, Tool] | None = None,
+        consumes: Sequence[Consume] | None = None,
+        max_steps: int | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> None:
+        """Build a tool agent without subclassing.
+
+        The keyword surface mirrors the class attributes, so the common case is
+        `HITLLMAgent(name=..., system=..., tools=[...], consumes=[...])`
+        instead of a five-line subclass.
+        """
+        if system is not None:
+            self.system = system
+        if tools is not None:
+            self.tools = tools
+        if max_steps is not None:
+            self.max_steps = max_steps
+        if temperature is not None:
+            self.temperature = temperature
+        if max_tokens is not None:
+            self.max_tokens = max_tokens
+
         llm_name = name or self.name or self.__class__.__name__.lower()
-        user_consumes = list(self.consumes or ())
+        user_consumes = list(
+            consumes if consumes is not None else (self.consumes or ())
+        )
         _require_consumes(self.__class__.__name__, llm_name, user_consumes)
         self.consumes = [
             *user_consumes,
@@ -142,12 +167,22 @@ class _ToolAgentBase(StepGroup):
 class LLMAgent(_ToolAgentBase):
     """Ordinary LLM agent with tools: blocking loop, no HITL.
 
-    In a subclass set: `system`, `tools`, `consumes` (questions), and
-    `steps` for handling the final `ToolAnswer` (the `produces` alias is
-    deprecated).
+    Configure it with keywords (`system`, `tools`, `consumes`, and `steps` for
+    handling the final `ToolAnswer`); subclassing is only needed when the class
+    attributes read better.
     """
 
     deferred_tool_groups: Sequence[DeferredToolGroup] = ()
+
+    def __init__(
+        self,
+        *,
+        deferred_tool_groups: Sequence[DeferredToolGroup] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if deferred_tool_groups is not None:
+            self.deferred_tool_groups = deferred_tool_groups
+        super().__init__(**kwargs)
 
 
 class HITLLMAgent(_ToolAgentBase):
@@ -162,6 +197,22 @@ class HITLLMAgent(_ToolAgentBase):
     max_asks: int = 2
     max_approvals: int = 3
     resume_announce: Callable[[str], str] | None = None
+
+    def __init__(
+        self,
+        *,
+        max_asks: int | None = None,
+        max_approvals: int | None = None,
+        resume_announce: Callable[[str], str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if max_asks is not None:
+            self.max_asks = max_asks
+        if max_approvals is not None:
+            self.max_approvals = max_approvals
+        if resume_announce is not None:
+            self.resume_announce = resume_announce
+        super().__init__(**kwargs)
 
     def _extra_consumes(self, llm_name: str) -> tuple[Consume, ...]:
         return (

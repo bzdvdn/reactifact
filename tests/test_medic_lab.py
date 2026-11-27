@@ -6,17 +6,17 @@ Hermetic: the evidence pool is the local fixture pages (no network).
 import asyncio
 from pathlib import Path
 
+from examples.medic_lab.agents import (
+    InvestigatorAgent,
+    medic_lab_agents,
+    medic_lab_scheduler,
+)
 from examples.medic_lab.models import (
     Claim,
     Hypothesis,
     Question,
     ResearchReport,
     SearchDone,
-)
-from examples.medic_lab.step_groups import (
-    InvestigatorGroup,
-    medic_lab_groups,
-    medic_lab_scheduler,
 )
 from reactifact import Budget, Context, Runtime, RuntimeResources
 from reactifact.sources import FileSystemSource
@@ -32,7 +32,7 @@ def build():
     )
     ctx = Context(resources=resources)
     runtime = Runtime(
-        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, agents=medic_lab_agents(), budget=Budget(max_runs=400), max_concurrency=4
     )
     return ctx, runtime
 
@@ -101,7 +101,7 @@ def test_medic_lab_scheduler_prioritizes_more_contradicted_hypothesis():
     ctx.link(against2.id, "contradicts", shaky.id)
 
     by_id = {e.artifact_id: e for e in ctx.drain_events()}
-    investigator = InvestigatorGroup()
+    investigator = InvestigatorAgent
     steady_candidate = (investigator, by_id[steady.id], [])
     shaky_candidate = (investigator, by_id[shaky.id], [])
 
@@ -181,7 +181,7 @@ def test_topic_agnostic_hypotheses_from_llm(tmp_path):
     )
     ctx = Context(resources=resources)
     runtime = Runtime(
-        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, agents=medic_lab_agents(), budget=Budget(max_runs=400), max_concurrency=4
     )
     run_until_report(ctx, runtime, ["stop"])
 
@@ -236,7 +236,7 @@ def test_deepen_uses_model_queries_and_report_synthesis(tmp_path):
         )
     )
     runtime = Runtime(
-        ctx, groups=medic_lab_groups(), budget=Budget(max_runs=400), max_concurrency=4
+        ctx, agents=medic_lab_agents(), budget=Budget(max_runs=400), max_concurrency=4
     )
     run_until_report(ctx, runtime, ["1", "stop"])
 

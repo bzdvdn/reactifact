@@ -7,14 +7,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Patch,
     RetryPolicy,
     Runtime,
     Step,
-    StepGroup,
-    create_step_group,
     step,
 )
 from reactifact.effects import current_effects
@@ -29,7 +28,7 @@ class Answer(BaseModel):
     text: str
 
 
-class FlakyAgent(StepGroup):
+class FlakyAgent(Agent):
     consumes = [Consume(Question)]
 
     def __init__(self, failures: int, **kwargs):
@@ -46,7 +45,7 @@ class FlakyAgent(StepGroup):
         return Patch().create(Answer(text="ok"))
 
 
-class SlowAgent(StepGroup):
+class SlowAgent(Agent):
     consumes = [Consume(Question)]
 
     async def run(self, event, context):
@@ -54,7 +53,7 @@ class SlowAgent(StepGroup):
         return Patch().create(Answer(text="late"))
 
 
-def _runtime(agent: StepGroup, **kwargs) -> Runtime:
+def _runtime(agent: Agent, **kwargs) -> Runtime:
     context = Context()
     context.create(Question(text="q"))
     return Runtime(context, groups=[agent], **kwargs)
@@ -111,7 +110,7 @@ def test_timeout_raises_timeout_error():
         asyncio.run(runtime.arun())
 
 
-class SlowOnceAgent(StepGroup):
+class SlowOnceAgent(Agent):
     consumes = [Consume(Question)]
 
     def __init__(self, **kwargs):
@@ -182,15 +181,15 @@ def test_retry_hook_reports_each_failed_attempt():
     ]
 
 
-def test_create_step_group_accepts_policy_and_validates_timeout():
+def test_Agent_accepts_policy_and_validates_timeout():
     policy = RetryPolicy(max_attempts=2, backoff=0)
-    agent = create_step_group("a", retry=policy, timeout=1.0)
+    agent = Agent("a", retry=policy, timeout=1.0)
 
     assert agent.retry is policy
     assert agent.timeout == 1.0
 
     with pytest.raises(ValueError, match="timeout"):
-        create_step_group("a", timeout=0)
+        Agent("a", timeout=0)
 
 
 @pytest.mark.parametrize(
@@ -243,7 +242,7 @@ class SlowStep(Step):
 def test_step_timeout_fails_agent_and_discards_prior_steps():
     context = Context()
     context.create(Question(text="q"))
-    agent = create_step_group("a", steps=[FirstStep(), SlowStep()])
+    agent = Agent("a", steps=[FirstStep(), SlowStep()])
     runtime = Runtime(context, groups=[agent])
 
     with pytest.raises(TimeoutError):
@@ -261,7 +260,7 @@ def test_decorator_step_timeout():
 
     context = Context()
     context.create(Question(text="q"))
-    runtime = Runtime(context, groups=[create_step_group("a", steps=[slow])])
+    runtime = Runtime(context, groups=[Agent("a", steps=[slow])])
 
     with pytest.raises(TimeoutError):
         asyncio.run(runtime.arun())
@@ -287,7 +286,7 @@ class SlowOnceStep(Step):
 
 def test_agent_retry_reruns_the_whole_agent_after_step_timeout():
     step_instance = SlowOnceStep()
-    agent = create_step_group(
+    agent = Agent(
         "a",
         steps=[step_instance],
         retry=RetryPolicy(max_attempts=2, backoff=0),

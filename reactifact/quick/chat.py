@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..agent import Agent, Step
 from ..budget import Budget
 from ..chat import Chat
 from ..checkpoints import FileKVBackend, InMemoryKVBackend
@@ -16,7 +17,6 @@ from ..providers import LLMProvider, from_env
 from ..resources import RuntimeResources
 from ..runtime import Dispatcher, DispatchErrorHandler
 from ..session import SessionStore
-from ..step import Step, StepGroup
 from .models import Question
 
 
@@ -46,8 +46,9 @@ def _default_reply(
 
 
 def chat_agent(
-    groups: Sequence[StepGroup] | None = None,
+    agents: Sequence[Agent] | None = None,
     *,
+    groups: Sequence[Agent] | None = None,
     steps: Sequence[Step] | None = None,
     store: SessionStore | str | Path | None = None,
     user_message: type[BaseModel] = Question,
@@ -61,7 +62,7 @@ def chat_agent(
 ) -> Chat:
     """A configured `Chat` — sessions, turns, history, out of the box.
 
-    `groups=` is the StepGroup sequence.
+    `agents=` is the agent sequence; `groups=` is a compatibility alias.
 
     `store` may be a `SessionStore`, a directory path (`FileKVBackend`), or
     `None` for a process-local in-memory store (handy for tests/notebooks; use a
@@ -75,18 +76,18 @@ def chat_agent(
     a per-turn callable, …). The provider instance is shared across turns, not
     closed by the assistant.
     """
-    provided = [value for value in (groups, steps) if value is not None]
+    provided = [value for value in (agents, groups, steps) if value is not None]
     if len(provided) > 1:
-        raise ValueError("Pass only one of steps= or groups=")
-    resolved = groups
+        raise ValueError("Pass only one of steps=, agents= or groups=")
+    resolved = agents if agents is not None else groups
     if resolved is None and steps is None:
-        raise TypeError("chat_agent requires steps= or groups=")
+        raise TypeError("chat_agent requires steps= or agents=")
     if resources is None:
         resources = RuntimeResources(llm=llm if llm is not None else from_env())
     return Chat(
         store=_as_store(store),
         steps=list(steps) if steps is not None else None,
-        groups=list(resolved) if resolved is not None else None,
+        agents=list(resolved) if resolved is not None else None,
         seed_type=user_message,
         reply=reply if reply is not None else _default_reply(user_message),
         resources=resources,

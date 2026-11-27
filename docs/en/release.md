@@ -179,7 +179,7 @@ uv build                     # dist/reactifact-0.25.0-py3-none-any.whl + sdist
 uv venv /tmp/reactifact-rc
 uv pip install --python /tmp/reactifact-rc/bin/python --quiet dist/reactifact-0.25.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
-/tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.step_groups 2>/dev/null \
+/tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.agents 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
 # confirm the wheel contains reactifact + tracing templates and NOT examples/tests:
 unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"

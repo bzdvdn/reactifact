@@ -59,7 +59,7 @@ class MergeSignal(BaseModel):
 class Plan(Step):
     """One question → three independent problem artifacts."""
 
-    consumes = (UserMsg,)
+    reads = (UserMsg,)
     produces = (K8sProblem, GitlabProblem, AnsibleProblem)
 
     async def run(self, msg: UserMsg) -> list[Emit]:
@@ -72,7 +72,7 @@ class Plan(Step):
 
 
 class InvestigateK8s(Step):
-    consumes = (K8sProblem,)
+    reads = (K8sProblem,)
     produces = (K8sReport,)
 
     async def run(self, problem: K8sProblem) -> K8sReport:
@@ -83,7 +83,7 @@ class InvestigateK8s(Step):
 
 
 class InvestigateGitlab(Step):
-    consumes = (GitlabProblem,)
+    reads = (GitlabProblem,)
     produces = (GitlabReport,)
 
     async def run(self, problem: GitlabProblem) -> GitlabReport:
@@ -94,7 +94,7 @@ class InvestigateGitlab(Step):
 
 
 class InvestigateAnsible(Step):
-    consumes = (AnsibleProblem,)
+    reads = (AnsibleProblem,)
     produces = (AnsibleReport,)
 
     async def run(self, problem: AnsibleProblem) -> AnsibleReport:
@@ -107,7 +107,7 @@ class InvestigateAnsible(Step):
 class Compose(Step):
     """After merge: all three reports are in one context, compose the reply."""
 
-    consumes = (
+    reads = (
         K8sReport,
         MergeSignal,
     )

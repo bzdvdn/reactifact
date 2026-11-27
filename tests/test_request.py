@@ -4,10 +4,10 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
-    create_step_group,
     current_request,
     step,
 )
@@ -31,7 +31,7 @@ def test_call_request_is_available_inside_produces():
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
+    agent = Agent("a", consumes=[Consume(In)], steps=[p])
     ctx = Context()
     runtime = Runtime(ctx, groups=[agent])
     ctx.create(In(text="hi"))
@@ -50,7 +50,7 @@ def test_request_is_empty_when_not_passed_and_reset_after():
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
+    agent = Agent("a", consumes=[Consume(In)], steps=[p])
     ctx = Context()
     runtime = Runtime(ctx, groups=[agent])
     ctx.create(In(text="hi"))
@@ -74,7 +74,7 @@ def test_chat_invoke_passes_request_to_produces(tmp_path):
         call.effects.create(Out(text="ok"))
         return None
 
-    agent = create_step_group("a", consumes=[Consume(In)], produces=[p])
+    agent = Agent("a", consumes=[Consume(In)], steps=[p])
     assistant = ChatAssistant(
         store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
         groups=[agent],

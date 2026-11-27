@@ -1,0 +1,32 @@
+"""Repair assistant agent — a container over the staged Steps (§71)."""
+
+from reactifact import Agent, Pipeline
+
+from .steps import (
+    ApprovalStage,
+    AssistantStage,
+    CollectStage,
+    EstimateStage,
+    PickStage,
+    PlanStage,
+)
+
+#: Single dispatcher: reacts to messages and project changes.
+#:
+#: Each stage is its own Step with a deterministic guard; routing follows
+#: `Project.stage` — the runtime builds links from the artifact state.
+RepairFlow = Agent(
+    "repair_flow",
+    steps=[
+        CollectStage(),
+        PickStage(),
+        PlanStage(),
+        EstimateStage(),
+        ApprovalStage(),
+        AssistantStage(),
+    ],
+)
+
+
+#: The reusable definition behind both transports.
+PIPELINE = Pipeline(agents=[RepairFlow], name="repair")

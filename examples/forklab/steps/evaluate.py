@@ -20,7 +20,7 @@ TOPN = 3
 class Evaluate(Step):
     """Deterministic ranking + links; LLM wording on top of the merged state."""
 
-    consumes = (Review,)
+    reads = (Review,)
     produces = (Answer,)
 
     async def run(

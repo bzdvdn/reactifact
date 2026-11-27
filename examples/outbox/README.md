@@ -51,7 +51,7 @@ are the proof.
 ## The split in one step
 
 ```python
-@step(produces=(Receipt, PendingAction), consumes=Order)
+@step(produces=(Receipt, PendingAction), reads=Order)
 async def process_order(order: Artifact[Order], effects: Effects) -> None:
     outbox.act(
         "notify",
@@ -69,7 +69,7 @@ extra create after it. The runtime performs the intent after the commit,
 exactly once per id:
 
 ```python
-await Runtime(context, groups=GROUPS, dispatcher=dispatch).arun()
+await Runtime(context, agents=PIPELINE.agents, dispatcher=dispatch).arun()
 ```
 
 The step never touches the network. That is the whole trick: `key` is derived
@@ -113,7 +113,7 @@ policy** — case 7 wraps the dispatcher with `with_retries(...)`;
 outbox/
 ├── models.py       # Order (input) + Receipt (committed state)
 ├── steps.py        # records the intent via outbox.act — never does the I/O
-├── step_groups.py  # order_group · mirror_group (same-generation duplicate)
+├── agents.py  # order · mirror agents (same-generation duplicate)
 ├── dispatcher.py   # the fake external world: SentLog + idempotent dispatcher
 └── main.py         # seven cases
 ```

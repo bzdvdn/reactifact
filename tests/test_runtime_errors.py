@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, Step, StepCall, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime, Step, StepCall
 
 
 class Trigger(BaseModel):
@@ -17,7 +17,7 @@ class Explode(Step[Trigger]):
         raise RuntimeError("boom inside the agent")
 
 
-class ExplodeAgent(StepGroup):
+class ExplodeAgent(Agent):
     name = "explode"
     consumes = [Consume(Trigger)]
     produces = [Explode()]
@@ -65,7 +65,7 @@ class Survive(Step[Ok]):
         return None
 
 
-class SurviveAgent(StepGroup):
+class SurviveAgent(Agent):
     name = "survive"
     consumes = [Consume(Trigger)]
     produces = [Survive()]
@@ -125,7 +125,7 @@ class Flaky(Step[Done]):
         call.effects.create(Done())
 
 
-class FlakyAgent(StepGroup):
+class FlakyAgent(Agent):
     name = "flaky"
     consumes = [Consume(Trigger)]
     produces = [Flaky()]

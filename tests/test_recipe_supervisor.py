@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     PendingQuestion,
     Runtime,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.recipes import ApprovalGate, Router
 
@@ -85,7 +85,7 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
 
 
 def make_runtime(ctx: Context) -> Runtime:
-    class Flow(StepGroup):
+    class Flow(Agent):
         consumes = [
             Consume(Request),
             Consume(Task),

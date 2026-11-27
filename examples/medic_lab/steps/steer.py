@@ -72,7 +72,7 @@ class Steer(Step):
     no new events.
     """
 
-    consumes = (Hypothesis, Claim, Evidence)
+    reads = (Hypothesis, Claim, Evidence)
     produces = (PendingQuestion,)
     scope = Scope("question_id", owner=Question, key=scope_key)
 
@@ -109,7 +109,7 @@ class Steer(Step):
 class Deepen(Step):
     """Human answer: deepen hypothesis N (reopens its channel) or stop."""
 
-    consumes = (Annotated[PendingQuestion, When(lambda q: q.answered)],)
+    reads = (Annotated[PendingQuestion, When(lambda q: q.answered)],)
     produces = (PendingQuestion,)
 
     async def run(
@@ -181,7 +181,7 @@ class Deepen(Step):
 class Reporter(Step):
     """Builds the report when the human stops or the depth budget is exhausted."""
 
-    consumes = (
+    reads = (
         Hypothesis,
         PendingQuestion,
     )

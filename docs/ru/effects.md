@@ -119,7 +119,7 @@ effects.upsert(Summary(...), id=f"summary:{doc_id}")
 - `Outbox.act(...)` — намерение внешнего side effect на базе `PendingAction`.
 
 ```python
-@step(produces=PendingAction, consumes=Ticket)
+@step(produces=PendingAction, reads=Ticket)
 def notify(ticket: Ticket, outbox: Outbox) -> None:
     outbox.act("notify", key=f"notify:{ticket.id}", payload={"to": ticket.email})
 ```
@@ -137,7 +137,7 @@ I/O сам: передайте `Runtime(dispatcher=...)`, и runtime вызов�
 UI-сигнал:
 
 ```python
-@step(produces=Answer, consumes=Question)
+@step(produces=Answer, reads=Question)
 async def answer(question: Question, progress: Progress, llm: LLMProvider | None) -> Answer:
     progress("Считаю…", count=3)
     ...
@@ -176,7 +176,7 @@ status-артефактом (`recipes.status.StatusMachine`).
 
 ## Где ещё встречается `Patch`
 
-- **`StepGroup.run`** — escape hatch для кастомных агентов, собирающих change-set
+- **`Agent.run`** — escape hatch для кастомных агентов, собирающих change-set
   вручную.
 - **Рецепты** (`fan_out_sources`, `materialize_doc`) пишут в слот;
   return-style шаги вроде `StatusMachine` возвращают `Edit`. Tool loop
@@ -201,7 +201,7 @@ guard → decide → describe (effects) → return None
 ```python
 from reactifact import StepCall, step
 
-@step(produces=Answer, consumes=Question)
+@step(produces=Answer, reads=Question)
 async def answer_turn(call: StepCall) -> None:
     question = call.trigger
     answer = call.effects.create(
@@ -221,7 +221,7 @@ async def answer_turn(call: StepCall) -> None:
 ```python
 from reactifact import CALCULATED_FROM
 
-@step(produces=Variance, consumes=Spend, provenance=CALCULATED_FROM)
+@step(produces=Variance, reads=Spend, provenance=CALCULATED_FROM)
 def compute_variance(spend: Spend) -> Variance:
     return Variance(actual=spend.total, ...)
 ```
@@ -250,5 +250,5 @@ for link in context.why(answer):   # обход в ширину по исход�
 
 Подкласс и функция `@step` — два канонических стиля: подкласс, когда у шага
 есть логика, достойная имени, `@step` — для короткой разовой операции.
-Переопределение `StepGroup.run(self, event, context) -> Patch` остаётся
+Переопределение `Agent.run(self, event, context) -> Patch` остаётся
 низкоуровневым escape hatch, а не повседневным стилем.

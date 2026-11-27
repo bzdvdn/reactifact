@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, SessionStore, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime, SessionStore
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 
 
@@ -13,7 +13,7 @@ class Answer(BaseModel):
     text: str
 
 
-class SimpleAnswerer(StepGroup):
+class SimpleAnswerer(Agent):
     consumes = [Consume(Question)]
     produces = []
 
@@ -157,7 +157,7 @@ class Echoed(BaseModel):
     text: str
 
 
-class Echo(StepGroup):
+class Echo(Agent):
     """Reacts to `Answer` — chains a second commit within the same `arun()`
     turn, so per_commit vs. per_turn save counts actually differ."""
 

@@ -18,12 +18,13 @@ FORBIDDEN = {
     "removed tool shim": re.compile(
         r"reactifact\.(?:tool_use|native_tool_use|agent_tool)\b"
     ),
-    "removed agents API": re.compile(
-        r"\b(?:create_agent|validate_agents)\b|\bagents\s*="
-    ),
+    "removed agents API": re.compile(r"\b(?:create_agent|validate_agents)\b"),
     "removed Produce API": re.compile(r"\b(?:Produce|ProduceCall)\b|@produce\b"),
-    "legacy StepGroup.produces": re.compile(
-        r"\bStepGroup\.produces\b|produces\s*=\s*\["
+    "legacy grouping API": re.compile(
+        r"\b(?:StepGroup|create_step_group)\b|\bgroups\s*="
+    ),
+    "legacy Agent.produces": re.compile(
+        r"\b(?:StepGroup|Agent)\.produces\b|produces\s*=\s*\["
     ),
     "legacy Step kwargs": re.compile(r"\b(?:also_creates|reacts_to)\s*="),
     "legacy effects helpers": re.compile(r"\beffects\.(?:ask|resume|act)\s*\("),

@@ -2,7 +2,7 @@
 
 A `Consume` answers two questions: *does this agent run at all* (`wakes`) and
 *which artifacts become its inputs* (`collect`). All parameters can be class
-attributes (for a `Consume` subclass) or constructor arguments; a `StepGroup`
+attributes (for a `Consume` subclass) or constructor arguments; a `Agent`
 holds a `consumes` sequence of those objects.
 
 ## Common parameters
@@ -59,7 +59,7 @@ step reads history across turns:
 # not-run: illustrative
 from typing import Annotated
 from reactifact import Artifact
-from reactifact.step import Latest, Unscoped, Wakes
+from reactifact.agent import Latest, Unscoped, Wakes
 
 async def run(
     self,

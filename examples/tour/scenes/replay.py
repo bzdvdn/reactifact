@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Context, Runtime, RuntimeResources, Step, create_step_group, tool
+from reactifact import Agent, Context, Runtime, RuntimeResources, Step, tool
 from reactifact.replay import RecordingToolRecorder
 
 
@@ -26,7 +26,7 @@ async def echo(text: str) -> str:
 
 
 class EchoStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
@@ -43,7 +43,7 @@ async def _run_replay(directory: Path) -> dict[str, Any]:
     )
     recorded_context.create(Question(text="replay me"), id="question:1")
     recorded_runtime = Runtime(
-        recorded_context, groups=[create_step_group("agent", steps=[EchoStep()])]
+        recorded_context, agents=[Agent("agent", steps=[EchoStep()])]
     )
     await recorded_runtime.arun()
     recorded = recorded_context.list_artifacts(Answer)[0].data.text
@@ -51,7 +51,7 @@ async def _run_replay(directory: Path) -> dict[str, Any]:
     replay_context = Context()
     replay_context.create(Question(text="replay me"), id="question:1")
     replay_runtime = Runtime(
-        replay_context, groups=[create_step_group("agent", steps=[EchoStep()])]
+        replay_context, agents=[Agent("agent", steps=[EchoStep()])]
     )
     await replay_runtime.replay_run(tool_recording=recording)
     replayed = replay_context.list_artifacts(Answer)[0].data.text

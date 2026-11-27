@@ -33,7 +33,7 @@ from ..common import (
 class ApprovalStage(Step):
     """HITL gate (§60): asks the approval question; the answer → assistant or a rebuild."""
 
-    consumes = (UserMsg, Project)
+    reads = (UserMsg, Project)
     produces = (Project, ChatReply, PendingQuestion)
 
     async def run(

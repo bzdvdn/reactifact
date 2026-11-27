@@ -6,6 +6,7 @@ from typing import Annotated, Any, cast
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Artifact,
     Budget,
     Context,
@@ -14,7 +15,6 @@ from reactifact import (
     Runtime,
     Step,
     When,
-    create_step_group,
 )
 
 
@@ -28,7 +28,7 @@ class Draft(BaseModel):
 
 
 class StartDraft(Step):
-    consumes = (Seed,)
+    reads = (Seed,)
     produces = (Draft,)
 
     async def run(self, seed: Seed) -> Emit:
@@ -36,7 +36,7 @@ class StartDraft(Step):
 
 
 class PolishDraft(Step):
-    consumes = (Annotated[Draft, When(lambda draft: draft.revision < 2)],)
+    reads = (Annotated[Draft, When(lambda draft: draft.revision < 2)],)
     produces = (Draft,)
 
     async def run(self, draft: Artifact[Draft]) -> Edit:
@@ -52,7 +52,7 @@ async def run_state() -> dict[str, Any]:
     context.create(Seed(text="versioned artifacts"), id="seed:1")
     runtime = Runtime(
         context,
-        groups=[create_step_group("state", steps=[StartDraft(), PolishDraft()])],
+        agents=[Agent("state", steps=[StartDraft(), PolishDraft()])],
         budget=Budget(max_runs=20),
     )
     await runtime.arun()

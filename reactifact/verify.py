@@ -30,12 +30,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .agent import Emit, Step
 from .artifacts import Artifact
 from .context import Context
 from .eval import MetricFn, core_metrics
 from .interaction import Human
 from .interrupt import PendingQuestion
-from .step import Emit, Step
 
 #: Used when neither the agent nor `RuntimeResources.verification_threshold` sets one.
 DEFAULT_THRESHOLD = 0.7

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Step, StepGroup
+from reactifact import Agent, Consume, Context, Step
 from reactifact.eval.dataset import Dataset
 from reactifact.experiments import Experiment
 
@@ -20,7 +20,7 @@ class Answer(BaseModel):
 
 
 class UpperStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
@@ -28,25 +28,15 @@ class UpperStep(Step):
 
 
 class LowerStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text.lower())
 
 
-class UpperAgent(StepGroup):
-    consumes = [Consume(Question)]
-
-    def __init__(self) -> None:
-        super().__init__(name="upper", steps=[UpperStep()])
-
-
-class LowerAgent(StepGroup):
-    consumes = [Consume(Question)]
-
-    def __init__(self) -> None:
-        super().__init__(name="lower", steps=[LowerStep()])
+UpperAgent = Agent("upper", consumes=[Consume(Question)], steps=[UpperStep()])
+LowerAgent = Agent("lower", consumes=[Consume(Question)], steps=[LowerStep()])
 
 
 def _seed(context: Context, inputs: Mapping[str, Any]) -> None:
@@ -73,7 +63,7 @@ async def run_experiment_scene() -> dict[str, Any]:
     )
     result = await Experiment(
         base=Context(),
-        variants={"upper": UpperAgent(), "lower": LowerAgent()},
+        variants={"upper": UpperAgent, "lower": LowerAgent},
         dataset=dataset,
         seed=_seed,
         evaluators=[_exact],

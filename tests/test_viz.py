@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Patch,
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
@@ -54,7 +54,7 @@ class AdvanceTurn(StatusMachine[Turn]):
         return "done"
 
 
-class DiagramAgent(StepGroup):
+class DiagramAgent(Agent):
     name = "diagram"
     consumes = [Consume(Question)]
     produces = [Echo(), AdvanceTurn()]
@@ -68,7 +68,7 @@ class FanOutStep(Step):
         return Answer(text=question.text)
 
 
-class StepDiagramAgent(StepGroup):
+class StepDiagramAgent(Agent):
     name = "stepy"
     steps = [FanOutStep()]
 

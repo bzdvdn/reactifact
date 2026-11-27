@@ -282,11 +282,11 @@ class Bump(Step[Number]):
 
 
 def test_evaluate_with_scenario_lab_target():
-    from reactifact import Consume, create_step_group
+    from reactifact import Agent, Consume
     from reactifact.eval import trajectory_match
     from reactifact.testing import ScenarioLab
 
-    agent = create_step_group("bump", consumes=[Consume(Number)], produces=[Bump()])
+    agent = Agent("bump", consumes=[Consume(Number)], steps=[Bump()])
     lab = ScenarioLab([agent])
     ds = Dataset.from_list(
         [

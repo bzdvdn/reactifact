@@ -26,11 +26,12 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
+from ..agent import Drop, Step
+from ..agent.step.annotations import Scope
 from ..artifacts import Artifact, ArtifactType
-from ..consume import Consume, OnCreate
+from ..consume import Consume
 from ..context import Context
-from ..step import Drop, Step
-from ..step.annotations import Scope
+from ..read import Read
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
@@ -94,7 +95,7 @@ class ScopedCleanup(Step):
     `Answer`.
 
     `scope` is required (pass `None` explicitly for a deliberate global
-    cleanup); `consume=` defaults to `OnCreate(terminal_type)`.
+    cleanup); `read=` defaults to `OnCreate(terminal_type)` (legacy `consume=` alias).
     """
 
     def __init__(
@@ -103,6 +104,7 @@ class ScopedCleanup(Step):
         *,
         scratch_types: Sequence[type[BaseModel]],
         scope: Scope | str | None,
+        read: Read | Consume | None = None,
         consume: Consume | None = None,
         name: str = "cleanup",
     ) -> None:
@@ -110,10 +112,12 @@ class ScopedCleanup(Step):
         self.scratch_types = tuple(scratch_types)
         if not self.scratch_types:
             raise ValueError("ScopedCleanup needs at least one scratch type")
+        if read is not None and consume is not None:
+            raise TypeError("Pass only one of read= or consume=")
         super().__init__(
             produces=(),
             deletes=self.scratch_types,
-            consumes=consume or OnCreate(terminal_type),
+            reads=read or consume or Read.on_create(terminal_type),
             scope=scope,
             name=name,
         )

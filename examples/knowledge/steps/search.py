@@ -19,7 +19,7 @@ class ScoutSources(Step):
     returns the idempotency marker, and the runtime commits the slot once.
     """
 
-    consumes = (ResearchTurn,)
+    reads = (ResearchTurn,)
     produces = (SourceRef, SearchDone)
     scope = "query_id"
 
@@ -55,7 +55,7 @@ class ScoutSources(Step):
 class ResolveRef(Step):
     """Lazy materialization of a text ref (§6); text documents only."""
 
-    consumes = (
+    reads = (
         Annotated[SourceRef, When(lambda ref: not ref.metadata.get("structured"))],
     )
     produces = (TypedDoc,)
@@ -91,7 +91,7 @@ class ResolveRef(Step):
 class ResolveTable(Step):
     """Spreadsheet: structured data stays structured, not text (§29)."""
 
-    consumes = (
+    reads = (
         Annotated[SourceRef, When(lambda ref: bool(ref.metadata.get("structured")))],
     )
     produces = (Spreadsheet,)

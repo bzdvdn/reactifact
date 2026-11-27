@@ -59,7 +59,7 @@ _CATALOG: list[tuple[str, str, float]] = [
 class DepthInvestigate(Step):
     """One strong finding from the top-ranked document."""
 
-    consumes = (Strategy,)
+    reads = (Strategy,)
     produces = (Evidence,)
 
     async def run(
@@ -85,7 +85,7 @@ class DepthInvestigate(Step):
 class BreadthInvestigate(Step):
     """Several weaker findings across more documents."""
 
-    consumes = (Strategy,)
+    reads = (Strategy,)
     produces = (Evidence,)
 
     async def run(

@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Emit, Runtime, Step, StepGroup
+from reactifact import Agent, Consume, Context, Emit, Runtime, Step
 from reactifact.consume import IdempotentConsume
 
 
@@ -26,7 +26,7 @@ class MakeDraft(Step[Draft]):
         return Emit(Draft(text=topic.data.text), id=f"draft:{topic.id}")
 
 
-class Flow(StepGroup):
+class Flow(Agent):
     consumes = [Consume(Topic)]
     produces = [MakeDraft()]
 
@@ -72,7 +72,7 @@ def test_id_of_none_never_fires():
         async def run(self, call):
             return Emit(Draft(text="never"), id="draft:never")
 
-    class SkipFlow(StepGroup):
+    class SkipFlow(Agent):
         consumes = [Consume(Topic)]
         produces = [Skip()]
 
@@ -109,7 +109,7 @@ def test_condition_narrows_the_trigger():
             assert topic is not None
             return Emit(Draft(text=topic.data.text), id=f"draft:{topic.id}")
 
-    class ConditionalFlow(StepGroup):
+    class ConditionalFlow(Agent):
         consumes = [Consume(Topic)]
         produces = [Conditional()]
 

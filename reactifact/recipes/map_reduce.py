@@ -25,12 +25,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from ..agent import Agent, Emit, Step
 from ..artifacts import Artifact
 from ..budget import RunStats
-from ..consume import IdempotentConsume
 from ..context import Context
+from ..read import Read
 from ..runtime import Runtime
-from ..step import Emit, Step, create_step_group
 
 MapFn = Any  # (item, index) -> model/mapping, sync or async
 ReduceFn = Any  # (successful_payloads) -> model/mapping, sync or async
@@ -88,7 +88,7 @@ async def _maybe_await(value: Any) -> Any:
 
 
 class MapWorker(Step):
-    consumes = (MapTask,)
+    reads = (MapTask,)
     produces = (MapResult,)
 
     def __init__(self, fn: MapFn, *, on_error: Literal["fail_fast", "collect"]):
@@ -125,8 +125,8 @@ class ReduceStep(Step):
         self.plan_id = plan_id
         self.key = key
         super().__init__(
-            consumes=(
-                IdempotentConsume(
+            reads=(
+                Read.idempotent(
                     MapResult,
                     id_of=lambda _: f"map-reduced:{key}",
                     debounce=True,
@@ -215,11 +215,9 @@ async def map_reduce(
 
     child_runtime = Runtime(
         child,
-        groups=[
-            create_step_group(
-                f"{name}-map", steps=[MapWorker(map_fn, on_error=on_error)]
-            ),
-            create_step_group(
+        agents=[
+            Agent(f"{name}-map", steps=[MapWorker(map_fn, on_error=on_error)]),
+            Agent(
                 f"{name}-reduce",
                 steps=[ReduceStep(reduce_fn, plan_id=plan.id, key=key)],
             ),

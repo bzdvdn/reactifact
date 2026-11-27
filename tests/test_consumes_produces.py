@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Consume, Context, Patch, Runtime, Step, StepGroup
+from reactifact import Agent, Consume, Context, Patch, Runtime, Step
 
 
 class Input(BaseModel):
@@ -14,7 +14,7 @@ class Output(BaseModel):
 
 
 # --- Imperative agent (as before, run is overridden) ---
-class SimpleAgent(StepGroup):
+class SimpleAgent(Agent):
     consumes = [Consume(Input)]
     produces = [Step(Output)]
 
@@ -84,7 +84,7 @@ class UndeclaredMultiCreateProduce(Step[Output]):
 
 
 def test_also_creates_widens_the_agents_allowed_create_types():
-    class MultiAgent(StepGroup):
+    class MultiAgent(Agent):
         consumes = [Consume(Input)]
         produces = [MultiCreateProduce()]
 
@@ -98,7 +98,7 @@ def test_also_creates_widens_the_agents_allowed_create_types():
 
 
 def test_create_of_an_undeclared_type_is_rejected_even_without_also_creates():
-    class UndeclaredMultiAgent(StepGroup):
+    class UndeclaredMultiAgent(Agent):
         consumes = [Consume(Input)]
         produces = [UndeclaredMultiCreateProduce()]
 
@@ -125,7 +125,7 @@ class RecordMixed(Step[Output]):
         )
 
 
-class MixedAgent(StepGroup):
+class MixedAgent(Agent):
     consumes = [Consume(Input), Consume(Passive, wakes=False)]
     produces = [RecordMixed()]
 
@@ -133,7 +133,7 @@ class MixedAgent(StepGroup):
 def test_consume_wakes_false_feeds_inputs_without_triggering():
     """For the declarative style (`consumes`/`produces`), `Consume(wakes=False)`
     decouples "what wakes me" from "what I read" without reaching for
-    `StepGroup`'s separate `triggers=` override (still there, but meant for the
+    `Agent`'s separate `triggers=` override (still there, but meant for the
     imperative `run()`-override style with no `consumes` at all)."""
     ctx = Context()
     runtime = Runtime(ctx, groups=[MixedAgent()])
@@ -176,7 +176,7 @@ class MarkerChildB(MarkerBase):
     pass
 
 
-class BaseRecorder(StepGroup):
+class BaseRecorder(Agent):
     consumes = [Consume.by_base(MarkerBase)]
     produces = [Step(Output)]
 
@@ -212,7 +212,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
 
 
 def test_consume_by_base_reads_all_subclass_artifacts():
-    class Collector(StepGroup):
+    class Collector(Agent):
         consumes = [Consume.by_base(MarkerBase)]
         produces = [Step(Output)]
 

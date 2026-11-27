@@ -12,15 +12,15 @@ from __future__ import annotations
 
 from reactifact.testing import ScenarioLab, scenario
 
+from ..agents import RepairFlow
 from ..models import ChatReply, PlanStep, Project, UserMsg
-from ..step_groups import RepairFlow
 from ._common import ModelStub, resources
 
 
 @scenario("repair: assistant falls back to the plan when the model is down")
 async def assistant_falls_back_when_model_is_down() -> None:
     lab = ScenarioLab(
-        [RepairFlow()], resources=lambda: resources(ModelStub("stub-model"))
+        [RepairFlow], resources=lambda: resources(ModelStub("stub-model"))
     )
     lab.fail_resource("llm", ConnectionError("model unreachable"))
 

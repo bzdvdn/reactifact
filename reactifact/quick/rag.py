@@ -9,6 +9,7 @@ from typing import Any, Generic, TypeVar, overload
 
 from pydantic import BaseModel
 
+from ..agent import Agent, Step
 from ..artifacts import Artifact
 from ..budget import Budget
 from ..consume import Consume
@@ -18,7 +19,6 @@ from ..providers import LLMProvider
 from ..recipes import fan_out_sources, find_all, keyword_score, materialize_doc
 from ..resources import RuntimeResources
 from ..sources import CSVSource, FileSystemSource, Source, SourceRef
-from ..step import Step, StepGroup, create_step_group
 from ..structured import llm_reply
 from ._shared import _arun, _default_resources, _question_of, _text_of
 from .models import Answer, Doc, Question
@@ -312,19 +312,19 @@ class QuickRAG(Generic[TAnswer]):
         answer_builder = answer_factory or _default_answer_builder(
             answer_type, resolved_doc_locator
         )
-        self.agents: list[StepGroup] = [
-            create_step_group(
-                name="search",
+        self.agents: list[Agent] = [
+            Agent(
+                "search",
                 consumes=[Consume(question_type)],
                 steps=[_search_produce(limit, question_type)],
             ),
-            create_step_group(
-                name="resolve",
+            Agent(
+                "resolve",
                 consumes=[Consume(SourceRef)],
                 steps=[_resolve_produce(doc_type, doc_builder)],
             ),
-            create_step_group(
-                name="answer",
+            Agent(
+                "answer",
                 consumes=[Consume(doc_type), Consume(question_type, wakes=False)],
                 steps=[
                     _answer_produce(
@@ -339,6 +339,8 @@ class QuickRAG(Generic[TAnswer]):
                 ],
             ),
         ]
+        #: Compatibility alias for `.agents`.
+        self.agents = self.agents
 
     async def ask(self, text: str, *, context: Context | None = None) -> TAnswer | None:
         """Runs the retrieval pipeline for `text`; returns the answer model or None."""

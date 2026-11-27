@@ -2,7 +2,7 @@
 
 `create_a2a_router(agents, ...)` returns a FastAPI `APIRouter` that serves:
 
-- `GET /.well-known/agent-card.json` (and the legacy `/agent.json`) — the StepGroup
+- `GET /.well-known/agent-card.json` (and the legacy `/agent.json`) — the Agent
   Card, built from the agents (`skills` come from each agent's `produces`);
 - `POST {prefix}/` — the JSON-RPC endpoint: `message/send`, `message/stream`,
   `tasks/get`, `tasks/cancel`.
@@ -32,11 +32,11 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
+from ..agent import Agent
 from ..budget import Budget
 from ..context import Context
 from ..resources import RuntimeResources
 from ..runtime import Runtime
-from ..step import StepGroup
 from ..streaming import ProgressEvent
 from .models import (
     TERMINAL_STATES,
@@ -98,7 +98,7 @@ class _A2AServer:
 
     def __init__(
         self,
-        agents: Sequence[StepGroup],
+        agents: Sequence[Agent],
         *,
         context_factory: ContextFactory,
         create_message: CreateMessage,
@@ -259,7 +259,7 @@ def _status_update(record: _TaskRecord, state: str, text: str) -> dict[str, Any]
 
 
 def _card(
-    agents: Sequence[StepGroup], *, name: str, description: str, url: str, version: str
+    agents: Sequence[Agent], *, name: str, description: str, url: str, version: str
 ) -> AgentCard:
     skills: list[AgentSkill] = []
     for agent in agents:
@@ -287,7 +287,7 @@ def _card(
 
 
 def create_a2a_router(
-    agents: Sequence[StepGroup],
+    agents: Sequence[Agent],
     *,
     name: str = "reactifact",
     description: str = "A reactifact agent, exposed over the Agent2Agent protocol.",
@@ -302,7 +302,7 @@ def create_a2a_router(
 ) -> Any:
     """A FastAPI router exposing `agents` over A2A (needs the `web` extra).
 
-    `url` is the JSON-RPC endpoint advertised in the StepGroup Card; by default it
+    `url` is the JSON-RPC endpoint advertised in the Agent Card; by default it
     is derived from the request (the app's base URL + `prefix`). `create_message`
     and `reply` adapt the app's own artifact types (like `reactifact.chat`);
     without them the server seeds a `UserMessage` and replies with the last

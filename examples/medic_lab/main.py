@@ -23,9 +23,9 @@ from reactifact.checkpoints import FileKVBackend
 from reactifact.tracing import TraceStore
 from reactifact.tracing.web import create_trace_router
 
+from examples.medic_lab.agents import PIPELINE
 from examples.medic_lab.api import create_router
 from examples.medic_lab.chat import _UNSET, build_resources
-from examples.medic_lab.step_groups import medic_lab_groups
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
@@ -55,7 +55,7 @@ def create_app(store_dir: str | None = None, llm: Any = _UNSET) -> FastAPI:
     app.include_router(
         create_router(
             store=store,
-            groups=medic_lab_groups(),
+            agents=PIPELINE.agents,
             resources_factory=lambda: build_resources(llm=llm),
             trace_store=trace_store,
         )

@@ -53,7 +53,7 @@ class Generator(Step):
     the deterministic set below stands in (§67).
     """
 
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Hypothesis,)
     #: Deterministic fallback (the demo's own topic).
     STATEMENTS = (
@@ -123,7 +123,7 @@ class Generator(Step):
 class Investigator(Step):
     """Per-hypothesis channel: search sources tagged with the hypothesis."""
 
-    consumes = (Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],)
+    reads = (Annotated[Hypothesis, When(lambda hyp: hyp.status == "open")],)
     produces = (SourceRef, SearchDone)
     scope = Scope("question_id", owner=Question, key=scope_key)
 
@@ -184,7 +184,7 @@ class Investigator(Step):
 class Resolver(Step):
     """Lazy materialization: a ref → page text (Reference → Artifact, §6)."""
 
-    consumes = (SourceRef,)
+    reads = (SourceRef,)
     produces = (TypedDoc,)
 
     async def run(self, context: Context, ref_art: Artifact[SourceRef]) -> None:
@@ -217,7 +217,7 @@ class ExtractEvidence(Step):
     Deterministic — the model only summarises (§67), it never scores.
     """
 
-    consumes = (TypedDoc,)
+    reads = (TypedDoc,)
     produces = (Evidence,)
 
     async def run(self, context: Context, doc_art: Artifact[TypedDoc]) -> Emit:
@@ -248,7 +248,7 @@ class ExtractEvidence(Step):
 class ClaimBuilder(Step):
     """Evidence → claims with confidence against the page (§35)."""
 
-    consumes = (Evidence,)
+    reads = (Evidence,)
     produces = (Claim,)
 
     async def run(self, context: Context, ev_art: Artifact[Evidence]) -> list[Emit]:
@@ -284,7 +284,7 @@ class ClaimBuilder(Step):
 class CrossChecker(Step):
     """Cross-hypothesis contradictions (§36): similar wording, opposite polarity."""
 
-    consumes = (Claim,)
+    reads = (Claim,)
     produces = (Claim,)
 
     async def run(self, context: Context, claim_art: Artifact[Claim]) -> list[Relate]:

@@ -16,6 +16,7 @@ Two levels of use:
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import logging
 from collections.abc import (
@@ -33,6 +34,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
+from .agent import Agent, Step
+from .agent.agent import normalize_units
 from .artifacts import Artifact
 from .budget import Budget
 from .consume import Consume
@@ -42,8 +45,6 @@ from .request import reset_request, set_request
 from .resources import RuntimeResources
 from .runtime import Dispatcher, DispatchErrorHandler, Runtime
 from .session import Session, SessionStore
-from .step import Step, StepGroup, create_step_group
-from .step.group import normalize_units
 
 if TYPE_CHECKING:
     from .contracts.report import ContractReport
@@ -428,7 +429,7 @@ class ChatAssistant:
     """Session-persisted chat over the runtime, for the canonical contract.
 
     Configure with hooks — the assistant owns sessions, the turn loop and
-    history. `groups`/`resources` accept values or callables (resolved per
+    history. `agents`/`resources` accept values or callables (resolved per
     request, so a fresh `RuntimeResources` can replace providers).
 
     A callable `resources=` is assumed to build a fresh, turn-scoped
@@ -469,7 +470,7 @@ class ChatAssistant:
 
         assistant = ChatAssistant(
             store=store,
-            groups=ALL_AGENTS,
+            agents=ALL_AGENTS,
             user_message=UserQuery,
             reply=knowledge_reply,
             resources=lambda: build_resources(),
@@ -482,7 +483,8 @@ class ChatAssistant:
         self,
         *,
         store: SessionStore,
-        groups: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
+        agents: Sequence[Agent] | Callable[[], Sequence[Agent]] | None = None,
+        groups: Sequence[Agent] | Callable[[], Sequence[Agent]] | None = None,
         steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
@@ -495,23 +497,25 @@ class ChatAssistant:
         status_kinds: Sequence[str] = ("status",),
         fallback_reply: str = "No reply assembled.",
         isolate_errors: bool = False,
-        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
+        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         memory: ChatMemory | None = None,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
-        provided = [value for value in (groups, steps) if value is not None]
+        provided = [value for value in (agents, groups, steps) if value is not None]
         if len(provided) > 1:
-            raise ValueError("Pass only one of steps= or groups=")
+            raise ValueError("Pass only one of steps=, agents= or groups=")
         if steps is not None:
-            resolved: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] = (
-                normalize_units(steps=list(steps))
+            resolved: Sequence[Agent] | Callable[[], Sequence[Agent]] = normalize_units(
+                steps=list(steps)
             )
+        elif agents is not None:
+            resolved = agents
         elif groups is not None:
             resolved = groups
         else:
-            raise TypeError("ChatAssistant requires steps= or groups=")
+            raise TypeError("ChatAssistant requires steps= or agents=")
         self.store = store
         self._groups = resolved
         self._user_message = user_message
@@ -590,7 +594,7 @@ class ChatAssistant:
                     await resources.aclose()
             raise
 
-    def _memory_agents(self) -> list[StepGroup]:
+    def _memory_agents(self) -> list[Agent]:
         """The bounded-memory agent implied by `memory=`, or none."""
         memory = self._memory
         if memory is None:
@@ -624,7 +628,7 @@ class ChatAssistant:
         else:
             return []  # compaction-only: no message-level memory agent
         return [
-            create_step_group(
+            Agent(
                 "memory",
                 consumes=[Consume.by_base(t) for t in message_types],
                 steps=[produce],
@@ -634,7 +638,7 @@ class ChatAssistant:
     def _build_runtime(self, session: Session) -> Runtime:
         return Runtime(
             session.context,
-            groups=[*_resolve(self._groups), *self._memory_agents()],
+            agents=[*_resolve(self._groups), *self._memory_agents()],
             session=session,
             budget=self._budget,
             max_concurrency=self._max_concurrency,
@@ -774,9 +778,10 @@ class ChatAssistant:
 class Chat:
     """A typed, low-ceremony facade over `ChatAssistant`.
 
-    `Chat(steps=[...], seed_type=Question, answer_type=Answer)` derives the
-    user-message hook and the reply payload from the types; `seed_factory` and
-    `per_turn` cover app-specific hooks (a request category, a secret vault).
+    `Chat(agents=[Agent(...)], seed_type=Question, answer_type=Answer)` derives
+    the user-message hook and the reply payload from the types; `pipeline=`
+    reuses a whole `Pipeline` definition, and `seed_factory`/`per_turn` cover
+    app-specific hooks (a request category, a secret vault).
     `traces=`/`trace_sample=`/`lifespan=` mirror `Pipeline`; `answer()` returns
     the typed `answer_type` instead of the transport payload.
     """
@@ -785,9 +790,11 @@ class Chat:
         self,
         steps: Sequence[Step[Any]] | None = None,
         *,
-        groups: Sequence[StepGroup] | None = None,
+        agents: Sequence[Agent] | None = None,
+        groups: Sequence[Agent] | None = None,
+        pipeline: Any | None = None,
         store: SessionStore | str | Path | None = None,
-        seed_type: type[BaseModel],
+        seed_type: type[BaseModel] | None = None,
         seed_field: str = "text",
         seed_factory: Callable[[str, str, Mapping[str, Any]], BaseModel] | None = None,
         answer_type: type[BaseModel] | None = None,
@@ -811,18 +818,58 @@ class Chat:
         ]
         | None = None,
         isolate_errors: bool = False,
-        on_agent_error: Callable[[StepGroup, Event, BaseException], None] | None = None,
+        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         create_message: Callable[..., str] | None = None,
         resume_pending: bool = False,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
+        if agents is not None and groups is not None:
+            raise ValueError("Pass only one of agents= or groups=")
+        if agents is not None:
+            groups = agents
+        if pipeline is not None:
+            if steps is not None or groups is not None:
+                raise ValueError(
+                    "Pass either pipeline= or steps=/agents=/groups=, not both"
+                )
+            groups = pipeline.agents
+            if seed_type is None:
+                seed_type = pipeline.seed_type
+            if answer_type is None:
+                answer_type = pipeline.answer_type
+            if resources is None:
+                resources = pipeline.resources
+            if llm is None:
+                llm = pipeline.llm
+            if budget is None:
+                budget = pipeline.budget
+            if max_concurrency is None:
+                max_concurrency = pipeline.max_concurrency
+            if tracer is None:
+                tracer = pipeline.tracer
+            if lifespan is None:
+                lifespan = pipeline.lifespan
+            if on_agent_error is None:
+                on_agent_error = pipeline.on_agent_error
         if steps is None and groups is None:
-            raise TypeError("Chat requires steps= and/or groups=")
-        if resources is None:
+            raise TypeError("Chat requires steps=, agents= or a pipeline=")
+        if seed_type is None:
+            raise TypeError("Chat requires seed_type= or a pipeline with seed_type")
+        if llm is not None and not callable(resources):
+            if resources is None:
+                resources = RuntimeResources(llm=llm)
+            else:
+                # An explicit `llm=` wins over the pipeline's default resources.
+                resources = copy.copy(resources)
+                resources.llm = llm
+        elif resources is None:
             resources = RuntimeResources(llm=llm)
         self.steps = list(steps) if steps is not None else None
-        self.groups = list(groups) if groups is not None else None
+        #: Canonical name; `groups` is kept as a compatibility alias.
+        self.agents = list(groups) if groups is not None else None
+        self.groups = self.agents
+        self.pipeline = pipeline
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type
@@ -854,7 +901,7 @@ class Chat:
         )
         self.assistant = ChatAssistant(
             steps=steps,
-            groups=groups,
+            agents=groups,
             store=_as_store(store),
             user_message=seed_type,
             reply=reply or self._default_reply,
@@ -1049,7 +1096,7 @@ class Chat:
             inferred_terminal.append(self.answer_type)
         return validate_contracts(
             steps=self.steps,
-            groups=self.groups,
+            agents=self.groups,
             seeds=inferred_seeds,
             terminal=inferred_terminal,
         )
@@ -1058,7 +1105,7 @@ class Chat:
         """The static contract plus seed/answer JSON Schemas."""
         from .contracts.report import ContractReport, describe_contracts
 
-        groups = normalize_units(steps=self.steps, groups=self.groups)
+        groups = normalize_units(steps=self.steps, agents=self.groups)
         base = describe_contracts(groups)
         return ContractReport(
             groups=base.groups,

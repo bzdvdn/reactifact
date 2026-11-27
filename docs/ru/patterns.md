@@ -17,6 +17,72 @@
 
 Каждая строка ссылается на полный паттерн ниже.
 
+## Агенты и runner’ы
+
+`Agent` — повседневная единица авторинга и единица планирования runtime:
+именованный набор шагов с общим контрактом `consumes` и политикой
+retry/timeout/fallback/priority.
+
+```python
+from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+
+class Answerer(Step[Answer]):
+    async def run(self, question: Question) -> Answer:
+        return Answer(text=question.text.upper())
+
+QA = Pipeline(
+    name="qa",
+    agents=[
+        Agent(
+            "answer",
+            steps=[Answerer()],
+            consumes=[Consume(Question)],
+            retry=RetryPolicy(max_attempts=2),
+            timeout=30,
+        ),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+
+runner = PipelineRunner(QA, resources=resources)
+result = runner.run(Question(text="hello"))
+```
+
+- `Agent(consumes=..., steps=[...])` владеет пробуждением, шагами и политикой;
+  он **сам** является единицей планирования. `Route` и `Pipeline` принимают его
+  напрямую.
+- `Step.reads` описывает входы (`Read`/типы), `Step.produces` — выходы;
+  `Read.after_delete` — event-only и не даёт данных артефакта.
+- `Pipeline.agents=[...]` и `Pipeline.routes=[...]` — декларативная структура;
+  `Pipeline.agents` разворачивает её для `Runtime`.
+- `PipelineRunner` владеет ресурсами/бюджетом/tracer и выполняет прогон.
+- `StepGroup` и `create_step_group` остаются импортируемыми для кода 0.x, но
+  не входят в authoring-surface: новый код использует `Agent(...)`.
+- Агент **не** является барьером исполнения: это именованная группа, а не
+  ограничение порядка. Runtime по-прежнему планирует по доступности артефактов.
+
+Для stateful-кода в class-style `Agent` можно наследовать, а `@step` вешать на
+его методы:
+
+```python
+class AnswerAgent(Agent):
+    name = "answer"
+    consumes = [Consume(Question)]
+
+    def __init__(self, model: str):
+        self.model = model
+        super().__init__()
+
+    @step(produces=Answer)
+    async def answer(self, question: Question) -> Answer:
+        return Answer(text=f"{self.model}: {question.text}")
+```
+
+Метод — это объявление шага, а не вызываемый метод; runtime биндит его к
+инстансу. Для простых stateless-агентов предпочитайте `Agent(steps=[...])` или
+`@agent`.
+
 ## HITL: человек как полноправный участник
 
 Человек — просто ещё одна реакция на контекст. Runtime представляет вопрос
@@ -86,7 +152,7 @@ from reactifact import Artifact, Effects, Outbox, PendingAction, Runtime, Step
 
 
 class Notify(Step):
-    consumes = (Order,)
+    reads = (Order,)
     produces = (Receipt, PendingAction)  # outbox.act создаёт PendingAction
 
     async def run(
@@ -106,7 +172,7 @@ async def dispatch(context: Context, action: Artifact[PendingAction]) -> None:
         await send_email(action.data.payload, idempotency_key=action.data.idempotency_key)
 
 
-runtime = Runtime(ctx, groups=[Notify()], dispatcher=dispatch)
+runtime = Runtime(ctx, agents=[Notify()], dispatcher=dispatch)
 ```
 
 Runtime дренирует каждый закоммиченный, но ещё не отправленный `PendingAction`
@@ -153,7 +219,7 @@ class OpsAgent(HITLLMAgent):
     max_steps = 8
     max_asks = 2
     consumes = [Consume(Project)]
-    steps = [BuildReport()]  # ваш шаг: consumes ToolAnswer -> Report
+    steps = [BuildReport()]  # ваш шаг: reads ToolAnswer -> Report
 ```
 
 - `LLMAgent` — блокирующий цикл: LLM отдаёт `tool_call`, runtime выполняет
@@ -266,8 +332,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-class FlowAgent(StepGroup):
-    steps = Flow().produces()
+FlowAgent = Agent("flow_agent", steps=Flow().produces())
 ```
 
 `PlanExecute` выполняет ровно один шаг за поколение и перезапускается от
@@ -287,21 +352,25 @@ class FlowAgent(StepGroup):
 ```python
 from reactifact.consume import AbsentConsume, JoinConsume
 
-class ApprovalGate(StepGroup):
-    consumes = [
+ApprovalGate = Agent(
+    "approval_gate",
+    consumes=[
         JoinConsume(
             Report, PendingQuestion,
             key=lambda d: d.thread_id,
             part_conditions={PendingQuestion: lambda d: d.answered},
         ),
-    ]
-    steps = [RecordApproval()]
+    ],
+    steps=[RecordApproval()],
+)
 
-class TicketGate(StepGroup):
-    consumes = [
+TicketGate = Agent(
+    "ticket_gate",
+    consumes=[
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id),
-    ]
-    steps = [FileTicket()]
+    ],
+    steps=[FileTicket()],
+)
 ```
 
 `JoinConsume(*parts, key=...)` срабатывает, когда для одного ключа существуют
@@ -322,7 +391,7 @@ forbid=...)` — берите `CorrelatedConsume` напрямую, когда �
 
 ```python
 class FinalizeWithDocuments(Step):
-    consumes = (ResolvedDocuments,)
+    reads = (ResolvedDocuments,)
     produces = (DraftAnswer,)
 
     async def run(self, docs: Artifact[ResolvedDocuments]) -> DraftAnswer:
@@ -330,7 +399,7 @@ class FinalizeWithDocuments(Step):
 
 
 class DirectFinalize(Step):
-    consumes = (DecisionReply,)
+    reads = (DecisionReply,)
     produces = (DraftAnswer,)
 
     async def run(self, reply: Artifact[DecisionReply]) -> DraftAnswer:
@@ -352,7 +421,7 @@ class DirectFinalize(Step):
 from reactifact import Artifact, Consume, Context, Effects, Event, EventType, Step
 
 class ResetPlan(Step):
-    consumes = (
+    reads = (
         Consume(PlanStep, event_types=(EventType.ARTIFACT_DELETED,)),
     )
     produces = (Project,)
@@ -394,7 +463,7 @@ read-only вход — «читай это, но не буди меня на э�
 истории:
 
 ```python
-consumes = (Question,)
+reads = (Question,)
 
 async def run(self, question: Question, history: ConversationHistory) -> ...:
     ...
@@ -404,7 +473,7 @@ async def run(self, question: Question, history: ConversationHistory) -> ...:
 шаг. `Consume(..., wakes=False)` остаётся для явного списка `consumes` без
 типизированного параметра; если `consumes` выводится из подписи,
 `Annotated[T, Wakes(False)]` помечает отдельный read-only вход. `triggers=` —
-по-прежнему инструмент *императивного* стиля (подкласс `StepGroup`,
+по-прежнему инструмент *императивного* стиля (подкласс `Agent`,
 переопределяющий `run()` напрямую, вообще без `consumes`) — там просто нет
 `Consume`, к которому можно было бы привязать условие.
 
@@ -463,13 +532,13 @@ updates |= {"stage": target, "info": new_info, "handled_msg": ""}
 `Budget` ограничивает запуск:
 
 ```python
-runtime = Runtime(ctx, groups=[...], budget=Budget(max_runs=200), max_concurrency=2)
+runtime = Runtime(ctx, agents=[...], budget=Budget(max_runs=200), max_concurrency=2)
 ```
 
 - `max_runs`, `max_iterations`, `max_seconds`, лимиты вызовов инструментов — runtime
   останавливается и сообщает `RunOutcome` (`completed` | `budget_exhausted` | …)
   вместе с `RunStats`.
-- `StepGroup.concurrency_limit` (у LLM-агентов по умолчанию ниже) + глобальный
+- `Agent.concurrency_limit` (у LLM-агентов по умолчанию ниже) + глобальный
   `max_concurrency` runtime держат лимиты провайдеров: демо `medic-lab` — лаборатория
   гипотез с лимитом LLM = 2 внутри глобального лимита 6.
 - По умолчанию исключение одного агента пробрасывается из `arun()`/`astream()`

@@ -119,7 +119,7 @@ python -m reactifact branch sessions.sqlite3 demo merge --into a --source b --as
 
 | Situation | Approach |
 | --- | --- |
-| An artifact moves through phase states | `StatusMachine` + a verification step |
+| An artifact moves through agent states | `StatusMachine` + a verification step |
 | A workflow needs to roll *back* on user edits | stage guard + downstream resets |
 | **Alternative states to explore & compare** | `branch()` + `merge()` (§39-§40) |
 | "Which of these did the model pick?" | parse + guard (like `PickStage`) |

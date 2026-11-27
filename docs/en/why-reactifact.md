@@ -12,7 +12,7 @@ Celery's mental model: define a **task**, declare what triggers it, let the
 runtime run it; results land in a result backend. reactifact applies exactly that
 to agents:
 
-- a **task** is a `Step` / `@step(produces=Model, consumes=Input)` — a unit of work that writes an artifact;
+- a **task** is a `Step` / `@step(produces=Model, reads=Input)` — a unit of work that writes an artifact;
 - the **trigger** isn't a message you push — creating the input artifact *is*
   the trigger, and `Consume(Type)` says which artifact type wakes the task;
 - a **chain / group / chord** is several step `Consume`s / `produces`; the
@@ -75,7 +75,7 @@ The authoring shape follows from that. A step declares what it reads and writes,
 and returns a typed artifact or writes one through the runtime:
 
 ```python
-@step(consumes=Question, produces=Answer)
+@step(reads=Question, produces=Answer)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 ```
@@ -98,7 +98,7 @@ opposite stance (§67):
 
 - **Calculations are calculated.** `Spreadsheet → Calculation` over CSV is
   deterministic code, not a hallucinated number.
-- **Eligibility is a decision of the state.** A step's `consumes`/`When`
+- **Eligibility is a decision of the state.** A step's `reads`/`When`
   selectors decide *whether* it reacts; only genuinely generative steps call
   the LLM.
 - **Honesty beats pretending.** On failure a step returns `None` (or yields
@@ -125,7 +125,7 @@ the loop is this:
 
 1. Applying a commit emits **`Event`s** — `artifact_created`,
    `artifact_updated`, `artifact_deleted` — each referencing an artifact by
-   type and id (CONSTITUTION Phase 4, "Reactive Runtime").
+   type and id (CONSTITUTION Stage 4, "Reactive Runtime").
 2. The runtime **drains** those events (`arun_once` → `drain_events()`) and,
    for each event, asks every agent *do you match?* (`agent.matches(event)`).
 3. Matching is exactly your **`Consume`** declarations — an artifact type and an
@@ -163,18 +163,18 @@ The same model does not require framework ceremony. `Pipeline` is the facade for
 one run, `Chat` for a conversation:
 
 ```python
-from reactifact import Chat, Pipeline
+from reactifact import Chat, Agent, Pipeline, PipelineRunner
 
 pipeline = Pipeline(
-    steps=[search, answer],
+    agents=[Agent("answer", steps=[search, answer])],
     seed_type=Question,
     answer_type=Answer,
     traces=True,
 )
-result = pipeline.run(Question(text="why did costs grow in Q2?"))
+result = PipelineRunner(pipeline).run(Question(text="why did costs grow in Q2?"))
 
 chat = Chat(
-    steps=[search, answer],
+    agents=[Agent("answer", steps=[search, answer])],
     store="sessions.db",
     seed_type=Question,
     answer_type=Answer,

@@ -20,7 +20,7 @@ rather than an unbounded process-lifetime dict.
 
     identity_var: ContextVar[RequestIdentity | None] = ContextVar("request", default=None)
 
-    class UserAgent(StepGroup):
+    class UserAgent(Agent):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(UserContext, identity_var, identity_id="user_context",
@@ -43,7 +43,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from ..step import Emit, Step
+from ..agent import Emit, Step
 
 IdentityT = TypeVar("IdentityT", bound=BaseModel)
 

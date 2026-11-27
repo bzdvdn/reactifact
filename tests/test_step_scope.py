@@ -1,8 +1,8 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Artifact, Consume, Context, Effects, Runtime, Scope, StepGroup
-from reactifact.step import Latest, Step
+from reactifact import Agent, Artifact, Consume, Context, Effects, Runtime, Scope
+from reactifact.agent import Latest, Step
 
 
 class Question(BaseModel):
@@ -32,7 +32,7 @@ class Compose(Step):
         )
 
 
-class ComposeAgent(StepGroup):
+class ComposeAgent(Agent):
     steps = [Compose()]
 
 
@@ -66,7 +66,7 @@ class Related(Step):
         )
 
 
-class RelatedAgent(StepGroup):
+class RelatedAgent(Agent):
     steps = [Related()]
 
 
@@ -112,7 +112,7 @@ def test_latest_and_call_scope_are_correlated_to_the_trigger():
     context.create(Doc(query_id="q1", text="c"))
 
     asyncio.run(
-        Runtime(context, groups=[StepGroup(name="extract", steps=[Extract()])]).arun()
+        Runtime(context, groups=[Agent(name="extract", steps=[Extract()])]).arun()
     )
 
     answers = {a.data.query_id: a.data.text for a in context.list_artifacts(Answer)}
@@ -139,7 +139,7 @@ class CursorStep(Step):
 def test_call_cursor_exposes_input_versions():
     context = Context()
     question = context.create(Question(query_id="q1", text="one"))
-    runtime = Runtime(context, groups=[StepGroup(name="cursor", steps=[CursorStep()])])
+    runtime = Runtime(context, groups=[Agent(name="cursor", steps=[CursorStep()])])
 
     asyncio.run(runtime.arun())
     assert context.get("cursor-answer").data.text == "0"
@@ -170,7 +170,7 @@ class CollectDocs(Step):
         )
 
 
-class CollectAgent(StepGroup):
+class CollectAgent(Agent):
     steps = [CollectDocs()]
 
 
@@ -213,7 +213,7 @@ class OwnerScoped(Step):
         )
 
 
-class OwnerScopedAgent(StepGroup):
+class OwnerScopedAgent(Agent):
     steps = [OwnerScoped()]
 
 

@@ -1,6 +1,13 @@
 import asyncio
 
 import pytest
+from examples.devops.agents import (
+    AnsibleAgent,
+    GitlabAgent,
+    K8sAgent,
+    Render,
+    Route,
+)
 from examples.devops.guardrails import (
     ProductionChangeGuardrail,
     SecretRedactionGuardrail,
@@ -13,13 +20,6 @@ from examples.devops.models import (
     K8sProblem,
     K8sReport,
     UserMsg,
-)
-from examples.devops.step_groups import (
-    AnsibleAgent,
-    GitlabAgent,
-    K8sAgent,
-    RenderGroup,
-    RouteGroup,
 )
 from examples.devops.tools import CALLS, register_clients
 from reactifact import (
@@ -52,12 +52,12 @@ def build_runtime(llm):
     ctx = Context(resources=resources)
     runtime = Runtime(
         ctx,
-        groups=[
-            RouteGroup(),
-            K8sAgent(),
-            GitlabAgent(),
-            AnsibleAgent(),
-            RenderGroup(),
+        agents=[
+            Route,
+            K8sAgent,
+            GitlabAgent,
+            AnsibleAgent,
+            Render,
         ],
         budget=Budget(max_runs=200, max_tool_calls=12),
     )
@@ -191,14 +191,14 @@ def test_custom_guardrail_blocks_prod_change_without_ticket():
     ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
     ctx.create(UserMsg(text="delete the prod pods"))
     with pytest.raises(GuardrailViolation):
-        asyncio.run(Runtime(ctx, groups=[RouteGroup()]).arun())
+        asyncio.run(Runtime(ctx, agents=[Route]).arun())
     assert ctx.list_artifacts(K8sProblem) == []
 
 
 def test_custom_guardrail_allows_a_ticketed_change():
     ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
     ctx.create(UserMsg(text="delete the prod pods CHG-1042"))
-    asyncio.run(Runtime(ctx, groups=[RouteGroup()]).arun())
+    asyncio.run(Runtime(ctx, agents=[Route]).arun())
     assert ctx.list_artifacts(K8sProblem)
 
 
@@ -225,7 +225,7 @@ def test_secret_redaction_guardrail_rewrites_the_model():
 def test_builtin_pii_guardrail_redacts_a_produced_problem():
     ctx = Context(resources=RuntimeResources(guardrails=devops_guardrail_policy()))
     ctx.create(UserMsg(text="pods crash, mail me at ops@corp.com"))
-    asyncio.run(Runtime(ctx, groups=[RouteGroup()]).arun())
+    asyncio.run(Runtime(ctx, agents=[Route]).arun())
     problem = ctx.list_artifacts(K8sProblem)[0]
     assert "[REDACTED:email]" in problem.data.text
 
@@ -244,7 +244,7 @@ def test_flag_policy_allows_and_does_not_raise():
         )
     )
     ctx.create(UserMsg(text="delete the prod pods"))
-    asyncio.run(Runtime(ctx, groups=[RouteGroup()]).arun())
+    asyncio.run(Runtime(ctx, agents=[Route]).arun())
     assert ctx.list_artifacts(K8sProblem)
 
 

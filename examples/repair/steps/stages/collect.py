@@ -18,7 +18,7 @@ from ..design import _make_design_options
 class CollectStage(Step):
     """Extracts facts; once all the required ones are present — designs and design_choice."""
 
-    consumes = (UserMsg, Project)
+    reads = (UserMsg, Project)
     produces = (Project, ChatReply)
 
     async def run(

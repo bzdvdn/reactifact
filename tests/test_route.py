@@ -6,12 +6,11 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     Step,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.recipes import Route
 from reactifact.validate import validate_contracts
@@ -80,8 +79,8 @@ class _Case(Step[Answer]):
         effects.create(Answer(text=f"{self.prefix}:{turn.query_id}"))
 
 
-def _group(prefix: str) -> StepGroup:
-    return StepGroup(name=prefix, steps=[_Case(prefix)])
+def _group(prefix: str) -> Agent:
+    return Agent(name=prefix, steps=[_Case(prefix)])
 
 
 def test_route_runs_only_the_matching_case():
@@ -93,7 +92,7 @@ def test_route_runs_only_the_matching_case():
     context = Context()
     context.create(ResearchTurn(query_id="q1", domain="rag"))
     context.create(ResearchTurn(query_id="q2", domain="meta"))
-    asyncio.run(Runtime(context, groups=route.groups()).arun())
+    asyncio.run(Runtime(context, agents=route.agents()).arun())
     answers = {a.data.text for a in context.list_artifacts(Answer)}
     assert answers == {"rag:q1", "meta:q2"}
 
@@ -107,7 +106,7 @@ def test_route_default_covers_unknown_values():
     )
     context = Context()
     context.create(ResearchTurn(query_id="q", domain="other"))
-    asyncio.run(Runtime(context, groups=route.groups()).arun())
+    asyncio.run(Runtime(context, agents=route.agents()).arun())
     assert [a.data.text for a in context.list_artifacts(Answer)] == ["rag:q"]
 
 
@@ -122,7 +121,7 @@ def test_validate_suppresses_distinct_cases_of_one_route():
         key=lambda turn: turn.domain,
         cases={"rag": _group("rag"), "meta": _group("meta")},
     )
-    report = validate_contracts(groups=route.groups())
+    report = validate_contracts(agents=route.agents())
     assert not any(issue.code == "ambiguous_producer" for issue in report.warnings)
 
 
@@ -146,7 +145,7 @@ def test_same_case_with_two_producers_still_warns():
         key=lambda turn: turn.domain,
         cases={"rag": [_group("a"), _group("b")]},
     )
-    report = validate_contracts(groups=route.groups())
+    report = validate_contracts(agents=route.agents())
     assert any(issue.code == "ambiguous_producer" for issue in report.warnings)
 
 
@@ -155,7 +154,7 @@ def test_routed_group_preserves_group_metadata():
         ResearchTurn, condition=lambda artifact: artifact.data.domain == "pipeline"
     )
     fallback = _FallbackAnswer()
-    inner = create_step_group(
+    inner = Agent(
         "inner",
         consumes=[consume],
         steps=[_SearchStep()],
@@ -168,7 +167,7 @@ def test_routed_group_preserves_group_metadata():
         on=ResearchTurn,
         key=lambda turn: turn.domain,
         cases={"pipeline": inner},
-    ).groups()[0]
+    ).agents()[0]
 
     assert routed.consumes == inner.consumes
     assert routed.consumes is not None
@@ -185,7 +184,7 @@ def test_routed_group_preserves_group_metadata():
 
 
 def test_validate_route_preserves_group_level_consumes():
-    inner = create_step_group(
+    inner = Agent(
         "react",
         consumes=[Consume(ResearchTurn)],
         steps=[_SearchStep()],
@@ -196,13 +195,9 @@ def test_validate_route_preserves_group_level_consumes():
         cases={"pipeline": inner},
     )
     groups = [
-        *route.groups(),
-        create_step_group(
-            "producer", consumes=[Consume(UserQuery)], steps=[_ProduceTurn()]
-        ),
-        create_step_group(
-            "consumer", consumes=[Consume(SearchDone)], steps=[_ConsumeSearch()]
-        ),
+        *route.agents(),
+        Agent("producer", consumes=[Consume(UserQuery)], steps=[_ProduceTurn()]),
+        Agent("consumer", consumes=[Consume(SearchDone)], steps=[_ConsumeSearch()]),
     ]
 
     report = validate_contracts(
@@ -215,7 +210,7 @@ def test_validate_route_preserves_group_level_consumes():
 
 
 def test_routed_group_keeps_fallback():
-    inner = create_step_group(
+    inner = Agent(
         "inner",
         consumes=[Consume(ResearchTurn)],
         steps=[_FailStep()],
@@ -229,6 +224,6 @@ def test_routed_group_keeps_fallback():
 
     context = Context()
     context.create(ResearchTurn(query_id="q1", domain="pipeline"))
-    asyncio.run(Runtime(context, groups=route.groups()).arun())
+    asyncio.run(Runtime(context, agents=route.agents()).arun())
 
     assert [a.data.text for a in context.list_artifacts(Answer)] == ["fallback"]

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Effects,
@@ -12,8 +13,6 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
-    create_step_group,
 )
 from reactifact.artifacts import Artifact
 from reactifact.recipes import (
@@ -65,7 +64,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
             call.effects.create(Job(query_id="job1", text="scouted"), id="marker:job1")
             return None
 
-    class Engine(StepGroup):
+    class Engine(Agent):
         consumes = (Consume(Job),)
         produces = [Scout(), Step(Job)]
 
@@ -115,7 +114,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
             )
             return None
 
-    class Engine(StepGroup):
+    class Engine(Agent):
         consumes = [Consume(Job), Consume(SourceRef)]
         produces = [Scout(), Resolver()]
 
@@ -150,7 +149,7 @@ class Survey(StatusMachine[Job]):
         return "done" if jobs and any(j.data.text for j in jobs) else None
 
 
-class Engine(StepGroup):
+class Engine(Agent):
     consumes = [Consume(Job)]
     produces = [Fill(), Survey()]
 
@@ -219,7 +218,7 @@ class Cleanup(PrefixedEphemeralCleanup[Final]):
         return terminal_artifact_id[len("final:") :]
 
 
-class CleanupEngine(StepGroup):
+class CleanupEngine(Agent):
     consumes = [Consume(Question), Consume(Scratch), Consume(Final)]
     produces = [MakeScratch(), MakeFinal(), Cleanup()]
 
@@ -272,7 +271,7 @@ def test_seed_identity_writes_the_contextvar_value_as_an_artifact():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(StepGroup):
+    class IdentityAgent(Agent):
         consumes = [Consume(Question)]
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
@@ -299,7 +298,7 @@ def test_seed_identity_extracts_from_a_richer_envelope():
         "identity", default=None
     )
 
-    class IdentityAgent(StepGroup):
+    class IdentityAgent(Agent):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(
@@ -331,7 +330,7 @@ def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(StepGroup):
+    class IdentityAgent(Agent):
         consumes = [Consume(Question)]
         produces = [
             SeedIdentity(
@@ -358,7 +357,7 @@ def test_seed_identity_skips_the_write_when_unset_and_no_fallback():
 
     identity_var: ContextVar[UserContext | None] = ContextVar("identity", default=None)
 
-    class IdentityAgent(StepGroup):
+    class IdentityAgent(Agent):
         consumes = [Consume(Question)]
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
@@ -592,7 +591,7 @@ def test_status_machine_from_funcs_and_state_status():
         next_status=lambda state: "done" if state.status == "pending" else None,
         on_transition=lambda ctx, key, old, new: transitions.append((key, old, new)),
     )
-    group = create_step_group("status", consumes=[Consume(Job)], steps=[machine])
+    group = Agent("status", consumes=[Consume(Job)], steps=[machine])
     ctx = Context()
     ctx.create(Job(query_id="func", status="pending"))
     asyncio.run(Runtime(ctx, groups=[group]).arun())
@@ -608,7 +607,7 @@ def test_status_machine_advances_the_latest_target_for_a_key():
             "done" if state.target.data.text == "newest" else None
         ),
     )
-    group = create_step_group("status", consumes=[Consume(Job)], steps=[machine])
+    group = Agent("status", consumes=[Consume(Job)], steps=[machine])
     ctx = Context()
     first = ctx.create(Job(query_id="same", status="pending", text="old"))
     second = ctx.create(Job(query_id="same", status="pending", text="newest"))
@@ -633,7 +632,7 @@ def test_status_machine_scopes_inputs_through_owner_key():
         def next_status(self, state):
             return "done" if state.any(Marker) else None
 
-    group = create_step_group(
+    group = Agent(
         "keyed-status",
         consumes=[Consume(KeyedJob), Consume(Marker)],
         steps=[KeyedMachine()],

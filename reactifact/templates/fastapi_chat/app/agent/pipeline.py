@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from reactifact import Budget, Chat, SessionStore, StepGroup
+from reactifact import Budget, Chat, Agent, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import Tracer, TraceStore
@@ -23,9 +23,13 @@ _TRANSCRIPT = Transcript(
 )
 
 
-class AnswerAgent(StepGroup):
-    name = "answer"
-    steps = [AnswerStep()]
+def build_answer_agent(*, timeout: float | None = None) -> Agent:
+    """The assistant's one agent, with an optional per-turn deadline."""
+    return Agent("answer", steps=[AnswerStep()], timeout=timeout)
+
+
+#: The default agent (no deadline); `bootstrap.py` builds one with the setting.
+AnswerAgent = build_answer_agent()
 
 
 def session_state(ctx: Any) -> dict[str, Any]:
@@ -49,13 +53,13 @@ def build_assistant(
     settings: Settings,
     store: SessionStore,
     trace_store: TraceStore,
-    groups: Sequence[StepGroup],
+    agents: Sequence[Agent],
     budget: Budget,
     memory: ChatMemory | None,
 ) -> Chat:
     return Chat(
         store=store,
-        groups=groups,
+        agents=agents,
         seed_type=UserQuery,
         answer_type=Answer,
         reply=make_reply(settings.fallback_reply),
@@ -72,6 +76,7 @@ def build_assistant(
 
 __all__ = [
     "AnswerAgent",
+    "build_answer_agent",
     "build_assistant",
     "make_reply",
     "session_state",

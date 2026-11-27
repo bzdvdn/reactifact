@@ -40,7 +40,7 @@ app/
     prompts.py         # prompts live outside steps
     steps/answer.py     # one structured answer per turn
     resources.py       # per-turn RuntimeResources + principal/authz
-    pipeline.py        # Chat facade hooks + AnswerAgent
+    pipeline.py        # Chat facade hooks + build_answer_agent
 tests/
   conftest.py          # TestClient, settings, auth headers
   test_chat_sse.py     # SSE + history + 401

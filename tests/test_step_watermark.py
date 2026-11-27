@@ -1,9 +1,9 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Context, Event, EventType, StepGroup
+from reactifact import Agent, Context, Event, EventType
+from reactifact.agent import Step
 from reactifact.effects import Effects, reset_effects, set_effects
-from reactifact.step import Step
 
 
 class A(BaseModel):
@@ -30,7 +30,7 @@ class StepAB(Step):
         return Out(text=f"{a.text}:{b.text}")
 
 
-class Flow(StepGroup):
+class Flow(Agent):
     steps = [StepAB()]
 
 

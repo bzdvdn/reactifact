@@ -7,11 +7,11 @@ from collections.abc import AsyncIterator
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
-    create_step_group,
     tool,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
@@ -71,7 +71,7 @@ async def search(q: str) -> str:
 def _run(tool_step: ToolUse, bodies: list[dict], question: Question) -> Context:
     context = Context(resources=RuntimeResources(llm=ScriptedNativeLLM(bodies)))
     context.create(question)
-    group = create_step_group("tool", consumes=[Consume(Question)], steps=[tool_step])
+    group = Agent("tool", consumes=[Consume(Question)], steps=[tool_step])
     asyncio.run(Runtime(context, groups=[group]).arun())
     return context
 
@@ -106,7 +106,7 @@ def test_native_tool_progress_template_is_announced():
     )
     context.create(Question(text="goal"))
     queue = context.subscribe()
-    group = create_step_group(
+    group = Agent(
         "tool",
         consumes=[Consume(Question)],
         steps=[ToolUse("use search", [search], mode="native")],

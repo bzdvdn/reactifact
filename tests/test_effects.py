@@ -4,6 +4,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Human,
@@ -11,7 +12,6 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.effects import Effects, Handle, current_effects
 from reactifact.patches import Create, Link, Update
@@ -113,7 +113,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
             call.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
-    class Refresher(StepGroup):
+    class Refresher(Agent):
         consumes = [Consume(Doc)]
         produces = [Refresh()]
 
@@ -137,7 +137,7 @@ def test_effects_resume_answers_pending_question():
     from reactifact import PendingQuestion
     from reactifact.effects import current_effects
 
-    class Resumer(StepGroup):
+    class Resumer(Agent):
         consumes = [Consume(Doc)]
 
         async def run(self, event, context):
@@ -179,7 +179,7 @@ def test_effects_resume_accepts_typed_answer():
         approved: bool
         note: str = ""
 
-    class TypedResumer(StepGroup):
+    class TypedResumer(Agent):
         consumes = [Consume(Doc)]
 
         async def run(self, event, context):
@@ -218,7 +218,7 @@ class Greeting(Step[Note]):
         return None
 
 
-class Greeter(StepGroup):
+class Greeter(Agent):
     consumes = [Consume(Doc)]
     produces = [Greeting()]
 

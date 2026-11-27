@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Context, Runtime, Step, StepGroup
+from reactifact import Agent, Context, Runtime, Step
 from reactifact.consume import JoinConsume
 
 
@@ -28,7 +28,7 @@ class RecordApproval(Step[Approval]):
         )
 
 
-class ApprovalGate(StepGroup):
+class ApprovalGate(Agent):
     consumes = [
         JoinConsume(
             Report,

@@ -9,7 +9,7 @@ from reactifact.tracing import Tracer, TraceStore
 
 from app.config import Settings
 from app.models import Report, Tick
-from app.monitor import MonitorAgent
+from app.monitor import monitor_agent
 from app.resources import build_resources
 
 
@@ -31,7 +31,7 @@ async def run_once(settings: Settings, sequence: int) -> Report | None:
     tracer = Tracer(store=TraceStore(settings.trace_path)) if settings.tracing_enabled else None
     runtime = Runtime(
         context,
-        groups=[MonitorAgent(timeout=settings.agent_timeout_seconds)],
+        agents=[monitor_agent(timeout=settings.agent_timeout_seconds)],
         budget=build_budget(settings),
         tracer=tracer,
     )

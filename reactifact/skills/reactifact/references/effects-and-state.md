@@ -80,7 +80,7 @@ from reactifact.checkpoints import InMemoryKVBackend
 
 store = SessionStore(InMemoryKVBackend())
 session = await store.open("s1", resources=resources)
-runtime = Runtime(session.context, groups=agents, session=session)
+runtime = Runtime(session.context, agents=agents, session=session)
 session.context.create(Question(text="first turn"))
 await runtime.arun()
 session.context.create(Question(text="second turn"))   # same context/session

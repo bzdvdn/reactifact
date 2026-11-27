@@ -3,7 +3,7 @@ import time
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Budget, Consume, Context, Patch, Runtime, StepGroup
+from reactifact import Agent, Budget, Consume, Context, Patch, Runtime
 
 
 class Number(BaseModel):
@@ -13,7 +13,7 @@ class Number(BaseModel):
 def test_priority_orders_sequential_runs():
     order: list[str] = []
 
-    class Alpha(StepGroup):
+    class Alpha(Agent):
         consumes = [Consume(Number)]
         priority = -5
 
@@ -21,7 +21,7 @@ def test_priority_orders_sequential_runs():
             order.append("alpha")
             return None
 
-    class Omega(StepGroup):
+    class Omega(Agent):
         consumes = [Consume(Number)]
         priority = 10
 
@@ -41,7 +41,7 @@ def test_parallel_fanout_runs_concurrently():
     calls = 0
     lock = asyncio.Lock()
 
-    class Sleepy(StepGroup):
+    class Sleepy(Agent):
         consumes = [Consume(Number)]
         priority = 0
 
@@ -68,7 +68,7 @@ def test_parallel_respects_semaphore_cap():
     active = 0
     peak = 0
 
-    class Blocked(StepGroup):
+    class Blocked(Agent):
         consumes = [Consume(Number)]
 
         async def run(self, event, context):
@@ -88,7 +88,7 @@ def test_parallel_respects_semaphore_cap():
 
 
 def test_parallel_snapshot_and_provenance():
-    class Double(StepGroup):
+    class Double(Agent):
         consumes = [Consume(Number)]
         priority = 0
 
@@ -97,7 +97,7 @@ def test_parallel_snapshot_and_provenance():
             await asyncio.sleep(0.02)
             return Patch().create(Number(value=number.data.value * 2))
 
-    class Triple(StepGroup):
+    class Triple(Agent):
         consumes = [Consume(Number)]
         priority = 1
 
@@ -125,7 +125,7 @@ def test_concurrent_arun_on_same_runtime_raises():
     """Two concurrent arun() calls on one Runtime would race on shared turn
     state (budget/outcome) — the second call is rejected instead."""
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         consumes = [Consume(Number)]
 
         async def run(self, event, context):
@@ -152,13 +152,13 @@ def test_dispatch_waits_for_slow_siblings_before_raising_on_error():
     them before the exception propagates."""
     finished: list[str] = []
 
-    class Failing(StepGroup):
+    class Failing(Agent):
         consumes = [Consume(Number)]
 
         async def run(self, event, context):
             raise ValueError("boom")
 
-    class Slow(StepGroup):
+    class Slow(Agent):
         consumes = [Consume(Number)]
 
         async def run(self, event, context):
@@ -177,13 +177,13 @@ def test_dispatch_waits_for_slow_siblings_before_raising_on_error():
 
 
 def test_agent_concurrency_limit_capped():
-    """StepGroup.concurrency_limit caps parallel executions independent of the
+    """Agent.concurrency_limit caps parallel executions independent of the
     runtime max_concurrency (e.g. throttle LLM producers to 2 calls)."""
     import asyncio as _asyncio
 
     tracker = {"active": 0, "peak": 0}
 
-    class Tiered(StepGroup):
+    class Tiered(Agent):
         concurrency_limit = 2
         consumes = [Consume(Number)]
 

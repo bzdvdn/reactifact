@@ -24,6 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .agent.step import step
 from .artifacts import Artifact
 from .audit import context_hash
 from .budget import Budget
@@ -31,7 +32,6 @@ from .consume import Consume
 from .context import Context
 from .effects import Effects
 from .runtime import Runtime
-from .step import step
 
 QUESTION = "What is the Q2 cloud spend variance, and does policy require approval?"
 THRESHOLD = 0.10

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from ...artifacts import Artifact
 from ...consume import Consume
 from ...context import Context
+from ...read import Read
 from ...step import Emit, Ensure, Step
 from ._common import _windowed
 from .models import ConversationMessage
@@ -99,7 +100,7 @@ class TurnFacts:
 class TurnContextStep(Step[TurnContext]):
     """Builds one `TurnContext` artifact per user turn.
 
-    The step consumes the user-message type, renders the conversation with
+    The step reads the user-message type, renders the conversation with
     `Transcript`, reads the rolling digest artifact by id and emits a stable
     `turn:{trigger.id}` artifact once per turn. Downstream steps can consume
     `TurnContext` instead of carrying `Context` or re-deriving the window.
@@ -108,7 +109,7 @@ class TurnContextStep(Step[TurnContext]):
     (`looks_like_follow_up`) and never calls an LLM. `build` receives
     `TurnFacts` and returns the artifact payload (default: `TurnContext`), so a
     domain context can add prior-domain/routing fields without carrying
-    `Context`. `consume=` defaults to `Consume(user_type)`; pass
+    `Context`. `read=` defaults to `Consume(user_type)` (legacy `consume=` alias); pass
     `OnCreate(user_type)` for one artifact per turn, and `ensure=True` to use
     `Ensure` instead of `Emit` (idempotent create).
     """
@@ -127,6 +128,7 @@ class TurnContextStep(Step[TurnContext]):
         follow_up: Callable[[str, str | None], bool] | None = None,
         resolve: Callable[[str, str | None, bool], str] | None = None,
         build: Callable[[TurnFacts], BaseModel] | None = None,
+        read: Read | Consume | None = None,
         consume: Consume | None = None,
         ensure: bool = False,
         name: str = "turn_context",
@@ -135,9 +137,11 @@ class TurnContextStep(Step[TurnContext]):
             raise ValueError("window must be >= 0 or None")
         if not digest_id:
             raise ValueError("digest_id must be a non-empty string")
+        if read is not None and consume is not None:
+            raise TypeError("Pass only one of read= or consume=")
         super().__init__(
             artifact_type,
-            consumes=consume or Consume(user_type),
+            reads=read or consume or Read(user_type),
             name=name,
         )
         self.ensure = ensure

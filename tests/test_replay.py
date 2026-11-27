@@ -4,6 +4,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Budget,
     Consume,
     Context,
@@ -11,7 +12,6 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -42,7 +42,7 @@ class Pass(Step[Note]):
         return None
 
 
-class PassAgent(StepGroup):
+class PassAgent(Agent):
     name = "pass"
     consumes = [Consume(Seed)]
     produces = [Pass()]

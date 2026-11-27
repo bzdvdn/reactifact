@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ..agent import Agent
 from ..artifacts import ArtifactConflict, artifact_content_hash
 from ..commit import Commit, Write
 from ..context import Context
 from ..guardrails import GuardrailViolation
 from ..patches import Create, Delete, Link, Patch, Unlink, Update
-from ..step import StepGroup
 
 
 class PatchApplicator:
@@ -18,7 +18,7 @@ class PatchApplicator:
     def __init__(self, context: Context) -> None:
         self.context = context
 
-    def validate_types(self, patch: Patch, group: StepGroup) -> None:
+    def validate_types(self, patch: Patch, group: Agent) -> None:
         """Check that every Create matches the group steps' `produces`."""
         if group.steps is None:
             return
@@ -38,7 +38,7 @@ class PatchApplicator:
         for op in patch.operations:
             if isinstance(op, Create) and type(op.data) not in allowed_types:
                 raise ValueError(
-                    f"StepGroup '{group.name}' created artifact of type "
+                    f"Agent '{group.name}' created artifact of type "
                     f"{type(op.data).__name__}, which is not declared in "
                     f"produces: {[t.__name__ for t in allowed_types]}. Declare "
                     "it via the step's `produces=(...)` (or `also_creates`)."

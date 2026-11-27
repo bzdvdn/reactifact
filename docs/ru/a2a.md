@@ -25,7 +25,7 @@ task = await client.send("Summarise the incident")
 print(task.status.state, task.artifacts[0].parts[0].text)
 
 researcher = A2AAgentTool(client, name="researcher")
-# agent = create_step_group("lead", steps=[...researcher...])
+# agent = Agent("lead", steps=[...researcher...])
 ```
 
 Ещё у `A2AClient` есть `stream(message)` (асинхронный итератор событий
@@ -49,7 +49,7 @@ translator = remote_agent(
     consumes=[Consume(Question)],
     output_type=Answer,          # строится как Answer(text=reply)
 )
-Runtime(ctx, groups=[translator, …]).arun()
+Runtime(ctx, agents=[translator, …]).arun()
 ```
 
 Удалённый таск в состоянии `input-required` становится локальным
@@ -68,7 +68,7 @@ from fastapi import FastAPI
 from reactifact.a2a import create_a2a_router
 
 app = FastAPI()
-app.include_router(create_a2a_router([RouteGroup(), …], name="ops-agent"))
+app.include_router(create_a2a_router(PIPELINE.agents, name="ops-agent"))
 ```
 
 Отдаёт `GET /.well-known/agent-card.json` (и устаревший `/.well-known/agent.json`)
@@ -95,7 +95,7 @@ def reply(ctx, seed_id):
     answer = ctx.latest(Answer)
     return answer.data.text if answer else ""
 
-app.include_router(create_a2a_router(GROUPS, create_message=create_message, reply=reply))
+app.include_router(create_a2a_router(PIPELINE.agents, create_message=create_message, reply=reply))
 ```
 
 ## Интероп

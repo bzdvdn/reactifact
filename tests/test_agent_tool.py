@@ -2,13 +2,13 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
     Step,
     StepCall,
-    StepGroup,
 )
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -91,7 +91,7 @@ def test_agent_as_tool_isolated_from_parent_history():
     seen_inputs = []
 
     def sub_factory():
-        class RecordingSubAgent(StepGroup):
+        class RecordingSubAgent(Agent):
             consumes = [Consume(SubTask)]
             produces = []
 

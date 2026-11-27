@@ -5,13 +5,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     FakeLLM,
     Runtime,
     RuntimeResources,
     Step,
-    create_step_group,
 )
 from reactifact.cli import main
 from reactifact.eval import (
@@ -47,9 +47,7 @@ class Answerer(Step[Answer]):
 
 
 def _group():
-    return create_step_group(
-        "answerer", consumes=[Consume(Question)], produces=[Answerer()]
-    )
+    return Agent("answerer", consumes=[Consume(Question)], steps=[Answerer()])
 
 
 def _run_once() -> Context:

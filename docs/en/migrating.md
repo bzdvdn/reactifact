@@ -71,14 +71,14 @@ class Reply(BaseModel):
     text: str
 
 
-@step(produces=Route, consumes=Question)
+@step(produces=Route, reads=Question)
 async def classify(call: StepCall) -> None:
     question = call.trigger
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
     call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
-@step(produces=Reply, consumes=Route)
+@step(produces=Reply, reads=Route)
 async def answer(call: StepCall) -> None:
     route = call.trigger  # this step runs because a Route was created
     # ... call the model with run-scoped input ...
@@ -86,10 +86,10 @@ async def answer(call: StepCall) -> None:
 ```
 
 ```python
-from reactifact import Context, Runtime, create_step_group
+from reactifact import Context, Runtime, Agent
 
-classifier = create_step_group("classifier", steps=[classify])
-answerer = create_step_group("answerer", steps=[answer])
+classifier = Agent("classifier", steps=[classify])
+answerer = Agent("answerer", steps=[answer])
 ```
 
 Two things to notice, because they're the migration's real work:
@@ -193,7 +193,7 @@ not a hardcoded chain — swap the source, keep the agents.
 ## 10. Migration checklist
 
 - [ ] Every intermediate value is a **typed `Artifact`**, not a dict/`TypedDict`.
-- [ ] Each unit is a `Step` that declares `consumes`/`produces`; no node calls
+- [ ] Each unit is a `Step` that declares `reads`/`produces`; no node calls
       another directly.
 - [ ] Eligibility is a guard (`return None`), not a scheduling order.
 - [ ] Ids are **stable and re-derivable** (`f"answer:{qid}"`,

@@ -9,7 +9,7 @@ from typing import Any, Generic
 from pydantic import BaseModel
 from typing_extensions import TypeVar
 
-from ..artifacts import Artifact
+from ...artifacts import Artifact
 
 TOut = TypeVar("TOut", bound=BaseModel, default=BaseModel)
 

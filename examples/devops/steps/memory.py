@@ -19,7 +19,7 @@ from ..models import AnsibleReport, GitlabReport, K8sReport, UserMsg
 class RememberReport(Step):
     """Report → committed `PendingAction` with summary + source session."""
 
-    consumes = (K8sReport, GitlabReport, AnsibleReport)
+    reads = (K8sReport, GitlabReport, AnsibleReport)
     produces = (PendingAction,)
     provenance = DERIVED_FROM
 

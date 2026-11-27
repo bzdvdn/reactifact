@@ -1,6 +1,6 @@
 """Generic OTLP/HTTP tracer: exports `RunTrace` as spans with GenAI
 semantic-convention attributes (https://opentelemetry.io/docs/specs/semconv/gen-ai/)
-to any OTLP/HTTP collector — Jaeger, Tempo, Honeycomb, Datadog StepGroup, or a
+to any OTLP/HTTP collector — Jaeger, Tempo, Honeycomb, Datadog Agent, or a
 local `otel-collector` — no `opentelemetry-sdk` dependency: built on the same
 hand-rolled OTLP/HTTP JSON payload `LangfuseTracer` posts over plain `httpx`
 (`reactifact.tracing._otlp`), since that's already all a one-shot,

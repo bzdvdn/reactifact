@@ -2,12 +2,12 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Context,
     EventType,
     Patch,
     Runtime,
     RuntimeResources,
-    StepGroup,
     Trigger,
 )
 from reactifact.sources import Source, SourceRef
@@ -25,7 +25,7 @@ class Doc(BaseModel):
     content: str
 
 
-class RefToDoc(StepGroup):
+class RefToDoc(Agent):
     def __init__(self):
         super().__init__(
             "ref_to_doc", triggers=[Trigger(EventType.ARTIFACT_CREATED, SourceRef)]

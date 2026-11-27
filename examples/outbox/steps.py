@@ -7,7 +7,7 @@ from reactifact import Artifact, Emit, Outbox, PendingAction, step
 from .models import Order, Receipt
 
 
-@step(produces=(Receipt, PendingAction), consumes=Order)
+@step(produces=(Receipt, PendingAction), reads=Order)
 async def process_order(order: Artifact[Order], outbox: Outbox) -> Emit:
     outbox.act(
         "notify",

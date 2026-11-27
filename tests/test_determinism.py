@@ -4,11 +4,11 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Agent,
     Consume,
     Context,
     Runtime,
     RuntimeResources,
-    create_step_group,
     step,
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -41,7 +41,7 @@ async def random_data_produce(call):
 
 
 def _agent(produce_obj) -> object:
-    return create_step_group("a", consumes=[Consume(Q)], produces=[produce_obj])
+    return Agent("a", consumes=[Consume(Q)], steps=[produce_obj])
 
 
 async def _build(agent, resources):
