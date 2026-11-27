@@ -116,6 +116,39 @@ Mark a tool `destructive=True` to route it through the human-approval gate.
 `HITLLMAgent` lets the model ask clarifying questions (`PendingQuestion`)
 instead of guessing. Details and the full tool contract: `references/tools.md`.
 
+### Customising `ToolUse`
+
+Subclass `ToolUse`/`ToolUseHITL` when the loop needs a domain-specific
+observation or output. Use `self.progress(...)` for UI events (no extra
+parameter) and return `Emit`/`Ensure` when the output needs a stable id; the
+base `run()` accepts any return-style value:
+
+```python
+# not-run: illustrative — Answer/Observation are your models
+from reactifact import Artifact, Context, Effects, Emit
+from reactifact.tools.use import ToolUse
+
+
+class ResearchToolUse(ToolUse):
+    async def run(
+        self,
+        context: Context,
+        effects: Effects,
+        trigger: Artifact[object] | None,
+    ) -> Emit | None:
+        if trigger is None:
+            return None
+        self.progress("Planning the next tool call…")
+        text = await self._loop(context, getattr(trigger.data, "text", ""))
+        return Emit(
+            Observation(query_id=trigger.id, text=text),
+            id=f"observation:{trigger.id}",
+        )
+```
+
+`context` is still there for tools that need it, but ordinary steps should use
+`self.progress` / typed inputs instead of carrying it everywhere.
+
 Tools are typed and dependency-injected, like steps:
 
 ```python

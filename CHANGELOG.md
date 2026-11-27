@@ -4,6 +4,88 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.25.0] — 2026-11-27
+
+### Added
+
+- **Step-level `scope=`.** `Step(..., scope=...)` and `@step(..., scope=...)`
+  now set the correlation scope without a class attribute; an explicit argument
+  still overrides the class default. The same scope drives typed inputs,
+  `related()` and `scope_value`.
+- **Cross-turn history.** `Annotated[list[Artifact[T]], Unscoped()]` (and
+  `Annotated[Latest[T], Unscoped()]`) reads a type across every turn instead of
+  only the trigger's scope. Combine with `Wakes(False)` when history is a read,
+  not a wake reason; `list[T]` returns data, `list[Artifact[T]]` returns handles.
+- **`TurnContextStep` recipe.** `reactifact.recipes.conversation` gained
+  `TurnContext`, `TurnContextStep`, `TurnFacts` and `looks_like_follow_up`: one
+  artifact per user turn with the current/previous query, bounded history,
+  rolling digest and follow-up flag. `build(facts)` maps domain fields without
+  reading `Context`; `consume=OnCreate(...)`/`ensure=True` make it one idempotent
+  artifact per turn; `artifact_type=` selects a custom target. Downstream steps
+  consume the result instead of rebuilding the conversation.
+- **Conversation memory helpers.** `llm_digest_summarizer` now accepts
+  `user=`/`schema=`/`render=`/`fallback=`/`max_fallback_chars=`: it can build a
+  structured digest (`AnswerBody`), reuse `Transcript.render`, skip the LLM when
+  no provider is configured, and fall back to the truncated previous+history
+  text on errors/blank output. `ChatMemory.from_transcript(...)` binds every
+  message type in a `Transcript`, so a two-type conversation no longer needs a
+  hand-maintained `message_type=`.
+- **`ChatReply` and transcript projections.** `ChatReply(Answer, field=...,
+  render=..., extra=..., empty=...)` is a declarative terminal reply for
+  `Chat`/`ChatAssistant` (the default selects the latest artifact whose field
+  matches the turn id). `MessageSpec` gained `artifact_meta` and `state_field`,
+  and `Transcript.render`/`.state()` now cover ids/query ids/sources and the
+  `content` key, so `reply` and `session_state` can share one metadata hook.
+- **`ScopedCleanup` recipe.** `reactifact.recipes.cleanup.ScopedCleanup(
+  Answer, scratch_types=(...,), scope="query_id")` reacts to `OnCreate(Answer)`
+  and drops every scratch artifact in that scope. It declares `produces=()` and
+  the real `deletes=(...)`, replacing the hand-written
+  `CleanupTurn(Step[Answer])` + `related_all` loop.
+- **Side-effect-only steps.** `produces=()` is now valid (including
+  `@step(produces=())`), and `deletes=(T, ...)` is the declarative delete
+  contract. Contracts show no creates and the real deletes; the runtime does not
+  gate deletes on the declaration.
+- **`CurrentRequest`.** A read-only `Mapping` collaborator for
+  `Runtime.arun(request=...)`, injected as `request: CurrentRequest` and
+  mirrored by `Step.request`/`StepCall.request`; the `current_request()`
+  function stays.
+- **`Step.progress`.** Class steps and custom `ToolUse` subclasses can publish
+  UI events with `self.progress(...)` without carrying `Context`; `ToolUse`/
+  `ToolUseHITL.run` now type as returning `Any`, so an override may return
+  `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`.
+- **`LLMSpec`.** `reactifact.providers.LLMSpec` names provider, model,
+  credentials (`api_key`/`api_key_env`), proxy, auth knobs, retries and
+  `allow_anonymous` in one value; `build(on_error=...)` returns a provider or
+  `None` with `missing_key`/`missing_base_url`/`unknown_provider`/`build_error`.
+  `openrouter` keeps fast mode, `anthropic` uses the Messages API with native
+  `x-api-key`/raw-key defaults, `openai-compatible`/`local`/`ollama`/`vllm`
+  cover anonymous local endpoints, and `api_key` is excluded from `repr`.
+- **`[tool.reactifact]` config.** `validate`, `graph --check` and `check` read
+  `groups`, `seeds`, `terminal`, `budget`, `scenarios`, `evals`, `overall` and
+  `gates` from `pyproject.toml` when the matching flags are absent; flags still
+  win.
+- **`reactifact doctor` target modes.** It now accepts a `Chat`, `Pipeline` or
+  `RuntimeResources` object (and a FastAPI `create_app` with all-default args),
+  checks budget/memory there, and scans removed `Produce` usage via AST instead
+  of a substring.
+- **Skills.** `skills install --target opencode|all|auto` covers
+  `.opencode/skills` and existing project layouts; the bundled skills now teach
+  `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps,
+  `TurnContext` and the low-level-API boundary, and a test rejects removed API
+  names in skill text.
+
+### Fixed
+
+- **`MissingInputError` hint.** It no longer suggests `Consume(..., wakes=False)`
+  for a typed parameter that implicit read-only inputs already cover; it points
+  at the producer/seed or an explicit `Consume(T)` instead.
+- **Annotated resolution.** Typed inputs now resolve with `include_extras=True`,
+  so `Unscoped()` and other `Annotated` metadata survive into argument
+  resolution.
+- **Doctor false positives.** `Produces` in a docstring no longer counts as a
+  removed `Produce`; `build_assistant`/`build_resources`-shaped objects are
+  inspected when they are reachable, and a non-inspectable target says so.
+
 ## [0.24.0] — 2026-11-27
 
 ### Breaking

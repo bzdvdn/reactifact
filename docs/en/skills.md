@@ -18,13 +18,17 @@ they cannot silently rot.
 ```bash
 python -m reactifact skills list                      # what is available
 python -m reactifact skills install                    # -> .agents/skills/
-python -m reactifact skills install --target both      # also .claude/skills/
+python -m reactifact skills install --target both      # .agents + .claude
+python -m reactifact skills install --target opencode  # .opencode/skills/
+python -m reactifact skills install --target auto      # existing skills dirs
 python -m reactifact skills install reactifact-agents  # one skill
 python -m reactifact skills show reactifact            # print a SKILL.md
 ```
 
-`.agents/skills/` is the format Codex, Cursor, Gemini CLI and Copilot read;
-Claude Code also reads `.claude/skills/`. Commit the installed folder so your
+`.agents/skills/` is the format Codex, Cursor, Gemini CLI, Copilot and OpenCode
+read; Claude Code also reads `.claude/skills/`, and OpenCode projects can use
+`.opencode/skills/`. `--target auto` installs into whichever of those already
+exists (falling back to `.agents/skills/`). Commit the installed folder so your
 whole team gets the same guidance.
 
 ## The skills
@@ -32,9 +36,9 @@ whole team gets the same guidance.
 | Skill | Use it for |
 | --- | --- |
 | `reactifact` | The entry point: the mental model, the three invariants, the working loop (design → implement → wire → test → evaluate), a routing table, and the top mistakes. Read this first. |
-| `reactifact-agents` | Authoring agents and produces deeply: `Consume` variants (`by_status`, `by_field`, `JoinConsume`, `AbsentConsume`, `CorrelatedConsume`), every effect, ids/idempotency, provenance, scheduling. |
+| `reactifact-agents` | Authoring agents and produces deeply: `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps, `Consume` variants, every effect, ids/idempotency, provenance, scheduling, and when the low-level API is justified. |
 | `reactifact-llm` | LLM steps: providers, structured output into typed artifacts, `StructuredGenerateAgent`/`LLMAgent`/HITL, `@tool`, prompts, and token/cost budgets. |
-| `reactifact-rag` | Retrieval: sources (filesystem, CSV, web, embeddings), `fan_out_sources`, `materialize_doc`, and the ready-made recipes (router, plan-execute, reflection, memory). |
+| `reactifact-rag` | Retrieval: sources (filesystem, CSV, web, embeddings), `fan_out_sources`, `materialize_doc`, `TurnContext`, and the ready-made recipes (router, plan-execute, reflection, memory). |
 | `reactifact-testing` | Deterministic tests with `ScenarioLab`: assertions, fault injection, record/replay, golden snapshots, the pytest plugin and the `scenario` CLI. |
 | `reactifact-eval` | Quality measurement over a dataset: multi-level metrics, typed trajectory matching, LLM-as-judge, and the CI gate. |
 | `reactifact-observability` | Traces and `TraceStore`, Prometheus metrics, sessions/durability, deterministic replay and branching, and the graph/trace CLI. |

@@ -27,7 +27,7 @@ from importlib.metadata import version as _distribution_version
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
-from .chat import Chat
+from .chat import Chat, ChatReply
 from .commit import ContextCheckpoint
 from .consume import (
     Consume,
@@ -69,7 +69,7 @@ from .providers import (
     LLMResponseChunk,
     Message,
 )
-from .request import current_request
+from .request import CurrentRequest, current_request
 from .resources import ResourceKey, ResourceScope, RuntimeResources
 from .runtime import RunResult, Runtime
 from .session import Session, SessionStore
@@ -84,6 +84,7 @@ from .step import (
     Step,
     StepCall,
     StepGroup,
+    Unscoped,
     Wakes,
     When,
     create_step_group,
@@ -107,10 +108,12 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
 
 __all__ = [
     "StepGroup",
+    "Unscoped",
     "Artifact",
     "ArtifactConflict",
     "Budget",
     "Chat",
+    "ChatReply",
     "BudgetTracker",
     "Consume",
     "Context",
@@ -155,6 +158,7 @@ __all__ = [
     "SubflowResult",
     "Relation",
     "RelationName",
+    "CurrentRequest",
     "ResourceKey",
     "ResourceScope",
     "RetryPolicy",

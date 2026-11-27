@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -11,6 +10,9 @@ from ..artifacts import Artifact
 from ..context import Context
 from ..effects import Effects
 from ..events import Event
+
+if TYPE_CHECKING:
+    from ..request import CurrentRequest
 
 _ACTIVE_CONTEXT: ContextVar[Context | None] = ContextVar(
     "reactifact_step_context", default=None
@@ -129,13 +131,13 @@ class StepCall:
         return Progress(self.context.announce)
 
     @property
-    def request(self) -> Mapping[str, Any]:
+    def request(self) -> CurrentRequest:
         """The active turn's request mapping (`Runtime.arun(request=...)`).
 
         Empty when no request was passed. Read-only; use it for per-request
         data (an authenticated user, a tenant id, a correlation id) instead of
         a hand-rolled `ContextVar` or a `resources`-side dict (§52).
         """
-        from ..request import current_request
+        from ..request import CurrentRequest, current_request
 
-        return current_request()
+        return CurrentRequest(current_request())

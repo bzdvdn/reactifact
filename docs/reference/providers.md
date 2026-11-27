@@ -180,6 +180,12 @@ Chat, embedding, image, speech and video providers plus their factory helpers. T
 
 ::: reactifact.providers.image_from_env
 
+## Spec
+
+### `LLMSpec`
+
+::: reactifact.providers.LLMSpec
+
 ## Video
 
 ### `LumaVideoProvider`

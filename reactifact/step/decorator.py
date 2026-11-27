@@ -12,6 +12,7 @@ from ..artifacts import ArtifactType
 from ..consume import Consume
 from ..policy import RetryPolicy
 from ..provenance import DERIVED_FROM, RelationName
+from .annotations import Scope
 from .call import StepCall
 from .core import Step
 from .resolve import invoke_step
@@ -59,9 +60,11 @@ def step(
     artifact_type: ArtifactType | None = None,
     *,
     produces: ArtifactType | Sequence[ArtifactType] | None = None,
+    deletes: ArtifactType | Sequence[ArtifactType] | None = None,
     consumes: Consume | ArtifactType | Sequence[Consume | ArtifactType] | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
+    scope: Scope | str | None = None,
     priority: int | None = None,
     concurrency_limit: int | None = None,
     name: str | None = None,
@@ -92,7 +95,7 @@ def step(
       list of models / a ``Patch`` / ``None``; the runtime writes them into
       the effect slot (create/append) as usual;
     - ``def f(call): call.effects.create(...)`` — effects style: write
-      ``call.effects.create/update/link/ask/...`` and return ``None`` — the
+      ``call.effects.create/update/delete/link/upsert/...`` and return ``None`` — the
       function behaves exactly like a class step with ``call.effects``.
     """
 
@@ -101,7 +104,9 @@ def step(
 
     def decorator(func: Callable[..., Any]) -> Step[Any]:
         inferred_produces = _infer_produces(func) if inferred else None
-        final_produces = resolved_produces or inferred_produces
+        final_produces = (
+            resolved_produces if resolved_produces is not None else inferred_produces
+        )
         chosen_provenance = provenance
         if chosen_provenance is None and inferred_produces is not None:
             chosen_provenance = DERIVED_FROM
@@ -119,9 +124,11 @@ def step(
 
         instance = _FunctionStep(
             produces=final_produces,
+            deletes=deletes,
             consumes=consumes,
             timeout=timeout,
             provenance=chosen_provenance,
+            scope=scope,
             priority=priority,
             concurrency_limit=concurrency_limit,
             name=name,

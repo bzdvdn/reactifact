@@ -1,6 +1,6 @@
 """Steps: class-first units of work with typed inputs and effects."""
 
-from .annotations import Latest, Scope, Wakes, When
+from .annotations import Latest, Scope, Unscoped, Wakes, When
 from .call import (
     StepCall,
     current_step_call,
@@ -28,6 +28,7 @@ __all__ = [
     "Step",
     "StepCall",
     "StepGroup",
+    "Unscoped",
     "Wakes",
     "When",
     "create_step_group",

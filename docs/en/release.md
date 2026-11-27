@@ -27,6 +27,10 @@ entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
 
+- **0.25.0** — additive ergonomics: `scope=` on `Step`/`@step`, cross-turn
+  `Unscoped()`, the `TurnContext` recipe, side-effect-only steps, typed
+  `CurrentRequest`, `Step.progress`, `[tool.reactifact]` config, and
+  `skills install --target opencode|all|auto`. No migration guide: no breaks.
 - **0.24.0** — CLI/daemon/MCP/HTTP adapter work, `check`, `new agent`,
   `demo --web`, pipeline tools and HITL/approval recipes. The LLM helpers
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
@@ -164,23 +168,23 @@ uv lock --check
 
 # 3) build artifacts (clean stale build/ + dist/ first; setuptools reuses build/lib)
 rm -rf build dist *.egg-info
-uv build                     # dist/reactifact-0.24.0-py3-none-any.whl + sdist
+uv build                     # dist/reactifact-0.25.0-py3-none-any.whl + sdist
 
 # 4) verify the wheel in a scratch venv (not the workspace, so no PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.24.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install --quiet dist/reactifact-0.25.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.step_groups 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
 # confirm the wheel contains reactifact + tracing templates and NOT examples/tests:
-unzip -l dist/reactifact-0.24.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) tag
-git tag v0.24.0
-git push origin v0.24.0
+git tag v0.25.0
+git push origin v0.25.0
 
 # 6) publish (PyPI token in env); publish only the new files, not an old dist/
-uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.24.0*
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
 ```
 
 ## What ships

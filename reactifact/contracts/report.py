@@ -46,6 +46,7 @@ class StepContract:
     kind: str
     consumes: tuple[ConsumeContract, ...] = ()
     produces: tuple[str, ...] = ()
+    deletes: tuple[str, ...] = ()
     tools: tuple[ToolContract, ...] = ()
     priority: int = 0
     timeout: float | None = None
@@ -58,6 +59,7 @@ class GroupContract:
     kind: str
     consumes: tuple[ConsumeContract, ...] = ()
     produces: tuple[str, ...] = ()
+    deletes: tuple[str, ...] = ()
     steps: tuple[StepContract, ...] = ()
 
 
@@ -198,6 +200,10 @@ class ContractReport:
                         "- produces: "
                         + ", ".join(f"`{name}`" for name in step.produces)
                     )
+                if step.deletes:
+                    lines.append(
+                        "- deletes: " + ", ".join(f"`{name}`" for name in step.deletes)
+                    )
                 if step.tools:
                     lines.append("- tools:")
                     for tool in step.tools:
@@ -274,6 +280,9 @@ def _step_contract(step: Step[Any]) -> StepContract:
         kind=type(step).__name__,
         consumes=_consumes(getattr(step, "consumes", None)),
         produces=tuple(_type_name(item) for item in produces),
+        deletes=tuple(
+            _type_name(item) for item in (getattr(step, "deletes", None) or ())
+        ),
         tools=_tool_contracts(getattr(step, "tools", None)),
         priority=int(getattr(step, "priority", 0) or 0),
         timeout=getattr(step, "timeout", None),
@@ -286,11 +295,13 @@ def _group_contract(group: StepGroup) -> GroupContract:
         _step_contract(step) for step in (getattr(group, "steps", None) or ())
     )
     produces = tuple(dict.fromkeys(name for step in steps for name in step.produces))
+    deletes = tuple(dict.fromkeys(name for step in steps for name in step.deletes))
     return GroupContract(
         name=getattr(group, "name", "") or type(group).__name__,
         kind=type(group).__name__,
         consumes=_consumes(getattr(group, "consumes", None)),
         produces=produces,
+        deletes=deletes,
         steps=steps,
     )
 
@@ -350,11 +361,12 @@ def _group_html(group: GroupContract) -> str:
                 seen.add(item.artifact)
                 consumes.append(item)
     io = ""
-    if consumes or group.produces:
+    if consumes or group.produces or group.deletes:
         io = (
             '<div class="tree-io">'
             + _io_block("consumes", [item.artifact for item in consumes])
             + _io_block("produces", list(group.produces))
+            + _io_block("deletes", list(group.deletes))
             + "</div>"
         )
     search = _search_attr(
@@ -362,6 +374,7 @@ def _group_html(group: GroupContract) -> str:
         group.kind,
         *(item.artifact for item in consumes),
         *group.produces,
+        *group.deletes,
         *(step.name for step in group.steps),
         *(step.kind for step in group.steps),
         *(tool.name for step in group.steps for tool in step.tools),
@@ -399,11 +412,12 @@ def _step_html(step: StepContract, group_id: str = "group") -> str:
         else ""
     )
     io = ""
-    if consumes or step.produces:
+    if consumes or step.produces or step.deletes:
         io = (
             '<div class="tree-io">'
             + _io_block("consumes", consumes)
             + _io_block("produces", list(step.produces))
+            + _io_block("deletes", list(step.deletes))
             + "</div>"
         )
     tools = ""
@@ -443,6 +457,7 @@ def _step_html(step: StepContract, group_id: str = "group") -> str:
         step.kind,
         *consumes,
         *step.produces,
+        *step.deletes,
         *(tool.name for tool in step.tools),
         *(tool.description for tool in step.tools),
     )
@@ -481,12 +496,14 @@ def _group_dict(group: GroupContract) -> dict[str, Any]:
         "kind": group.kind,
         "consumes": [_consume_dict(item) for item in group.consumes],
         "produces": list(group.produces),
+        "deletes": list(group.deletes),
         "steps": [
             {
                 "name": step.name,
                 "kind": step.kind,
                 "consumes": [_consume_dict(item) for item in step.consumes],
                 "produces": list(step.produces),
+                "deletes": list(step.deletes),
                 "tools": [
                     {
                         "name": tool.name,

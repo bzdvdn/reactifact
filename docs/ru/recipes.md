@@ -265,6 +265,51 @@ class EvaluateTurn(StatusMachine[ResearchTurn]):
 `EvaluateTurn` в примерах knowledge/research — канонический образец этого
 рецепта.
 
+## `TurnContextStep` — один контекст разговора на ход
+
+`Transcript` рендерит окно, но всё ещё принимает `Context`; `TurnContextStep`
+превращает типовой чат в один артефакт: текущий запрос, предыдущий запрос,
+ограниченную историю, rolling digest и флаг follow-up. Дальше шаги потребляют
+`TurnContext` и не собирают разговор заново.
+
+```python
+from reactifact.recipes.conversation import TurnFacts, TurnContextStep
+
+def build_dialogue(facts: TurnFacts) -> DialogueContext:
+    return DialogueContext(
+        query_id=facts.trigger.id,
+        history="\n".join(m.text for m in facts.history),
+        prior_question=facts.previous_query or "",
+        prior_answer=(
+            facts.previous_answer.data.text
+            if facts.previous_answer is not None
+            else ""
+        ),
+    )
+
+turn_context = TurnContextStep(
+    UserQuery,
+    assistant_type=Answer,
+    digest_type=Digest,         # опционально; читает digest_id="digest"
+    artifact_type=DialogueContext,  # цель custom build
+    window=12,
+    consume=OnCreate(UserQuery),    # или обычный Consume
+    ensure=True,                    # идемпотентно на ход
+    follow_up=my_follow_up,         # опционально; детерминированный дефолт
+    build=build_dialogue,           # TurnFacts -> ваш артефакт
+)
+
+# groups=[turn_context, *answer_steps]
+```
+
+Шаг создаёт `TurnContext` (или `artifact_type=`) с id `turn:{query_id}`.
+`TurnFacts` содержит trigger, текущий/предыдущий запрос, предыдущие
+artifact/answer, историю, digest и follow-up — поэтому доменный контекст может
+нести `prior_domain`/`routing_text` без чтения `Context`. `consume=OnCreate` —
+один артефакт на ход; `ensure=True` делает повторный запуск no-op.
+Комбинируйте с `Annotated[..., Unscoped()]`, когда другому шагу тоже нужна
+полная история.
+
 ## `WindowSummarizer` / `WindowPruner` — ограниченная память диалога (§27, §37)
 
 Долгоживущая память чата — это просто состояние: артефакты-сообщения
@@ -376,6 +421,71 @@ class Flow(StepGroup):
 - Не комбинируйте с `WindowPruner`: он удаляет без предварительного
   сворачивания, а значит теряет контент, который этот рецепт должен
   сохранить. Свой сырой хвост он ограничивает сам, ничего больше не нужно.
+
+### `llm_digest_summarizer` и `ChatMemory.from_transcript`
+
+`llm_digest_summarizer` закрывает весь цикл «свернуть старые реплики в
+дайджест», включая fallback:
+
+```python
+from reactifact.recipes.conversation import MessageSpec, Transcript
+from reactifact.recipes.memory import llm_digest_summarizer
+
+transcript = Transcript([
+    MessageSpec(UserQuery, "user"),
+    MessageSpec(Answer, "assistant"),
+])
+
+summarize = llm_digest_summarizer(
+    SUMMARY_SYSTEM,
+    user=SUMMARY_USER,             # PromptTemplate с {previous}/{history}
+    render=transcript.render,      # типизированные role-строки
+    schema=AnswerBody,             # структурный вызов; без него — plain text
+    max_fallback_chars=4000,
+    attempts=1,
+    temperature=0.2,
+    max_tokens=800,
+)
+memory = ChatMemory.from_transcript(
+    transcript,
+    keep=settings.chat_memory_keep,
+    summarize=summarize,
+    summary_type=ConversationDigest,
+    compact_commits=settings.chat_memory_commits,
+)
+```
+
+Колбэк возвращает предыдущий дайджест, если новой истории нет, не вызывает
+LLM при `context.resources.llm is None`, и откатывается на
+`previous + "\n" + history` (обрезанный), если провайдер бросил исключение,
+вернул `None` или пустой текст. `fallback=` переопределяет это поведение.
+
+## `ScopedCleanup` — удалить scratch хода по scope
+
+`EphemeralCleanup` удаляет артефакты, id которых выводятся из ключа
+терминального артефакта. В чате id произвольные, но есть общий scope
+(`query_id`): `ScopedCleanup` реагирует на `OnCreate(Answer)` и удаляет все
+scratch-артефакты этого scope, не трогая другие ходы.
+
+```python
+from reactifact import Answer, OnCreate
+from reactifact.recipes.cleanup import ScopedCleanup
+
+cleanup = ScopedCleanup(
+    Answer,
+    scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
+    scope="query_id",          # или Scope(...)
+    consume=OnCreate(Answer),  # дефолт
+)
+
+# groups=[create_step_group("cleanup", steps=[cleanup])]
+```
+
+Он объявляет `produces=()` и реальные `deletes=(...)`, поэтому контракты
+больше не утверждают, что cleanup создаёт `Answer`. `related_all(type)`
+фильтруется по ключу терминального артефакта; scratch-тип вне этого scope
+остаётся. `scope` обязателен (передайте `None` явно для намеренной глобальной
+очистки).
 
 ## `run_tool_loop` — ограниченный цикл native tool-calling (§46, §47)
 

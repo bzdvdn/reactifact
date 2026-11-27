@@ -37,7 +37,8 @@ def test_missing_input_lists_the_producer_and_the_wakes_hint():
     message = str(error.value)
     assert "Missing input" in message
     assert "make_b" in message
-    assert "wakes=False" in message
+    assert "read-only" in message
+    assert "Consume(T)" in message
     assert "parameter 'b'" in message
 
 

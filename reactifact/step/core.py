@@ -9,6 +9,7 @@ import types
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     Generic,
@@ -35,6 +36,10 @@ from .call import (
     current_step_call,
     current_step_context,
 )
+
+if TYPE_CHECKING:
+    from ..interaction import Progress
+    from ..request import CurrentRequest
 
 TOut = TypeVar("TOut", bound=BaseModel, default=BaseModel)
 
@@ -195,8 +200,12 @@ class Step(Generic[TOut]):
 
     #: Output contract: the artifact types this step may create. The first is
     #: the primary output (used for `.name`, provenance and traces); the rest
-    #: are extra creates (what `also_creates` used to declare).
+    #: are extra creates (what `also_creates` used to declare). `()` is valid
+    #: for a side-effect-only step that only deletes/links.
     produces: tuple[ArtifactType, ...] | None = None
+    #: Declarative delete contract for side-effect-only steps. Contracts show
+    #: it; the runtime does not gate deletes on it.
+    deletes: tuple[ArtifactType, ...] = ()
     #: Input contract: the artifact types this step reads and reacts to. The
     #: runtime gates the step on these and collects them into `StepCall.inputs`.
     consumes: tuple[Any, ...] | None = None
@@ -344,12 +353,14 @@ class Step(Generic[TOut]):
         artifact_type: ArtifactType | None = None,
         *,
         produces: ArtifactType | Sequence[ArtifactType] | None = None,
+        deletes: ArtifactType | Sequence[ArtifactType] | None = None,
         consumes: Consume
         | ArtifactType
         | Sequence[Consume | ArtifactType]
         | None = None,
         timeout: float | None = None,
         provenance: RelationName | str | bool | None = None,
+        scope: Scope | str | None = None,
         priority: int | None = None,
         concurrency_limit: int | None = None,
         name: str | None = None,
@@ -366,11 +377,18 @@ class Step(Generic[TOut]):
             resolved_produces = (legacy_type,)
         if resolved_produces is None:
             raise ValueError(
-                "produces must be provided (a type, a sequence of types, or Step[Foo])"
+                "produces must be provided (a type, a sequence of types, or "
+                "Step[Foo]); use produces=() for a side-effect-only step"
             )
         self.produces = resolved_produces
-        self.artifact_type = resolved_produces[0]
+        self.artifact_type = resolved_produces[0] if resolved_produces else None
         self.also_creates = tuple(resolved_produces[1:])
+        resolved_deletes = self._normalize_types(deletes)
+        if resolved_deletes is None:
+            resolved_deletes = self._normalize_types(
+                getattr(self.__class__, "deletes", None)
+            )
+        self.deletes = resolved_deletes or ()
 
         resolved_consumes = self._normalize_consumes(consumes)
         if resolved_consumes is None:
@@ -396,6 +414,9 @@ class Step(Generic[TOut]):
             )
             if resolved_consumes is not None
             else None
+        )
+        self.scope = (
+            scope if scope is not None else getattr(self.__class__, "scope", None)
         )
         self.timeout = (
             timeout if timeout is not None else getattr(self.__class__, "timeout", None)
@@ -459,6 +480,29 @@ class Step(Generic[TOut]):
                 "this step — read it inside run(), not before it."
             )
         return context
+
+    @property
+    def request(self) -> CurrentRequest:
+        """The active turn's per-request payload (`Runtime.arun(request=...)`).
+
+        The same data as `StepCall.request` / `current_request()`, as a small
+        read-only `CurrentRequest` mapping. Empty outside a request.
+        """
+        from ..request import CurrentRequest, current_request
+
+        return CurrentRequest(current_request())
+
+    @property
+    def progress(self) -> Progress:
+        """The `Progress` collaborator for the current run.
+
+        A thin view over `Context.announce`; use it from a class step (or a
+        custom `ToolUse` subclass) without adding a `progress` parameter:
+        `self.progress("Planning…")`.
+        """
+        from ..interaction import Progress
+
+        return Progress(self.context.announce)
 
     @property
     def cursor(self) -> dict[type, dict[str, int]]:

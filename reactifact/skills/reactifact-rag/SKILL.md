@@ -221,12 +221,15 @@ the hooks.
 | `EphemeralCleanup` / `PrefixedEphemeralCleanup` | delete a turn's scratch artifacts |
 | `WindowSummarizer` / `RollingDigestSummarizer` | bounded conversation memory |
 | `Conversation` / `Transcript` | multi-turn conversation as typed turns |
+| `TurnContext` / `TurnContextStep` | one artifact per turn: window, digest, previous query, follow-up flag |
 | `run_tool_loop` | a plain tool-calling loop (no full `LLMAgent`) |
 | `find` / `find_all` | pick typed artifacts out of `inputs` |
 | `changed_fields` / `downstream_fields` | the "change → rebuild" model |
 
 Import them from `reactifact.recipes`. Deterministic helpers only — no hidden
-LLM calls.
+LLM calls. For multi-turn RAG, `TurnContextStep` is the primitive: downstream
+steps consume `TurnContext` instead of taking `Context` and rebuilding history;
+use `Unscoped()` on a step-scoped history read when a step needs every turn.
 
 ## Where to look
 

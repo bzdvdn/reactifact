@@ -279,6 +279,50 @@ the machine and the verifier are separate, deterministic, and unit-testable.
 The knowledge demo's `EvaluateTurn` is the canonical instance of
 this recipe.
 
+## `TurnContextStep` — one conversation context per turn
+
+`Transcript` renders a window but still takes `Context`; `TurnContextStep`
+turns the common chat shape into one artifact: current query, previous query,
+bounded history, rolling digest and a follow-up flag. Downstream steps consume
+`TurnContext` and never reconstruct the conversation themselves.
+
+```python
+from reactifact.recipes.conversation import TurnFacts, TurnContextStep
+
+def build_dialogue(facts: TurnFacts) -> DialogueContext:
+    return DialogueContext(
+        query_id=facts.trigger.id,
+        history="\n".join(m.text for m in facts.history),
+        prior_question=facts.previous_query or "",
+        prior_answer=(
+            facts.previous_answer.data.text
+            if facts.previous_answer is not None
+            else ""
+        ),
+    )
+
+turn_context = TurnContextStep(
+    UserQuery,
+    assistant_type=Answer,
+    digest_type=Digest,         # optional; reads digest_id="digest"
+    artifact_type=DialogueContext,  # custom build target
+    window=12,
+    consume=OnCreate(UserQuery),    # or a plain Consume
+    ensure=True,                    # idempotent per turn
+    follow_up=my_follow_up,         # optional; deterministic default
+    build=build_dialogue,           # turns TurnFacts into your artifact
+)
+
+# groups=[turn_context, *answer_steps]
+```
+
+The step emits `TurnContext` (or `artifact_type=`) with id `turn:{query_id}`.
+`TurnFacts` includes the trigger, current/previous query, previous
+artifact/answer, history, digest and follow-up flag — so a domain context can
+carry `prior_domain`/`routing_text` without reading `Context`. `consume=OnCreate`
+makes it one artifact per turn; `ensure=True` makes a re-run a no-op. Combine
+with `Annotated[..., Unscoped()]` when another step also needs full history.
+
 ## `WindowSummarizer` / `WindowPruner` — bounded conversation memory (§27, §37)
 
 Long-running chat memory is just state: message artifacts accumulate, and two
@@ -391,6 +435,71 @@ class Flow(StepGroup):
 - Don't pair this with `WindowPruner`: pruning deletes without folding first,
   which loses the content this recipe means to condense. It manages its own
   raw window and needs nothing else.
+
+### `llm_digest_summarizer` and `ChatMemory.from_transcript`
+
+`llm_digest_summarizer` covers the whole "fold stale turns into a digest"
+callback, including the fallback policy:
+
+```python
+from reactifact.recipes.conversation import MessageSpec, Transcript
+from reactifact.recipes.memory import llm_digest_summarizer
+
+transcript = Transcript([
+    MessageSpec(UserQuery, "user"),
+    MessageSpec(Answer, "assistant"),
+])
+
+summarize = llm_digest_summarizer(
+    SUMMARY_SYSTEM,
+    user=SUMMARY_USER,             # PromptTemplate with {previous}/{history}
+    render=transcript.render,      # typed role lines
+    schema=AnswerBody,             # structured call; omit for plain text
+    max_fallback_chars=4000,
+    attempts=1,
+    temperature=0.2,
+    max_tokens=800,
+)
+memory = ChatMemory.from_transcript(
+    transcript,
+    keep=settings.chat_memory_keep,
+    summarize=summarize,
+    summary_type=ConversationDigest,
+    compact_commits=settings.chat_memory_commits,
+)
+```
+
+The callback returns the previous digest when there is no new history, skips
+the LLM when `context.resources.llm is None`, and falls back to
+`previous + "\n" + history` (truncated) when the provider raises, returns
+`None`, or returns blank text. `fallback=` overrides that policy.
+
+## `ScopedCleanup` — drop a turn's scratch by scope
+
+`EphemeralCleanup` removes artifacts whose ids are derived from a terminal
+artifact's key. The chat variant has arbitrary ids but a shared scope
+(`query_id`): `ScopedCleanup` reacts to `OnCreate(Answer)` and drops every
+scratch artifact in that scope, leaving other turns untouched.
+
+```python
+from reactifact import Answer, OnCreate
+from reactifact.recipes.cleanup import ScopedCleanup
+
+cleanup = ScopedCleanup(
+    Answer,
+    scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
+    scope="query_id",          # or a Scope(...)
+    consume=OnCreate(Answer),  # default
+)
+
+# groups=[create_step_group("cleanup", steps=[cleanup])]
+```
+
+It declares `produces=()` and the real `deletes=(...)`, so contracts no longer
+claim the cleanup creates an `Answer`. The `related_all(type)` lookup is scoped
+by the terminal's key; a scratch type produced outside that scope is left
+alone. `scope` is required (pass `None` explicitly for a deliberate global
+cleanup).
 
 ## `run_tool_loop` — a bounded native tool-calling loop (§46, §47)
 

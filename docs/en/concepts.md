@@ -67,7 +67,7 @@ Rules of thumb:
 
 The authoring surface is the **effects** slot (see
 [The produce contract](effects.md), §24): a produce writes
-`create/update/link/ask` and returns `None`. A class-style step declares
+`create/update/delete/link/upsert` and returns `None`. A class-style step declares
 `effects: Effects` in `run()`; a `@step` function uses
 `call.effects`. The runtime compiles the effect set into one atomic
 **`Patch`** — its compiled transport.
@@ -271,7 +271,8 @@ when the task actually needs it.
 | React to a type | `Consume(Type)` |
 | Only one lifecycle event | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Conditional edge | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Read without waking / latest / scoped lookup | a typed param missing from explicit `consumes` (automatic), `Annotated[T, Wakes(False)]` when `consumes` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Read without waking / latest / scoped lookup | a typed param missing from explicit `consumes` (automatic), `Annotated[T, Wakes(False)]` when `consumes` is derived, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` on `Step`/`@step` |
+| Cross-turn history | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (add `Wakes(False)` for reads) |
 | Periodic/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 
 ### Streams

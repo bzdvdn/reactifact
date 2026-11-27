@@ -27,12 +27,49 @@ child tasks a generation fans out to, and isolated between concurrent turns
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from contextvars import ContextVar, Token
 from types import MappingProxyType
 from typing import Any
 
 _EMPTY: Mapping[str, Any] = MappingProxyType({})
+
+
+class CurrentRequest(Mapping[str, Any]):
+    """Read-only per-turn request data, injected as a typed collaborator.
+
+    A thin `Mapping` wrapper (not a pydantic model, so it never looks like an
+    artifact) around `Runtime.arun(request=...)`. Use it instead of
+    `call.request` / `current_request()` when a signature should show the
+    dependency:
+
+        @step(consumes=Question, produces=Answer)
+        async def answer(question: Question, request: CurrentRequest) -> Answer:
+            tenant = request.get("tenant")
+            ...
+
+    A parameter named `request` is injected even when unannotated; a real
+    artifact type called `CurrentRequest` can still be read explicitly as
+    `Artifact[CurrentRequest]`.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self, data: Mapping[str, Any]) -> None:
+        self._data = data
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __repr__(self) -> str:
+        return f"CurrentRequest({dict(self._data)!r})"
+
 
 _REQUEST: ContextVar[Mapping[str, Any]] = ContextVar(
     "reactifact_request", default=_EMPTY
@@ -54,4 +91,4 @@ def reset_request(token: Token[Mapping[str, Any]]) -> None:
     _REQUEST.reset(token)
 
 
-__all__ = ["current_request", "reset_request", "set_request"]
+__all__ = ["CurrentRequest", "current_request", "reset_request", "set_request"]

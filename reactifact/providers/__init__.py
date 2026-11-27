@@ -18,6 +18,7 @@ from .contracts import (
     Role,
 )
 from .fake import FakeEmbedder, FakeLLM
+from .spec import LLMSpec
 
 if TYPE_CHECKING:
     from .anthropic import AnthropicProvider, anthropic_llm
@@ -159,6 +160,7 @@ __all__ = [
     "GeminiImageProvider",
     "GeminiProvider",
     "ImageProvider",
+    "LLMSpec",
     "LLMProvider",
     "LLMRequest",
     "LLMResponse",

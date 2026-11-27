@@ -35,6 +35,7 @@ from pydantic import BaseModel
 
 from ..artifacts import Artifact
 from ..context import Context
+from ..prompts import PromptTemplate
 from ..step import Drop, Emit, Step
 from ..structured import OnStructuredError, llm_reply
 
@@ -290,45 +291,107 @@ def llm_summarizer(
     return _summarize
 
 
+def _prompt_text(prompt: str | PromptTemplate) -> str:
+    return prompt.render() if isinstance(prompt, PromptTemplate) else prompt
+
+
+def _fallback_digest(
+    previous: str,
+    history: str,
+    max_chars: int | None,
+) -> str | None:
+    text = "\n".join(part for part in (previous, history) if part)
+    if max_chars is not None and max_chars >= 0:
+        text = text[-max_chars:] if max_chars else ""
+    return text or None
+
+
 def llm_digest_summarizer(
-    system: str,
+    system: str | PromptTemplate,
     *,
+    user: str | PromptTemplate | None = None,
     render: Callable[[list[Artifact[Any]]], str] = _default_render,
+    schema: type[BaseModel] | None = None,
+    extract: Callable[[Any], str | None] = lambda value: getattr(value, "text", None),
+    fallback: Callable[[str, str], str | None] | None = None,
+    max_fallback_chars: int | None = 4000,
+    empty_previous: str = "(empty)",
     attempts: int = 2,
     temperature: float | None = None,
     max_tokens: int | None = None,
     on_error: OnStructuredError | None = None,
 ) -> Callable[[Context, str, list[Artifact[Any]]], Awaitable[str | None]]:
-    """Builds a `RollingDigestSummarizer(summarize=...)` callback from a
-    system prompt, via `llm_reply` — the common case, no custom callback
-    needed. Renders the stale artifacts with `render` (default: `role: text`
-    lines) and puts the previous digest and that rendering into two labeled
-    sections of one user turn.
+    """Builds a `RollingDigestSummarizer(summarize=...)` callback.
 
-    Reach for your own `summarize` callback instead when messages don't
-    reduce to a `role`/`text` string (e.g. structured role/content prompt
-    turns, or artifacts of more than one type) — this helper is the opt-in
-    default, not the only path.
+    The common case covers the whole "fold stale turns into a digest" loop:
+
+    - `render(stale)` turns the old artifacts into text (pass
+      `Transcript.render` to get typed role lines);
+    - `system`/`user` are `str` or `PromptTemplate`; `user` receives
+      `previous` and `history`, defaulting to the English section labels;
+    - `schema=` switches to a structured call (e.g. a `{text: ...}` model);
+      without it the helper uses `llm_reply` and expects plain text;
+    - no LLM, provider error, a blank answer or an exception falls back to
+      `previous + history`, truncated to `max_fallback_chars` (`None` keeps
+      all, `0` returns `None`). Pass `fallback=` to override that.
     """
+    fallback_fn = fallback or (
+        lambda previous, history: _fallback_digest(
+            previous, history, max_fallback_chars
+        )
+    )
 
     async def _summarize(
         context: Context, previous: str, stale: list[Artifact[Any]]
     ) -> str | None:
         history = render(stale)
-        user = (
-            f"Previous memory:\n{previous}\n\nNew messages to fold in:\n{history}"
-            if previous
-            else history
-        )
-        return await llm_reply(
-            context.resources.llm,
-            system=system,
-            user=user,
-            attempts=attempts,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            on_error=on_error,
-        )
+        if not history:
+            return fallback_fn(previous, "")
+        fallback_text = fallback_fn(previous, history)
+        if context.resources.llm is None:
+            return fallback_text
+        if user is None:
+            user_text = (
+                f"Previous memory:\n{previous}\n\nNew messages to fold in:\n{history}"
+                if previous
+                else history
+            )
+        elif isinstance(user, PromptTemplate):
+            user_text = user.render(
+                previous=previous or empty_previous,
+                history=history,
+            )
+        else:
+            user_text = user
+        try:
+            if schema is not None:
+                body = await context.resources.llm.structured(
+                    schema,
+                    system=_prompt_text(system),
+                    user=user_text,
+                    attempts=attempts,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    on_error=on_error,
+                )
+                text = extract(body) if body is not None else None
+            else:
+                text = await llm_reply(
+                    context.resources.llm,
+                    system=_prompt_text(system),
+                    user=user_text,
+                    attempts=attempts,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    on_error=on_error,
+                )
+        except Exception as exc:  # noqa: BLE001 — digest failure is not fatal
+            if on_error is not None:
+                on_error("provider_error", exc)
+            return fallback_text
+        if text is None or not text.strip():
+            return fallback_text
+        return text.strip()
 
     return _summarize
 

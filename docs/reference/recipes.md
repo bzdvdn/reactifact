@@ -70,6 +70,10 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 
 ::: reactifact.recipes.PrefixedEphemeralCleanup
 
+### `ScopedCleanup`
+
+::: reactifact.recipes.ScopedCleanup
+
 ## Inputs
 
 ### `correlation_id_of`
@@ -157,6 +161,22 @@ Reusable agent shapes. Recipes are documented by example in [Recipes](../en/reci
 ### `Transcript`
 
 ::: reactifact.recipes.Transcript
+
+### `TurnContext`
+
+::: reactifact.recipes.TurnContext
+
+### `TurnContextStep`
+
+::: reactifact.recipes.TurnContextStep
+
+### `TurnFacts`
+
+::: reactifact.recipes.TurnFacts
+
+### `looks_like_follow_up`
+
+::: reactifact.recipes.looks_like_follow_up
 
 ### `add_message`
 

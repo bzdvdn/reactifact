@@ -104,3 +104,48 @@ def test_skills_cli_install_claude_and_single(
     assert main(["skills", "install", "--target", "both"]) == 0
     assert (tmp_path / ".agents" / "skills" / "reactifact" / "SKILL.md").is_file()
     assert (tmp_path / ".claude" / "skills" / "reactifact" / "SKILL.md").is_file()
+
+
+def test_skills_cli_install_opencode_and_auto(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert main(["skills", "install", "--target", "opencode", "reactifact"]) == 0
+    assert (tmp_path / ".opencode" / "skills" / "reactifact" / "SKILL.md").is_file()
+    assert not (tmp_path / ".agents" / "skills" / "reactifact").exists()
+
+    assert main(["skills", "install", "--target", "auto", "reactifact-eval"]) == 0
+    assert (
+        tmp_path / ".opencode" / "skills" / "reactifact-eval" / "SKILL.md"
+    ).is_file()
+    assert not (tmp_path / ".agents" / "skills" / "reactifact-eval").exists()
+
+
+def test_skills_cli_auto_falls_back_to_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert main(["skills", "install", "--target", "auto", "reactifact"]) == 0
+    assert (tmp_path / ".agents" / "skills" / "reactifact" / "SKILL.md").is_file()
+
+
+def test_bundled_skills_do_not_teach_removed_api() -> None:
+    from reactifact.cli.skills import _skill_dirs
+
+    removed = (
+        "Effects.ask",
+        "effects.ask",
+        "Effects.resume",
+        "effects.resume",
+        "Effects.act",
+        "effects.act",
+        "create_agent",
+        "validate_agents",
+        "agents=",
+        "consume(",
+    )
+    for skill in _skill_dirs():
+        for path in skill.rglob("*.md"):
+            text = path.read_text(encoding="utf-8")
+            for token in removed:
+                assert token not in text, f"{path} still teaches {token!r}"

@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
+from .artifacts import Artifact
 from .budget import Budget
 from .consume import Consume
 from .context import Context
@@ -83,12 +84,62 @@ def _fallback_payload(fallback_reply: str) -> dict[str, Any]:
     return {"reply": fallback_reply, "waiting": False, "error": True}
 
 
+@dataclass(frozen=True)
+class ChatReply:
+    """A declarative terminal-reply projection for `Chat`/`ChatAssistant`.
+
+    The common chat shape is "find the answer for this turn, render it, attach
+    sources/metadata". `ChatReply` is that shape without a hand-written
+    `reply(ctx, msg_id)` function:
+
+        reply = ChatReply(
+            Answer,
+            render=lambda a: mask(a.text),
+            extra=lambda artifact: {"sources": artifact.data.sources},
+        )
+        chat = Chat(..., reply=reply)
+
+    `field` is the model field matched against the turn's message id (default:
+    `query_id`). The latest matching artifact wins. `extra` receives the
+    artifact, so it can attach ids, sources or domain metadata; `empty`
+    overrides the honest fallback payload. A plain callable still works
+    unchanged.
+    """
+
+    type: type[BaseModel]
+    field: str = "query_id"
+    render: Callable[[Any], str] | None = None
+    extra: Callable[[Artifact[Any]], Mapping[str, Any]] | None = None
+    empty: Mapping[str, Any] | None = None
+
+    def build(self, context: Context, msg_id: str) -> dict[str, Any]:
+        candidates = [
+            artifact
+            for artifact in context.list_artifacts(self.type)
+            if getattr(artifact.data, self.field, None) == msg_id
+        ]
+        if not candidates:
+            return dict(
+                self.empty or {"reply": "No reply assembled.", "waiting": False}
+            )
+        artifact = max(candidates, key=lambda item: item.created_at)
+        text = (
+            self.render(artifact.data)
+            if self.render is not None
+            else str(getattr(artifact.data, "text", ""))
+        )
+        payload: dict[str, Any] = {"reply": text, "waiting": False}
+        if self.extra is not None:
+            payload.update(dict(self.extra(artifact)))
+        return payload
+
+
 async def run_message(
     runtime: Runtime,
     text: str,
     *,
     user_message: type[BaseModel],
-    reply: Callable[[Context, str], dict[str, Any]],
+    reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
     session_id: str = "",
     create_message: Callable[..., str] | None = None,
     status_kinds: Sequence[str] = ("status",),
@@ -166,7 +217,11 @@ async def run_message(
         )
         return
     try:
-        payload = reply(ctx, msg_id)
+        payload = (
+            reply.build(ctx, msg_id)
+            if isinstance(reply, ChatReply)
+            else reply(ctx, msg_id)
+        )
     except Exception:
         logger.exception("chat.run_message: reply hook crashed")
         payload = _fallback_payload(fallback_reply)
@@ -344,6 +399,16 @@ class ChatMemory:
     digest_id: str = "digest"
     compact_commits: int | None = None
 
+    @classmethod
+    def from_transcript(cls, transcript: Any, **kwargs: Any) -> ChatMemory:
+        """Builds a policy bound to every type in a `Transcript`.
+
+        `ChatMemory.from_transcript(transcript, keep=..., summarize=...,
+        summary_type=...)` removes the hand-maintained `message_type=`
+        duplication; `Transcript.types` is the source of truth.
+        """
+        return cls(message_types=tuple(transcript.types), **kwargs)
+
     def resolved_message_types(self) -> tuple[type[BaseModel], ...]:
         """The message types to bound, normalized from the two fields."""
         if self.message_types is not None:
@@ -420,7 +485,7 @@ class ChatAssistant:
         groups: Sequence[StepGroup] | Callable[[], Sequence[StepGroup]] | None = None,
         steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
-        reply: Callable[[Context, str], dict[str, Any]],
+        reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
         session_state: Callable[[Context], dict[str, Any]] | None = None,
         resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
         budget: Budget | None = None,
@@ -726,7 +791,7 @@ class Chat:
         seed_field: str = "text",
         seed_factory: Callable[[str, str, Mapping[str, Any]], BaseModel] | None = None,
         answer_type: type[BaseModel] | None = None,
-        reply: Callable[[Context, str], dict[str, Any]] | None = None,
+        reply: Callable[[Context, str], dict[str, Any]] | ChatReply | None = None,
         session_state: Callable[[Context], dict[str, Any]] | None = None,
         resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
         llm: Any = None,
@@ -1054,6 +1119,7 @@ def _as_store(store: SessionStore | str | Path | None) -> SessionStore:
 __all__ = [
     "Chat",
     "ChatAssistant",
+    "ChatReply",
     "ChatEvent",
     "ChatEventKind",
     "ChatMemory",

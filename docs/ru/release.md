@@ -26,6 +26,11 @@ Changelog). При бампе версии:
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.25.0** — аддитивная эргономика: `scope=` у `Step`/`@step`, `Unscoped()`
+  для истории между ходами, рецепт `TurnContext`, side-effect-only шаги,
+  типизированный `CurrentRequest`, `Step.progress`, конфиг
+  `[tool.reactifact]`, `skills install --target opencode|all|auto`. Без
+  migration-гайда: ломающих изменений нет.
 - **0.24.0** — CLI/daemon/MCP/HTTP-адаптеры, `check`, `new agent`,
   `demo --web`, pipeline tools и HITL/approval-рецепты. LLM-хелперы
   (`structured_llm`, `json_schema_llm`, `llm_reply`, `chat_complete*`,
@@ -133,20 +138,20 @@ Changelog). При бампе версии:
 
 # 3) сборка (сначала очистите stale build/ + dist/: setuptools переиспользует build/lib)
 rm -rf build dist *.egg-info
-uv build                         # dist/reactifact-0.24.0-py3-none-any.whl + sdist
+uv build                         # dist/reactifact-0.25.0-py3-none-any.whl + sdist
 
 # 4) проверка wheel в чистом venv (не workspace — чтобы не цеплял PYTHONPATH)
 uv venv /tmp/reactifact-rc
-/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.24.0-py3-none-any.whl
+/tmp/reactifact-rc/bin/python -m pip install dist/reactifact-0.25.0-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/reactifact --help          # console-скрипт на месте
-unzip -l dist/reactifact-0.24.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) тег
-git tag v0.24.0 && git push origin v0.24.0
+git tag v0.25.0 && git push origin v0.25.0
 
 # 6) публикация только новых файлов, а не старого dist/ (токен PyPI в env)
-uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.24.0*
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
 ```
 
 ## Что входит в дистрибутив

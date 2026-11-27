@@ -32,6 +32,10 @@ reactifact dev app.main:app
 reactifact demo --web
 ```
 
+- `validate`, `graph --check` и `check` читают `[tool.reactifact]` из
+  `pyproject.toml` (`groups`, `seeds`, `terminal`, `budget`, `scenarios`,
+  `evals`, `overall`, `gates`), если соответствующие флаги не заданы; флаги
+  приоритетнее.
 - `check` — единый quality-gate: статические контракты, любое число
   `@scenario`-модулей и опциональный eval `Dataset` против `Pipeline`
   (`--gate KEY=VALUE`, `--overall`); при провале стадии выходит с ненулевым

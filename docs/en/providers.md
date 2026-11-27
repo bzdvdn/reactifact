@@ -62,6 +62,53 @@ The in-repo examples prefer the **explicit factories** (`openai_llm(...)`,
 `build_llm()` that reads `.env` and picks the provider, so you always see which
 provider runs and it stays offline-capable when no key is present.
 
+### Declarative provider specs
+
+`LLMSpec` is the settings-shaped alternative to a hand-written
+`build_llm()` branch. It names the provider, credentials, network knobs and
+fallback policy once; `build()` returns a provider or `None` and reports why:
+
+```python
+from reactifact.providers import LLMSpec
+
+llm = LLMSpec(
+    provider="openrouter",              # or "openai", "openai-compatible"
+    model="deepseek/deepseek-v4-flash",
+    api_key_env="OPENROUTER_API_KEY",
+    proxy="http://proxy:3128",
+    temperature=0.0,
+    max_tokens=2048,
+).build(
+    on_error=lambda reason, exc: print("llm unavailable:", reason),
+)
+```
+
+- `provider` covers every chat factory: `openai`, `openrouter`, `anthropic`,
+  `gemini`, `azure`, `ollama`, `cerebras`, `deepseek`, `fireworks`,
+  `github-models`, `groq`, `mistral`, `nvidia`, `perplexity`, `qwen`, `together`,
+  `xai`, `zai`, plus `openai-compatible`/`compatible`/`local`/`vllm`/`lmstudio`.
+  Aliases: `claude`, `google`, `github`, `nvidia-nim`.
+- Provider-native defaults stay in the factory: OpenRouter fast mode
+  (`reasoning` disabled), Anthropic `x-api-key`/raw-key and 4096 tokens, Gemini
+  `x-goog-api-key`, vendored OpenAI-compatible auth env vars, `ollama` without a
+  key. Set `auth_header`/`auth_scheme` only to override; `raw_key=True` sends the
+  key without a scheme.
+- `azure` maps `base_url` to the resource endpoint and `model` to the
+  deployment; `ollama` builds without a key. `openai-compatible` requires
+  `base_url`.
+- `api_key` is excluded from `repr`; `api_key_env` names the variable. An
+  explicit `api_key`/`api_key_env` never silently falls back to the provider's
+  conventional env var.
+- `allow_anonymous=True` covers a local endpoint with no auth (Ollama, vLLM,
+  LM Studio). It is explicit: a missing key is a configuration outcome, not a
+  silent unauthenticated run.
+- `extra_headers`/`extra_body`/`stream_usage` are passed only to providers that
+  accept them (native Anthropic/Gemini APIs differ); the rest of the fields are
+  common.
+- `build()` returns `None` and calls `on_error("missing_key" | "missing_base_url"
+  | "unknown_provider" | "build_error", exc)`; invalid constructor values still
+  raise `ValueError`. The app keeps its deterministic fallback.
+
 ## Chat providers
 
 `OpenAICompatProvider` is the generic OpenAI-compatible client and is the

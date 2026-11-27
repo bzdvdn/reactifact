@@ -67,7 +67,7 @@ class Evidence(BaseModel):
 ## 3. Effects и Patch
 
 Авторская поверхность — слот **effects** (см. [Контракт produce](effects.md),
-§24): produce пишет `create/update/link/ask` и возвращает `None`. Класс-шаг
+§24): produce пишет `create/update/delete/link/upsert` и возвращает `None`. Класс-шаг
 объявляет `effects: Effects` в `run()`; функция `@step` использует
 `call.effects`. Рантайм компилирует набор эффектов в один атомарный
 **`Patch`** — скомпилированный транспорт.
@@ -275,7 +275,8 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Реакция на тип | `Consume(Type)` |
 | Только одно lifecycle-событие | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `consumes` (автоматически), `Annotated[T, Wakes(False)]`, когда `consumes` выводится, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)` |
+| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `consumes` (автоматически), `Annotated[T, Wakes(False)]`, когда `consumes` выводится, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
+| История между ходами | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (добавьте `Wakes(False)` для чтения) |
 | Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 
 ### Потоки

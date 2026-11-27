@@ -7,6 +7,7 @@ scans the project for a few common mistakes. It never starts the server.
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib
 import inspect
 import os
@@ -40,16 +41,80 @@ def _is_set(value: Any) -> bool:
     return bool(str(value))
 
 
+def _callable_without_required_args(target: Any) -> bool:
+    try:
+        params = inspect.signature(target).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return not any(
+        param.default is inspect.Parameter.empty
+        and param.kind
+        not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        for param in params
+    )
+
+
 def _load_target(spec: str) -> Any:
     module_name, _, attr = spec.partition(":")
     module = importlib.import_module(module_name)
     target = getattr(module, attr) if attr else module
-    if callable(target) and not inspect.signature(target).parameters:
+    if (
+        callable(target)
+        and not inspect.isclass(target)
+        and _callable_without_required_args(target)
+    ):
         target = target()
     state = getattr(target, "state", None)
-    if state is not None and hasattr(state, "settings"):
-        return state.settings
+    if state is not None and (
+        hasattr(state, "settings") or hasattr(state, "assistant")
+    ):
+        return state
     return target
+
+
+def _has_removed_usage(path: Path) -> bool:
+    """AST scan: a real `Produce`/`@produce`/`also_creates` use, not a docstring."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in {"Produce", "ProduceCall"}:
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for decorator in node.decorator_list:
+                target = (
+                    decorator.func if isinstance(decorator, ast.Call) else decorator
+                )
+                if isinstance(target, ast.Name) and target.id == "produce":
+                    return True
+        if isinstance(node, ast.Call) and any(
+            keyword.arg in {"also_creates", "reacts_to"} for keyword in node.keywords
+        ):
+            return True
+    return False
+
+
+def _scan_sources(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    sources = list(_py_files(root))
+    if not sources:
+        return findings
+    text = "\n".join(path.read_text(errors="ignore") for path in sources)
+    if "scope_session" not in text and "session_key" not in text:
+        findings.append(
+            Finding(
+                "WARN",
+                "no session scoping helper found (client id may be a storage key)",
+            )
+        )
+    if "lifespan" not in text and "aclose" not in text:
+        findings.append(Finding("WARN", "no lifespan/resource cleanup found"))
+    if any(_has_removed_usage(path) for path in sources):
+        findings.append(
+            Finding("WARN", "removed Produce/@produce usage found; use Step/@step")
+        )
+    return findings
 
 
 def _py_files(root: Path) -> Iterator[Path]:
@@ -111,19 +176,48 @@ def check_settings(settings: Any, *, root: Path) -> list[Finding]:
     ):
         add("WARN", "chat history is unbounded (no ChatMemory policy)")
 
-    sources = list(_py_files(root))
-    if sources:
-        text = "\n".join(path.read_text(errors="ignore") for path in sources)
-        if "scope_session" not in text and "session_key" not in text:
-            add(
-                "WARN",
-                "no session scoping helper found (client id may be a storage key)",
-            )
-        if "lifespan" not in text and "aclose" not in text:
-            add("WARN", "no lifespan/resource cleanup found")
-        if "@produce" in text or "Produce" in text:
-            add("WARN", "removed Produce/@produce usage found; use Step/@step")
+    findings.extend(_scan_sources(root))
+    return findings
 
+
+def _looks_like_settings(value: Any) -> bool:
+    return hasattr(value, "llm_provider") or (
+        hasattr(value, "env") and hasattr(value, "auth_token")
+    )
+
+
+def check_runtime(target: Any, *, root: Path) -> list[Finding]:
+    """Checks a `Chat`/`Pipeline`/`RuntimeResources` object (not a settings model)."""
+    findings: list[Finding] = []
+    resources = getattr(target, "resources", None)
+    if resources is None and hasattr(target, "llm") and hasattr(target, "register"):
+        resources = target
+    assistant = getattr(target, "assistant", None)
+    budget = getattr(target, "budget", None)
+    if budget is None:
+        budget = getattr(assistant, "_budget", None)
+    llm = getattr(resources, "llm", None) if resources is not None else None
+    if llm is None:
+        llm = getattr(target, "llm", None)
+    memory = getattr(assistant, "_memory", None)
+
+    findings.append(
+        Finding("OK", "llm: configured" if llm is not None else "llm: offline/fallback")
+    )
+    if budget is None:
+        findings.append(Finding("WARN", "no budget limits configured"))
+    else:
+        findings.append(Finding("OK", "budget limits configured"))
+    if assistant is not None:
+        findings.append(
+            Finding(
+                "OK" if memory is not None else "WARN",
+                "chat memory is bounded"
+                if memory is not None
+                else "chat history is unbounded (no ChatMemory policy)",
+            )
+        )
+    findings.extend(_scan_sources(root))
     return findings
 
 
@@ -134,7 +228,27 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"reactifact doctor: cannot load {args.target!r}: {exc}")
         return 1
 
-    findings = check_settings(target, root=Path(args.path).expanduser().resolve())
+    root = Path(args.path).expanduser().resolve()
+    findings: list[Finding] = []
+    settings = target if _looks_like_settings(target) else None
+    if settings is None:
+        settings = getattr(target, "settings", None)
+    if settings is not None:
+        findings.extend(check_settings(settings, root=root))
+    elif (
+        hasattr(target, "assistant")
+        or hasattr(target, "resources")
+        or hasattr(target, "llm")
+    ):
+        findings.extend(check_runtime(target, root=root))
+    else:
+        findings.append(
+            Finding(
+                "WARN",
+                "target is not a settings or Chat/Pipeline/resources object; "
+                "pass app.config:get_settings or a zero-arg factory",
+            )
+        )
     print(f"reactifact doctor — {args.target}")
     for finding in findings:
         print(f"  {finding.level:<5} {finding.message}")
@@ -156,4 +270,4 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     p.set_defaults(func=cmd_doctor)
 
 
-__all__ = ["Finding", "add_parser", "check_settings"]
+__all__ = ["Finding", "add_parser", "check_runtime", "check_settings"]

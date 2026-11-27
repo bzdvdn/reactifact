@@ -175,3 +175,32 @@ def test_test_chat_overrides_a_typed_resource():
     with chat.test_client() as client:
         client.override(Svc, Svc("fake"))
         assert asyncio.run(client.answer("x", session_id="override")).text == "fake:x"
+
+
+class TurnAnswer(BaseModel):
+    query_id: str
+    text: str
+
+
+@step(consumes=Question, produces=TurnAnswer)
+def turn_answer(question: Question, call) -> TurnAnswer:
+    return TurnAnswer(query_id=call.trigger.id, text=question.text.upper())
+
+
+def test_chat_accepts_a_declarative_chat_reply():
+    from reactifact import ChatReply
+
+    reply = ChatReply(
+        TurnAnswer,
+        render=lambda data: data.text.lower(),
+        extra=lambda artifact: {"answer_id": artifact.id},
+    )
+    chat = Chat(
+        steps=[turn_answer],
+        seed_type=Question,
+        answer_type=TurnAnswer,
+        reply=reply,
+    )
+    payload = asyncio.run(chat.invoke("hello", session_id="s-reply"))
+    assert payload["reply"] == "hello"
+    assert payload["answer_id"]

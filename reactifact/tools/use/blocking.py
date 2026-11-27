@@ -88,7 +88,7 @@ class ToolUse(_ToolLoopBase):
         context: Context,
         effects: Effects,
         trigger: Artifact[Any] | None,
-    ) -> None:
+    ) -> Any:
         if trigger is None or isinstance(trigger.data, ToolAnswer):
             return None  # final answer is handled by user produces
         goal = getattr(trigger.data, "text", "") or ""
@@ -112,7 +112,7 @@ class ToolUse(_ToolLoopBase):
         deadline = context.resources.budget_deadline
         tracker = context.resources.budget_tracker
         executed = 0
-        context.announce("Deciding next action…", kind="agent", agent=self.name)
+        self.progress("Deciding next action…", kind="agent", agent=self.name)
         for _ in range(self.max_steps):
             if deadline is not None and time.monotonic() >= deadline:
                 break  # time budget exhausted — fall through to the forced answer
@@ -143,7 +143,7 @@ class ToolUse(_ToolLoopBase):
                     "Tool budget exhausted; answer based on the available data."
                 )
                 continue
-            context.announce(
+            self.progress(
                 f"Calling tool '{decision.tool}'…", kind="agent", tool=decision.tool
             )
             result = await self._run_tool(

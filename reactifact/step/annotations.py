@@ -32,6 +32,28 @@ class Wakes:
 
 
 @dataclass(frozen=True, slots=True)
+class Unscoped:
+    """`Annotated[T, Unscoped()]` — read T across every turn, not just this scope.
+
+    A step's `scope` (e.g. `TURN_SCOPE`) filters its typed artifact inputs to
+    artifacts carrying the trigger's correlation value. History is the common
+    exception: a follow-up step often needs *all* earlier answers, not only the
+    current turn's. `Unscoped()` turns that filter off for one parameter:
+
+        async def run(
+            self,
+            question: Question,
+            answers: Annotated[list[Artifact[Answer]], Unscoped()],
+        ) -> None: ...
+
+    Use it with `list[T]` for data and `list[Artifact[T]]` for handles; combine
+    with `Wakes(False)` when the history is a read, not a wake reason.
+    """
+
+    pass
+
+
+@dataclass(frozen=True, slots=True)
 class Scope:
     """Correlation scope for typed inputs.
 

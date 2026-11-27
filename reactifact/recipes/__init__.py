@@ -91,15 +91,19 @@ from .approval import (
     InterpretApproval,
     classify_approval,
 )
-from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup
+from .cleanup import EphemeralCleanup, PrefixedEphemeralCleanup, ScopedCleanup
 from .conversation import (
     Conversation,
     ConversationMessage,
     MessageSpec,
     Transcript,
+    TurnContext,
+    TurnContextStep,
+    TurnFacts,
     add_message,
     conversation_state,
     create_turn,
+    looks_like_follow_up,
     transcript,
     turn_count,
 )
@@ -148,6 +152,7 @@ __all__ = [
     "SeedIdentity",
     "EphemeralCleanup",
     "PrefixedEphemeralCleanup",
+    "ScopedCleanup",
     "correlation_id_of",
     "find",
     "find_all",
@@ -175,6 +180,10 @@ __all__ = [
     "MemoryStore",
     "RollingDigestSummarizer",
     "Transcript",
+    "TurnContext",
+    "TurnContextStep",
+    "TurnFacts",
+    "looks_like_follow_up",
     "WindowPruner",
     "WindowSummarizer",
     "add_message",

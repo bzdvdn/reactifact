@@ -62,6 +62,53 @@ llm = from_env(max_tokens=2048)  # openrouter_llm(...) или llm_from_env(...) 
 `build_llm()`, который читает `.env` и выбирает провайдера, — всегда видно,
 какой провайдер работает, и при отсутствии ключа оно остаётся офлайн-совместимым.
 
+### Декларативные спецификации провайдера
+
+`LLMSpec` — альтернатива ручной ветке `build_llm()`. Он один раз описывает
+провайдера, креды, сетевые настройки и политику fallback; `build()` возвращает
+провайдера или `None` и сообщает причину:
+
+```python
+from reactifact.providers import LLMSpec
+
+llm = LLMSpec(
+    provider="openrouter",              # или "openai", "openai-compatible"
+    model="deepseek/deepseek-v4-flash",
+    api_key_env="OPENROUTER_API_KEY",
+    proxy="http://proxy:3128",
+    temperature=0.0,
+    max_tokens=2048,
+).build(
+    on_error=lambda reason, exc: print("llm недоступен:", reason),
+)
+```
+
+- `provider` покрывает все chat-фабрики: `openai`, `openrouter`, `anthropic`,
+  `gemini`, `azure`, `ollama`, `cerebras`, `deepseek`, `fireworks`,
+  `github-models`, `groq`, `mistral`, `nvidia`, `perplexity`, `qwen`, `together`,
+  `xai`, `zai`, а также `openai-compatible`/`compatible`/`local`/`vllm`/
+  `lmstudio`. Алиасы: `claude`, `google`, `github`, `nvidia-nim`.
+- Нативные дефолты остаются в фабрике: OpenRouter fast mode (`reasoning`
+  выключен), Anthropic `x-api-key`/raw-key и 4096 токенов, Gemini
+  `x-goog-api-key`, env-настройки вендорных OpenAI-compatible провайдеров,
+  `ollama` без ключа. `auth_header`/`auth_scheme` задавайте только для
+  override; `raw_key=True` отправляет ключ без схемы.
+- `azure`: `base_url` — endpoint ресурса, `model` — deployment; `ollama`
+  собирается без ключа; `openai-compatible` требует `base_url`.
+- `api_key` не попадает в `repr`; `api_key_env` задаёт имя переменной. Явные
+  `api_key`/`api_key_env` не откатываются молча на стандартную env-переменную
+  провайдера.
+- `allow_anonymous=True` — для локального endpoint без auth (Ollama, vLLM,
+  LM Studio). Это явный флаг: отсутствие ключа — конфигурационный исход, а не
+  молчаливый неаутентифицированный запуск.
+- `extra_headers`/`extra_body`/`stream_usage` передаются только провайдерам,
+  которые их принимают (нативные Anthropic/Gemini отличаются); остальные поля
+  общие.
+- `build()` возвращает `None` и вызывает `on_error("missing_key" |
+  "missing_base_url" | "unknown_provider" | "build_error", exc)`;
+  невалидные значения конструктора по-прежнему дают `ValueError`. Приложение
+  остаётся на детерминированном fallback.
+
 ## Чат-провайдеры
 
 `OpenAICompatProvider` — универсальный клиент, совместимый с OpenAI, он же основа

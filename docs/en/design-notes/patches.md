@@ -184,7 +184,7 @@ Option A mostly delivers already. Worth a spike on a branch, not a fast commit.
 ## 10. Decision (updated)
 
 **`Effects` was adopted as the authoring surface** (§24). A produce writes
-`effects.create/update/link/ask(...)` and returns `None`; the runtime
+`effects.create/update/delete/link/upsert(...)` and returns `None`; the runtime
 pushes a fresh effect slot per execution (contextvar — concurrency-safe) and
 compiles it into one atomic patch. `Patch` is now the runtime's *transport*
 type, not something users assemble:

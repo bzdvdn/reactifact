@@ -7,7 +7,7 @@ each is concretely instantiated in `examples/`.
 
 | Do | Don't | Why |
 | --- | --- | --- |
-| Write `effects.create/update/link/ask(...)`, return `None` | Assemble a `Patch` by hand in an ordinary produce | The runtime compiles one atomic patch per produce — building it yourself is the escape hatch, not the default |
+| Write `effects.create/update/delete/link/upsert(...)`, return `None` | Assemble a `Patch` by hand in an ordinary produce | The runtime compiles one atomic patch per produce — building it yourself is the escape hatch, not the default |
 | Guard eligibility with an early `return None` | Rely on scheduling order to skip work that isn't ready | Eligibility is a state decision, not a lucky accident (§69) |
 | Use stable ids (`answer:{qid}`) or `effects.create_once(...)` | Re-derive an id from a counter or timestamp | Idempotent re-runs — the same event twice must not duplicate state |
 | Return `None` on missing model / failed parse, then show an honest fallback | Substitute a canned "confident-sounding" answer when the LLM call fails | Deterministic work stays deterministic; generative failure must be visible, not papered over |
@@ -500,7 +500,7 @@ See [recipes](recipes.md). The rule of thumb for choosing between patterns:
 
 ## Determinism as a habit
 
-- The **produce contract**: write `effects.create/update/link/ask(...)` and
+- The **produce contract**: write `effects.create/update/delete/link/upsert(...)` and
   return `None`; the runtime compiles the slot into one atomic patch (§24).
   `Patch` is the transport — you rarely type it in an ordinary produce.
 - Make eligibility a guard, not a lucky scheduling accident (`return None` early).

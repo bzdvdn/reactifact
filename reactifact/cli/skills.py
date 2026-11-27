@@ -23,6 +23,7 @@ from pathlib import Path
 _TARGET_DIRS = {
     "agents": Path(".agents") / "skills",
     "claude": Path(".claude") / "skills",
+    "opencode": Path(".opencode") / "skills",
 }
 
 
@@ -86,8 +87,19 @@ def cmd_show(args: argparse.Namespace) -> int:
 def _targets(args: argparse.Namespace) -> list[Path]:
     if args.to is not None:
         return [Path(args.to)]
+    if args.target == "all":
+        return list(dict.fromkeys(_TARGET_DIRS.values()))
     if args.target == "both":
-        return list(_TARGET_DIRS.values())
+        return [_TARGET_DIRS["agents"], _TARGET_DIRS["claude"]]
+    if args.target == "auto":
+        # Install where the project already has a skills directory; fall back
+        # to the portable `.agents` location when nothing exists yet.
+        existing = [
+            path
+            for path in _TARGET_DIRS.values()
+            if path.parent.exists() or path.exists()
+        ]
+        return existing or [_TARGET_DIRS["agents"]]
     return [_TARGET_DIRS[args.target]]
 
 
@@ -131,7 +143,10 @@ def cmd_skills(args: argparse.Namespace) -> int:
     print("reactifact skills — list or install the bundled agent skills\n")
     print("  reactifact skills list")
     print("  reactifact skills show <name>")
-    print("  reactifact skills install [name ...] [--target agents|claude|both]")
+    print(
+        "  reactifact skills install [name ...] "
+        "[--target agents|claude|opencode|both|all|auto]"
+    )
     return 0
 
 
@@ -154,9 +169,12 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     )
     p_install.add_argument(
         "--target",
-        choices=["agents", "claude", "both"],
+        choices=["agents", "claude", "opencode", "both", "all", "auto"],
         default="agents",
-        help="which skills dir to install into (default: .agents/skills)",
+        help=(
+            "which skills dir to install into (default: .agents/skills); "
+            "'auto' picks existing dirs"
+        ),
     )
     p_install.add_argument(
         "--to",

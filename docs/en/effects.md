@@ -166,6 +166,10 @@ survive a replay or appear in the run's receipt, model it as a status artifact
 | **Effects** | the stated change-set (creates/updates/links/questions), scoped to the run | you, through the injected `effects` |
 | **Patch** | the *compiled* operations the runtime applies as one commit | the runtime |
 
+A side-effect-only step declares `produces = ()` (or `@step(produces=())`) and
+optionally `deletes = (T,)`; contracts then show no creates and the real delete
+targets. It still uses `effects.delete`/`Drop` like any other step.
+
 Nothing is applied until the step returns — **atomicity is structural** (§41),
 no rollback machinery. Events, validation against `produces`, and trace
 reads/writes/relations all derive from the same compiled ops.

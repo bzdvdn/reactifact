@@ -30,6 +30,46 @@ Consume.by_field(Ticket, "severity", "high")   # Ticket.severity == "high"
 `by_status` is just sugar for a `status`-field condition; `by_field` for any
 field. Both accept `wakes=`/`debounce=`.
 
+## Lifecycle events
+
+`Consume(T)` covers create + update. Narrow it with a lifecycle subclass:
+
+```python
+# not-run: illustrative
+from reactifact import OnCreate, OnDelete, OnStale, OnUpdate
+
+OnCreate(T)   # only a new id
+OnUpdate(T)   # only an existing id / changed data
+OnDelete(T)   # deleted; use event/Trigger, the data is gone
+OnStale(T)    # a recorded dependency got a newer version
+```
+
+The lowercase factory was removed; instantiate `Consume` or a lifecycle class directly.
+
+## Scope and history
+
+A step `scope` (class attribute or `@step(scope=...)`/`Step(..., scope=...)`)
+filters typed inputs to artifacts carrying the trigger's correlation value.
+`Annotated[T, Unscoped()]` opts one parameter out of that filter, which is how a
+step reads history across turns:
+
+```python
+# not-run: illustrative
+from typing import Annotated
+from reactifact import Artifact, Latest, Unscoped, Wakes
+
+async def run(
+    self,
+    question: Question,
+    answers: Annotated[list[Artifact[Answer]], Unscoped()],
+    digest: Annotated[Latest[Digest], Unscoped()],
+    # read history without waking on every Answer:
+    # Annotated[list[Artifact[Answer]], Unscoped(), Wakes(False)]
+) -> None: ...
+```
+
+Use `list[T]` for data, `list[Artifact[T]]` for handles.
+
 ## Reading without waking
 
 `wakes=False` is the correct way to give an agent context it should *see* but

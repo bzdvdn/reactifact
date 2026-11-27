@@ -84,7 +84,7 @@ class ToolUseHITL(_ToolLoopBase):
         effects: Effects,
         event: Event | None,
         trigger: Artifact[Any] | None,
-    ) -> None:
+    ) -> Any:
         resume = self._resolve(context, event)
         if resume is None:
             return None

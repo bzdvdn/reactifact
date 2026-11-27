@@ -14,7 +14,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.25.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует `reactifact.__all__` и экспорты core-
 подмодулей (`reactifact.eval`, `reactifact.recipes`, `reactifact.providers`,
@@ -32,7 +32,7 @@ reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхно
   существуют потому, что `Context` разбили на модули поменьше ради
   читаемости, но ни один из них не экспортируется: поддерживаемая
   поверхность — это `Context`, а не они.
-- **SemVer в pre-1.0-стиле**: минорный бамп (`0.23.0` → `0.24.0`) может добавить
+- **SemVer в pre-1.0-стиле**: минорный бамп (`0.24.0` → `0.25.0`) может добавить
   символы или, в редких случаях, изменить поведение так, что `CHANGELOG.md`
   явно пометит это `Breaking` — минорные релизы до 1.0 всё ещё позволяют
   reactifact исправить архитектурную ошибку. Патч (`0.14.0` → `0.14.1`) никогда
@@ -79,6 +79,7 @@ reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхно
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
 | `current_request()` | request-маппинг активного хода (то же, что `StepCall.request`) |
+| `CurrentRequest` | read-only `Mapping` из `Runtime.arun(request=...)`; инжектируйте `request: CurrentRequest` (или используйте `Step.request`/`call.request`) вместо contextvar |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
 | `ContextCheckpoint` | лёгкое представление одного коммита (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
@@ -100,6 +101,7 @@ reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхно
 | `StepGroup` | опциональный тонкий контейнер: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; триггеры выводятся из `consumes` шагов |
 | `create_step_group` | конструктор-фабрика `StepGroup` — без подкласса; принимает `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | диспетчеризует шаги и группы вместе (сначала шаги). Каждый голый `Step` оборачивается в неявную группу из одного. |
+| `ChatReply` | декларативный terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` убирает ручной `reply(ctx, msg_id)` и позволяет переиспользовать `extra` в `Transcript.state` |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | переиспользуемый фасад: `.run(seed)` / `.arun(seed)` сеют артефакт и возвращают `RunResult`; `.answer(seed)` / `.aanswer(seed)` возвращают типизированный `answer_type`; `.astream(seed)` отдаёт progress-события. Ресурсы/бюджет/tracer — дефолты конструктора; `result.context` / `.last_context` — escape hatches. `.override(Type, instance)` подменяет типизированный ресурс (тесты/фейки); `lifespan=` + `async with` управляют долгоживущими ресурсами; `.test_client()` добавляет in-memory trace store; `traces=True|path` пишет каждый запуск и заполняет `RunResult.trace_id`/`.trace()`. `.validate()` — статическая проверка контрактов; `.describe()` — `ContractReport` со схемами seed/answer; `.router()` / `.http()` — опциональные FastAPI-адаптеры; `.as_tool()` — представление как `Tool`/MCP-инструмент |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | цикл по интервалу над Pipeline: `seed_source(tick)` может быть sync/async и вернуть `None`, чтобы пропустить тик; graceful SIGINT/SIGTERM, изоляция ошибок тика. `Daemon(tick=fn)` — форма для готовой tick-функции (шаблон daemon) |
@@ -109,20 +111,20 @@ reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхно
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | статический контракт consumes/produces/tools (Markdown или JSON); CLI `reactifact contracts <module> [--format md\|json]` |
 | `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | статическая проверка контрактов по шагам и/или группам (сначала шаги, как в `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle (warnings); `raise_for_errors()`; CLI `reactifact validate <module>` (или `graph --check`) |
-| `Wakes(False)` / `Scope` / `Consume` / `IdempotentConsume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `IdempotentConsume(T, id_of=...)` будит, только пока производного id нет; `wakes=False` — читать как вход, не будя агента (нужно только когда `consumes` выводится из подписи); `debounce=True` схлопывает несколько событий одного поколения в один запуск |
+| `Wakes(False)` / `Scope` / `Unscoped` / `Consume` / `IdempotentConsume` | декларативная (или декоратор) завязка реакции; `Consume.by_field` для скоуп-событий; `Consume.by_base` / `include_subclasses=True` будит на наследниках marker-базы; `IdempotentConsume(T, id_of=...)` будит, только пока производного id нет; `wakes=False` — читать как вход, не будя агента (нужно только когда `consumes` выводится из подписи); `debounce=True` схлопывает несколько событий одного поколения в один запуск; `Annotated[T, Unscoped()]` читает T по всем ходам, а не только в `scope` шага (для истории комбинируйте с `Wakes(False)`) |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-подклассы `Consume`: будить только на create/update/delete/stale; `OnDelete` требует `event`/`Trigger`, потому что данных уже нет |
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Step` / `@step` | единица работы: класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; если `consumes` задан явно, типизированные артефактные параметры, которых там нет, добавляются как read-only входы (`wakes=False`); возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными, `Ensure(...)` — для идемпотентного create, `Edit`/`Drop`/`Relate` — для одиночной мутации |
+| `Step` / `@step` | единица работы (также `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` для side-effect-only шагов): класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает `call: StepCall` и пишет через `call.effects`. `consumes` объявляет входы/триггеры, `produces` — разрешённые Create-типы; если `consumes` задан явно, типизированные артефактные параметры, которых там нет, добавляются как read-only входы (`wakes=False`); возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными, `Ensure(...)` — для идемпотентного create, `Edit`/`Drop`/`Relate` — для одиночной мутации |
 | `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); старые `Effects.ask/resume/act` удалены в 0.23 |
-| `Progress` | инжектируемый эфемерный progress-канал: `progress(message, kind="status", **data)` сразу публикует `ProgressEvent` (тонкая обёртка над `Context.announce`, никогда не коммитится). Шагу, который только объявляет статус и вызывает LLM/инструменты, `Context` не нужен |
+| `Progress` | инжектируемый эфемерный progress-канал: `progress(message, kind="status", **data)` сразу публикует `ProgressEvent` (тонкая обёртка над `Context.announce`, никогда не коммитится). Шагу, который только объявляет статус и вызывает LLM/инструменты, `Context` не нужен; class-step может использовать `self.progress(...)` |
 | `Emit` / `Ensure` / `Edit` / `Drop` / `Relate` | return-style инструкции изменений: create с явным id/links, идемпотентный create (по id или источнику), update полей, delete, link — компилируются в тот же атомарный патч. `Emit` с существующим id обновляет артефакт (`upsert`); `Ensure` пропускает, если он уже есть |
 | `Trigger` | вторичное (не артефактное) условие входа produce; `context_condition(artifact, context)` — для условий, которым нужны другие артефакты (join/корреляция); флаг `debounce`, который читает `Runtime` |
 | `StructuredGenerateAgent` | декларативный агент LLM→схема→артефакт (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | блокирующий цикл LLM+инструменты (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | цикл LLM+инструменты с паузами на ответ человека (`max_asks`, отчёт о возобновлении) |
-| `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения перед исполнением |
+| `ToolUse`, `ToolUseHITL` | produce цикла инструментов; HITL-вариант ждёт одобрения. Подкласс может использовать `self.progress(...)` и возвращать `Emit`/`Ensure` (базовый возвращает `Any`) |
 | `DeferredToolGroup` (`reactifact.tools.use`) | группа инструментов, чьи схемы не попадают в промпт, пока встроенный инструмент `load_tools` в `ToolUse` их не запросит (только `LLMAgent`/`ToolUse`, не HITL-вариант) |
 | `Inject` | явный маркер `Annotated[T, Inject()]` для инжектируемого параметра тула (когда обычный класс неоднозначен); `Depends` — FastAPI-совместимый алиас |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | абстракция и регистрация инструментов; `Tool.execute` инструментируется один раз (trace `ToolRun` + hooks + record/replay) и для прямых вызовов, и для `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` ретраит вызов; параметр с обычным классом инжектится из `RuntimeResources` (и не попадает в схему); pydantic-результат заполняет `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` даёт типизированную ошибку, а `ToolOutput.error` остаётся обычной строкой |
@@ -159,7 +161,7 @@ reactifact всё ещё pre-1.0 (`0.24.0`), но не `rc` — поверхно
 | Символ | Роль |
 | --- | --- |
 | `ChatAssistant` | низкоуровневый движок под `Chat`: сессии + цикл хода + история в одном handle (`stream`/`invoke`/`history`); хуки: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` пробрасываются в `Runtime` (outbox-эффекты прямо из чат-хода) |
-| `ChatMemory` | необязательная ограниченная память для `Chat`/`ChatAssistant`, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
+| `ChatMemory` | необязательная ограниченная память для `Chat`/`ChatAssistant`; `ChatMemory.from_transcript(transcript, ...)` связывает все типы сообщений, поля независимы: `keep` (обрезать сырой поток), `summarize`+`summary_type` (растущий дайджест), `compact_commits` (`Context.compact` — ограничивает историю, не трогая артефакты); `message_types=[UserQuery, Answer]` (или marker-база) ограничивает гетерогенный поток |
 | `ChatEvent` | один транспорт-нейтральный фрейм; `kind` — закрытый `Literal["session","status","message"]`, схема интроспектируема |
 | `run_message(runtime, text, *, user_message, reply)` | строительный блок хода: создать вход → стримить статусы → терминальный ответ |
 | `default_session_state(ctx, user_message)` | универсальный читатель истории (любой артефакт с `.text`) плюс последний pending-вопрос как assistant-сообщение с `waiting: true` |

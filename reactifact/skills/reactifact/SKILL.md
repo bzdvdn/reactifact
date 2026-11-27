@@ -26,11 +26,38 @@ reactifact code look like LangChain wearing a costume.
    The runtime commits the effect set as one atomic patch.
 2. **A step declares its contract.** `consumes = (Question,)` feeds typed
    inputs and decides which events run it; `produces = (Answer,)` is the
-   allowed create set. An `StepGroup` groups steps; triggers derive from their
+   allowed create set. A `StepGroup` groups steps; triggers derive from their
    `consumes`.
 3. **Everything is a typed artifact with provenance.** Answers link to their
    evidence (`answer.link("supported_by", evidence)`); downstream code and
    `reactifact.eval` trust the graph, not the prose.
+
+## Pick the primitive, not the workaround
+
+Start at the top; only move down when the higher-level form genuinely cannot
+express the task. Most "framework friction" is reaching for `Context`, a
+hand-built `Patch`, or an imperative `StepGroup.run` when a typed step would
+do.
+
+1. **`Step` / `@step` with typed inputs.** Declare `consumes`/`produces`; return
+   a model or `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or write `effects`.
+   `scope=` and `Unscoped()` cover correlation and cross-turn history;
+   `CurrentRequest`, `Progress`, `Human` and `Outbox` are injected by type.
+2. **`Consume` lifecycle subclasses** for event-shaped work: `OnCreate`,
+   `OnUpdate`, `OnDelete`, `OnStale`; `IdempotentConsume` for "only while the
+   target id is absent"; `JoinConsume`/`AbsentConsume` for set-shaped wakes.
+3. **A recipe** when the flow is a known pattern: `TurnContextStep` for a
+   conversation window + digest, `ApprovalGate`, `ReflectionLoop`,
+   `PlanExecute`, `StatusMachine`, `WindowPruner`, `materialize_doc`.
+4. **Low-level API only when the flow is genuinely imperative:** a hand-written
+   `StepGroup.run(event, context) -> Patch`, direct `Context` queries that
+   cannot be expressed as typed inputs, or a custom `Patch` for an integration.
+   This is an escape hatch, not the authoring style; document why in a
+   comment.
+
+The same ladder applies to conversations: prefer `TurnContextStep` +
+`Consume(TurnContext)` over every step taking `Context` and rebuilding the
+transcript.
 
 ## Canonical example
 
@@ -169,10 +196,16 @@ Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
 - **StepGroup** — a thin container of `steps`; triggers derive from their
   `consumes`.
 - **Consume** — a subscription to artifacts of a type (see `reactifact-agents`
-  for the variants).
+  for the variants and lifecycle subclasses).
+- **Unscoped** — `Annotated[T, Unscoped()]` reads a type across every turn
+  instead of only the current `scope`; combine with `Wakes(False)` for history.
 - **Effects** — the step-scoped change set; compiled into one `Patch`.
 - **Progress** — an ephemeral UI status from a step (`ProgressEvent`, never
-  committed); inject `progress: Progress` instead of the whole `Context`.
+  committed); inject `progress: Progress` or use `self.progress`.
+- **CurrentRequest** — read-only `Mapping` of `Runtime.arun(request=...)`,
+  injected by type; `call.request` is the same data.
+- **TurnContext** — a recipe artifact with the current query, previous query,
+  window and digest, so downstream steps need no `Context`.
 - **Relation** — a typed provenance edge (source —relation→ target).
 
 ## Self-check before you are done
@@ -181,8 +214,9 @@ Docs in the repo (when the skills are not enough): `docs/en/concepts.md`,
    `effects`/`call.effects`. (Search your diff for `= ` on context/artifacts.)
 2. Every terminal artifact (answer/report/decision) has a provenance edge to
    what justifies it.
-3. Every step's inputs and outputs are artifacts, and `Runtime` is built once
-   with the full agent list.
+3. Every step's inputs and outputs are artifacts (or it is an explicit
+   side-effect-only step with `produces=()` / `deletes=(...)`), and `Runtime`
+   is built once with the full group/step list.
 4. Tests assert on artifacts, the path, and relations — not on returned values
    — and pass with no network (`FakeLLM`/`ReplayLLM` or no LLM at all).
 5. You verified the real API of anything you were unsure about; you did not

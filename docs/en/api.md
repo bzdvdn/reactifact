@@ -11,7 +11,7 @@ the docs site, rather than copied here by hand. Per-area pages:
 
 ## Stability
 
-reactifact is pre-1.0 (`0.24.0`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.25.0`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins `reactifact.__all__` and the core submodule exports (`reactifact.eval`,
 `reactifact.recipes`, `reactifact.providers`, `reactifact.tracing`), so a new
@@ -27,7 +27,7 @@ export there has to be added deliberately (and documented), never by accident.
   `reactifact.commit_log.CommitLog` exist because `Context` was split into
   smaller modules for readability, but neither is exported: `Context` is the
   supported surface, they are not.
-- **SemVer, pre-1.0 style**: a minor bump (`0.23.0` → `0.24.0`) may add symbols
+- **SemVer, pre-1.0 style**: a minor bump (`0.24.0` → `0.25.0`) may add symbols
   or, rarely, change behavior in a way `CHANGELOG.md` marks `Breaking` — pre-1.0
   minors are where reactifact is still allowed to correct a design mistake. A
   patch bump (`0.14.0` → `0.14.1`) never removes or renames a public symbol and
@@ -73,6 +73,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
 | `current_request()` | the active turn's request mapping (same as `StepCall.request`) |
+| `CurrentRequest` | read-only `Mapping` of `Runtime.arun(request=...)`; inject `request: CurrentRequest` (or use `Step.request`/`call.request`) instead of a contextvar |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
 | `ContextCheckpoint` | lightweight view of one commit (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
@@ -94,6 +95,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `StepGroup` | optional thin container: `name`, `steps`, `concurrency_limit`, `retry`, `timeout`; step `consumes` derive triggers |
 | `create_step_group` | constructor-style `StepGroup` builder — no subclassing needed; accepts `retry=`/`timeout=` |
 | `Runtime(steps=..., groups=...)` | dispatches steps and groups together (steps first). Each raw `Step` is wrapped in an implicit group of one. |
+| `ChatReply` | declarative terminal reply: `ChatReply(Answer, field="query_id", render=..., extra=..., empty=...)`; `Chat(reply=ChatReply(...))` avoids a hand-written `reply(ctx, msg_id)` and can share `extra` with `Transcript.state` |
 | `Chat(steps=..., seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
 | `Pipeline(steps=..., groups=..., llm=..., traces=...)` | reusable facade: `.run(seed)` / `.arun(seed)` seed one artifact and return a `RunResult`; `.answer(seed)` / `.aanswer(seed)` return the typed `answer_type`; `.astream(seed)` yields progress events. Resources/budget/tracer are constructor defaults; `result.context` / `.last_context` are escape hatches. `.override(Type, instance)` replaces a typed resource (tests/fakes); `lifespan=` + `async with` manage long-lived resources; `.test_client()` adds an in-memory trace store; `traces=True|path` records every run and fills `RunResult.trace_id`/`.trace()`. `.validate()` runs the static contract check; `.describe()` returns `ContractReport` with seed/answer JSON Schemas; `.router()` / `.http()` are the optional FastAPI adapters; `.as_tool()` exposes it as a `Tool`/MCP tool |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
@@ -103,20 +105,20 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(groups)` / `ContractReport` | static consumes/produces/tools contract (Markdown or JSON); CLI `reactifact contracts <module> [--format md\|json]` |
 | `validate_contracts(*, steps=, groups=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or groups (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle warnings; `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
-| `Wakes(False)` / `Scope` / `Consume` / `IdempotentConsume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `IdempotentConsume(T, id_of=...)` wakes only while the derived id is absent; `wakes=False` reads as input without waking the agent (needed only when `consumes` is derived from the signature); `debounce=True` collapses several same-generation events into one run |
+| `Wakes(False)` / `Scope` / `Unscoped` / `Consume` / `IdempotentConsume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `IdempotentConsume(T, id_of=...)` wakes only while the derived id is absent; `wakes=False` reads as input without waking the agent (needed only when `consumes` is derived from the signature); `debounce=True` collapses several same-generation events into one run; `Annotated[T, Unscoped()]` reads T across every turn instead of only the step's `scope` (combine with `Wakes(False)` for history) |
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-specific `Consume` subclasses: wake only on create, update, delete or stale; `OnDelete` needs `event`/`Trigger` because the data is gone |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Step` / `@step` | the work unit: class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; when `consumes` is explicit, typed artifact params missing from it are added as read-only inputs (`wakes=False`); return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit group. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit, `Ensure(...)` for an idempotent create, or `Edit`/`Drop`/`Relate` for a single mutation. |
+| `Step` / `@step` | the work unit (also `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` for side-effect-only steps): class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets `call: StepCall` and uses `call.effects`. `consumes` declares inputs/triggers, `produces` the allowed create types; when `consumes` is explicit, typed artifact params missing from it are added as read-only inputs (`wakes=False`); return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit group. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit, `Ensure(...)` for an idempotent create, or `Edit`/`Drop`/`Relate` for a single mutation. |
 | `Human` / `Outbox` | injected non-data collaborators: `human.ask/resume` (HITL, `PendingQuestion`) and `outbox.act` (outbound intent, `PendingAction`); the old `Effects.ask/resume/act` were removed in 0.23 |
-| `Progress` | injected ephemeral progress channel: `progress(message, kind="status", **data)` publishes a `ProgressEvent` immediately (a thin view over `Context.announce`, never committed). A step that only announces and then calls an LLM/tools needs no `Context` |
+| `Progress` | injected ephemeral progress channel: `progress(message, kind="status", **data)` publishes a `ProgressEvent` immediately (a thin view over `Context.announce`, never committed). A step that only announces and then calls an LLM/tools needs no `Context`; class steps can use `self.progress(...)` |
 | `Emit` / `Ensure` / `Edit` / `Drop` / `Relate` | return-style change instructions: create with explicit id/links, idempotent create (by id or source), update fields, delete, link — compiled into the same atomic patch. `Emit` with an existing id refreshes it (`upsert`); `Ensure` skips when it exists |
 | `Trigger` | secondary (non-artifact) enter condition for a step; `context_condition(artifact, context)` for conditions that need other artifacts (joins/correlation); `debounce` hint consumed by `Runtime` |
 | `StructuredGenerateAgent` | declarative LLM→schema→artifact agent (`schema`, `build_prompt`, `fallback`) |
 | `LLMAgent` | blocking LLM+tools loop (`system`, `tools`, `max_steps`, `deferred_tool_groups`) |
 | `HITLLMAgent` | LLM+tools loop that can pause for human answers (`max_asks`, resume reporting) |
-| `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval on execution |
+| `ToolUse`, `ToolUseHITL` | the tool-loop step; HITL variant waits for approval. A subclass can use `self.progress(...)` and return `Emit`/`Ensure` (the base returns `Any`) |
 | `DeferredToolGroup` (`reactifact.tools.use`) | a tool group whose schemas stay out of the prompt until `ToolUse`'s built-in `load_tools` tool requests it (`LLMAgent`/`ToolUse` only, not the HITL variant) |
 | `Inject` | explicit `Annotated[T, Inject()]` marker for an injected tool parameter (useful when a plain class would be ambiguous); `Depends` is a FastAPI-style alias |
 | `Tool`, `FunctionTool`, `tool`, `ToolOutput`, `ToolError` | tool abstraction and registration; `Tool.execute` is instrumented once (trace `ToolRun` + hooks + record/replay) for both direct calls and `execute_tool`; `@tool(retry=RetryPolicy(...), timeout=...)` retries one call; a plain-class parameter is injected from `RuntimeResources` (not in the schema); a pydantic return type fills `ToolOutput.data`; `ToolOutput.failed(ToolError(code=, message=, retryable=))` gives a typed failure while `ToolOutput.error` stays a plain string |
@@ -153,7 +155,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | Symbol | Role |
 | --- | --- |
 | `ChatAssistant` | the low-level engine behind `Chat`: sessions + turn loop + history in one handle (`stream`/`invoke`/`history`); hooks: `groups`, `user_message`, `reply`, `session_state`; `dispatcher=`/`on_dispatch_error=` pass through to `Runtime` (outbox side effects from a chat turn) |
-| `ChatMemory` | optional bounded memory for `Chat`/`ChatAssistant`, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
+| `ChatMemory` | optional bounded memory for `Chat`/`ChatAssistant`; `ChatMemory.from_transcript(transcript, ...)` binds every message type, each field independent: `keep` (prune the raw thread), `summarize`+`summary_type` (growing digest), `compact_commits` (`Context.compact` — bounds history without touching artifacts); `message_types=[UserQuery, Answer]` (or a marker base) bounds a heterogeneous thread |
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`), plus the latest pending question as a `waiting: true` assistant message |

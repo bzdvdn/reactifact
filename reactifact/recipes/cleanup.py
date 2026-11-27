@@ -27,8 +27,10 @@ from typing import Any, Generic, TypeVar
 from pydantic import BaseModel
 
 from ..artifacts import Artifact, ArtifactType
+from ..consume import Consume, OnCreate
 from ..context import Context
 from ..step import Drop, Step
+from ..step.annotations import Scope
 
 TerminalT = TypeVar("TerminalT", bound=BaseModel)
 
@@ -80,6 +82,53 @@ class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
         ]
 
 
+class ScopedCleanup(Step):
+    """Constructor-style cleanup for artifacts that share a scope, not ids.
+
+    The common chat shape: a terminal `Answer` carries `query_id`, every
+    intermediate artifact carries the same `query_id`, and their ids are
+    arbitrary. `ScopedCleanup(Answer, scratch_types=(...,), scope=TURN_SCOPE)`
+    reacts to `OnCreate(Answer)` and drops every scratch artifact in that
+    turn, leaving other turns untouched. It declares `produces=()` and the
+    real `deletes` types, so contracts do not claim the cleanup creates an
+    `Answer`.
+
+    `scope` is required (pass `None` explicitly for a deliberate global
+    cleanup); `consume=` defaults to `OnCreate(terminal_type)`.
+    """
+
+    def __init__(
+        self,
+        terminal_type: type[BaseModel],
+        *,
+        scratch_types: Sequence[type[BaseModel]],
+        scope: Scope | str | None,
+        consume: Consume | None = None,
+        name: str = "cleanup",
+    ) -> None:
+        self.terminal_type = terminal_type
+        self.scratch_types = tuple(scratch_types)
+        if not self.scratch_types:
+            raise ValueError("ScopedCleanup needs at least one scratch type")
+        super().__init__(
+            produces=(),
+            deletes=self.scratch_types,
+            consumes=consume or OnCreate(terminal_type),
+            scope=scope,
+            name=name,
+        )
+
+    async def run(self, trigger: Artifact[Any] | None) -> list[Drop] | None:
+        if trigger is None:
+            return None
+        return [
+            Drop(artifact)
+            for artifact_type in self.scratch_types
+            for artifact in self.related_all(artifact_type)
+            if artifact.id != trigger.id
+        ]
+
+
 class PrefixedEphemeralCleanup(EphemeralCleanup[TerminalT], Generic[TerminalT]):
     """`EphemeralCleanup` for the common id shape: every scratch artifact's
     id is `f"{prefix}:{correlation_id}"` for some fixed list of prefixes (the
@@ -94,4 +143,4 @@ class PrefixedEphemeralCleanup(EphemeralCleanup[TerminalT], Generic[TerminalT]):
         return [f"{prefix}:{correlation_id}" for prefix in self.scratch_prefixes]
 
 
-__all__ = ["EphemeralCleanup", "PrefixedEphemeralCleanup"]
+__all__ = ["EphemeralCleanup", "PrefixedEphemeralCleanup", "ScopedCleanup"]

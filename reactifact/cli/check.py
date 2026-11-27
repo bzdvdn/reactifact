@@ -24,12 +24,14 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from ..budget import Budget
 from ..eval import Dataset, core_metrics, evaluate, from_metric
 from ..pipeline import Pipeline
 from ..step import Step, StepGroup
 from ..testing.record import MODE_ENV_VAR
 from ..testing.registry import collect
 from ..validate import validate_contracts
+from .config import budget_from_config, load_config
 from .scenario import ScenarioRun, render_run, run_cases
 
 
@@ -117,7 +119,13 @@ def _gates(values: Sequence[str]) -> dict[str, float]:
     return gates
 
 
-def _contracts(spec: str, *, seeds: Sequence[str], terminal: Sequence[str]) -> bool:
+def _contracts(
+    spec: str,
+    *,
+    seeds: Sequence[str],
+    terminal: Sequence[str],
+    budget: Budget | None = None,
+) -> bool:
     obj = _load_object(spec)
     steps, groups = _units(obj)
     if not steps and not groups:
@@ -134,6 +142,7 @@ def _contracts(spec: str, *, seeds: Sequence[str], terminal: Sequence[str]) -> b
         groups=groups or None,
         seeds=inferred_seeds,
         terminal=inferred_terminal,
+        budget=budget,
     )
     status = "ok" if report.ok else "FAILED"
     print(
@@ -199,21 +208,28 @@ def _evals(
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    if args.evals is not None and args.target is None:
+    config = load_config()
+    target_spec = args.target
+    contracts_spec = args.contracts or target_spec or config.groups
+    scenarios_specs = args.scenarios or config.scenarios
+    evals_path = args.evals if args.evals is not None else config.evals
+    overall = args.overall if args.overall is not None else config.overall
+    gates = args.gate or [f"{key}={value}" for key, value in config.gates.items()]
+    if evals_path is not None and target_spec is None:
         raise SystemExit(
             "reactifact check: --evals needs a Pipeline as the positional "
             "target (for seed_type and steps)"
         )
     if (
-        args.target is None
-        and args.contracts is None
-        and not args.scenarios
-        and args.evals is None
+        target_spec is None
+        and contracts_spec is None
+        and not scenarios_specs
+        and evals_path is None
     ):
         raise SystemExit(
             "reactifact check: pass a target/--contracts, --scenarios and/or --evals"
         )
-    if args.no_contracts and not args.scenarios and args.evals is None:
+    if args.no_contracts and not scenarios_specs and evals_path is None:
         raise SystemExit("reactifact check: --no-contracts leaves no stage to run")
 
     ok = True
@@ -225,38 +241,38 @@ def cmd_check(args: argparse.Namespace) -> int:
     # types match the reloaded module.
     scenario_run = (
         _scenarios(
-            args.scenarios,
+            scenarios_specs,
             filter_text=args.filter,
             mode=args.mode,
         )
-        if args.scenarios
+        if scenarios_specs
         else None
     )
 
-    target_obj = _load_object(args.target) if args.target else None
+    target_obj = _load_object(target_spec) if target_spec else None
     pipeline = target_obj if isinstance(target_obj, Pipeline) else None
-    contracts_spec = args.contracts or (args.target if target_obj is not None else None)
 
     if not args.no_contracts and contracts_spec is not None:
         ok = (
             _contracts(
                 contracts_spec,
-                seeds=args.seed or (),
-                terminal=args.terminal or (),
+                seeds=args.seed or config.seeds,
+                terminal=args.terminal or config.terminal,
+                budget=budget_from_config(config),
             )
             and ok
         )
 
-    if args.scenarios:
+    if scenarios_specs:
         if scenario_run is None:
             print("scenarios  no scenarios found (check the module path and -k filter)")
             ok = False
         else:
-            print(f"scenarios  {', '.join(args.scenarios)}")
+            print(f"scenarios  {', '.join(scenarios_specs)}")
             render_run(scenario_run, show_state=not args.no_state)
             ok = scenario_run.ok and ok
 
-    if args.evals is not None:
+    if evals_path is not None:
         if pipeline is None:
             raise SystemExit(
                 "reactifact check: --evals needs a Pipeline as the positional "
@@ -265,9 +281,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         ok = (
             _evals(
                 pipeline,
-                args.evals,
-                gates=_gates(args.gate or ()),
-                overall=args.overall,
+                evals_path,
+                gates=_gates(gates),
+                overall=overall,
             )
             and ok
         )

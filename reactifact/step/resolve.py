@@ -15,14 +15,15 @@ from ..context import Context
 from ..effects import Effects
 from ..events import Event
 from ..interaction import Human, Outbox, Progress
-from .annotations import Latest, Scope
+from ..request import CurrentRequest
+from .annotations import Latest, Scope, Unscoped
 from .call import StepCall
 from .core import Step, _annotation_types, _scope_matches, _scope_value
 
 
 def _resolved_hints(target: Callable[..., Any]) -> dict[str, Any]:
     try:
-        return get_type_hints(target)
+        return get_type_hints(target, include_extras=True)
     except Exception:  # noqa: BLE001 — unresolved forward refs keep raw annotations
         return {}
 
@@ -76,8 +77,9 @@ class MissingInputError(TypeError):
             )
             message += f" Produced by: {produced}."
             message += (
-                " If this step woke on an earlier trigger, declare "
-                "Consume(<trigger type>, wakes=False) so it waits for the input."
+                " Typed parameters missing from an explicit consumes are "
+                "already added as read-only inputs; seed or produce this type, "
+                "or add Consume(T) if this step should also wait for it."
             )
         else:
             message += (
@@ -100,6 +102,13 @@ def _strip_annotated(annotation: Any) -> Any:
     while get_origin(annotation) is Annotated:
         annotation = get_args(annotation)[0]
     return annotation
+
+
+def _is_unscoped(annotation: Any) -> bool:
+    """Whether `Annotated[..., Unscoped()]` asks to ignore the step's scope."""
+    if get_origin(annotation) is not Annotated:
+        return False
+    return any(isinstance(meta, Unscoped) for meta in get_args(annotation)[1:])
 
 
 def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
@@ -336,6 +345,8 @@ def _resolve_injected(name: str, annotation: Any, call: StepCall) -> Any:
         return Outbox(call.effects)
     if base is Progress or (untyped and name == "progress"):
         return Progress(call.context.announce)
+    if base is CurrentRequest or (untyped and name == "request"):
+        return call.request
     if base is Event or (untyped and name == "event"):
         return call.event
     # `trigger`/`inputs` are reserved pseudo-parameters: steps often annotate
@@ -359,12 +370,17 @@ def _resolve_arg(
     step_name: str = "",
 ) -> Any:
     """Resolve one parameter from collaborators, services or artifacts."""
+    unscoped = _is_unscoped(annotation)
     annotation = _strip_annotated(annotation)
     injected = _resolve_injected(name, annotation, call)
     if injected is not _MISSING:
         return injected
     if (service := _resolve_service(call, annotation)) is not None:
         return service
+
+    if unscoped:
+        scope = None
+        scope_value = None
 
     shape = _handles_shape(annotation)
     if shape is not None:
