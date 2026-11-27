@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Consume, Ensure, LLMProvider, Scope, Step
+from reactifact import Artifact, Ensure, LLMProvider, Scope, Step
 from reactifact.structured import structured_llm
 
 from ..models import ChangedFile, FileReview, Finding, ReviewBody, ReviewRequest
@@ -81,7 +81,7 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
 
 
 class ReviewFileStep(Step):
-    consumes = (ChangedFile, Consume(ReviewRequest, wakes=False))
+    consumes = (ChangedFile,)
     produces = (FileReview,)
     scope = Scope("request_id", owner=ReviewRequest)
 

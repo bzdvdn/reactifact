@@ -66,6 +66,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `@step(produces=())`), and `deletes=(T, ...)` is the declarative delete
   contract. Contracts show no creates and the real deletes; the runtime does not
   gate deletes on the declaration.
+- **Inline verification ergonomics.** `reactifact.verify.Verify` now declares
+  its own `VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs,
+  accepts a model class (`Verify(Answer)`) to self-schedule, uses an injected
+  `Human`, and emits stable-id return-style results so re-verifying the same
+  answer/version does not duplicate results or approval questions. The
+  containing group no longer needs dummy `Step(...)` entries.
+- **`Access` collaborator.** `reactifact.authz.Access` wraps
+  `RuntimeResources.authorize`/`require_authorized` as an injectable step
+  collaborator: `access.can(action, resource)` for a branch and
+  `access.require(action, resource)` to raise. Steps no longer need the whole
+  `RuntimeResources` just to check a permission; authz remains default-allow
+  when no authorizer is configured.
 - **`CurrentRequest`.** A read-only `Mapping` collaborator for
   `Runtime.arun(request=...)`, injected as `request: CurrentRequest` and
   mirrored by `Step.request`/`StepCall.request`; the `current_request()`

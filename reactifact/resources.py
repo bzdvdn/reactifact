@@ -15,7 +15,7 @@ from typing import (
     overload,
 )
 
-from .authz import AuthorizationError, Authorizer, Principal
+from .authz import Access, Authorizer, Principal
 from .guardrails import GuardrailPolicy
 from .providers import EmbeddingProvider, LLMProvider
 from .quota import QuotaTracker
@@ -167,6 +167,11 @@ class RuntimeResources:
         # Framework-wide pass/fail cutoff for `Verify` (verify.py): `None`
         # means "use Verify's own DEFAULT_THRESHOLD". A `Verify` instance's
         # own explicit `threshold=` still overrides this per agent.
+        if (
+            verification_threshold is not None
+            and not 0.0 <= verification_threshold <= 1.0
+        ):
+            raise ValueError("verification_threshold must be between 0 and 1")
         self.verification_threshold = verification_threshold
         # Runtime-level policy for what actually goes into an agent's inputs
         # (ranking/truncation) — `None` reproduces the old, unranked
@@ -218,10 +223,14 @@ class RuntimeResources:
             return True
         return self.authorizer.authorize(self.principal, action, resource)
 
+    @property
+    def access(self) -> Access:
+        """A focused, injectable view over `authorize`/`require_authorized`."""
+        return Access(self.authorize, self.principal)
+
     def require_authorized(self, action: str, resource: str) -> None:
         """`authorize` or raise `AuthorizationError` — the produce-side gate."""
-        if not self.authorize(action, resource):
-            raise AuthorizationError(action, resource, self.principal)
+        self.access.require(action, resource)
 
     def quota_key(self) -> str:
         """The key a `QuotaTracker` counts against: the principal, else the run."""
@@ -243,6 +252,8 @@ class RuntimeResources:
             return cast("T", self)
         if annotation in self._typed:
             return cast("T", self._typed[annotation])
+        if annotation is Access:
+            return cast("T", self.access)
         for name in (
             "llm",
             "embedder",

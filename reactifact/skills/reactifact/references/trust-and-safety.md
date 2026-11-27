@@ -60,8 +60,11 @@ resources = RuntimeResources(
   (`"run:*"`, `"create:*"`, `"*"`); a principal is allowed when any of its
   capabilities matches.
 - Enforced by the runtime on `run` (agent name) and `create`/`update`/`delete`
-  (artifact type), and by the tool loop on `execute` (tool name). Produces can
-  gate their own collaborators with `resources.require_authorized("read", id)`.
+  (artifact type), and by the tool loop on `execute` (tool name).
+- A produce asks with the injected `access: Access` collaborator:
+  `access.can("read", id)` for a branch, `access.require("read", id)` to raise.
+  It wraps `resources.authorize`/`require_authorized`; with no authorizer,
+  `can` is always true and `require` is a no-op.
 - Denial raises `AuthorizationError` (a `PermissionError`) from `arun()`.
 
 ## Quota — `reactifact.quota`

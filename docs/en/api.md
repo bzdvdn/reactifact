@@ -355,9 +355,9 @@ current event loop**, so one provider instance stays usable across repeated
 | Symbol | Role |
 | --- | --- |
 | `GuardrailPolicy` · `PIIGuardrail` · `InjectionGuardrail` · `DenyListGuardrail` · `SizeGuardrail` · `PatternGuardrail` · `GuardrailViolation` | artifact-boundary checks on agent-produced data; `on_violation="block"|"flag"`, PII redaction via any `Redactor` |
-| `Principal` · `PermissionPolicy` · `AuthorizationError` | capability-based authz on `run` / `create` / `update` / `delete` / `execute` |
+| `Principal` · `PermissionPolicy` · `Access` · `AuthorizationError` | capability-based authz on `run` / `create` / `update` / `delete` / `execute`; inject `access: Access` and use `access.can(...)`/`access.require(...)` without receiving the whole `RuntimeResources` |
 | `Quota` · `QuotaTracker` · `QuotaLLM` · `QuotaExceeded` | cross-turn per-principal token/cost/call limits (`RunOutcome.QUOTA_EXCEEDED`) |
-| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`quota_key` | opt-in wiring; off by default |
+| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`access`/`quota_key` | opt-in wiring; off by default |
 
 ## Testing (reactifact.testing, §56)
 

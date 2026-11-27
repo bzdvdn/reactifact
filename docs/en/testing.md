@@ -157,20 +157,23 @@ print(result.explain())
 
 `Verify` applies `reactifact.eval`'s ground-truth-free metrics to a *live*
 `Answer`, in the generation that produced it (batch eval scores a finished
-`Context` after the fact). Add it to `produces` and declare the escalation
-artifact:
+`Context` after the fact). Add it to `produces`; `Verify` declares its own
+`VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs. Passing
+the model class makes it self-scheduling:
 
 ```python
-from reactifact import Consume, Context, PendingQuestion, RuntimeResources, Step, StepGroup
+from reactifact import Consume, Context, RuntimeResources, StepGroup
 from reactifact.verify import Verify
 
 class Answerer(StepGroup):
     consumes = [Consume(Question)]
-    produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
+    produces = [BuildAnswer(), Verify(Answer)]
 
 ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```
 
+`Verify("Answer")` keeps the by-name mode for callers that do not import the
+domain model; then the containing group supplies `Consume(Answer)`.
 `Verify(threshold=...)` overrides the resource-wide bar;
 `required_metrics=("provenance_grounded",)` fails regardless of the weighted
 average; `on_fail="ask"` (default) raises a HITL

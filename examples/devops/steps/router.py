@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from reactifact import Artifact, Step
+from reactifact import Artifact, LLMProvider, Progress, Step
+from reactifact.authz import Access
 from reactifact.recipes import MemoryStore
 
 from ..models import (
@@ -30,13 +31,16 @@ class RouteProblem(Step):
     produces = (K8sProblem, GitlabProblem, AnsibleProblem, ChatReply)
 
     async def run(
-        self, msg: Artifact[UserMsg]
+        self,
+        msg: Artifact[UserMsg],
+        access: Access,
+        memory: MemoryStore | None,
+        llm: LLMProvider | None,
+        progress: Progress,
     ) -> K8sProblem | GitlabProblem | AnsibleProblem | ChatReply | None:
-        context = self.context
-        context.announce("Parsing the question…", kind="status")
+        progress("Parsing the question…")
 
         memory_text = ""
-        memory = context.resources.get(MemoryStore)
         if memory is not None:
             try:
                 hits = await memory.search(msg.data.text, k=3, tags={"kind": "report"})
@@ -49,8 +53,8 @@ class RouteProblem(Step):
                     hit.record.text for hit in hits if hit.score > 0
                 )
 
-        target = await route_target(context, msg.data.text, memory=memory_text)
-        if target != "none" and not context.resources.authorize("run", target):
+        target = await route_target(llm, msg.data.text, memory=memory_text)
+        if target != "none" and not access.can("run", target):
             return ChatReply(
                 query_id=msg.id,
                 text=(

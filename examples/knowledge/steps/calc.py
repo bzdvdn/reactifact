@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from reactifact import Artifact, Consume, Emit, Step
+from reactifact import Artifact, Emit, Step
 
 from ..models import Calculation, ResearchTurn, Spreadsheet
 from .common import interesting_column_re
@@ -65,7 +65,7 @@ class CalculateAggregate(Step):
     Provenance: Calculation —derived_from→ Spreadsheet.
     """
 
-    consumes = (Spreadsheet, Consume(ResearchTurn, wakes=False))
+    consumes = (Spreadsheet,)
     produces = (Calculation,)
     scope = "query_id"
 

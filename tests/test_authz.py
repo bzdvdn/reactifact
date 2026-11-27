@@ -13,6 +13,7 @@ from reactifact import (
     create_step_group,
 )
 from reactifact.authz import (
+    Access,
     AuthorizationError,
     PermissionPolicy,
     Principal,
@@ -120,3 +121,44 @@ def test_runtime_denies_the_agent_run_itself():
     )
     with pytest.raises(AuthorizationError):
         _run(resources)
+
+
+def test_access_defaults_to_allow_without_an_authorizer():
+    access = RuntimeResources().access
+    assert isinstance(access, Access)
+    assert access.can("run", "planner")
+    access.require("run", "planner")  # no raise
+    assert access.principal is None
+
+
+def test_access_can_and_require_reflect_the_policy():
+    resources = RuntimeResources(
+        principal=_principal("reader"),
+        authorizer=PermissionPolicy({"reader": {"run:*", "create:Note"}}),
+    )
+    access = resources.access
+    assert access.principal == _principal("reader")
+    assert access.can("run", "planner")
+    assert access.can("create", "Note")
+    assert not access.can("create", "Answer")
+    with pytest.raises(AuthorizationError, match="create"):
+        access.require("create", "Answer")
+
+
+def test_access_is_injectable_into_a_step():
+    class Probe(Step):
+        consumes = (Question,)
+        produces = (Note,)
+
+        async def run(self, access: Access) -> Note:
+            return Note(text="yes" if access.can("run", "rewrite") else "no")
+
+    resources = RuntimeResources(
+        principal=_principal("reader"),
+        authorizer=PermissionPolicy({"reader": {"run:rewrite", "create:Note"}}),
+    )
+    context = Context(resources=resources)
+    context.create(Question(text="hi"))
+    agent = create_step_group("rewrite", steps=[Probe()])
+    asyncio.run(Runtime(context, groups=[agent]).arun())
+    assert context.latest(Note).data.text == "yes"

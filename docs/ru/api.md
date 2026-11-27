@@ -359,9 +359,9 @@ OTLP/Langfuse-приёмников.
 | Символ | Роль |
 | --- | --- |
 | `GuardrailPolicy` · `PIIGuardrail` · `InjectionGuardrail` · `DenyListGuardrail` · `SizeGuardrail` · `PatternGuardrail` · `GuardrailViolation` | проверки на границе артефактов для данных от агентов; `on_violation="block"|"flag"`, редактирование PII через любой `Redactor` |
-| `Principal` · `PermissionPolicy` · `AuthorizationError` | authz по capabilities на `run` / `create` / `update` / `delete` / `execute` |
+| `Principal` · `PermissionPolicy` · `Access` · `AuthorizationError` | authz по capabilities на `run` / `create` / `update` / `delete` / `execute`; инжектите `access: Access` и используйте `access.can(...)`/`access.require(...)`, не получая весь `RuntimeResources` |
 | `Quota` · `QuotaTracker` · `QuotaLLM` · `QuotaExceeded` | межходовые лимиты токенов/стоимости/вызовов на principal (`RunOutcome.QUOTA_EXCEEDED`) |
-| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`quota_key` | опциональная обвязка; по умолчанию выключено |
+| `RuntimeResources(principal=, authorizer=, guardrails=, quota=)` · `resources.authorize`/`require_authorized`/`access`/`quota_key` | опциональная обвязка; по умолчанию выключено |
 
 ## Тестирование (reactifact.testing, §56)
 

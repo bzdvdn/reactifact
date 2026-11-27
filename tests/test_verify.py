@@ -8,7 +8,6 @@ from reactifact import (
     PendingQuestion,
     Runtime,
     RuntimeResources,
-    Step,
     StepGroup,
 )
 from reactifact.eval import answer_present
@@ -32,11 +31,7 @@ class Evidence(BaseModel):
 def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
     class VerifierGroup(StepGroup):
         consumes = [Consume(Answer)]
-        produces = [
-            Verify(**verify_kwargs),
-            Step(PendingQuestion),
-            Step(VerificationFailed),
-        ]
+        produces = [Verify(**verify_kwargs)]
 
     return Runtime(ctx, groups=[VerifierGroup()])
 
@@ -191,3 +186,24 @@ def test_verify_links_result_to_the_answer() -> None:
     assert [item.id for item in ctx.related(result.id, relation="verifies")] == [
         answer.id
     ]
+
+
+def test_verify_declares_all_outputs_and_accepts_a_model_class():
+    assert Verify.produces == (
+        VerificationResult,
+        VerificationFailed,
+        PendingQuestion,
+    )
+
+    ctx = Context()
+    answer = ctx.create(Answer(text="unsupported"))
+    asyncio.run(Runtime(ctx, steps=[Verify(Answer, threshold=0.0)]).arun())
+
+    result = ctx.list_artifacts(VerificationResult)[-1]
+    assert result.data.answer_id == answer.id
+    assert result.data.passed is True
+
+
+def test_verify_rejects_a_non_model_answer_type():
+    with pytest.raises(TypeError, match="BaseModel"):
+        Verify(str)  # type: ignore[arg-type]

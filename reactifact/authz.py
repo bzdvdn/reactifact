@@ -17,11 +17,15 @@ The default is `None`, and with no authorizer every action is allowed — authz
 is opt-in and does not change existing behavior. Denials raise
 `AuthorizationError` from `Runtime.arun()` (or that agent's generation is
 dropped when `isolate_errors=True`).
+
+Inside a step, inject the focused `Access` collaborator instead of the whole
+`RuntimeResources`: `access.can("run", name)` for a branch,
+`access.require("create", "Answer")` to raise.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -61,6 +65,45 @@ class Authorizer(Protocol):
     def authorize(
         self, principal: Principal | None, action: str, resource: str
     ) -> bool: ...
+
+
+class Access:
+    """The authorization collaborator injected into a step.
+
+    It wraps `RuntimeResources.authorize`/`require_authorized`, so a step can
+    ask a focused question without receiving the whole resource container:
+
+        async def run(self, request: Request, access: Access) -> Reply:
+            if not access.can("run", "deploy"):
+                return Reply(text="denied")
+            access.require("create", "Deployment")
+
+    With no authorizer configured, `can` is always true and `require` is a
+    no-op — authz stays opt-in.
+    """
+
+    __slots__ = ("_authorize", "principal")
+
+    def __init__(
+        self,
+        authorize: Callable[[str, str], bool],
+        principal: Principal | None = None,
+    ) -> None:
+        self._authorize = authorize
+        self.principal = principal
+
+    def can(self, action: str, resource: str) -> bool:
+        """Whether the current principal may perform `action` on `resource`."""
+        return self._authorize(action, resource)
+
+    def require(self, action: str, resource: str) -> None:
+        """`can`, but raises `AuthorizationError` when denied."""
+        if not self.can(action, resource):
+            raise AuthorizationError(action, resource, self.principal)
+
+    def __repr__(self) -> str:
+        who = self.principal.id if self.principal is not None else "anonymous"
+        return f"Access(principal={who!r})"
 
 
 def _permission_matches(pattern: str, action: str, resource: str) -> bool:
@@ -105,6 +148,7 @@ class PermissionPolicy:
 
 
 __all__ = [
+    "Access",
     "AuthorizationError",
     "Authorizer",
     "PermissionPolicy",

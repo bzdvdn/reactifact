@@ -8,7 +8,7 @@ the top findings are printed verbatim (honest fallback, §59).
 
 from __future__ import annotations
 
-from reactifact import Artifact, Consume, Context, Emit, Step
+from reactifact import Artifact, Context, Emit, Step
 from reactifact.structured import structured_llm
 
 from ..models import Answer, AnswerBody, Evidence, Question, Review
@@ -20,7 +20,7 @@ TOPN = 3
 class Evaluate(Step):
     """Deterministic ranking + links; LLM wording on top of the merged state."""
 
-    consumes = (Review, Consume(Evidence, wakes=False))
+    consumes = (Review,)
     produces = (Answer,)
 
     async def run(

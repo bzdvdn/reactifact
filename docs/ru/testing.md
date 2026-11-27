@@ -158,20 +158,23 @@ print(result.explain())
 
 `Verify` применяет ground-truth-free метрики `reactifact.eval` к *живому*
 `Answer` в той же генерации, что его создала (batch-eval скорит готовый
-`Context` постфактум). Добавьте его в `produces` и объявите артефакт
-эскалации:
+`Context` постфактум). Добавьте его в `produces`; `Verify` сам объявляет свои
+`VerificationResult`/`VerificationFailed`/`PendingQuestion`. Передача класса
+модели делает шаг самопланирующимся:
 
 ```python
-from reactifact import Consume, Context, PendingQuestion, RuntimeResources, Step, StepGroup
+from reactifact import Consume, Context, RuntimeResources, StepGroup
 from reactifact.verify import Verify
 
 class Answerer(StepGroup):
     consumes = [Consume(Question)]
-    produces = [BuildAnswer(), Verify(), Step(PendingQuestion)]
+    produces = [BuildAnswer(), Verify(Answer)]
 
 ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```
 
+`Verify("Answer")` сохраняет режим по имени для кода, который не импортирует
+доменную модель; тогда `Consume(Answer)` задаёт группа.
 `Verify(threshold=...)` переопределяет общий порог;
 `required_metrics=("provenance_grounded",)` проваливает ответ независимо от
 среднего; `on_fail="ask"` (дефолт) поднимает HITL
