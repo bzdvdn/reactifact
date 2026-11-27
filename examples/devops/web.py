@@ -28,7 +28,7 @@ from examples.devops.policy import PRINCIPALS, user_from_request
 from examples.devops.resources import build_resources
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, Chat, SessionStore
+from reactifact import Budget, Chat, RunConfig, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.contracts.web import create_contracts_router
@@ -85,7 +85,7 @@ def create_message(ctx: Any, text: str, session_id: str) -> str:
     Both kinds resume the same way: `clarify` (the agent needs a value) and
     `approve` (the agent wants to run a destructive tool). Takes the 3-arg
     shape so the session id is stamped on the `UserMsg`; the memory intent
-    (`RememberReport` → `PendingAction`) reads it from there instead of
+    (`remember_report` → `PendingAction`) reads it from there instead of
     guessing from runtime state.
     """
     pending = ctx.pending_questions()
@@ -166,8 +166,10 @@ def create_app(
             user_from_request(request),
             Path(store_dir) / "memory" if store_dir else None,
         ),
-        budget=Budget(max_runs=200, max_tool_calls=12),
-        tracer=lambda: Tracer(store=trace_store),
+        config=RunConfig(
+            budget=Budget(max_runs=200, max_tool_calls=12),
+            tracer=lambda: Tracer(store=trace_store),
+        ),
         status_kinds=("status", "agent"),
         # Memory indexing is an outbound side effect: the step commits an
         # intent, and the recipe's dispatcher writes it after the report commits.

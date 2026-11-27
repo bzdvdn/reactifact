@@ -64,7 +64,7 @@ def blueprint(
         steps = list(agent.steps or ())
         agent_label = agent.name or f"agent{i}"
         if with_stages and steps:
-            agent_label += "<br/>" + " · ".join(type(p).__name__ for p in steps)
+            agent_label += "<br/>" + " · ".join(step.name for step in steps)
         lines.append(f'        {aid}["{_esc(agent_label)}"]')
 
         consumes: list[Consume] = list(agent.consumes or ())

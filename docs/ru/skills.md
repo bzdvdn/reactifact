@@ -36,7 +36,7 @@ OpenCode; Claude Code читает ещё и `.claude/skills/`, а проект�
 | Скилл | Для чего |
 | --- | --- |
 | `reactifact` | Точка входа: ментальная модель, три инварианта, рабочая петля (design → implement → wire → test → evaluate), таблица маршрутизации и топ-ошибки. Читать первым. |
-| `reactifact-agents` | Глубокий авторинг агентов, шагов и produce: `scope=`/`Unscoped`, lifecycle-consumes, side-effect-only шаги, варианты `Consume`, все эффекты, id/идемпотентность, провенанс, планирование и когда нужен низкоуровневый API. |
+| `reactifact-agents` | Глубокий авторинг агентов, шагов и produce: `scope=`/`Unscoped`, входы `Read` и пробуждения `Consume`, lifecycle-формы, side-effect-only шаги, все эффекты, id/идемпотентность, провенанс, планирование и когда нужен низкоуровневый API. |
 | `reactifact-llm` | LLM-шаги: провайдеры, структурный вывод в типизированные артефакты, `StructuredGenerateAgent`/`LLMAgent`/HITL, `@tool`, промпты, бюджеты токенов/стоимости. |
 | `reactifact-rag` | Ретрив: источники (filesystem, CSV, web), опциональный knowledge-слой + `IndexSource` для векторного поиска, `fan_out_sources`, `materialize_doc`, `TurnContext` и готовые рецепты (router, plan-execute, reflection, memory). |
 | `reactifact-testing` | Детерминированные тесты через `ScenarioLab`: ассерты, инъекция сбоев, record/replay, golden-снимки, pytest-плагин и CLI `scenario`. |

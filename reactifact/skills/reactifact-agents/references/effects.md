@@ -1,10 +1,12 @@
 # Effects reference
 
-The `effects` object (or `call.effects` in the legacy `StepCall` form) is the
-step-scoped change set. Nothing is applied until the runtime commits the patch,
-so effects are atomic, concurrency-safe and need no rollback. Do not build
-`Patch` objects by hand unless you are writing a recipe — the effect API is the
-language.
+`Effects` is the step-scoped change set. Nothing is applied until the runtime
+commits the patch, so effects are atomic, concurrency-safe and need no rollback.
+Do not build `Patch` objects by hand unless you are writing a recipe — the
+effect API is the language.
+
+Take `effects: Effects` as a typed parameter in `run()`/`@step`, or use the
+return-style instructions below.
 
 ## Prefer return-style first
 
@@ -17,10 +19,11 @@ return Ensure(Answer(text="..."), id=f"answer:{qid}")  # idempotent create
 return Emit(Answer(text="..."), id=f"answer:{qid}")    # create or refresh
 return Edit(ticket, status="closed")                   # patch fields
 return Drop(scratch)                                   # delete
+return Relate(claim, "derived_from", evidence)         # provenance edge
 ```
 
-`Ensure`/`Emit`/`Edit`/`Drop`/`Relate` are compiled into the same atomic patch;
-they keep the step signature free of `effects: Effects`.
+`Ensure`/`Emit`/`Edit`/`Drop`/`Relate` compile into the same atomic patch; they
+keep the step signature free of `effects: Effects`.
 
 ## Creating with effects
 
@@ -29,14 +32,14 @@ step already holds `effects` for batch/conditional writes:
 
 ```python
 # not-run: illustrative
-handle = call.effects.create(Answer(text="..."))          # random id
-handle = call.effects.create(Answer(text="..."), id="ans:q1")  # stable id
-call.effects.create_once(SearchDone(qid=q), id=f"search:{q}")   # Ensure equivalent
-call.effects.upsert(Summary(qid=q, text="..."), id=f"summary:{q}")  # create or replace
+handle = effects.create(Answer(text="..."))              # random id
+handle = effects.create(Answer(text="..."), id="ans:q1") # stable id
+effects.create_once(SearchDone(qid=q), id=f"search:{q}") # Ensure equivalent
+effects.upsert(Summary(qid=q, text="..."), id=f"summary:{q}")  # create/replace
 ```
 
-- **Stable ids** make a re-waking step idempotent: a second run with the
-  same id is a no-op for `create_once`, a replace for `upsert`.
+- **Stable ids** make a re-waking step idempotent: a second run with the same id
+  is a no-op for `create_once`, a replace for `upsert`.
 - `create` returns a `Handle` — a valid link target *before* the artifact is
   committed, so you can declare provenance immediately.
 
@@ -44,28 +47,29 @@ call.effects.upsert(Summary(qid=q, text="..."), id=f"summary:{q}")  # create or 
 
 ```python
 # not-run: illustrative
-call.effects.update(report, status="approved")   # patch fields of an existing artifact
-call.effects.link(answer, "supported_by", evidence)
-call.effects.unlink(answer, "supported_by", evidence)
-call.effects.delete(scratch)                     # remove an artifact
+effects.update(report, status="approved")   # patch fields of an existing artifact
+effects.link(answer, "supported_by", evidence)
+effects.unlink(answer, "supported_by", evidence)
+effects.delete(scratch)                     # remove an artifact
 ```
 
-`link`/`unlink` also take a `Handle` or an id string in place of an
-`Artifact`. A link is a first-class provenance edge (see
+`link`/`unlink` also take a `Handle` or an id string in place of an `Artifact`.
+A link is a first-class provenance edge (see
 `reactifact/references/effects-and-state.md`).
 
 ## Asking a human (HITL)
 
 ```python
 # not-run: illustrative
-call.human.ask("Approve this report?", kind="approve")
-# later, when the answer arrives:
-call.human.resume(question, "approved")
+from reactifact import Human
+
+async def run(trigger: Artifact[Any], human: Human) -> None:
+    human.ask("Approve this report?", kind="approve")
 ```
 
 `human.ask` emits a `PendingQuestion` and pauses the flow; an agent consumes the
-resolved question and calls `human.resume`. `reactifact.recipes.ApprovalGate` wraps
-the common "sign off before finalizing" shape.
+resolved question and calls `human.resume`. `reactifact.recipes.ApprovalGate`
+wraps the common "sign off before finalizing" shape.
 
 ## Outbound side effects (outbox)
 
@@ -74,7 +78,14 @@ the intent; a `Runtime(dispatcher=...)` performs it once after the commit:
 
 ```python
 # not-run: illustrative
-call.outbox.act("notify", key=f"notify:{order_id}:email", payload={"to": email})
+from reactifact import Outbox
+
+async def run(trigger: Artifact[Any], outbox: Outbox) -> None:
+    outbox.act(
+        "notify",
+        key=f"notify:{order_id}:email",
+        payload={"to": email},
+    )
 ```
 
 `act` writes a `PendingAction` under the stable id `action:{key}` (so retries and
@@ -86,10 +97,10 @@ Replay reads the record back without re-sending it. See
 
 ## Reading current effects
 
-`call.effects` (or the injected `effects`) is available inside a step. Outside
-it, the module-level `current_effects()` returns the active `Effects` (or
-`None`) — the runtime pushes a fresh slot per step via a contextvar, so
-parallel steps never see each other's effects.
+The injected `effects` is available inside a step. Outside it, the module-level
+`current_effects()` returns the active `Effects` (or `None`) — the runtime
+pushes a fresh slot per step via a contextvar, so parallel steps never see each
+other's effects.
 
 `is_empty()` tells you whether the step is about to change anything;
 `to_patch()` compiles the effects into the `Patch` the runtime merges.

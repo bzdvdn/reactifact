@@ -9,45 +9,44 @@ entry pointing at a report version that never existed.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Ensure, PendingAction, Step
+from reactifact import Artifact, Context, Ensure, PendingAction, step
 from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import MemoryStore
 
 from ..models import AnsibleReport, GitlabReport, K8sReport, UserMsg
 
 
-class RememberReport(Step):
+@step(
+    reads=(K8sReport, GitlabReport, AnsibleReport),
+    produces=PendingAction,
+    provenance=DERIVED_FROM,
+)
+async def remember_report(
+    context: Context,
+    report: Artifact[K8sReport | GitlabReport | AnsibleReport],
+) -> Ensure | None:
     """Report → committed `PendingAction` with summary + source session."""
-
-    reads = (K8sReport, GitlabReport, AnsibleReport)
-    produces = (PendingAction,)
-    provenance = DERIVED_FROM
-
-    async def run(
-        self,
-        report: Artifact[K8sReport | GitlabReport | AnsibleReport],
-    ) -> Ensure | None:
-        text = getattr(report.data, "text", "") or ""
-        if not text.strip():
-            return None
-        source = self.context.get(report.data.query_id)
-        source_session = (
-            source.data.session_id
-            if source is not None and isinstance(source.data, UserMsg)
-            else ""
-        )
-        memory = self.context.resources.require(MemoryStore)
-        return memory.remember_later(
-            report,
-            key=f"report:{report.id}",
-            source_session=source_session,
-            text=text[:800],
-            tags={
-                "kind": "report",
-                "system": type(report.data).__name__.removesuffix("Report").lower(),
-            },
-            ttl_seconds=90 * 24 * 3600,
-        )
+    text = getattr(report.data, "text", "") or ""
+    if not text.strip():
+        return None
+    source = context.get(report.data.query_id)
+    source_session = (
+        source.data.session_id
+        if source is not None and isinstance(source.data, UserMsg)
+        else ""
+    )
+    memory = context.resources.require(MemoryStore)
+    return memory.remember_later(
+        report,
+        key=f"report:{report.id}",
+        source_session=source_session,
+        text=text[:800],
+        tags={
+            "kind": "report",
+            "system": type(report.data).__name__.removesuffix("Report").lower(),
+        },
+        ttl_seconds=90 * 24 * 3600,
+    )
 
 
-__all__ = ["RememberReport"]
+__all__ = ["remember_report"]

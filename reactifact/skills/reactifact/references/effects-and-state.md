@@ -19,11 +19,11 @@ inside a step:
 
 ```python
 # not-run: illustrative
-from reactifact import Artifact, Context, Emit
+from reactifact import Artifact, Context, Emit, step
 
 
-async def run(
-    self,
+@step(reads=(Question, Evidence), produces=Answer)
+async def build_answer(
     context: Context,
     question: Artifact[Question],
 ) -> Emit | None:
@@ -48,8 +48,8 @@ step may legitimately re-wake:
 # not-run: illustrative
 return Ensure(SearchDone(query_id=qid), id=f"search:{qid}")
 
-# or, when the step already holds effects:
-call.effects.create_once(SearchDone(query_id=qid), id=f"search:{qid}")
+# or, when the step takes effects explicitly:
+effects.create_once(SearchDone(query_id=qid), id=f"search:{qid}")
 ```
 
 ## Provenance is the point
@@ -59,8 +59,8 @@ answer to what justifies it, and link derived claims to their source:
 
 ```python
 # not-run: illustrative
-answer = call.effects.create(Answer(text=...))
-claim = call.effects.create(Claim(text=..., confidence=0.8))
+answer = effects.create(Answer(text=...))
+claim = effects.create(Claim(text=..., confidence=0.8))
 claim.link("derived_from", evidence)
 answer.link("supported_by", evidence)
 ```
@@ -111,7 +111,8 @@ afterwards — see the `reactifact-testing` and `reactifact-eval` skills.
 ## Outbound side effects
 
 State changes replay; the *world* does not. Never send an email or call a
-webhook inside a step — record it with `outbox.act(kind, key=..., payload=...)`
-and let `Runtime(dispatcher=...)` perform it once after the commit. The stable id
+webhook inside a step — inject `outbox: Outbox` and record it with
+`outbox.act(kind, key=..., payload=...)`, then let `Runtime(dispatcher=...)`
+perform it once after the commit. The stable id
 (`action:{key}`) makes retries and merged branches converge on one action, and
 state replay never re-sends it.

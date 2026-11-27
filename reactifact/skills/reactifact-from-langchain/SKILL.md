@@ -30,13 +30,13 @@ and the graph grows.
 
 1. **Name the state.** Every key the graph's state dict carries becomes a
    `BaseModel` artifact type.
-2. **Turn each node into a step.** The node's read-set becomes `consumes`; what
-   it wrote becomes a returned model or `effects.create/update/link(...)`. A
-   node that only computes a value still has that value become an artifact,
-   never a plain return value to the caller.
+2. **Turn each node into a step.** The node's read-set becomes the step's
+   `reads` (or typed parameters); what it wrote becomes a returned model or
+   `effects.create/update/link(...)`. A node that only computes a value still
+   has that value become an artifact, never a plain return value to the caller.
 3. **Drop the edges.** You rarely declare transitions — an agent wakes when its
-   consumed artifacts exist. Use `Consume.by_status`/`by_field` for a
-   conditional edge.
+   `consumes` fire. Use `Consume.by_status`/`by_field` for a conditional edge,
+   and `Read` for inputs a step needs without waking the agent again.
 4. **Replace mutation with effects or a returned model.** Any `state["k"] = v`
    becomes a returned model, `effects.create(...)`, or `Edit(artifact, field=v)`.
 5. **Replace messages with artifacts.** Conversation turns are `Question` →
@@ -59,7 +59,7 @@ def node(state):
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, Runtime, RuntimeResources, Step,
+    Agent, Context, Runtime, RuntimeResources, step,
 )
 
 
@@ -71,15 +71,12 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Step):
-    reads = (Question,)
-    produces = (Answer,)
-
-    async def run(self, question: Question) -> Answer:
-        return Answer(text=question.text.upper())
+@step(reads=Question, produces=Answer)
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
 
 
-AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+AnswerAgent = Agent("answer_agent", consumes=[Question], steps=[answer])
 agent = AnswerAgent
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))

@@ -11,6 +11,7 @@ from reactifact import (
     RuntimeResources,
     Step,
     StepCall,
+    step,
 )
 from reactifact.recipes import StatusMachine
 from reactifact.tracing.models import (
@@ -94,6 +95,17 @@ def test_blueprint_renders_all_types_of_a_step_style_group():
     assert "Turn" in diagram
     assert diagram.count("Consume") == 1
     assert diagram.count("creates") == 2
+
+
+def test_blueprint_uses_a_function_step_name_not_the_internal_class():
+    @step(reads=Question, produces=Answer)
+    async def echo_step(question: Question) -> Answer:
+        return Answer(text=question.text)
+
+    diagram = blueprint([Agent("fn", consumes=[Consume(Question)], steps=[echo_step])])
+
+    assert "echo_step" in diagram
+    assert "_FunctionStep" not in diagram
 
 
 def test_context_to_mermaid_groups_artifacts_and_relations():

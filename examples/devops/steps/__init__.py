@@ -7,16 +7,16 @@ recall. `common` holds the routing helpers/fallback lexicons. Flat re-exports
 keep the agent containers' imports stable.
 """
 
-from .memory import RememberReport
-from .reply import RenderReply
-from .reports import AnsibleReportBuilder, GitlabReportBuilder, K8sReportBuilder
-from .router import RouteProblem
+from .memory import remember_report
+from .reply import render_reply
+from .reports import build_ansible_report, build_gitlab_report, build_k8s_report
+from .router import route_problem
 
 __all__ = [
-    "AnsibleReportBuilder",
-    "GitlabReportBuilder",
-    "K8sReportBuilder",
-    "RememberReport",
-    "RenderReply",
-    "RouteProblem",
+    "build_ansible_report",
+    "build_gitlab_report",
+    "build_k8s_report",
+    "remember_report",
+    "render_reply",
+    "route_problem",
 ]

@@ -47,7 +47,7 @@ from the same tracing hook, so one `Runtime` gives both traces and metrics:
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, Runtime, RuntimeResources, Step,
+    Agent, Context, Runtime, RuntimeResources, step,
 )
 from reactifact.metrics import Metrics, MetricsTracer
 
@@ -60,15 +60,12 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Step):
-    reads = (Question,)
-    produces = (Answer,)
-
-    async def run(self, question: Question) -> Answer:
-        return Answer(text=question.text)
+@step(reads=Question, produces=Answer)
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text)
 
 
-AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+AnswerAgent = Agent("answer_agent", consumes=[Question], steps=[answer])
 agent = AnswerAgent
 
 metrics = Metrics()
@@ -85,8 +82,7 @@ latency. `metrics.render()` is the Prometheus text exposition (no
 `prometheus_client`); `create_metrics_router(metrics)` serves `GET /metrics`
 (the `web` extra). For app-specific signals, `RuntimeResources(metrics=...)`
 exposes the same sink to steps (`context.resources.metrics.increment(
-"route_total", route=...)` or `call.context...` in the legacy form) — it is a no-op
-until configured.
+"route_total", route=...)`) — it is a no-op until configured.
 
 ## Sessions and durability
 

@@ -18,7 +18,7 @@ the same ground-truth-free metrics inside a run.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Agent, Context, FakeLLM, Runtime, RuntimeResources, Step,
+    Agent, Context, FakeLLM, Runtime, RuntimeResources, step,
 )
 from reactifact.eval import (
     Dataset, answer_present, evaluate, from_metric, judge_relevance,
@@ -34,15 +34,12 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Step):
-    reads = (Question,)
-    produces = (Answer,)
-
-    async def run(self, question: Question) -> Answer:
-        return Answer(text=question.text.upper())
+@step(reads=Question, produces=Answer)
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
 
 
-AnswerAgent = Agent("answer_agent", steps=[Answerer()])
+AnswerAgent = Agent("answer_agent", consumes=[Question], steps=[answer])
 agent = AnswerAgent
 
 

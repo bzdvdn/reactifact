@@ -20,14 +20,15 @@ routing table below). Loading every skill wastes context and blurs the rules.
 Everything else follows from these. Violating one is what makes an LLM's
 reactifact code look like LangChain wearing a costume.
 
-1. **State changes only through effects (or a returned model).** A class step
-   declares `effects: Effects` in `run()`; a function step uses
-   `call.effects`. Never assign to the context or mutate `artifact.data`.
-   The runtime commits the effect set as one atomic patch.
-2. **A step declares its contract.** `reads = (Question,)` feeds typed
-   inputs and decides which events run it; `produces = (Answer,)` is the
-   allowed create set. A `Agent` groups steps; triggers derive from their
-   `consumes`.
+1. **State changes only through effects (or a returned model).** Prefer
+   returning a model or `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`; when a step
+   needs imperative writes, take `effects: Effects` and use
+   `effects.create/update/link/...`. Never assign to the context or mutate
+   `artifact.data`. The runtime commits the effect set as one atomic patch.
+2. **A step declares its inputs and outputs.** `Read(Question)` / typed
+   parameters are the step's inputs; `produces=(Answer,)` is the allowed
+   create set. An `Agent` owns `consumes`; its steps read what they need and
+   may add read-only inputs without waking the agent.
 3. **Everything is a typed artifact with provenance.** Answers link to their
    evidence (`answer.link("supported_by", evidence)`); downstream code and
    `reactifact.eval` trust the graph, not the prose.
@@ -39,13 +40,17 @@ express the task. Most "framework friction" is reaching for `Context`, a
 hand-built `Patch`, or an imperative `Agent.run` when a typed step would
 do.
 
-1. **`Step` / `@step` with typed inputs.** Declare `reads`/`produces`; return
+1. **`@step` / `Step` with typed inputs.** Declare `reads`/`produces`; return
    a model or `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or write `effects`.
    `scope=` and `Unscoped()` cover correlation and cross-turn history;
    `CurrentRequest`, `Progress`, `Human` and `Outbox` are injected by type.
-2. **`Consume` lifecycle subclasses** for event-shaped work: `OnCreate`,
-   `OnUpdate`, `OnDelete`, `OnStale`; `IdempotentConsume` for "only while the
-   target id is absent"; `JoinConsume`/`AbsentConsume` for set-shaped wakes.
+   Use `@agent` for a one-function agent, or `Agent(consumes=[...],
+   steps=[...])` for several.
+2. **`Consume` / `Read` lifecycle forms** for event-shaped work:
+   `Consume.on_create`/`on_update`/`on_stale`/`on_delete` on the agent;
+   `Read.on_create`/`on_update`/`on_stale`/`after_delete` on the step.
+   `Read.idempotent`/`Read.join`/`Read.correlated` mirror the advanced
+   consume variants.
 3. **A recipe** when the flow is a known pattern: `TurnContextStep` for a
    conversation window + digest, `Route` (expand with `route.agents()`) for
    mutually exclusive cases, `ApprovalGate`, `ReflectionLoop`, `PlanExecute`,
@@ -71,7 +76,7 @@ creates an `Answer`, the runtime runs to a fixpoint.
 ```python
 import asyncio
 from pydantic import BaseModel
-from reactifact import Agent, Context, Runtime, Step
+from reactifact import Agent, Context, Runtime, step
 
 
 class Question(BaseModel):
@@ -82,14 +87,12 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Step):
-    produces = (Answer,)
-
-    async def run(self, question: Question) -> Answer:
-        return Answer(text=question.text.upper())
+@step(reads=Question, produces=Answer)
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
 
 
-AnswerAgent = Agent("answerer", consumes=[Question], steps=[Answerer()])
+AnswerAgent = Agent("answerer", consumes=[Question], steps=[answer])
 
 
 ctx = Context()
@@ -111,14 +114,14 @@ single-pass variants.
 | a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` with `config=RunConfig(...)`, or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()`, shared run config |
 | a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| agents=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
 
-For example, the same `Answerer` as a one-shot pipeline:
+For example, the same `answer` step as a one-shot pipeline:
 
 ```python
-# not-run: illustrative — Answerer/Question/Answer from the example above
+# not-run: illustrative — answer/Question/Answer from the example above
 from reactifact import Agent, Pipeline, PipelineRunner
 
 pipeline = Pipeline(
-    agents=[Agent("answer", steps=[Answerer()])],
+    agents=[Agent("answer", steps=[answer])],
     seed_type=Question,
     answer_type=Answer,
 )
@@ -144,7 +147,7 @@ do not skip ahead, because a wrong artifact model is expensive to unwind.
 1. **Design the artifacts.** Name the `BaseModel` types and the provenance
    edges between them. Exit when every piece of state the user mentioned is a
    type, and every "because/which supports" is a relation.
-2. **Design the steps.** For each transformation: what it consumes, what it
+2. **Design the steps.** For each transformation: what it reads, what it
    produces. Exit when inputs and outputs are artifacts.
 3. **Implement the steps.** Effects or a returned model; deterministic logic in
    Python, the LLM only for reasoning. Exit when no step mutates and every
@@ -186,13 +189,13 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
 
 | Wrong | Right |
 | --- | --- |
-| `context.state["x"] = v`, or mutating `artifact.data` | `effects.create/update(...)` / `call.effects` |
-| treating a step's return value as a function result | return the model/Emit — the runtime commits it as an artifact; downstream steps consume it |
-| calling another agent/step directly | declare `reads`/`produces`; let the runtime schedule |
+| `context.state["x"] = v`, or mutating `artifact.data` | return a model/`Emit`, or `effects.create/update(...)` |
+| treating a step's return value as a function result | return the model/`Emit` — the runtime commits it as an artifact; downstream steps read it |
+| calling another agent/step directly | declare `Agent.consumes` and step `reads`/`produces`; let the runtime schedule |
 | a fresh `Runtime` per request with an empty context | seed the context; keep one session across turns |
 | state in a module global or a plain dict | make it an artifact (typed, versioned, traced) |
 | free-text answer with no links | create source artifacts and `link("supported_by")` |
-| a manual `isinstance(call.trigger...)` guard | declare `consumes` / `Annotated[T, When(...)]` |
+| a manual `isinstance(trigger...)` guard | declare `Agent.consumes` or `Annotated[T, When(...)]` |
 | guessing an API from memory | check it: `python -c "import reactifact; help(...)"` or the docs |
 
 ## Glossary
@@ -202,19 +205,21 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
   `.version`, `.content_hash`). History lives in the context store.
 - **Context** — the queryable artifact graph (`latest`, `list_artifacts`,
   `related`, `relations`, `get`, `artifact_version`).
-- **Step** — the unit of transformation: `reads`/`produces`, `run()`;
-  return a model for create-sugar or write `effects`.
-- **Agent** — a group of `steps`; triggers derive from their
-  `consumes`.
-- **Consume** — a subscription to artifacts of a type (see `reactifact-agents`
-  for the variants and lifecycle subclasses).
+- **Step** — the unit of transformation: `reads`/`produces`, `run()` or a
+  `@step` function; return a model for create-sugar or write `effects`.
+- **Agent** — the scheduling unit: owns `consumes` and an ordered list of
+  `steps`.
+- **Read** — a step input (`Read(Question)`, `Read.on_create`,
+  `Read.after_delete`, `Read.idempotent`, ...). It never wakes the agent.
+- **Consume** — the agent wake contract; lifecycle forms are
+  `Consume.on_create`/`on_update`/`on_stale`/`on_delete`.
 - **Unscoped** — `Annotated[T, Unscoped()]` reads a type across every turn
   instead of only the current `scope`; combine with `Wakes(False)` for history.
 - **Effects** — the step-scoped change set; compiled into one `Patch`.
 - **Progress** — an ephemeral UI status from a step (`ProgressEvent`, never
   committed); inject `progress: Progress` or use `self.progress`.
 - **CurrentRequest** — read-only `Mapping` of `Runtime.arun(request=...)`,
-  injected by type; `call.request` is the same data.
+  injected by type.
 - **TurnContext** — a recipe artifact with the current query, previous query,
   window and digest, so downstream steps need no `Context`.
 - **Relation** — a typed provenance edge (source —relation→ target).
@@ -222,7 +227,8 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
 ## Self-check before you are done
 
 1. No step assigns to `context` or to `.data` — everything goes through
-   `effects`/`call.effects`. (Search your diff for `= ` on context/artifacts.)
+   `effects` or a returned model/`Emit`. (Search your diff for `= ` on
+   context/artifacts.)
 2. Every terminal artifact (answer/report/decision) has a provenance edge to
    what justifies it.
 3. Every step's inputs and outputs are artifacts (or it is an explicit

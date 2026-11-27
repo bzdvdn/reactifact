@@ -2,24 +2,23 @@
 
 from __future__ import annotations
 
-from reactifact import Step
+from reactifact import step
 from reactifact.provenance import SUPPORTED_BY
 
 from ..models import AnsibleReport, ChatReply, GitlabReport, K8sReport
 
 
-class RenderReply(Step):
+@step(
+    reads=(K8sReport, GitlabReport, AnsibleReport),
+    produces=ChatReply,
+    scope="query_id",
+    provenance=SUPPORTED_BY,
+)
+async def render_reply(
+    report: K8sReport | GitlabReport | AnsibleReport,
+) -> ChatReply:
     """A report artifact → a chat reply."""
-
-    # Only these three report types should ever trigger a reply — the
-    # declaration replaces the old isinstance guard in the body.
-    reads = (K8sReport, GitlabReport, AnsibleReport)
-    produces = (ChatReply,)
-    scope = "query_id"
-    provenance = SUPPORTED_BY
-
-    async def run(self, report: K8sReport | GitlabReport | AnsibleReport) -> ChatReply:
-        return ChatReply(query_id=report.query_id, text=report.text)
+    return ChatReply(query_id=report.query_id, text=report.text)
 
 
-__all__ = ["RenderReply"]
+__all__ = ["render_reply"]

@@ -29,7 +29,7 @@ devops/
 ├── prompts.py         # per-specialist system prompts
 ├── steps/
 │   ├── router.py      #   UserMsg → the right *Problem (structured routing)
-│   ├── reports.py      #   K8s/Gitlab/AnsibleReportBuilder — tool loop → *Report
+│   ├── reports.py      #   build_k8s/gitlab/ansible_report — tool loop → *Report
 │   ├── memory.py       #   *Report → PendingAction (memory index intent)
 │   └── reply.py        #   *Report → ChatReply (render step)
 └── web/index.html     # UI
@@ -144,61 +144,61 @@ This is the actual static map of all 6 agents in this demo
 flowchart LR
     subgraph SG["reactifact blueprint"]
         direction LR
-        A0["ansible<br/>ToolUseHITL · Step · Step · Step · AnsibleReportBuilder"]
-    ART0["AnsibleProblem"]
+        A0["route<br/>route_problem"]
+    ART0["UserMsg"]
         ART0 -.->|Consume| A0
-    ART1["ToolAnswer"]
-        ART1 -.->|Consume| A0
-    ART2["Observation"]
-        ART2 -.->|Consume| A0
-    ART3["PendingQuestion"]
-        ART3 -.->|Consume| A0
+    ART1["K8sProblem"]
         A0 ==>|creates| ART1
+    ART2["GitlabProblem"]
         A0 ==>|creates| ART2
+    ART3["AnsibleProblem"]
         A0 ==>|creates| ART3
-    ART4["AnsibleReport"]
+    ART4["ChatReply"]
         A0 ==>|creates| ART4
-        A1["gitlab<br/>ToolUseHITL · Step · Step · Step · GitlabReportBuilder"]
-    ART5["GitlabProblem"]
-        ART5 -.->|Consume| A1
+        A1["k8s<br/>k8s · build_k8s_report"]
         ART1 -.->|Consume| A1
-        ART2 -.->|Consume| A1
-        ART3 -.->|Consume| A1
-        A1 ==>|creates| ART1
-        A1 ==>|creates| ART2
-        A1 ==>|creates| ART3
-    ART6["GitlabReport"]
+    ART5["ToolAnswer"]
+        ART5 -.->|Consume| A1
+    ART6["Observation"]
+        ART6 -.->|Consume| A1
+    ART7["PendingQuestion"]
+        ART7 -.->|Consume| A1
+        A1 ==>|creates| ART5
         A1 ==>|creates| ART6
-        A2["k8s<br/>ToolUseHITL · Step · Step · Step · K8sReportBuilder"]
-    ART7["K8sProblem"]
-        ART7 -.->|Consume| A2
-        ART1 -.->|Consume| A2
-        ART2 -.->|Consume| A2
-        ART3 -.->|Consume| A2
-        A2 ==>|creates| ART1
-        A2 ==>|creates| ART2
-        A2 ==>|creates| ART3
+        A1 ==>|creates| ART7
     ART8["K8sReport"]
-        A2 ==>|creates| ART8
-        A3["memory<br/>RememberReport"]
-        ART8 -.->|Consume| A3
+        A1 ==>|creates| ART8
+        A2["gitlab<br/>gitlab · build_gitlab_report"]
+        ART2 -.->|Consume| A2
+        ART5 -.->|Consume| A2
+        ART6 -.->|Consume| A2
+        ART7 -.->|Consume| A2
+        A2 ==>|creates| ART5
+        A2 ==>|creates| ART6
+        A2 ==>|creates| ART7
+    ART9["GitlabReport"]
+        A2 ==>|creates| ART9
+        A3["ansible<br/>ansible · build_ansible_report"]
+        ART3 -.->|Consume| A3
+        ART5 -.->|Consume| A3
         ART6 -.->|Consume| A3
-        ART4 -.->|Consume| A3
-    ART9["PendingAction"]
-        A3 ==>|creates| ART9
-        A4["render<br/>RenderReply"]
+        ART7 -.->|Consume| A3
+        A3 ==>|creates| ART5
+        A3 ==>|creates| ART6
+        A3 ==>|creates| ART7
+    ART10["AnsibleReport"]
+        A3 ==>|creates| ART10
+        A4["render<br/>render_reply"]
         ART8 -.->|Consume| A4
-        ART6 -.->|Consume| A4
-        ART4 -.->|Consume| A4
-    ART10["ChatReply"]
-        A4 ==>|creates| ART10
-        A5["route<br/>RouteProblem"]
-    ART11["UserMsg"]
-        ART11 -.->|Consume| A5
-        A5 ==>|creates| ART7
-        A5 ==>|creates| ART5
-        A5 ==>|creates| ART0
-        A5 ==>|creates| ART10
+        ART9 -.->|Consume| A4
+        ART10 -.->|Consume| A4
+        A4 ==>|creates| ART4
+        A5["memory<br/>remember_report"]
+        ART8 -.->|Consume| A5
+        ART9 -.->|Consume| A5
+        ART10 -.->|Consume| A5
+    ART11["PendingAction"]
+        A5 ==>|creates| ART11
     end
 ```
 
@@ -221,7 +221,7 @@ and validates it in `request_factory` (unknown → `401`).
 resolves the principal from a verified session/JWT and maps roles to
 capabilities. The authorization half is real: `policy.py` defines the
 identities and the `PermissionPolicy`, `resources.py` builds a
-`RuntimeResources(principal=…)` with them, and `RouteProblem` asks
+`RuntimeResources(principal=…)` with them, and `route_problem` asks
 `context.resources.authorize("run", target)` before it turns the message
 into a problem. `admin2` has no `run:ansible` / `execute:ansible_run`, so an
 Ansible request gets a normal "Access denied" `ChatReply` instead of starting
@@ -237,13 +237,13 @@ ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
 await Runtime(ctx, agents=PIPELINE.agents, dispatcher=MemoryStore.dispatch).arun()
 ```
 
-`MemoryStore` is **not** a copy of the chat. `RememberReport` returns
+`MemoryStore` is **not** a copy of the chat. `remember_report` returns
 `memory.remember_later(report, …)`: the step commits a `PendingAction` with a
 short summary and its provenance, the runtime dispatches
 it **after** the report commits, and `MemoryStore.dispatch` writes the index
 entry. The session id is not ambient: the chat layer stamps it on `UserMsg`
 (`create_message(ctx, text, session_id)`), the report keeps that message id in
-`query_id`, and `RememberReport` carries `source_session=msg.data.session_id`.
+`query_id`, and `remember_report` carries `source_session=msg.data.session_id`.
 A failed turn therefore cannot leave a dangling memory entry. The report (and
 the session/checkpoint) stay the source of truth. On a later question the
 router searches report summaries and passes the hits to the routing prompt as

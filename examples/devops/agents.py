@@ -13,15 +13,16 @@ from .models import (
     AnsibleProblem,
     GitlabProblem,
     K8sProblem,
+    UserMsg,
 )
 from .prompts import ANSIBLE_SYSTEM, GITLAB_SYSTEM, K8S_SYSTEM
 from .steps import (
-    AnsibleReportBuilder,
-    GitlabReportBuilder,
-    K8sReportBuilder,
-    RememberReport,
-    RenderReply,
-    RouteProblem,
+    build_ansible_report,
+    build_gitlab_report,
+    build_k8s_report,
+    remember_report,
+    render_reply,
+    route_problem,
 )
 from .tools import (
     ansible_run,
@@ -37,7 +38,7 @@ def _announce_answer(answer: str) -> str:
 
 
 #: Base chat: question → problem artifact of the relevant agent (§48).
-Route = Agent("route", steps=[RouteProblem()])
+Route = Agent("route", consumes=[UserMsg], steps=[route_problem])
 
 #: k8s diagnostics: read-only tools + an approval-gated restart.
 K8sAgent = HITLLMAgent(
@@ -45,7 +46,7 @@ K8sAgent = HITLLMAgent(
     system=K8S_SYSTEM,
     tools=[kubectl_get, kubectl_restart],
     consumes=[Consume(K8sProblem)],
-    steps=[K8sReportBuilder()],
+    steps=[build_k8s_report],
     max_steps=4,
     max_asks=1,
     resume_announce=_announce_answer,
@@ -57,7 +58,7 @@ GitlabAgent = HITLLMAgent(
     system=GITLAB_SYSTEM,
     tools=[gitlab_search, gitlab_pipeline],
     consumes=[Consume(GitlabProblem)],
-    steps=[GitlabReportBuilder()],
+    steps=[build_gitlab_report],
     max_steps=4,
     max_asks=1,
     resume_announce=_announce_answer,
@@ -69,17 +70,17 @@ AnsibleAgent = HITLLMAgent(
     system=ANSIBLE_SYSTEM,
     tools=[ansible_run],
     consumes=[Consume(AnsibleProblem)],
-    steps=[AnsibleReportBuilder()],
+    steps=[build_ansible_report],
     max_steps=4,
     max_asks=1,
     resume_announce=_announce_answer,
 )
 
 #: Report objects → chat replies.
-Render = Agent("render", steps=[RenderReply()])
+Render = Agent("render", steps=[render_reply])
 
 #: Indexes report summaries for cross-session recall (priority: last).
-Memory = Agent("memory", steps=[RememberReport()], priority=10)
+Memory = Agent("memory", steps=[remember_report], priority=10)
 
 #: The full devops composition; transports share this list.
 AGENTS = [Route, K8sAgent, GitlabAgent, AnsibleAgent, Render, Memory]

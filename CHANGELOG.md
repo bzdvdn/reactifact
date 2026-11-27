@@ -73,6 +73,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `StepGroup is Agent` for 0.x code, but is no longer in `__all__`, public type
   hints, recipes, templates, examples or current docs. `create_step_group` and
   `StepGroupSpan` follow the same compatibility-only rule.
+- **Skills and the devops example teach the current model.** The bundled
+  skills use `@step` functions, `Read` inputs and `Consume` wake-ups; the
+  devops router, report builders, reply, memory and branch scenarios are
+  typed steps rather than app-level `Step` subclasses.
 
 ## [0.25.1] — 2026-11-27
 

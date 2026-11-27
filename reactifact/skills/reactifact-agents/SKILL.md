@@ -1,40 +1,44 @@
 ---
 name: reactifact-agents
-description: Author reactifact agents deeply — Step/Consume contracts, scope and cross-turn history, the Consume lifecycle classes and variants (by_status, by_field, Join, Absent, Correlated), Effects and return-style instructions, ids and idempotency, provenance links, side-effect-only steps, triggers, priority and concurrency. Use when writing or reviewing the step/consume/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates. Not for model calls or prompts (`reactifact-llm`) or retrieval (`reactifact-rag`).
+description: Author reactifact agents deeply — Agent/Step/Read/Consume contracts, scope and cross-turn history, lifecycle forms (on_create, on_update, on_stale, after_delete), the advanced Read variants (idempotent, join, correlated, absent), Effects and return-style instructions, ids and idempotency, provenance links, side-effect-only steps, triggers, priority and concurrency. Use when writing or reviewing the Agent/Step/Read/effects layer of a reactifact pipeline, when wiring multiple agents that must run in a particular order or only when a set of artifacts exists, or when an agent runs too often, too rarely, or produces duplicates. Not for model calls or prompts (`reactifact-llm`) or retrieval (`reactifact-rag`).
 ---
 
 # Authoring agents in reactifact
 
 An agent is a bundle of **consumes** (what wakes it) and **steps** (the
-transformations it runs). Each step declares its own `produces` contract. There
-is no group-level `run()` to override in the common case — you declare the
-contract and implement each step's effects.
+transformations it runs). Each step declares its own `reads`/`produces`
+contract; the agent owns `consumes`. There is no group-level `run()` to
+override in the common case — you declare the contract and implement each
+step's transformation.
 
 ```python
-# not-run: illustrative — Answerer/Question/Evidence are defined below
-agent = Agent("answerer", steps=[Answerer()])
+# not-run: illustrative — answer/Question are defined below
+agent = Agent("answerer", consumes=[Consume(Question)], steps=[answer])
 ```
 
-`Agent(...)` is the constructor for every group; do not subclass it in app
-code. Overriding `run()` with no `consumes` is the imperative escape hatch,
-not the ordinary style.
+`@agent` is the one-function shortcut; `Agent(...)` is the constructor for
+several steps. Subclassing `Agent` is optional sugar for stateful
+class-oriented code, not the default. Overriding `run()` with no `consumes` is
+the imperative escape hatch, not the ordinary style.
 
 ## A step reads its inputs and writes effects
 
-A class step gets typed inputs + `effects: Effects`. A `@step` function uses the
-same typed parameters (`T`, `Artifact[T]`, `list[T]`, `Latest[T]`, `Context`,
-`Effects`, `Progress`, `CurrentRequest`, `Event`), or the legacy single
-`call: StepCall` with
-`call.trigger`/`call.context`/`call.effects`/`call.inputs`/`call.request`.
-Typed parameters derive the step's `reads`; when `reads` is explicit, it is
-the wake set and typed artifact params missing from it are added as read-only
-inputs automatically. `Annotated[T, When(...)]` conditions a type;
-`Annotated[T, Wakes(False)]` marks one read-only input when `consumes` is
-derived.
+A `@step` function declares its inputs with `Read` (or with typed parameters,
+which derive them) and returns the output. The same typed parameters work in a
+class step's `run()`: `T`, `Artifact[T]`, `list[T]`, `Latest[T]`, `Context`,
+`Effects`, `Progress`, `CurrentRequest`, `Event`. A `Read` never wakes the
+agent — `Agent.consumes` is the wake contract.
+
+When `reads=` is explicit, typed artifact params missing from it are added as
+**read-only inputs** automatically. `Annotated[T, When(...)]` conditions a
+type; `Annotated[T, Wakes(False)]` marks one read-only input when the agent's
+consumes are derived from the step.
 
 Prefer a returned model, `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or
-`self.progress(...)` over reaching for `Context`/`call.context`. The low-level
-`call` form is for an imperative integration, not for ordinary steps.
+`self.progress(...)` over reaching for `Context`. Take `effects: Effects`
+only when the write needs an imperative handle or a batch of conditional
+effects; the legacy single `call: StepCall` form is an integration escape
+hatch, not the ordinary style.
 
 ```python
 import asyncio
@@ -47,7 +51,7 @@ from reactifact import (
     Emit,
     Runtime,
     RuntimeResources,
-    Step,
+    step,
 )
 
 
@@ -64,46 +68,43 @@ class Answer(BaseModel):
     text: str
 
 
-class Scout(Step):
-    reads = (Question,)
-    produces = (Evidence,)
-
-    async def run(self, question: Question) -> Evidence:
-        return Evidence(text=f"about {question.text}", score=0.9)
+@step(reads=Question, produces=Evidence)
+async def scout(question: Question) -> Evidence:
+    return Evidence(text=f"about {question.text}", score=0.9)
 
 
-class Answerer(Step):
-    reads = (Evidence,)  # Question is auto-added as a read-only input
-    produces = (Answer,)
-
-    async def run(
-        self,
-        question: Question,
-        evidence: Artifact[Evidence],
-    ) -> Emit:
-        return Emit(
-            Answer(text=question.text.upper()),
-            links=(("supported_by", evidence),),
-        )
+@step(reads=Evidence, produces=Answer)
+async def answer(
+    question: Question,          # read-only: not in this step's explicit reads
+    evidence: Artifact[Evidence],
+) -> Emit:
+    return Emit(
+        Answer(text=question.text.upper()),
+        links=(("supported_by", evidence),),
+    )
 
 
-Pipeline = Agent("pipeline", steps=[Scout(), Answerer()])
+Pipeline = Agent(
+    "pipeline",
+    consumes=[Consume(Question), Consume(Evidence)],
+    steps=[scout, answer],
+)
 
 
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
 asyncio.run(Runtime(ctx, agents=[Pipeline]).arun())
 
-answer = ctx.latest(Answer)
-assert answer is not None
-assert ctx.related(answer.id, "supported_by")  # provenance exists
+answer_artifact = ctx.latest(Answer)
+assert answer_artifact is not None
+assert ctx.related(answer_artifact.id, "supported_by")  # provenance exists
 ```
 
-`question: Question` is not listed in `consumes`; with an explicit consume list
+`question: Question` is not in `answer`'s `reads`; with an explicit `reads=`
 the typed artifact parameter is added as a **read-only input**. It feeds the
-step without waking it, so the answerer fires on `Evidence`, not on the bare
-`Question`. Use `Consume(Question, wakes=False)` only when you want that input
-spelled out in the consume list.
+step without waking it, so `answer` fires on `Evidence`, not on the bare
+`Question`. Use `Annotated[Question, Wakes(False)]` when the consume set is
+derived and the input must be spelled out as read-only.
 
 ## Scope and cross-turn history
 
@@ -112,14 +113,9 @@ class attribute, in the `Step` constructor, and in `@step(scope=...)`:
 
 ```python
 # not-run: illustrative
-@step(reads=Question, produces=Answer, scope="query_id")
-async def answer(question: Question) -> Answer: ...
-
-
-class Compose(Step):
-    reads = (Question, Doc)
-    produces = (Answer,)
-    scope = "query_id"
+@step(reads=(Question, Doc), produces=Answer, scope="query_id")
+async def compose(question: Question, doc: Doc) -> Answer:
+    return Answer(text=f"{question.text}: {doc.text}")
 ```
 
 History is the exception: `Annotated[list[Artifact[Answer]], Unscoped()]` reads
@@ -128,26 +124,40 @@ data, `list[Artifact[Answer]]` for handles, and add `Wakes(False)` when history
 is a read rather than a wake reason. `Latest[T]` composes the same way:
 `Annotated[Latest[Digest], Unscoped()]`.
 
-## Consume variants (the whole toolkit)
+## Step reads vs agent consumes
 
-| Form | Wakes when |
+`Read` is a step input; `Consume` is the agent wake contract. Both share
+`artifact_type`/`condition`/`event_types`/`include_subclasses`; `Read` adds
+`required`, `Consume` adds `wakes`/`debounce`.
+
+| Read form | Meaning |
+| --- | --- |
+| `Read(T)` | required input; the step waits for a `T` |
+| `Read(T, required=False)` | optional input |
+| `Read.on_create(T)` / `on_update` / `on_stale` | narrow the input to one lifecycle event |
+| `Read.after_delete(T)` | the only delete read; take `event: Event` or `trigger`, never `T` |
+| `Read.by_status(T, "ready")` / `Read.by_field(T, "kind", "x")` / `Read.where(T, fn)` | input condition |
+| `Read.idempotent(T, id_of=...)` | only while the derived target id is absent |
+| `Read.join(A, B, key=...)` | a correlated group of inputs |
+| `Read.correlated(key=..., require=[...], forbid=[...])` | a custom correlated group |
+
+| Consume form | Wakes when |
 | --- | --- |
 | `Consume(T)` | a `T` is created or updated |
-| `Consume(T, condition=lambda a: ...)` | a matching `T` appears (condition on the `Artifact`) |
-| `Annotated[T, Wakes(False)]` | reads `T` as input, never wakes — needed when `reads` is derived (an explicit `reads` already makes unlisted typed params reads) |
-| `IdempotentConsume(T, id_of=...)` | wakes on `T` only while `id_of(artifact)` is absent (the declarative idempotency guard) |
-| `Annotated[T, When(fn)]` | wakes when `fn(data)` is true |
-| `Scope(field, owner=Type, key=fn)` / `scope=` | correlate typed inputs; owner matches by artifact id, `key` overrides extraction; pass `scope=` to `@step`/`Step(...)` |
-| `Annotated[T, Unscoped()]` | read T across every turn, not only the current `scope` |
-| `OnCreate(T)` / `OnUpdate(T)` / `OnDelete(T)` / `OnStale(T)` | one lifecycle event only; `OnDelete` takes `event`/`Trigger`, not typed data |
-| `Consume.by_status(T, "ready")` | `T.status == "ready"` (has `status` field) |
-| `Consume.by_field(T, "kind", "x")` | `T.kind == "x"` |
-| `JoinConsume(A, B, key=lambda d: d.thread_id)` | artifacts of **all** of A and B exist sharing a key |
+| `Consume(T, wakes=False)` | never wakes; feeds the agent inputs only |
+| `Consume(T, debounce=True)` | collapses many events in one generation into one run |
+| `Consume.on_create(T)` / `on_update` / `on_stale` / `on_delete(T)` | one lifecycle event |
+| `Consume.by_status(T, "ready")` / `by_field(T, "kind", "x")` | `T` matches a field |
+| `Consume.by_base(Base)` | also wake on subclasses of `Base` |
+| `IdempotentConsume(T, id_of=...)` | `T` while the derived id is absent |
+| `JoinConsume(A, B, key=lambda d: d.thread_id)` | artifacts of **all** listed types exist sharing a key |
 | `AbsentConsume(T, absent_type=U, key=...)` | a `T` exists with **no** matching `U` |
 | `CorrelatedConsume(key=..., require=[...], forbid=[...])` | a full group exists and is unblocked |
 
-`wakes=False` reads input without waking. `debounce=True` collapses many events
-in one generation (a fan-out creating five `Evidence`) into one run.
+Typed-parameter annotations fine-tune either side: `Annotated[T, When(fn)]`
+conditions an input, `Annotated[T, Wakes(False)]` marks a derived read-only
+input, `Annotated[T, Unscoped()]` reads across turns, and
+`Scope(field, owner=Type, key=fn)`/`scope=` correlates inputs.
 
 Full details and examples: `references/consume.md`.
 
@@ -165,7 +175,7 @@ returns a `Handle` you can link immediately.
 | `update(artifact, **fields)` | patch fields |
 | `link(source, relation, target)` / `unlink(...)` | provenance edge |
 | `delete(artifact)` | remove |
-| `human.ask(text, kind=...)` / `human.resume(...)` | pause for a human (HITL); inject `Human` or use `call.human` |
+| `human.ask(text, kind=...)` / `human.resume(...)` | pause for a human (HITL); inject `human: Human` |
 
 Return-style equivalents (preferred for short steps): `Emit` (create, or
 refresh an existing id — the `upsert` form), `Ensure` (create once, by id or
@@ -180,14 +190,10 @@ Side-effect-only steps declare no creates honestly:
 
 ```python
 # not-run: illustrative
-class CleanupTurn(Step):
-    produces = ()
-    deletes = (Answer,)
-    reads = (Question,)
-
-    async def run(self, context: Context, effects: Effects) -> None:
-        for artifact in context.list_artifacts(Answer):
-            effects.delete(artifact)
+@step(reads=Question, produces=(), deletes=(Answer,))
+async def cleanup(context: Context, effects: Effects) -> None:
+    for artifact in context.list_artifacts(Answer):
+        effects.delete(artifact)
 ```
 
 `@step(reads=Question, produces=())` is the function form. `deletes=` is
@@ -205,12 +211,11 @@ owns `reads` (input) and `produces`. `Read` is the input descriptor:
 
 ```python
 # not-run: illustrative
-class Handler(Step):
-    reads = (
-        Read.on_create(Query),
-        Read(Evidence, required=False),
-    )
-    produces = (Answer,)
+@step(
+    reads=(Read.on_create(Query), Read(Evidence, required=False)),
+    produces=Answer,
+)
+async def handle(context: Context, query: Query) -> Answer: ...
 ```
 
 For delete-only cleanup, use `Read.after_delete(Scratch)` and take `event: Event`
@@ -241,7 +246,14 @@ form when the work needs several steps:
 
 ```python
 from pydantic import BaseModel
-from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+from reactifact import (
+    Agent,
+    Consume,
+    Pipeline,
+    PipelineRunner,
+    RetryPolicy,
+    step,
+)
 
 
 class Question(BaseModel):
@@ -252,9 +264,9 @@ class Answer(BaseModel):
     text: str
 
 
-class Answerer(Step[Answer]):
-    async def run(self, question: Question) -> Answer:
-        return Answer(text=question.text.upper())
+@step(reads=Question, produces=Answer)
+async def answer(question: Question) -> Answer:
+    return Answer(text=question.text.upper())
 
 
 QA = Pipeline(
@@ -262,7 +274,7 @@ QA = Pipeline(
     agents=[
         Agent(
             "answer",
-            steps=[Answerer()],
+            steps=[answer],
             consumes=[Consume(Question)],
             retry=RetryPolicy(max_attempts=2),
             timeout=30,
@@ -347,23 +359,23 @@ The fallback itself is a small step using the return-style primitive:
 # not-run: illustrative
 from typing import Any
 
-from reactifact import Artifact, Ensure, Step
+from reactifact import Artifact, Ensure, step
 
 
-class FallbackAnswer(Step):
-    produces = (Answer,)
-
-    def __init__(self, text: str) -> None:
-        self.text = text
-        super().__init__()
-
-    async def run(
-        self,
-        trigger: Artifact[Any] | None,
-    ) -> Ensure:
+def fallback_answer(text: str):
+    @step(produces=Answer)
+    async def _fallback(trigger: Artifact[Any] | None) -> Ensure:
         qid = getattr(trigger.data, "query_id", "unknown") if trigger else "unknown"
-        return Ensure(Answer(query_id=qid, text=self.text), id=f"answer:{qid}")
+        return Ensure(Answer(query_id=qid, text=text), id=f"answer:{qid}")
+
+    return _fallback
+
+
+fallback = fallback_answer("Не удалось собрать ответ.")
 ```
+
+`fallback=` accepts the returned `Step`; a closure keeps configuration out of
+the artifact contract.
 
 `fallback=` runs once after retries, in a fresh effects slot; the failed
 attempt is discarded. It accepts a `Step`, not a group. `fallback_on` /
@@ -397,6 +409,6 @@ of an artifact type; an agent that fires once per history artifact (missing
 
 ## Where to look
 
-- `references/consume.md` — every `Consume` form with examples.
+- `references/consume.md` — every `Read` and `Consume` form with examples.
 - `references/effects.md` — every effect, ids, atomicity, HITL.
 - `docs/en/concepts.md`, `docs/en/effects.md`, `docs/en/scheduler-semantics.md`.

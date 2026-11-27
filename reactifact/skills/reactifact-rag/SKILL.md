@@ -35,7 +35,7 @@ distinguishes chunks of one document and participates in `stable_id()`.
 import asyncio
 from pydantic import BaseModel
 from reactifact import (
-    Context, Effects, Agent, Runtime, RuntimeResources, Step,
+    Context, Effects, Agent, Runtime, RuntimeResources, step,
 )
 from reactifact.recipes import fan_out_sources
 from reactifact.sources import Source, SourceRef
@@ -77,16 +77,12 @@ class MemorySource(Source):
         return self._docs[int(ref.locator)]
 
 
-class Scout(Step):
-    reads = (Question,)
-    produces = (Note, SourceRef)  # fan_out_sources also writes SourceRef artifacts
-
-    async def run(
-        self, context: Context, question: Question, effects: Effects
-    ) -> None:
-        refs = await fan_out_sources(context, question.text, owner_id="q1")
-        for ref in refs:
-            effects.create(Note(text=f"{ref.title} (score={ref.score})"))
+@step(reads=Question, produces=(Note, SourceRef))
+async def scout(context: Context, question: Question, effects: Effects) -> None:
+    # fan_out_sources also writes SourceRef artifacts into the same effects.
+    refs = await fan_out_sources(context, question.text, owner_id="q1")
+    for ref in refs:
+        effects.create(Note(text=f"{ref.title} (score={ref.score})"))
 
 
 ctx = Context(
@@ -95,7 +91,7 @@ ctx = Context(
     )
 )
 ctx.create(Question(text="gpu costs"))
-agent = Agent("scout", steps=[Scout()])
+agent = Agent("scout", consumes=[Question], steps=[scout])
 asyncio.run(Runtime(ctx, agents=[agent]).arun())
 
 assert ctx.list_artifacts(Note)              # ranked hits became artifacts
@@ -111,12 +107,12 @@ To turn a ref into a real document with provenance, call `materialize_doc`:
 
 ```python
 # not-run: illustrative
-from reactifact import Artifact, Context, Emit
+from reactifact import Artifact, Context, Emit, step
 from reactifact.recipes import materialize_doc
 
 
-async def run(
-    self,
+@step(reads=SourceRef, produces=Answer)
+async def answer(
     context: Context,
     ref: Artifact[SourceRef],
 ) -> Emit | None:

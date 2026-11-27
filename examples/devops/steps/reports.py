@@ -3,51 +3,54 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Artifact, Step
+from reactifact import Artifact, Context, step
 from reactifact.provenance import DERIVED_FROM
 from reactifact.tools.use import ToolAnswer
 
 from ..models import AnsibleReport, GitlabReport, K8sReport
 
 
-class _ReportBuilder(Step):
-    """Common report builder: ToolAnswer → domain report.
+def _build(
+    context: Context,
+    answer: Artifact[ToolAnswer],
+    report_type: type[BaseModel],
+) -> BaseModel | None:
+    """Common report builder: ToolAnswer → domain report with the source id.
 
-    The agent has already been filtered by the
-    `Consume.by_field(ToolAnswer, "agent", …)` consume, so checking the type
-    here is enough. ToolAnswer.query_id points to the problem artifact; its
-    `query_id` holds the id of the original message.
+    ToolAnswer.query_id points to the problem artifact; its `query_id` holds the
+    id of the original message.
     """
-
-    report_type: type[BaseModel] = BaseModel
-    provenance = DERIVED_FROM
-
-    async def run(self, answer: Artifact[ToolAnswer]) -> BaseModel | None:
-        problem = self.context.get(answer.data.query_id)
-        qid = getattr(problem.data, "query_id", "") if problem else ""
-        return self.report_type(query_id=qid, text=answer.data.text)
+    problem = context.get(answer.data.query_id)
+    qid = getattr(problem.data, "query_id", "") if problem else ""
+    return report_type(query_id=qid, text=answer.data.text)
 
 
-class K8sReportBuilder(_ReportBuilder):
-    reads = (ToolAnswer,)
-    produces = (K8sReport,)
-    report_type = K8sReport
+@step(reads=ToolAnswer, produces=K8sReport, provenance=DERIVED_FROM)
+async def build_k8s_report(
+    context: Context, answer: Artifact[ToolAnswer]
+) -> K8sReport | None:
+    report = _build(context, answer, K8sReport)
+    return report if isinstance(report, K8sReport) else None
 
 
-class GitlabReportBuilder(_ReportBuilder):
-    reads = (ToolAnswer,)
-    produces = (GitlabReport,)
-    report_type = GitlabReport
+@step(reads=ToolAnswer, produces=GitlabReport, provenance=DERIVED_FROM)
+async def build_gitlab_report(
+    context: Context, answer: Artifact[ToolAnswer]
+) -> GitlabReport | None:
+    report = _build(context, answer, GitlabReport)
+    return report if isinstance(report, GitlabReport) else None
 
 
-class AnsibleReportBuilder(_ReportBuilder):
-    reads = (ToolAnswer,)
-    produces = (AnsibleReport,)
-    report_type = AnsibleReport
+@step(reads=ToolAnswer, produces=AnsibleReport, provenance=DERIVED_FROM)
+async def build_ansible_report(
+    context: Context, answer: Artifact[ToolAnswer]
+) -> AnsibleReport | None:
+    report = _build(context, answer, AnsibleReport)
+    return report if isinstance(report, AnsibleReport) else None
 
 
 __all__ = [
-    "AnsibleReportBuilder",
-    "GitlabReportBuilder",
-    "K8sReportBuilder",
+    "build_ansible_report",
+    "build_gitlab_report",
+    "build_k8s_report",
 ]

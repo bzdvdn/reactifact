@@ -36,7 +36,7 @@ whole team gets the same guidance.
 | Skill | Use it for |
 | --- | --- |
 | `reactifact` | The entry point: the mental model, the three invariants, the working loop (design → implement → wire → test → evaluate), a routing table, and the top mistakes. Read this first. |
-| `reactifact-agents` | Authoring agents, steps and produces deeply: `scope=`/`Unscoped`, lifecycle consumes, side-effect-only steps, `Consume` variants, every effect, ids/idempotency, provenance, scheduling, and when the low-level API is justified. |
+| `reactifact-agents` | Authoring agents, steps and produces deeply: `scope=`/`Unscoped`, `Read` inputs and `Consume` wake-ups, lifecycle forms, side-effect-only steps, every effect, ids/idempotency, provenance, scheduling, and when the low-level API is justified. |
 | `reactifact-llm` | LLM steps: providers, structured output into typed artifacts, `StructuredGenerateAgent`/`LLMAgent`/HITL, `@tool`, prompts, and token/cost budgets. |
 | `reactifact-rag` | Retrieval: sources (filesystem, CSV, web), the optional knowledge layer + `IndexSource` for vector search, `fan_out_sources`, `materialize_doc`, `TurnContext`, and the ready-made recipes (router, plan-execute, reflection, memory). |
 | `reactifact-testing` | Deterministic tests with `ScenarioLab`: assertions, fault injection, record/replay, golden snapshots, the pytest plugin and the `scenario` CLI. |

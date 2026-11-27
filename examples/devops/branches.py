@@ -33,6 +33,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
+    step,
 )
 from reactifact.tracing import Tracer, TraceStore
 
@@ -56,71 +57,54 @@ class MergeSignal(BaseModel):
     """An event that starts the compose step after the merge."""
 
 
-class Plan(Step):
+@step(reads=UserMsg, produces=(K8sProblem, GitlabProblem, AnsibleProblem))
+async def plan(msg: UserMsg) -> list[Emit]:
     """One question → three independent problem artifacts."""
-
-    reads = (UserMsg,)
-    produces = (K8sProblem, GitlabProblem, AnsibleProblem)
-
-    async def run(self, msg: UserMsg) -> list[Emit]:
-        qid = f"q:{msg.text[:12]}"
-        return [
-            Emit(K8sProblem(text=msg.text, query_id=qid), id=f"k8s:{qid}"),
-            Emit(GitlabProblem(text=msg.text, query_id=qid), id=f"gitlab:{qid}"),
-            Emit(AnsibleProblem(text=msg.text, query_id=qid), id=f"ansible:{qid}"),
-        ]
+    qid = f"q:{msg.text[:12]}"
+    return [
+        Emit(K8sProblem(text=msg.text, query_id=qid), id=f"k8s:{qid}"),
+        Emit(GitlabProblem(text=msg.text, query_id=qid), id=f"gitlab:{qid}"),
+        Emit(AnsibleProblem(text=msg.text, query_id=qid), id=f"ansible:{qid}"),
+    ]
 
 
-class InvestigateK8s(Step):
-    reads = (K8sProblem,)
-    produces = (K8sReport,)
-
-    async def run(self, problem: K8sProblem) -> K8sReport:
-        return K8sReport(
-            query_id=problem.query_id,
-            text="k8s: worker-2f1 is OOMKilled; rollout is backing off",
-        )
-
-
-class InvestigateGitlab(Step):
-    reads = (GitlabProblem,)
-    produces = (GitlabReport,)
-
-    async def run(self, problem: GitlabProblem) -> GitlabReport:
-        return GitlabReport(
-            query_id=problem.query_id,
-            text="gitlab: pipeline #4821 failed on deploy; MR !1842 merged",
-        )
-
-
-class InvestigateAnsible(Step):
-    reads = (AnsibleProblem,)
-    produces = (AnsibleReport,)
-
-    async def run(self, problem: AnsibleProblem) -> AnsibleReport:
-        return AnsibleReport(
-            query_id=problem.query_id,
-            text="ansible: playbook dry-run failed on one host (role: web)",
-        )
-
-
-class Compose(Step):
-    """After merge: all three reports are in one context, compose the reply."""
-
-    reads = (
-        K8sReport,
-        MergeSignal,
+@step(reads=K8sProblem, produces=K8sReport)
+async def investigate_k8s(problem: K8sProblem) -> K8sReport:
+    return K8sReport(
+        query_id=problem.query_id,
+        text="k8s: worker-2f1 is OOMKilled; rollout is backing off",
     )
-    produces = (ChatReply,)
-    provenance = SUPPORTED_BY
 
-    async def run(
-        self, k8s: K8sReport, gitlab: GitlabReport, ansible: AnsibleReport
-    ) -> ChatReply:
-        return ChatReply(
-            query_id=k8s.query_id,
-            text="\n".join([k8s.text, gitlab.text, ansible.text]),
-        )
+
+@step(reads=GitlabProblem, produces=GitlabReport)
+async def investigate_gitlab(problem: GitlabProblem) -> GitlabReport:
+    return GitlabReport(
+        query_id=problem.query_id,
+        text="gitlab: pipeline #4821 failed on deploy; MR !1842 merged",
+    )
+
+
+@step(reads=AnsibleProblem, produces=AnsibleReport)
+async def investigate_ansible(problem: AnsibleProblem) -> AnsibleReport:
+    return AnsibleReport(
+        query_id=problem.query_id,
+        text="ansible: playbook dry-run failed on one host (role: web)",
+    )
+
+
+@step(
+    reads=(K8sReport, MergeSignal),
+    produces=ChatReply,
+    provenance=SUPPORTED_BY,
+)
+async def compose(
+    k8s: K8sReport, gitlab: GitlabReport, ansible: AnsibleReport
+) -> ChatReply:
+    """After merge: all three reports are in one context, compose the reply."""
+    return ChatReply(
+        query_id=k8s.query_id,
+        text="\n".join([k8s.text, gitlab.text, ansible.text]),
+    )
 
 
 def _run(
@@ -149,11 +133,11 @@ def reactive_scenario(tracer: Tracer) -> Context:
     runtime = Runtime(
         base,
         steps=[
-            Plan(),
-            InvestigateK8s(),
-            InvestigateGitlab(),
-            InvestigateAnsible(),
-            Compose(),
+            plan,
+            investigate_k8s,
+            investigate_gitlab,
+            investigate_ansible,
+            compose,
         ],
         budget=Budget(max_runs=10),
         tracer=tracer,
@@ -168,7 +152,7 @@ def clean_scenario(tracer: Tracer) -> tuple[Context, str]:
     base = Context(resources=RuntimeResources())
     base.create(UserMsg(text="checkout is down: k8s, gitlab and ansible please"))
 
-    base_run = _run(base, [Plan()], tracer, branch="plan")
+    base_run = _run(base, [plan], tracer, branch="plan")
 
     forks: list[tuple[str, Context]] = []
     problem_types = {
@@ -176,22 +160,22 @@ def clean_scenario(tracer: Tracer) -> tuple[Context, str]:
         "gitlab": GitlabProblem,
         "ansible": AnsibleProblem,
     }
-    for name, step in (
-        ("k8s", InvestigateK8s()),
-        ("gitlab", InvestigateGitlab()),
-        ("ansible", InvestigateAnsible()),
+    for name, investigate in (
+        ("k8s", investigate_k8s),
+        ("gitlab", investigate_gitlab),
+        ("ansible", investigate_ansible),
     ):
         fork = base.branch(name=name)
         problem = fork.latest(problem_types[name])
         assert problem is not None
         fork.touch(problem.id)  # branch-local event
-        _run(fork, [step], tracer, branch=name, parent=base_run)
+        _run(fork, [investigate], tracer, branch=name, parent=base_run)
         forks.append((name, fork))
 
     for name, fork in forks:
         base.merge(fork, message=f"merge {name}")
     base.create(MergeSignal())
-    _run(base, [Compose()], tracer, branch="compose", parent=base_run)
+    _run(base, [compose], tracer, branch="compose", parent=base_run)
     return base, base_run
 
 

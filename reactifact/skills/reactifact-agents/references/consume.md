@@ -1,52 +1,100 @@
-# Consume reference
+# Reads and consumes reference
 
-A `Consume` answers two questions: *does this agent run at all* (`wakes`) and
-*which artifacts become its inputs* (`collect`). All parameters can be class
-attributes (for a `Consume` subclass) or constructor arguments; a `Agent`
-holds a `consumes` sequence of those objects.
+Two contracts share the same selector fields but answer different questions:
 
-## Common parameters
+- **`Read`** — what a *step* needs as input (`required`, lifecycle event,
+  condition). It never wakes an agent.
+- **`Consume`** — what wakes an *agent* (`Agent.consumes`). It also contributes
+  the agent's inputs.
 
-| Parameter | Meaning |
+Both accept `artifact_type`, `condition`, `event_types` and
+`include_subclasses`; `Read` adds `required`, `Consume` adds `wakes` and
+`debounce`. An artifact type, a `Read` or a `Consume` is accepted wherever a
+list is expected.
+
+## Step inputs: `Read`
+
+| Form | Meaning |
 | --- | --- |
-| `artifact_type` | the artifact type this consume watches |
-| `condition` | `Callable[[Artifact], bool]` — extra filter (gets the wrapper) |
-| `event_types` | which events wake it (default `CREATED`, `UPDATED`) |
-| `wakes` | `False` = feed inputs but never trigger a run (default `True`) |
-| `debounce` | collapse several same-generation events into one run |
-| `include_subclasses` | also match subclasses of `artifact_type` (default exact type); `Consume.by_base(Base)` is the factory form |
-
-`Consume(T)` fires when a `T` is created or updated.
-
-## Conditional consumes
+| `Read(T)` | required input |
+| `Read(T, required=False)` | optional input |
+| `Read.on_create(T)` / `on_update` / `on_stale` | one lifecycle event |
+| `Read.after_delete(T)` | only delete read; take `event: Event`/`trigger`, never `T` |
+| `Read.by_status(T, "ready")` / `by_field(T, "kind", "x")` / `where(T, fn)` | condition |
+| `Read.idempotent(T, id_of=...)` | only while the derived target id is absent |
+| `Read.join(A, B, key=...)` | correlated group of inputs |
+| `Read.correlated(key=..., require=[...], forbid=[...])` | custom correlated group |
 
 ```python
 # not-run: illustrative
-from reactifact.consume import Consume
+from reactifact import Read, step
+
+@step(
+    reads=(
+        Read.on_create(Query),
+        Read(Evidence, required=False),
+    ),
+    produces=Answer,
+)
+async def handle(query: Query) -> Answer: ...
+```
+
+For delete-only work, `Read.after_delete(Scratch)` is the one delete read:
+
+```python
+# not-run: illustrative
+from reactifact import Event, Read, step
+
+@step(reads=Read.after_delete(Scratch), produces=())
+async def after_scratch_deleted(event: Event) -> None: ...
+```
+
+## Agent wake-ups: `Consume`
+
+`Consume(T)` fires when a `T` is created or updated.
+
+```python
+# not-run: illustrative
+from reactifact import Consume
 
 Consume(Question, condition=lambda a: len(a.data.text) > 0)
 Consume.by_status(Report, "approved")          # Report.status == "approved"
 Consume.by_field(Ticket, "severity", "high")   # Ticket.severity == "high"
+Consume.by_base(ChatMessage)                   # also subclasses
 ```
 
-`by_status` is just sugar for a `status`-field condition; `by_field` for any
-field. Both accept `wakes=`/`debounce=`.
-
-## Lifecycle events
-
-`Consume(T)` covers create + update. Narrow it with a lifecycle subclass:
+`wakes=False` feeds the agent inputs without making it run:
 
 ```python
 # not-run: illustrative
-from reactifact.consume import OnCreate, OnDelete, OnStale, OnUpdate
-
-OnCreate(T)   # only a new id
-OnUpdate(T)   # only an existing id / changed data
-OnDelete(T)   # deleted; use event/Trigger, the data is gone
-OnStale(T)    # a recorded dependency got a newer version
+consumes = [
+    Consume(Evidence),               # wake: run when evidence exists
+    Consume(Question, wakes=False),  # input only: don't run per question
+]
 ```
 
-The lowercase factory was removed; instantiate `Consume` or a lifecycle class directly.
+`debounce=True` collapses many same-generation events into one run — a fan-out
+creating five `Evidence` artifacts wakes once. Read `context.list_artifacts(T)`
+for the full set rather than relying on `trigger` for "what changed".
+
+## Lifecycle forms
+
+`Consume(T)` covers create + update. Narrow it with the lifecycle classmethods;
+the old `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale` classes remain importable
+compatibility aliases, not the canonical spelling.
+
+```python
+# not-run: illustrative
+from reactifact import Consume
+
+Consume.on_create(T)   # only a new id
+Consume.on_update(T)   # only an existing id / changed data
+Consume.on_delete(T)   # deleted; use event/trigger, the data is gone
+Consume.on_stale(T)    # a recorded dependency got a newer version
+```
+
+The step-side equivalents are `Read.on_create`, `Read.on_update`,
+`Read.on_stale` and `Read.after_delete`.
 
 ## Scope and history
 
@@ -62,7 +110,6 @@ from reactifact import Artifact
 from reactifact.agent import Latest, Unscoped, Wakes
 
 async def run(
-    self,
     question: Question,
     answers: Annotated[list[Artifact[Answer]], Unscoped()],
     digest: Annotated[Latest[Digest], Unscoped()],
@@ -73,28 +120,26 @@ async def run(
 
 Use `list[T]` for data, `list[Artifact[T]]` for handles.
 
-## Reading without waking
-
-`wakes=False` is the correct way to give an agent context it should *see* but
-not *run on*:
-
-```python
-# not-run: illustrative
-consumes = [
-    Consume(Evidence),               # wake: run when evidence exists
-    Consume(Question, wakes=False),  # input only: don't run per question
-]
-```
-
 ## Joining several artifacts
 
-`JoinConsume(A, B, key=...)` fires once artifacts of every listed type exist
-sharing a correlation key, and feeds all of them as inputs:
+`Read.join(...)` (step input) and `JoinConsume(...)` (agent wake) fire once
+artifacts of every listed type exist sharing a correlation key, and feed all of
+them as inputs:
 
 ```python
 # not-run: illustrative
+from reactifact import Read
 from reactifact.consume import JoinConsume
 
+# step input
+Read.join(
+    Report,
+    PendingQuestion,
+    key=lambda d: d.thread_id,
+    part_conditions={PendingQuestion: lambda d: d.answered},
+)
+
+# agent wake-up
 consumes = [
     JoinConsume(
         Report,
@@ -125,14 +170,14 @@ not re-fire it).
 
 ## Both at once
 
-`CorrelatedConsume` unifies the two: fire when every `require` type is present
-for a key **and** no `forbid` type is:
+`Read.correlated(...)`/`CorrelatedConsume` unifies the two: fire when every
+`require` type is present for a key **and** no `forbid` type is:
 
 ```python
 # not-run: illustrative
-from reactifact.consume import CorrelatedConsume
+from reactifact import Read
 
-CorrelatedConsume(
+Read.correlated(
     key=lambda d: d.thread_id,
     require=[Report, PendingQuestion],
     require_conditions={PendingQuestion: lambda d: d.answered},
@@ -144,9 +189,11 @@ CorrelatedConsume(
 filter candidates of one type (e.g. only an *answered* question completes the
 group; only a *sent* notification blocks it).
 
-## `debounce`
+## Typed-parameter sugar
 
-When a fan-out creates N artifacts of the same type in one commit, N events
-would wake the agent N times. `debounce=True` collapses them into a single run.
-The run still sees all of them via `context.list_artifacts(T)` — do not rely on
-`call.trigger` for "what changed" in a debounced step.
+Instead of spelling `Read` objects, annotate `run()`/`@step` parameters:
+`Question`, `list[Question]`, `Question | None`, `Artifact[Question]`,
+`Latest[Question]`, `Annotated[T, When(fn)]`, `Annotated[T, Wakes(False)]`,
+`Annotated[T, Unscoped()]`. With an explicit `reads=`, typed params missing from
+it are added as read-only inputs automatically. Use `Read` objects when the
+event/required/condition semantics are not obvious from the annotation.
