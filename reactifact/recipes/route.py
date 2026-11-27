@@ -60,7 +60,17 @@ class _RoutedGroup(StepGroup):
             retry=inner.retry,
             timeout=inner.timeout,
             wakes=inner.wakes,
+            fallback=inner.fallback_step,
+            fallback_on=inner.fallback_on,
+            fallback_skip=inner.fallback_skip,
         )
+        # `StepGroup.__init__` has no `consumes=` parameter, so preserve the
+        # inner group's contract explicitly. Besides validation, this keeps
+        # `collect_inputs()` (reads/provenance) aligned with the inner group.
+        self.consumes = list(inner.consumes) if inner.consumes is not None else None
+        self.capabilities = inner.capabilities
+        self.concurrency_limit = inner.concurrency_limit
+        self._validate_contracts()
 
     def _route_allows(self, event: Event, context: Context | None) -> bool:
         if event.artifact_type is not self._route_on:

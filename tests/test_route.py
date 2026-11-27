@@ -5,7 +5,14 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Consume, Context, Runtime, Step, StepGroup
+from reactifact import (
+    Consume,
+    Context,
+    Runtime,
+    Step,
+    StepGroup,
+    create_step_group,
+)
 from reactifact.recipes import Route
 from reactifact.validate import validate_contracts
 
@@ -17,6 +24,49 @@ class ResearchTurn(BaseModel):
 
 class Answer(BaseModel):
     text: str
+
+
+class UserQuery(BaseModel):
+    text: str
+
+
+class SearchDone(BaseModel):
+    text: str
+
+
+class _ProduceTurn(Step[ResearchTurn]):
+    consumes = (Consume(UserQuery),)
+
+    async def run(self, query: UserQuery) -> ResearchTurn:
+        return ResearchTurn(query_id="q1", domain="pipeline")
+
+
+class _SearchStep(Step[SearchDone]):
+    produces = (SearchDone,)
+
+    async def run(self) -> SearchDone:
+        return SearchDone(text="done")
+
+
+class _ConsumeSearch(Step[Answer]):
+    consumes = (Consume(SearchDone),)
+
+    async def run(self, done: SearchDone) -> Answer:
+        return Answer(text=done.text)
+
+
+class _FailStep(Step[Answer]):
+    consumes = (Consume(ResearchTurn),)
+
+    async def run(self, turn: ResearchTurn) -> Answer:
+        raise ValueError("boom")
+
+
+class _FallbackAnswer(Step[Answer]):
+    produces = (Answer,)
+
+    async def run(self) -> Answer:
+        return Answer(text="fallback")
 
 
 class _Case(Step[Answer]):
@@ -98,3 +148,87 @@ def test_same_case_with_two_producers_still_warns():
     )
     report = validate_contracts(groups=route.groups())
     assert any(issue.code == "ambiguous_producer" for issue in report.warnings)
+
+
+def test_routed_group_preserves_group_metadata():
+    consume = Consume(
+        ResearchTurn, condition=lambda artifact: artifact.data.domain == "pipeline"
+    )
+    fallback = _FallbackAnswer()
+    inner = create_step_group(
+        "inner",
+        consumes=[consume],
+        steps=[_SearchStep()],
+        capabilities=("llm",),
+        concurrency_limit=2,
+        fallback=fallback,
+        fallback_on=(ValueError,),
+    )
+    routed = Route(
+        on=ResearchTurn,
+        key=lambda turn: turn.domain,
+        cases={"pipeline": inner},
+    ).groups()[0]
+
+    assert routed.consumes == inner.consumes
+    assert routed.consumes is not None
+    assert routed.consumes[0].condition is consume.condition
+    assert routed.capabilities == inner.capabilities
+    assert routed.concurrency_limit == inner.concurrency_limit
+    assert routed.fallback_step is fallback
+    assert routed.fallback_on == (ValueError,)
+    assert routed.fallback_skip == inner.fallback_skip
+
+    context = Context()
+    context.create(ResearchTurn(query_id="q1", domain="pipeline"))
+    assert [a.data.query_id for a in routed.collect_inputs(context)] == ["q1"]
+
+
+def test_validate_route_preserves_group_level_consumes():
+    inner = create_step_group(
+        "react",
+        consumes=[Consume(ResearchTurn)],
+        steps=[_SearchStep()],
+    )
+    route = Route(
+        on=ResearchTurn,
+        key=lambda turn: turn.domain,
+        cases={"pipeline": inner},
+    )
+    groups = [
+        *route.groups(),
+        create_step_group(
+            "producer", consumes=[Consume(UserQuery)], steps=[_ProduceTurn()]
+        ),
+        create_step_group(
+            "consumer", consumes=[Consume(SearchDone)], steps=[_ConsumeSearch()]
+        ),
+    ]
+
+    report = validate_contracts(
+        groups=groups,
+        seeds=[UserQuery],
+        terminal=[Answer],
+    )
+
+    assert report.issues == []
+
+
+def test_routed_group_keeps_fallback():
+    inner = create_step_group(
+        "inner",
+        consumes=[Consume(ResearchTurn)],
+        steps=[_FailStep()],
+        fallback=_FallbackAnswer(),
+    )
+    route = Route(
+        on=ResearchTurn,
+        key=lambda turn: turn.domain,
+        cases={"pipeline": inner},
+    )
+
+    context = Context()
+    context.create(ResearchTurn(query_id="q1", domain="pipeline"))
+    asyncio.run(Runtime(context, groups=route.groups()).arun())
+
+    assert [a.data.text for a in context.list_artifacts(Answer)] == ["fallback"]

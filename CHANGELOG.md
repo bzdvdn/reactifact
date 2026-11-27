@@ -4,6 +4,18 @@ All notable changes to **reactifact** are documented here as releases are cut.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) with `rc` marks for pre-releases.
 
+## [0.25.1] — 2026-11-27
+
+### Fixed
+
+- **`Route` wrappers preserve group metadata.** `Route.groups()` now carries the
+  inner group's `consumes` (including conditions), `capabilities`,
+  `concurrency_limit` and fallback policy. This stops
+  `validate_contracts` from reporting false `dead_output`/`unreachable`
+  warnings for groups whose inputs are declared at the group level, keeps
+  routed input collection/provenance aligned with the inner group, and
+  preserves fallback behavior on routed cases.
+
 ## [0.25.0] — 2026-11-27
 
 ### Breaking

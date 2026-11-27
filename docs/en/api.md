@@ -11,7 +11,7 @@ the docs site, rather than copied here by hand. Per-area pages:
 
 ## Stability
 
-reactifact is pre-1.0 (`0.25.0`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.25.1`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins `reactifact.__all__` and the canonical submodule exports
 (`reactifact.step`, `reactifact.consume`, `reactifact.chat`,

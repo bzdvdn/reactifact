@@ -3731,7 +3731,7 @@ wheels = [
 
 [[package]]
 name = "reactifact"
-version = "0.25.0"
+version = "0.25.1"
 source = { editable = "." }
 default-groups = ["dev", "mcp", "web"]
 dependencies = [

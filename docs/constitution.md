@@ -1,6 +1,6 @@
 # Constitution of the Artifact-Driven Agent Runtime
 
-> **Status:** Foundational design document, aligned with `reactifact` 0.25.0
+> **Status:** Foundational design document, aligned with `reactifact` 0.25.1
 > **Version:** 0.3
 > **Purpose:** Define the architectural philosophy, invariants, terminology, design rules, examples, and decision criteria for a new agent framework based on evolving typed artifacts and context rather than explicit execution graphs.
 >
@@ -3173,7 +3173,7 @@ Everything else — tools, RAG, APIs, planners, schedulers, multi-agent executio
 
 # Appendix — Implementation Status
 
-State of the public `reactifact` codebase at **0.25.0** (pre-1.0).
+State of the public `reactifact` codebase at **0.25.1** (pre-1.0).
 Verification: ~1700 tests (optional-dependency skips in a bare venv); mypy
 strict, ruff, import-linter and the docs build are clean.
 
