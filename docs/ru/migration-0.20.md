@@ -29,7 +29,7 @@
 | v1 session payload | v2 `blobs` + `data_ref`; v1 мигрирует при загрузке |
 | `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool` | `reactifact.tools.use`, `reactifact.tools.native`, `reactifact.tools.agent` |
 
-Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0; старые имена `Agent` удалены в 0.24.0, остальные мосты доступны до 0.24.x.
+Всё, что помечено как bridge, импортируется в 0.21.x, но top-level `Produce`/`ProduceCall`/`@produce` больше не входят в `__all__`. `Produce`/`ProduceCall`/`@produce` удалены в 0.23.0; старые имена `Agent` удалены в 0.24.0, остальные мосты доступны до 0.24.x. Shim-модули тулов удалены в 0.25.0; старые persisted type id ещё резолвятся, но новые импорты используют канонические пути из таблицы выше.
 
 ## 2. Шаги и агенты
 
@@ -261,6 +261,9 @@ Shims импортируются в окне совместимости 0.21 и 
 
 - `StepGroup.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
+
+Удалено в 0.25.0:
+
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`
 
 `@produce` выдаёт `DeprecationWarning`; алиасы и bridges — нет. Считайте их

@@ -264,8 +264,10 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`); **identifier-shaped placeholders only** — a literal JSON `{"name": …}` / `{}` in the prompt is left verbatim, no escaping. To put a placeholder inside a JSON object, double the object's outer braces: `{{"answer": "{answer}"}}`. Unknown `!conversions` and nested format specs are rejected; `.hash` is a stable sha256 of the template |
-| `MessagesPrompt([(role, template), …])` | renders a chat sequence to `list[Message]`; `.hash` covers all rows |
+| `PromptTemplate(template, *, defaults=…)` | strict `{var}` rendering: declared `variables`/`required_variables`, `KeyError` on missing vars, model-attribute fields (`{question.text}`), `.partial(**defaults)` for variants; **identifier-shaped placeholders only** — a literal JSON `{"name": …}` / `{}` in the prompt is left verbatim, no escaping. To put a placeholder inside a JSON object, double the object's outer braces: `{{"answer": "{answer}"}}`. Unknown `!conversions` and nested format specs are rejected; `.hash` covers the template and its defaults |
+| `MessagesPrompt([(role, template), …], *, defaults=…)` | renders a chat sequence to `list[Message]`; rows may be strings or reusable `PromptTemplate`s, `defaults` is shared fallback (row defaults win); `.hash` covers all rows and their defaults |
+| `PromptSequence([part, …], *, separator="\n\n", defaults=…)` | composes several string/`PromptTemplate` sections into one text; empty sections are skipped, `.required_variables`/`.hash` cover the ordered parts and separator |
+| `PromptPair(system, user, *, defaults=…)` | reusable system/user pair (strings, `PromptTemplate` or `PromptSequence`); `.render(...)` returns `RenderedPrompt` with `.system`/`.user`/`.prompt_hash`, `.as_kwargs()` feeds `structured_llm`/`llm_reply` |
 
 ## Sources (reactifact.sources)
 

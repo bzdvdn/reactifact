@@ -16,7 +16,6 @@ from reactifact import (
 from reactifact.effects import Effects
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.tool_use import DeferredToolGroup, ToolAnswer, ToolUse, ToolUseHITL
 from reactifact.tools import (
     Tool,
     ToolError,
@@ -26,6 +25,7 @@ from reactifact.tools import (
     execute_tool,
     tool_runs,
 )
+from reactifact.tools.use import DeferredToolGroup, ToolAnswer, ToolUse, ToolUseHITL
 
 
 class K8sProblems(BaseModel):

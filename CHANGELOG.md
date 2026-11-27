@@ -23,6 +23,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   reading `Context`; `consume=OnCreate(...)`/`ensure=True` make it one idempotent
   artifact per turn; `artifact_type=` selects a custom target. Downstream steps
   consume the result instead of rebuilding the conversation.
+- **Prompt template composition.** `PromptTemplate.partial(**defaults)` returns
+  a variant without mutating the original, `required_variables` reports what is
+  still missing after defaults, and `.hash` now covers defaults as well as the
+  template text. `MessagesPrompt` accepts reusable `PromptTemplate` rows and a
+  shared `defaults=` fallback (row defaults win). `PromptSequence` joins
+  several system/user sections into one text, and `PromptPair` renders a
+  system/user pair to a `RenderedPrompt` whose `.as_kwargs()` carries the
+  rendered texts and prompt hash into `structured_llm`/`llm_reply`.
 - **Conversation memory helpers.** `llm_digest_summarizer` now accepts
   `user=`/`schema=`/`render=`/`fallback=`/`max_fallback_chars=`: it can build a
   structured digest (`AnswerBody`), reuse `Transcript.render`, skip the LLM when
@@ -117,9 +125,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   negative slice.
 - **Prompt templating edge cases.** Unknown `!conversions` and nested format
   specs are rejected at construction, malformed braces get a template-context
-  error, and `MessagesPrompt.hash` is no longer ambiguous when a template
-  contains a newline. The docs now show the doubled-brace form for a
-  placeholder inside a literal JSON object.
+  error, missing model attributes name the offending field, and
+  `MessagesPrompt.hash` is no longer ambiguous when a template contains a
+  newline. The docs now show the doubled-brace form for a placeholder inside a
+  literal JSON object.
+
+### Removed
+
+- **Tool-module compatibility shims.** `reactifact.tool_use`,
+  `reactifact.native_tool_use` and `reactifact.agent_tool` are gone; import from
+  `reactifact.tools.use`, `reactifact.tools.native` and
+  `reactifact.tools.agent`. Persisted type ids that still name the removed
+  modules (e.g. `reactifact.tool_use.ToolAnswer`,
+  `reactifact.agent_tool.SubTask`) keep resolving through
+  `reactifact.types.resolve`.
 
 ## [0.24.0] — 2026-11-27
 

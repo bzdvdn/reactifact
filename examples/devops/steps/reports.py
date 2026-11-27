@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from reactifact import Artifact, Step
 from reactifact.provenance import DERIVED_FROM
-from reactifact.tool_use import ToolAnswer
+from reactifact.tools.use import ToolAnswer
 
 from ..models import AnsibleReport, GitlabReport, K8sReport
 

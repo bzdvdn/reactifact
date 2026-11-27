@@ -57,6 +57,16 @@ class TypeSpec:
 _SPECS: dict[type[BaseModel], TypeSpec] = {}
 _BY_ID: dict[str, TypeSpec] = {}
 
+#: Removed compatibility modules → their canonical replacements. Persisted
+#: sessions may still contain one of the old qualified names (e.g.
+#: `reactifact.tool_use.ToolAnswer`); `resolve` imports the canonical module
+#: lazily so those payloads keep loading after the shims are gone.
+_LEGACY_TYPE_MODULES = {
+    "reactifact.tool_use": "reactifact.tools.use.base",
+    "reactifact.native_tool_use": "reactifact.tools.native",
+    "reactifact.agent_tool": "reactifact.tools.agent",
+}
+
 
 def _qualname(model: type[Any]) -> str:
     return f"{model.__module__}.{model.__qualname__}"
@@ -122,19 +132,27 @@ def resolve(type_id: str) -> type[BaseModel]:
     """The class for a persisted `type_id`, or raise `TypeNotFoundError`.
 
     Registry first, then a registered alias, then importing the id as a
-    qualified name (so pre-registry payloads keep loading).
+    qualified name (so pre-registry payloads keep loading). The removed
+    tool-module shims are rewritten to their canonical modules lazily.
     """
     spec = _BY_ID.get(type_id)
     if spec is not None:
         return spec.model
     module_name, sep, class_name = type_id.rpartition(".")
     if sep:
-        try:
-            candidate = getattr(importlib.import_module(module_name), class_name)
-        except (ImportError, AttributeError, ValueError):
-            candidate = None
-        if isinstance(candidate, type) and issubclass(candidate, BaseModel):
-            return candidate
+        module_names = [module_name]
+        legacy = _LEGACY_TYPE_MODULES.get(module_name)
+        if legacy is not None:
+            module_names.append(legacy)
+        for candidate_module in module_names:
+            try:
+                candidate = getattr(
+                    importlib.import_module(candidate_module), class_name
+                )
+            except (ImportError, AttributeError, ValueError):
+                continue
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                return candidate
     raise TypeNotFoundError(
         f"unknown artifact type {type_id!r}: no registered type id/alias resolves "
         f"it, and it is not importable as a qualified name. Register it with "

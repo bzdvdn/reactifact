@@ -188,7 +188,7 @@ class RuntimeResources:
         # Set by Runtime per turn on a shallow copy of this instance (not a
         # constructor param — the runtime, not the caller, owns these): the
         # active Budget and its wall-clock deadline, read back by ToolUse's own
-        # inner loop (§ tool_use.py) to enforce the tool-call/time budget
+        # inner loop (§ tools/use) to enforce the tool-call/time budget
         # between its own round-trips, not just at the top-level
         # Runtime._budget_exhausted check. `budget_tracker` is the per-turn
         # token/cost counters (set only when the budget tracks tokens/cost),

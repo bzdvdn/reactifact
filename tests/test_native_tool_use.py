@@ -2,13 +2,13 @@ import asyncio
 import json
 
 from reactifact import Context, RuntimeResources, tool
-from reactifact.native_tool_use import (
+from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
+from reactifact.tools.native import (
     ToolCall,
     native_complete,
     parse_tool_calls,
     tools_payload,
 )
-from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 
 
 @tool

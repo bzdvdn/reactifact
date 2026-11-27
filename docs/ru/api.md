@@ -269,8 +269,10 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 
 | Символ | Роль |
 | --- | --- |
-| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`); подставляются **только placeholder'ы-идентификаторы** — литеральный JSON `{"name": …}` / `{}` в промпте остаётся как есть, без экранирования. Чтобы подставить placeholder внутрь JSON-объекта, удвойте внешние скобки объекта: `{{"answer": "{answer}"}}`. Неизвестные `!conversion` и вложенные format spec отклоняются; `.hash` — стабильный sha256 шаблона |
-| `MessagesPrompt([(role, template), …])` | рендерит чат-последовательность в `list[Message]`; `.hash` покрывает все строки |
+| `PromptTemplate(template, *, defaults=…)` | строгий рендер `{var}`: объявленные `variables`/`required_variables`, `KeyError` при нехватке, поля атрибутов модели (`{question.text}`), `.partial(**defaults)` для вариантов; подставляются **только placeholder'ы-идентификаторы** — литеральный JSON `{"name": …}` / `{}` в промпте остаётся как есть, без экранирования. Чтобы подставить placeholder внутрь JSON-объекта, удвойте внешние скобки объекта: `{{"answer": "{answer}"}}`. Неизвестные `!conversion` и вложенные format spec отклоняются; `.hash` покрывает шаблон и его defaults |
+| `MessagesPrompt([(role, template), …], *, defaults=…)` | рендерит чат-последовательность в `list[Message]`; строки могут быть строками или переиспользуемыми `PromptTemplate`, `defaults` — общий fallback (defaults строки побеждают); `.hash` покрывает все строки и их defaults |
+| `PromptSequence([part, …], *, separator="\n\n", defaults=…)` | склеивает несколько строк/`PromptTemplate` в один текст; пустые секции пропускаются, `.required_variables`/`.hash` покрывают упорядоченные части и separator |
+| `PromptPair(system, user, *, defaults=…)` | переиспользуемая пара system/user (строки, `PromptTemplate` или `PromptSequence`); `.render(...)` возвращает `RenderedPrompt` с `.system`/`.user`/`.prompt_hash`, `.as_kwargs()` передаётся в `structured_llm`/`llm_reply` |
 
 ## Источники (reactifact.sources)
 

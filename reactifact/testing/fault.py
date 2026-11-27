@@ -5,13 +5,13 @@ and this module discovers and wraps both in place (restoring the originals
 afterward):
 
 - **Static** — a plain `dict[str, Tool]` on whichever `ToolUse`/`ToolUseHITL`
-  produce instance an agent wires up (`reactifact/tool_use.py`), fixed at
+  produce instance an agent wires up (`reactifact/tools/use`), fixed at
   construction time. `_iter_tool_dicts` finds these by scanning every
   agent's `produces`.
 - **Dynamic** — a `list[Tool]` resolved at produce-time from
   `RuntimeResources` (e.g. `context.resources.get("my_tools")`), for a
   produce that builds its own tool-calling loop instead of using `ToolUse`
-  (native tool-calling via `reactifact.native_tool_use` is the common case).
+  (native tool-calling via `reactifact.tools.native` is the common case).
   There is no static attribute for these — the list only exists once
   `resources` is built — so `_iter_tool_lists` finds them by scanning
   `RuntimeResources.additional` instead, for any list whose items all look
@@ -21,7 +21,7 @@ Both containers are mutated in place (`tools[name] = wrapped` /
 `tools_list[index] = wrapped`) since `dict.__setitem__`/`list.__setitem__`
 share the same syntax — `FaultInstaller` restores by key either way.
 
-**Important caveat**: `_ToolLoopBase._run_tool` (`reactifact/tool_use.py`)
+**Important caveat**: `_ToolLoopBase._run_tool` (`reactifact/tools/use`)
 catches any exception raised by `Tool.execute` and turns it into a plain text
 string handed back to the LLM (`"Tool 'x' failed: ..."`) — it never
 propagates out of the produce. So a fault injected via `lab.fail(...)` does

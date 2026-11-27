@@ -205,11 +205,16 @@ resources.register(K8sClient, K8sClient())
 ## Prompts
 
 `PromptTemplate("{question.text} — {k}")` renders declared `{var}` placeholders
-strictly (`KeyError` on a missing variable) and exposes a stable `.hash` for
-drift detection; `MessagesPrompt([(role, template), ...])` renders a chat
-sequence to `list[Message]`. Pass `prompt_hash=template.hash` to a structured
-call so the trace records which prompt version ran. To put a placeholder inside
-a literal JSON object, double the object's outer braces:
+strictly (`KeyError` on a missing variable) and exposes a stable `.hash`
+(template + defaults) for drift detection; `.partial(**defaults)` makes a
+variant and `required_variables` lists what is still needed.
+`MessagesPrompt([(role, template), ...])` renders a chat sequence to
+`list[Message]`, accepts reusable `PromptTemplate` rows and shared `defaults=`.
+For a system/user call, `PromptPair(SYSTEM, USER).render(...)` returns a
+`RenderedPrompt`; `**rendered.as_kwargs()` passes `system`, `user` and the
+`prompt_hash` together. `PromptSequence([base, domain, safety])` joins several
+system sections into the single system message these helpers send. To put a
+placeholder inside a literal JSON object, double the object's outer braces:
 `'{{"answer": "{answer}"}}'`.
 
 ## Bounding cost

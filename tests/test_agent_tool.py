@@ -10,10 +10,10 @@ from reactifact import (
     StepCall,
     StepGroup,
 )
-from reactifact.agent_tool import AgentAsTool, SubTask
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
-from reactifact.tool_use import ToolAnswer
+from reactifact.tools.agent import AgentAsTool, SubTask
+from reactifact.tools.use import ToolAnswer
 
 
 class ScriptedLLM(LLMProvider):

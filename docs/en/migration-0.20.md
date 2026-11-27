@@ -33,6 +33,8 @@ Everything marked as a bridge remains importable in 0.21.x, but the
 top-level `Produce`/`ProduceCall`/`@produce` are no longer in `__all__`.
 `Produce`/`ProduceCall`/`@produce` are removed in 0.23.0; the old `Agent`
 names are removed in 0.24.0, and the remaining bridges stay through 0.24.x.
+The tool-module shims were removed in 0.25.0; old persisted type ids still
+resolve, but new imports use the canonical paths in the table above.
 
 ## 2. Steps and agents
 
@@ -267,6 +269,9 @@ Kept as deprecated bridges through 0.24.x:
 
 - `StepGroup.produces`
 - `Artifact.at`, `Artifact.history`, `Artifact.diff`
+
+Removed in 0.25.0:
+
 - `reactifact.tool_use`, `reactifact.native_tool_use`, `reactifact.agent_tool`
 
 `@produce` emits a `DeprecationWarning`; the aliases and bridges do not. Treat

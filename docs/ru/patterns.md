@@ -239,6 +239,8 @@ body = await structured_llm(llm, schema=AnswerBody, user=text, on_error=alert_if
 Строки `system`/`user` собирайте через `PromptTemplate` (ядро): объявленные
 переменные, `KeyError` при нехватке, поля атрибутов модели
 (`template.render(topic=…, question=…)`) — без ручного `.format` в коде приложения.
+Для переиспользуемой пары используйте `PromptPair(SYSTEM, USER).render(...)`:
+его `.as_kwargs()` вместе с текстами передаёт и hash промпта.
 
 `StructuredGenerateAgent` — декларативная обёртка: переопределите
 `build_prompt(inputs)`, опционально `fallback(inputs)`, объявите `schema` — чтение

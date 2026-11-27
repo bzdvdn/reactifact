@@ -24,7 +24,7 @@ from reactifact import (
 )
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioLab
-from reactifact.tool_use import ToolAnswer, ToolUse
+from reactifact.tools.use import ToolAnswer, ToolUse
 
 
 def run(coro):

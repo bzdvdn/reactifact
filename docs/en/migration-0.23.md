@@ -210,8 +210,10 @@ See [observability](observability.md) for `RetentionPolicy` and sampling.
   `StepGroup`, `StepGroup.steps` and
   `Context.version_history`/`artifact_version`/`version_diff`.
 - The tool-module shims (`reactifact.tool_use`, `reactifact.native_tool_use`,
-  `reactifact.agent_tool`) remain importable through this compatibility window;
-  use `reactifact.tools.use`/`.native`/`.agent`.
+  `reactifact.agent_tool`) were removed in 0.25.0; use
+  `reactifact.tools.use`/`.native`/`.agent`. Old persisted type ids that still
+  name the removed modules (e.g. `reactifact.tool_use.ToolAnswer`) resolve
+  through `reactifact.types.resolve`.
 
 ## 8. Migration checklist
 

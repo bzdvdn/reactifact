@@ -20,7 +20,7 @@ from reactifact import Consume, ResourceKey, RuntimeResources, StepGroup, step, 
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
 from reactifact.testing import ScenarioError, ScenarioLab
 from reactifact.testing.mock import ResourceFault, ResourceFaultInstaller, _FailingProxy
-from reactifact.tool_use import ToolAnswer, ToolUse
+from reactifact.tools.use import ToolAnswer, ToolUse
 
 
 def run(coro):

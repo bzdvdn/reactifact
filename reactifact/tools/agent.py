@@ -47,7 +47,7 @@ from .use import ToolAnswer
 class SubTask(BaseModel):
     """Default input artifact for `AgentAsTool` — override via `input_type`
     with any model that has a `text: str` field (the convention `ToolUse`'s
-    own `_goal` reads, `tool_use.py`)."""
+    own `_goal` reads, `reactifact.tools.use`)."""
 
     text: str
 

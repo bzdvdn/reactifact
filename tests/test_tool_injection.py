@@ -21,8 +21,8 @@ from reactifact import (
     StepGroup,
     tool,
 )
-from reactifact.tool_use import ToolAnswer, ToolUse
 from reactifact.tools import ToolError, ToolOutput, execute_tool
+from reactifact.tools.use import ToolAnswer, ToolUse
 
 
 class Pod(BaseModel):

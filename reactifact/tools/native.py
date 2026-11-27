@@ -1,4 +1,4 @@
-"""reactifact.native_tool_use — OpenAI-style native tool-calling
+"""reactifact.tools.native — OpenAI-style native tool-calling
 (`message.tool_calls`), as composable functions, not a parallel loop class.
 
 `reactifact.providers.LLMProvider`/`LLMRequest` are text-only by design: no
@@ -106,7 +106,7 @@ def parse_tool_calls(response: LLMResponse) -> list[ToolCall]:
                 decoded = json.loads(raw_args)
             except (TypeError, ValueError):
                 logger.debug(
-                    "native_tool_use: malformed tool_call arguments: %.160r",
+                    "tools.native: malformed tool_call arguments: %.160r",
                     raw_args,
                 )
                 decoded = {}
@@ -301,7 +301,7 @@ async def native_complete(
     try:
         return await llm.complete(request)
     except Exception as exc:
-        logger.warning("native_tool_use: provider call failed: %r", exc)
+        logger.warning("tools.native: provider call failed: %r", exc)
         return None
 
 

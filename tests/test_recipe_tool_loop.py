@@ -305,7 +305,7 @@ def test_fallback_runs_for_textual_tool_markup():
 
 
 def test_parse_calls_can_normalize_textual_tool_calls():
-    from reactifact.native_tool_use import parse_tool_calls_with_textual
+    from reactifact.tools.native import parse_tool_calls_with_textual
 
     calls.clear()
     llm = ScriptedNativeLLM(
@@ -331,7 +331,7 @@ def test_parse_calls_can_normalize_textual_tool_calls():
 
 
 def test_parse_textual_tool_calls_reads_dsml():
-    from reactifact.native_tool_use import parse_textual_tool_calls
+    from reactifact.tools.native import parse_textual_tool_calls
 
     text = (
         '<｜tool_calls｜><｜invoke name="search">'
@@ -345,7 +345,7 @@ def test_parse_textual_tool_calls_reads_dsml():
 
 
 def test_parse_textual_tool_calls_reads_real_deepseek_dsml():
-    from reactifact.native_tool_use import parse_textual_tool_calls
+    from reactifact.tools.native import parse_textual_tool_calls
 
     text = (
         '<｜｜DSML｜｜calls><｜｜DSML｜｜invoke name="read_source">'
@@ -361,7 +361,7 @@ def test_parse_textual_tool_calls_reads_real_deepseek_dsml():
 
 
 def test_parse_textual_tool_calls_accepts_ascii_pipes_and_single_quotes():
-    from reactifact.native_tool_use import parse_textual_tool_calls
+    from reactifact.tools.native import parse_textual_tool_calls
 
     text = (
         "<||DSML||invoke name='search'>"
@@ -373,7 +373,7 @@ def test_parse_textual_tool_calls_accepts_ascii_pipes_and_single_quotes():
 
 
 def test_looks_like_tool_markup_detects_truncated_dsml_remnant():
-    from reactifact.native_tool_use import (
+    from reactifact.tools.native import (
         looks_like_tool_markup,
         parse_textual_tool_calls,
     )
@@ -391,7 +391,7 @@ def test_looks_like_tool_markup_detects_truncated_dsml_remnant():
 
 
 def test_looks_like_tool_markup_ignores_plain_answer():
-    from reactifact.native_tool_use import looks_like_tool_markup
+    from reactifact.tools.native import looks_like_tool_markup
 
     assert looks_like_tool_markup("Обычный ответ про <tool> и invoke.") is False
     assert looks_like_tool_markup("") is False

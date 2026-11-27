@@ -13,8 +13,8 @@ from ..context import Context
 from ..llm_agent import HITLLMAgent, LLMAgent
 from ..providers import LLMProvider
 from ..step import StepGroup
-from ..tool_use import ToolAnswer
 from ..tools import Tool
+from ..tools.use import ToolAnswer
 from ._shared import _arun, _default_resources
 from .models import Question
 

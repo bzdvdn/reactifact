@@ -176,3 +176,29 @@ def test_two_models_cannot_share_a_type_id():
 def test_unknown_type_id_raises_a_clear_error():
     with pytest.raises(TypeNotFoundError, match="unknown artifact type"):
         resolve("nope.Nope")
+
+
+def test_removed_tool_shims_still_resolve_persisted_type_ids():
+    from reactifact.tools.agent import SubTask
+    from reactifact.tools.native import ToolCall
+    from reactifact.tools.use.base import Observation, ToolAnswer
+
+    assert resolve("reactifact.tool_use.ToolAnswer") is ToolAnswer
+    assert resolve("reactifact.tool_use.Observation") is Observation
+    assert resolve("reactifact.agent_tool.SubTask") is SubTask
+    assert resolve("reactifact.native_tool_use.ToolCall") is ToolCall
+
+    restored = Artifact.from_dict(
+        {
+            "id": "o1",
+            "data_type": "reactifact.tool_use.Observation",
+            "data": {"query_id": "q1", "text": "from an old session"},
+            "version": 0,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+            "history": [],
+            "created_by_commit": None,
+        }
+    )
+    assert isinstance(restored.data, Observation)
+    assert restored.data.text == "from an old session"

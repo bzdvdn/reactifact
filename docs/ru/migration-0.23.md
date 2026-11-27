@@ -210,8 +210,10 @@ reactifact traces prune traces.db --keep 5000 --days 30 --keep-failed --keep-tag
   `StepGroup`, `StepGroup.steps` и
   `Context.version_history`/`artifact_version`/`version_diff`.
 - Shim-модули тулов (`reactifact.tool_use`, `reactifact.native_tool_use`,
-  `reactifact.agent_tool`) импортируются в этом окне совместимости;
-  канонические пути — `reactifact.tools.use`/`.native`/`.agent`.
+  `reactifact.agent_tool`) удалены в 0.25.0; используйте
+  `reactifact.tools.use`/`.native`/`.agent`. Старые persisted type id с именами
+  удалённых модулей (например, `reactifact.tool_use.ToolAnswer`) резолвятся
+  через `reactifact.types.resolve`.
 
 ## 8. Чек-лист миграции
 

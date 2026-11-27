@@ -237,6 +237,8 @@ body = await structured_llm(llm, schema=AnswerBody, user=text, on_error=alert_if
 Build the `system`/`user` strings with `PromptTemplate` (core): declared
 variables, a `KeyError` on missing vars, and model-attribute fields
 (`template.render(topic=…, question=…)`) — no hand-rolled `.format` in app code.
+For a reusable pair use `PromptPair(SYSTEM, USER).render(...)`, whose
+`.as_kwargs()` also passes the prompt hash.
 
 `StructuredGenerateAgent` is the declarative wrapper: override
 `build_prompt(inputs)`, optionally `fallback(inputs)`, declare `schema` — and
