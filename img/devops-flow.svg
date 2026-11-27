@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1150" height="480" viewBox="0 0 1150 480" role="img" aria-label="Diagram: a UserMsg is consumed by route, which produces a K8sProblem; the k8s agent consumes K8sProblem plus its own ToolAnswer, Observation and PendingQuestion, and produces either a K8sReport or a new PendingQuestion. When it asks, the user's next message resumes that same pending question rather than starting a new run. render consumes any *Report and produces the final ChatReply.">
+  <rect x="0" y="0" width="1150" height="480" fill="#ffffff"/>
+  <defs>
+    <marker id="d-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#14171c"/></marker>
+    <marker id="d-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e4572e"/></marker>
+  </defs>
+
+  <rect x="10" y="42" width="130" height="58" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="75" y="66" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#14171c">UserMsg</text>
+  <text x="75" y="84" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="9" fill="#5b6472">"pods crashlooping"</text>
+
+  <path d="M140,71 L168,71" stroke="#14171c" stroke-width="1.8" marker-end="url(#d-ink)"/>
+  <rect x="170" y="14" width="170" height="114" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="255" y="40" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">route</text>
+  <text x="255" y="60" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes:</text>
+  <text x="255" y="74" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">UserMsg</text>
+  <text x="255" y="94" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces:</text>
+  <text x="255" y="108" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">K8s/Gitlab/AnsibleProblem</text>
+
+  <path d="M340,71 L368,71" stroke="#14171c" stroke-width="1.8" marker-end="url(#d-ink)"/>
+  <rect x="370" y="42" width="150" height="58" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="445" y="76" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">K8sProblem</text>
+
+  <path d="M520,71 L548,71" stroke="#14171c" stroke-width="1.8" marker-end="url(#d-ink)"/>
+  <rect x="550" y="6" width="220" height="150" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="660" y="32" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13.5" font-weight="600" fill="#14171c">k8s agent (HITL)</text>
+  <text x="660" y="52" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes: K8sProblem,</text>
+  <text x="660" y="66" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">ToolAnswer, Observation,</text>
+  <text x="660" y="80" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">PendingQuestion (self)</text>
+  <text x="660" y="102" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces: K8sReport,</text>
+  <text x="660" y="116" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">Observation, PendingQuestion</text>
+  <text x="660" y="138" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="9.5" fill="#e4572e" font-style="italic">missing tool param → asks</text>
+
+  <path d="M660,156 L660,180" stroke="#e4572e" stroke-width="2" marker-end="url(#d-accent)"/>
+  <text x="675" y="171" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="#e4572e">effects.ask()</text>
+  <rect x="550" y="184" width="220" height="58" rx="8" stroke-dasharray="4 3" fill="#f6f7f9" stroke="#5b6472" stroke-width="1.5"/>
+  <text x="660" y="208" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#14171c">PendingQuestion</text>
+  <text x="660" y="226" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="9.5" fill="#5b6472">"which namespace?"</text>
+
+  <rect x="570" y="300" width="150" height="52" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="645" y="322" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="#14171c">UserMsg</text>
+  <text x="645" y="338" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="9.5" fill="#5b6472">"prod"</text>
+
+  <path d="M655,300 C655,275 660,262 660,244" fill="none" stroke="#14171c" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#d-ink)"/>
+  <text x="500" y="278" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="#14171c" font-style="italic">resumes — same run, not a new one</text>
+
+  <path d="M770,71 L798,71" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#d-ink)"/>
+  <rect x="800" y="42" width="140" height="58" rx="8" fill="#f6f7f9" stroke="#c7ced9" stroke-width="1.5"/>
+  <text x="870" y="76" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">K8sReport</text>
+
+  <path d="M940,71 L968,71" fill="none" stroke="#14171c" stroke-width="1.8" marker-end="url(#d-ink)"/>
+  <rect x="970" y="14" width="150" height="114" rx="8" fill="#ffffff" stroke="#14171c" stroke-width="1.5"/>
+  <text x="1045" y="40" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#14171c">render</text>
+  <text x="1045" y="60" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">consumes:</text>
+  <text x="1045" y="74" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">*Report</text>
+  <text x="1045" y="94" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">produces:</text>
+  <text x="1045" y="108" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">ChatReply</text>
+
+  <text x="20" y="400" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="#5b6472">The second <code style="font-family:'IBM Plex Mono',monospace">UserMsg</code> never starts a new problem — <code style="font-family:'IBM Plex Mono',monospace">create_message</code> checks for a pending question first.</text>
+</svg>

@@ -1,0 +1,3298 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive, artifact-driven agent runtime: agents transform versioned, typed, provenance-aware artifacts inside an evolving context">
+      
+      
+      
+        <link rel="canonical" href="https://bzdvdn.github.io/reactifact/en/knowledge/">
+      
+      
+        <link rel="prev" href="../sources/">
+      
+      
+        <link rel="next" href="../providers/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/reactifact-hero.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Knowledge base - reactifact</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#knowledge-base" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="reactifact" class="md-header__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            reactifact
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Knowledge base
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Start here
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../effects/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Build
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../scheduler-semantics/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Operate
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../migrating/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Migrate & compare
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../design-notes/adaptive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="reactifact" class="md-nav__button md-logo" aria-label="reactifact" data-md-component="logo">
+      
+  <img src="../../img/reactifact-hero.svg" alt="logo">
+
+    </a>
+    reactifact
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bzdvdn/reactifact" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bzdvdn/reactifact
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start here
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-turn & chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge base
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge base
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#source-vs-connector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source vs Connector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-a-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build a pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retrieval-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retrieval metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rerank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rerank
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rerank">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ready-made-llm-reranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ready-made LLM reranker
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Indexes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#incremental-ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incremental ingestion
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incremental ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docstore-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DocStore backends
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failure-isolation-progress-and-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure isolation, progress and concurrency
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bridge-to-the-agent-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge to the agent runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-connectors-and-indexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom connectors and indexes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom connectors and indexes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#built-in-connectors-and-extractors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in connectors and extractors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-page-optional-fastapi-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status page (optional FastAPI router)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-intentionally-absent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is intentionally absent
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust & safety
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../a2a/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A2A
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduler-semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../durability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Durability & resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branching & merge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization & CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrate & compare
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Migrate & compare
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-0.25/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 0.25.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-0.24/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 0.24.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-0.23/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 0.23.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-0.20/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from 0.1.x
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-reactifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why reactifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-generated reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Auto-generated reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/adaptive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adaptive scheduler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constitution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constitution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#source-vs-connector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source vs Connector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-a-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build a pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retrieval-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retrieval metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rerank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rerank
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rerank">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ready-made-llm-reranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ready-made LLM reranker
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Indexes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#incremental-ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incremental ingestion
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incremental ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docstore-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DocStore backends
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failure-isolation-progress-and-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure isolation, progress and concurrency
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bridge-to-the-agent-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge to the agent runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-connectors-and-indexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom connectors and indexes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom connectors and indexes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#built-in-connectors-and-extractors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in connectors and extractors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-page-optional-fastapi-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status page (optional FastAPI router)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-intentionally-absent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is intentionally absent
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bzdvdn/reactifact/edit/master/docs/en/knowledge.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="knowledge-base">Knowledge base<a class="headerlink" href="#knowledge-base" title="Permanent link">&para;</a></h1>
+<p>Every class and function on this page is rendered from its docstring in the
+<a href="../../reference/knowledge/">knowledge API reference</a>. (optional layer)</p>
+<p><code>reactifact.knowledge</code> turns heterogeneous documents into a searchable index
+without adding a second agent framework. It is <strong>code-first</strong>: a connector is
+an object, configuration is ordinary Python, and there is no YAML loader, CLI,
+plugin registry or type-string factory.</p>
+<p>The layer is intentionally separate from the reactive core. <code>reactifact</code> never
+imports it; it imports core protocols and reuses the embedder already wired
+into <code>RuntimeResources</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Connector -&gt; RawDocument -&gt; Document -&gt; Chunk -&gt; EmbeddingProvider -&gt; Index
+</code></pre></div>
+<p>Install-time it is just the core package (<code>pip install "reactifact[knowledge]"</code>);
+the extra adds no runtime dependencies. The bundled <code>examples/knowledge</code> demo
+uses this layer for its text corpus.</p>
+<h2 id="source-vs-connector">Source vs Connector<a class="headerlink" href="#source-vs-connector" title="Permanent link">&para;</a></h2>
+<p>Two capabilities, two lifecycles:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>Source</code> (<code>reactifact.sources</code>)</th>
+<th><code>Connector</code> (<code>reactifact.knowledge</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>When</td>
+<td>query time, inside an agent</td>
+<td>ingestion time, before queries</td>
+</tr>
+<tr>
+<td>Does</td>
+<td><code>search(query)</code> + <code>resolve(ref)</code></td>
+<td><code>fetch()</code> / <code>list_documents()</code></td>
+</tr>
+<tr>
+<td>Returns</td>
+<td><code>SourceRef</code></td>
+<td><code>RawDocument</code></td>
+</tr>
+<tr>
+<td>Example</td>
+<td><code>CSVSource</code>, <code>WebSource</code></td>
+<td><code>FilesystemConnector</code>, your API connector</td>
+</tr>
+</tbody>
+</table>
+<p><code>IndexSource</code> is the bridge: it turns an already-built knowledge index into a
+regular <code>Source</code> for <code>RuntimeResources.sources</code>.</p>
+<h2 id="build-a-pipeline">Build a pipeline<a class="headerlink" href="#build-a-pipeline" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuntimeResources</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">KnowledgePipeline</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">ProviderEmbedder</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">SectionsChunker</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">SqliteIndex</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.providers</span><span class="w"> </span><span class="kn">import</span> <span class="n">embedder_from_env</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">RuntimeResources</span><span class="p">(</span><span class="n">embedder</span><span class="o">=</span><span class="n">embedder_from_env</span><span class="p">())</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">KnowledgePipeline</span><span class="p">(</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">connector</span><span class="p">,</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">chunker</span><span class="o">=</span><span class="n">SectionsChunker</span><span class="p">(</span><span class="n">max_tokens</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">overlap</span><span class="o">=</span><span class="mi">60</span><span class="p">),</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">embedder</span><span class="o">=</span><span class="n">ProviderEmbedder</span><span class="p">(</span><span class="n">resources</span><span class="o">.</span><span class="n">embedder</span><span class="p">),</span>  <span class="c1"># core provider</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="n">index</span><span class="o">=</span><span class="n">SqliteIndex</span><span class="p">(</span><span class="s2">".reactifact/knowledge.db"</span><span class="p">),</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">)</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="n">report</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="n">incremental</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="n">state_path</span><span class="o">=</span><span class="s2">".reactifact/knowledge/state.json"</span><span class="p">,</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>connector</code> is any object with a <code>source_id</code> and an async <code>fetch()</code> returning
+<code>RawDocument</code>s. Add <code>list_documents()</code> and <code>fetch(uris=...)</code> to make
+incremental runs skip downloading unchanged bodies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">DocumentMeta</span><span class="p">,</span> <span class="n">RawDocument</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">DocsConnector</span><span class="p">:</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">source_id</span> <span class="o">=</span> <span class="s2">"docs"</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_documents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DocumentMeta</span><span class="p">]:</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="o">...</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">uris</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">RawDocument</span><span class="p">]:</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="o">...</span>
+</code></pre></div>
+<p><code>RawDocument.from_text(...)</code> is the common code-first helper. Metadata
+(<code>documentId</code>, <code>sourceUrl</code>, <code>title</code>) is merged into every chunk, so citations
+survive retrieval. Built-in chunkers also add <code>section_index</code>, <code>chunk_index</code>
+and <code>heading</code> coordinates, which is enough to render and highlight a citation.</p>
+<h2 id="query">Query<a class="headerlink" href="#query" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">hits</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">"how do I install it?"</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">top_k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">hybrid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>          <span class="c1"># dense + BM25, fused with Reciprocal Rank Fusion</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span><span class="s2">"space"</span><span class="p">:</span> <span class="s2">"ENG"</span><span class="p">},</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">principals</span><span class="o">=</span><span class="p">[</span><span class="s2">"alice"</span><span class="p">],</span> <span class="c1"># optional ACL check</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">hits</span><span class="p">:</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">hit</span><span class="o">.</span><span class="n">source_uri</span><span class="p">,</span> <span class="n">hit</span><span class="o">.</span><span class="n">score</span><span class="p">,</span> <span class="n">hit</span><span class="o">.</span><span class="n">text</span><span class="p">[:</span><span class="mi">80</span><span class="p">])</span>
+</code></pre></div>
+<p>Retrieval is scoped to the pipeline's <code>source_id</code>; in a shared index, another
+source's chunks never leak into the result. Pass <code>source_id=</code> to query a
+different source explicitly, or pass a bare index plus <code>embedder=</code> to
+<code>reactifact.knowledge.query(...)</code>.</p>
+<p><code>min_score</code> filters dense cosine results only. Hybrid scores are rank-fusion
+scores, not similarities, so <code>min_score</code> with <code>hybrid=True</code> raises <code>ConfigError</code>
+instead of silently dropping results. <code>hybrid=True</code> also requires an index with
+<code>keyword_search</code>; dense-only indexes must use <code>hybrid=False</code>.</p>
+<p><code>max_per_document=N</code> keeps at most <code>N</code> chunks of the same document in the
+result, so one long document cannot crowd out everything else. Documents are
+identified by <code>document_id</code>/<code>documentId</code> metadata, falling back to
+<code>source_uri</code>. The cap is applied before <code>rerank</code>, so the reranker sees a
+diverse candidate set.</p>
+<p><code>mmr=MMR(lambda_=0.3)</code> re-ranks over-fetched candidates by relevance <strong>and</strong>
+novelty (Maximal Marginal Relevance). <code>lambda_=1</code> is pure relevance, <code>0</code> is
+pure novelty; the pipeline embeds candidate texts with its own embedder, after
+<code>min_score</code>/<code>max_per_document</code> and before <code>rerank</code>. <code>query_by_vector</code> requires
+<code>embedder=</code> when MMR is used.</p>
+<p>Every hit carries retrieval provenance: <code>dense_rank</code>, <code>keyword_rank</code>,
+<code>rerank_rank</code>, <code>score_kind</code> (<code>"dense"</code> or <code>"rrf"</code>) and a stable <code>chunk_id</code>.
+<code>IndexSource</code> puts them under <code>SourceRef.metadata["retrieval"]</code> and uses the
+chunk id as the ref <code>fragment</code>, so two chunks of one document get distinct
+artifact ids.</p>
+<p>Already have a vector? <code>query_by_vector(...)</code> runs the same retrieval without
+embedding the text. Pass <code>query_text=</code> when using <code>hybrid=True</code> (BM25 needs
+the words) or <code>rerank=</code> (the reranker needs the query).</p>
+<h2 id="retrieval-metrics">Retrieval metrics<a class="headerlink" href="#retrieval-metrics" title="Permanent link">&para;</a></h2>
+<p><code>reactifact.eval.retrieval</code> scores ranking quality without an answer:
+recall@k, precision@k, MRR, nDCG@k and hit rate. <code>reactifact.knowledge.eval</code>
+wires a pipeline to those metrics:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.eval</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetrievalCase</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate_pipeline</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">report</span> <span class="o">=</span> <span class="k">await</span> <span class="n">evaluate_pipeline</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">pipeline</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">[</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">RetrievalCase</span><span class="p">(</span><span class="s2">"how do I install?"</span><span class="p">,</span> <span class="n">relevant</span><span class="o">=</span><span class="p">[</span><span class="s2">"install.md"</span><span class="p">]),</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">RetrievalCase</span><span class="p">(</span><span class="s2">"refund policy"</span><span class="p">,</span> <span class="n">relevant</span><span class="o">=</span><span class="p">{</span><span class="s2">"refund.md"</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">}),</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="p">],</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">hybrid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">)</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">render</span><span class="p">())</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="n">report</span><span class="o">.</span><span class="n">assert_passed</span><span class="p">({</span><span class="s2">"recall"</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">})</span>   <span class="c1"># CI gate</span>
+</code></pre></div>
+<p><code>relevant</code> is a list (binary) or a mapping (graded gains). The default key
+compares documents (<code>documentId</code>, falling back to <code>source_uri</code>); pass
+<code>key=chunk_key</code> for chunk-level metrics. <code>cases_from_dataset(dataset)</code> builds
+cases from <code>inputs["query"]</code> and <code>reference_outputs["relevant"]</code>. A case
+without relevant ids is skipped, never scored as zero.</p>
+<h2 id="rerank">Rerank<a class="headerlink" href="#rerank" title="Permanent link">&para;</a></h2>
+<p>The base hook is domain code: relevance policy is yours. <code>query</code> exposes it,
+and an optional LLM-backed helper is available below:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">SearchHit</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">prefer_runbooks</span><span class="p">(</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hits</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">SearchHit</span><span class="p">],</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SearchHit</span><span class="p">]:</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="n">hits</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">hit</span><span class="p">:</span> <span class="n">hit</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"runbook"</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="p">)</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">hit</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"score"</span><span class="p">:</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">i</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">ranked</span><span class="p">)})</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">hit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranked</span><span class="p">[:</span><span class="n">top_k</span><span class="p">])]</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="n">hits</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="s2">"checkout is timing out"</span><span class="p">,</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="n">top_k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">hybrid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    <span class="n">rerank</span><span class="o">=</span><span class="n">prefer_runbooks</span><span class="p">,</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>Called after dense/hybrid retrieval and <code>min_score</code>, before the final
+  <code>top_k</code> cut.</li>
+<li>Receives over-fetched candidates (<code>top_k * 4</code>), so it has room to promote or
+  filter.</li>
+<li>May be synchronous or asynchronous; return any subset in any order.</li>
+<li>Exceptions propagate. This is application code, and silently falling back to
+  the original order would hide relevance bugs. For best-effort retrieval,
+  wrap it:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">safe_rerank</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">hits</span><span class="p">,</span> <span class="n">top_k</span><span class="p">):</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="k">return</span> <span class="k">await</span> <span class="n">my_reranker</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">hits</span><span class="p">,</span> <span class="n">top_k</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"domain rerank failed"</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">hits</span><span class="p">[:</span><span class="n">top_k</span><span class="p">])</span>
+</code></pre></div>
+<h3 id="ready-made-llm-reranker">Ready-made LLM reranker<a class="headerlink" href="#ready-made-llm-reranker" title="Permanent link">&para;</a></h3>
+<p><code>llm_reranker</code> is an opt-in factory, not a separate client: it uses the core
+chat <code>LLMProvider</code>, which is independent of the embedding provider used to
+build the index.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">llm_reranker</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">rerank</span> <span class="o">=</span> <span class="n">llm_reranker</span><span class="p">(</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">resources</span><span class="o">.</span><span class="n">llm</span><span class="p">,</span>  <span class="c1"># chat provider, not resources.embedder</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">instructions</span><span class="o">=</span><span class="s2">"Prefer runbooks; ignore deprecated docs."</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">hits</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"checkout is timing out"</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">rerank</span><span class="o">=</span><span class="n">rerank</span><span class="p">)</span>
+</code></pre></div>
+<p>A domain prompt can replace both levels:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">RERANK_OUTPUT_CONTRACT</span><span class="p">,</span> <span class="n">llm_reranker</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">hits</span><span class="p">,</span> <span class="n">top_k</span><span class="p">):</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"Query: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">hit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">hits</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="n">kind</span> <span class="o">=</span> <span class="n">hit</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"doc"</span><span class="p">)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">] (</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">) </span><span class="si">{</span><span class="n">hit</span><span class="o">.</span><span class="n">text</span><span class="p">[:</span><span class="mi">800</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="k">return</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">rerank</span> <span class="o">=</span> <span class="n">llm_reranker</span><span class="p">(</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">resources</span><span class="o">.</span><span class="n">llm</span><span class="p">,</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">system_prompt</span><span class="o">=</span><span class="p">(</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>        <span class="s2">"You rank NikaRD support excerpts. "</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>        <span class="o">+</span> <span class="n">RERANK_OUTPUT_CONTRACT</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>        <span class="o">+</span> <span class="s2">" Prefer runbooks over marketing pages; prefer newer docs on ties."</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="p">),</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>    <span class="n">user_prompt</span><span class="o">=</span><span class="n">render</span><span class="p">,</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><code>system_prompt</code> replaces the default system prompt — keep
+  <code>RERANK_OUTPUT_CONTRACT</code> in it.</li>
+<li><code>instructions</code> appends domain rules to the default prompt.</li>
+<li><code>user_prompt</code> replaces the numbered-excerpt renderer and receives full
+  <code>SearchHit</code> objects, so it can use metadata (<code>kind</code>, <code>documentId</code>, ...).</li>
+<li>Fails soft: a provider error, invalid JSON or a non-permutation response calls
+  <code>on_error</code> (or logs a warning) and keeps the original order. The raw
+  <code>rerank=</code> hook stays fail-loud.</li>
+<li>Hybrid retrieval first: an LLM rerank adds latency, cost and
+  non-determinism.</li>
+</ul>
+<h2 id="indexes">Indexes<a class="headerlink" href="#indexes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Index</th>
+<th>Persistence</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MemoryIndex</code></td>
+<td>process</td>
+<td>tests, small prototypes; supports keyword search</td>
+</tr>
+<tr>
+<td><code>SqliteIndex</code></td>
+<td>one file</td>
+<td>zero infrastructure, brute-force cosine; supports keyword search</td>
+</tr>
+<tr>
+<td><code>QdrantIndex</code></td>
+<td>remote</td>
+<td>raw REST client (no SDK); collection created on demand; hybrid narrows server-side then BM25-ranks locally</td>
+</tr>
+<tr>
+<td><code>PgVectorIndex</code></td>
+<td>Postgres</td>
+<td><code>pg</code> extra; requires <code>CREATE EXTENSION vector</code>; cosine; server-side metadata/ACL filters and <code>tsvector</code> keyword search</td>
+</tr>
+<tr>
+<td><code>ChromaIndex</code></td>
+<td>local dir / remote client</td>
+<td>optional <code>chromadb</code> extra; cosine distance; dense only (<code>hybrid=True</code> raises <code>ConfigError</code>); pass <code>client=</code> to reuse an existing Chroma client</td>
+</tr>
+</tbody>
+</table>
+<p>All backends implement deterministic point IDs, per-source <code>reconcile</code>,
+metadata filters and optional ACL visibility. Point IDs include the chunker's
+<code>chunk_index</code>, so identical bodies in two sections stay distinct. Switching backends does not change
+the pipeline.</p>
+<p>Built-in indexes validate vector dimensionality: the first upsert pins the
+size, and a later vector of a different size raises <code>ConfigError</code> before
+anything is written. A changed embedding model therefore fails at the boundary
+instead of deep inside a database client. <code>ChromaIndex</code> additionally relies on
+Chroma's own collection check for existing data.</p>
+<p>Optional capabilities are runtime-checkable protocols, not <code>getattr</code> probes:
+<code>KeywordIndexer</code> (<code>keyword_search</code>), <code>BatchIndexer</code> (<code>upsert_batch</code>) and
+<code>CountableIndex</code> (<code>count</code>). An adapter implements only what it supports; the
+pipeline checks the protocol and uses the capability or raises a clear
+<code>ConfigError</code>.</p>
+<p><code>PgVectorIndex</code> requires <code>pip install "reactifact[pg]"</code> and a database with the
+pgvector extension. Pass <code>dsn=</code> or <code>dsn_env=</code>; <code>text_search_config</code> defaults to
+<code>simple</code> (language-neutral) and can be <code>english</code> for stemming. <code>ChromaIndex</code> is
+optional: <code>pip install "reactifact[knowledge-chroma]"</code>. Metadata values are
+stringified for Chroma's scalar-only metadata; the full original metadata is
+preserved under <code>__metadata</code> and returned in <code>SearchHit.metadata</code>.</p>
+<h2 id="incremental-ingestion">Incremental ingestion<a class="headerlink" href="#incremental-ingestion" title="Permanent link">&para;</a></h2>
+<p><code>run(incremental=True)</code> keeps <code>DocStore</code> state keyed by <strong>source identity and
+a pipeline signature</strong> (extraction, chunking, embedding settings). Changing
+chunk size or the embedding model invalidates fingerprints instead of leaving
+stale chunks. The document hash covers content type and metadata as well as
+bytes, so an ACL/title/tag change re-indexes even when the text is unchanged.
+State is committed only after a successful run. Runs are serialized per
+<code>(state_path, source_id)</code> within the process; across processes the contract is
+one ingestion writer per source (use an external lock if you fan out).</p>
+<p>A connector failure aborts <strong>before</strong> reconciliation, so a transient outage
+never makes the corpus look deleted.</p>
+<h3 id="docstore-backends">DocStore backends<a class="headerlink" href="#docstore-backends" title="Permanent link">&para;</a></h3>
+<p><code>DocStore</code> is a protocol. <code>JsonDocStore</code> (the default behind <code>state_path=</code>) is
+one JSON file rewritten on save — fine for small corpora. <code>SqliteDocStore</code>
+keeps the same fingerprints and run ledger in SQLite with transactional
+per-row writes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteDocStore</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">docstore</span> <span class="o">=</span> <span class="n">SqliteDocStore</span><span class="p">(</span><span class="s2">".reactifact/knowledge/state.sqlite3"</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">docstore</span><span class="o">=</span><span class="n">docstore</span><span class="p">)</span>
+</code></pre></div>
+<p>Both expose <code>entry</code>/<code>commit</code>/<code>save</code>/<code>record_run</code>/<code>runs</code>/<code>snapshot</code>, so the
+pipeline and the status router do not care which backend is used. Pass
+<code>docstore=</code> explicitly to choose SQLite; <code>state_path=</code> keeps using JSON.</p>
+<h3 id="failure-isolation-progress-and-concurrency">Failure isolation, progress and concurrency<a class="headerlink" href="#failure-isolation-progress-and-concurrency" title="Permanent link">&para;</a></h3>
+<p>By default a bad document aborts the run (<code>on_error="fail_fast"</code>). For large
+corpora, collect failures and keep going:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">IngestProgress</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">events</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">IngestProgress</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">report</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">incremental</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">on_error</span><span class="o">=</span><span class="s2">"collect"</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">on_progress</span><span class="o">=</span><span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">,</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="p">)</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">report</span><span class="o">.</span><span class="n">documents_failed</span>       <span class="c1"># count</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">report</span><span class="o">.</span><span class="n">failures</span>               <span class="c1"># [IngestFailure(uri, stage, error), ...]</span>
+</code></pre></div>
+<p>A failed document is <strong>not committed</strong> to <code>DocStore</code>; its previous index points
+are kept and the next incremental run retries it. <code>on_progress</code> receives stage
+events (<code>start</code>, <code>fetch</code>, <code>extract</code>, <code>embed</code>, <code>index</code>, <code>reconcile</code>, <code>done</code>) plus
+per-document/failed events with counts.</p>
+<p><code>document_concurrency</code> (default <code>1</code>) parallelizes extract/chunk across
+documents; progress events arrive as each document finishes. Connector fetching
+remains owned by the connector; <code>ProviderEmbedder</code> already batches/concurrently
+embeds.</p>
+<p><code>run(..., batch_size=N)</code> bounds ingestion memory: with a <code>ListingConnector</code>
+only one batch of bodies is fetched, extracted, embedded and upserted at a
+time, and per-batch pending chunks/vectors are released. State is still
+committed once at the end; a fail-fast error leaves earlier batches indexed but
+unreconciled, so the next run repairs them.</p>
+<p>Without a <code>DocStore</code> (non-incremental runs) a failed document has no previous
+hash to restore, so <code>on_error="collect"</code> skips deletion reconciliation for that
+run: successful documents are still upserted, but nothing is deleted. Use
+<code>incremental=True</code> for the full keep-and-retry behavior.</p>
+<h2 id="bridge-to-the-agent-runtime">Bridge to the agent runtime<a class="headerlink" href="#bridge-to-the-agent-runtime" title="Permanent link">&para;</a></h2>
+<p>The two integrations are explicit and optional:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">IndexSource</span><span class="p">,</span> <span class="n">IngestStep</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># retrieval as a regular reactifact Source</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">source</span> <span class="o">=</span> <span class="n">IndexSource</span><span class="p">(</span><span class="n">pipeline</span><span class="p">,</span> <span class="n">hybrid</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">Context</span><span class="p">(</span><span class="n">resources</span><span class="o">=</span><span class="n">RuntimeResources</span><span class="p">(</span><span class="n">embedder</span><span class="o">=...</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="p">{</span><span class="s2">"kb"</span><span class="p">:</span> <span class="n">source</span><span class="p">}))</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># ingestion as a step (when ingestion belongs to the reactive flow)</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">step</span> <span class="o">=</span> <span class="n">IngestStep</span><span class="p">(</span><span class="n">pipeline</span><span class="p">)</span>  <span class="c1"># returns an IngestReportArtifact</span>
+</code></pre></div>
+<p>For most services ingestion is a background job, not an agent step: call
+<code>pipeline.run(...)</code> directly from the scheduler/worker and only expose
+<code>IndexSource</code> to agents.</p>
+<p><code>IndexSource(expand="section")</code> (or <code>"document"</code>) makes <code>resolve</code> return the
+parent section/document instead of the matched chunk: it re-fetches the source
+document and runs the same extractor, so parent text is never stored in the
+index. Expansion uses per-URI <code>fetch(uris=...)</code> for <code>ListingConnector</code>s and a
+full fetch for plain connectors; a missing document or section raises
+<code>KnowledgeError</code>, which <code>materialize_doc</code> reports through <code>on_error</code>.</p>
+<p><code>IndexSource(principals=["alice"])</code> (or a callable returning principals)
+applies ACL filtering to every search, so RAG cannot silently query without an
+identity. <code>require_principals=True</code> turns a missing identity into a
+<code>ConfigError</code> instead of an unfiltered search.</p>
+<h2 id="custom-connectors-and-indexes">Custom connectors and indexes<a class="headerlink" href="#custom-connectors-and-indexes" title="Permanent link">&para;</a></h2>
+<p>The built-in <code>FilesystemConnector</code> covers the common local-docs case:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilesystemConnector</span><span class="p">,</span> <span class="n">KnowledgePipeline</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">KnowledgePipeline</span><span class="p">(</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">FilesystemConnector</span><span class="p">(</span><span class="s2">"docs"</span><span class="p">,</span> <span class="n">source_id</span><span class="o">=</span><span class="s2">"docs"</span><span class="p">),</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">embedder</span><span class="o">=</span><span class="n">embedder</span><span class="p">,</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="p">)</span>
+</code></pre></div>
+<p>It provides content fingerprints and <code>fetch(uris=...)</code>, so incremental runs
+skip unchanged files. A missing root raises <code>SourceError</code> instead of treating
+the corpus as empty and reconciling it away.</p>
+<h3 id="built-in-connectors-and-extractors">Built-in connectors and extractors<a class="headerlink" href="#built-in-connectors-and-extractors" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Connector</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FilesystemConnector</code></td>
+<td>text files under a directory; content hashes; per-URI fetch</td>
+</tr>
+<tr>
+<td><code>HttpConnector</code></td>
+<td>explicit URLs or a sitemap; <code>ETag</code>/<code>Last-Modified</code> fingerprints; <code>httpx</code> is a core dependency</td>
+</tr>
+<tr>
+<td><code>S3Connector</code></td>
+<td>one bucket with an optional prefix; <code>ETag</code> listing; <code>knowledge-s3</code> (<code>boto3</code>)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Extractor</th>
+<th>Input</th>
+<th>Extra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MarkdownExtractor</code></td>
+<td>Markdown / plain text</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>HtmlExtractor</code></td>
+<td>static HTML</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>CsvExtractor</code></td>
+<td>CSV → Markdown table sections</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>JsonExtractor</code></td>
+<td>JSON objects/arrays → sections</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>PdfExtractor</code></td>
+<td>one section per PDF page</td>
+<td><code>knowledge-pdf</code> (<code>pypdf</code>)</td>
+</tr>
+<tr>
+<td><code>DocxExtractor</code></td>
+<td>DOCX headings, paragraphs, tables</td>
+<td><code>knowledge-office</code> (<code>python-docx</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><code>AutoExtractor</code> dispatches by content type, then by URI suffix. Optional
+extractors are imported lazily and the error names the extra to install.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpConnector</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">KnowledgePipeline</span><span class="p">(</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">HttpConnector</span><span class="p">(</span><span class="n">sitemap</span><span class="o">=</span><span class="s2">"https://docs.example/sitemap.xml"</span><span class="p">),</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">embedder</span><span class="o">=</span><span class="n">embedder</span><span class="p">,</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">)</span>
+</code></pre></div>
+<p>There is no registry to extend — implement the protocol and pass an instance:</p>
+<ul>
+<li><strong>Source connectors</strong> satisfy <code>Connector</code> (<code>source_id</code> + <code>fetch()</code>), or
+  <code>ListingConnector</code> (adds <code>list_documents()</code> and <code>fetch(uris=...)</code> for cheap
+  incremental skips).</li>
+<li><strong>Vector stores</strong> satisfy <code>Indexer</code> (<code>upsert</code>, <code>reconcile</code>, <code>search</code>); add
+  <code>KeywordIndexer.keyword_search</code> for hybrid retrieval,
+  <code>BatchIndexer.upsert_batch</code> for bulk writes and <code>CountableIndex.count</code> for
+  the status page. These are runtime-checkable protocols: implementing the
+  method is the whole registration step.</li>
+</ul>
+<p><code>MemoryIndex</code>, <code>SqliteIndex</code>, <code>QdrantIndex</code>, <code>PgVectorIndex</code> and <code>ChromaIndex</code>
+are reference implementations of the same contract; a Milvus adapter is just
+another class passed as <code>index=</code>.</p>
+<h2 id="status-page-optional-fastapi-router">Status page (optional FastAPI router)<a class="headerlink" href="#status-page-optional-fastapi-router" title="Permanent link">&para;</a></h2>
+<p>Ingestion is a background job, not an agent run, so it does not go into
+<code>RunTrace</code>. The knowledge layer ships a separate read-only router that reads the
+<code>DocStore</code> run ledger:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">reactifact.knowledge.web</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_knowledge_router</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">create_knowledge_router</span><span class="p">(</span><span class="n">docstore</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">pipeline</span><span class="o">.</span><span class="n">index</span><span class="p">),</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">prefix</span><span class="o">=</span><span class="s2">"/knowledge"</span><span class="p">,</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><code>GET /knowledge/</code> — per-source last run, document/chunk counts, errors,
+  embed-cache hits, and the recent run history.</li>
+<li><code>GET /knowledge/api/knowledge/status</code> — the same data as JSON.</li>
+<li><code>index</code> is optional; when given, the page also shows the backend type and
+  <code>count()</code>.</li>
+</ul>
+<p>It requires the <code>web</code> extra (<code>pip install "reactifact[web]"</code>) and is mounted
+independently from the traces router. The traces dashboard keeps describing
+agent runs; <code>/knowledge</code> describes corpus builds.</p>
+<h2 id="what-is-intentionally-absent">What is intentionally absent<a class="headerlink" href="#what-is-intentionally-absent" title="Permanent link">&para;</a></h2>
+<ul>
+<li>YAML pipelines and a <code>knowledge</code> CLI.</li>
+<li>A plugin registry / type strings.</li>
+<li>Answer synthesis, reranking and chat — use <code>reactifact.quick.rag</code>,
+  <code>reactifact.providers</code> and <code>reactifact.recipes</code>.</li>
+<li>Evaluation and tracing — use <code>reactifact.eval</code> and <code>reactifact.tracing</code>.</li>
+</ul>
+<p>Keeping those out of <code>knowledge</code> is what makes it a capability layer rather
+than a second framework inside reactifact.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
