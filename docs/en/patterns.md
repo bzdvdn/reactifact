@@ -24,7 +24,7 @@ set of steps behind one `consumes` contract and a retry/timeout/fallback/priorit
 policy.
 
 ```python
-from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+from reactifact import Agent, Consume, Pipeline, PipelineRunner, RetryPolicy, RunConfig, Step
 
 class Answerer(Step[Answer]):
     async def run(self, question: Question) -> Answer:
@@ -45,7 +45,7 @@ QA = Pipeline(
     answer_type=Answer,
 )
 
-runner = PipelineRunner(QA, resources=resources)
+runner = PipelineRunner(QA, config=RunConfig(resources=resources))
 result = runner.run(Question(text="hello"))
 ```
 
@@ -53,7 +53,7 @@ result = runner.run(Question(text="hello"))
   unit. `Route` and `Pipeline` accept it directly.
 - `Pipeline.agents=[...]` and `Pipeline.routes=[...]` are declarative structure;
   `Pipeline.agents` flattens them for `Runtime`.
-- `PipelineRunner` owns resources/budget/tracer and does the execution.
+- `PipelineRunner` + `RunConfig` own resources/budget/tracing and execution.
 - `StepGroup` and `create_step_group` remain importable for 0.x app code, but
   are not part of the authoring surface: new code uses `Agent(...)`.
 - An agent is **not** an execution barrier: it is a named group, not an ordering

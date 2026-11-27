@@ -24,7 +24,7 @@
 retry/timeout/fallback/priority.
 
 ```python
-from reactifact import Consume, Agent, Pipeline, PipelineRunner, RetryPolicy, Step
+from reactifact import Agent, Consume, Pipeline, PipelineRunner, RetryPolicy, RunConfig, Step
 
 class Answerer(Step[Answer]):
     async def run(self, question: Question) -> Answer:
@@ -45,7 +45,7 @@ QA = Pipeline(
     answer_type=Answer,
 )
 
-runner = PipelineRunner(QA, resources=resources)
+runner = PipelineRunner(QA, config=RunConfig(resources=resources))
 result = runner.run(Question(text="hello"))
 ```
 
@@ -56,7 +56,7 @@ result = runner.run(Question(text="hello"))
   `Read.after_delete` — event-only и не даёт данных артефакта.
 - `Pipeline.agents=[...]` и `Pipeline.routes=[...]` — декларативная структура;
   `Pipeline.agents` разворачивает её для `Runtime`.
-- `PipelineRunner` владеет ресурсами/бюджетом/tracer и выполняет прогон.
+- `PipelineRunner` + `RunConfig` владеют ресурсами/бюджетом/tracing и выполняют прогон.
 - `StepGroup` и `create_step_group` остаются импортируемыми для кода 0.x, но
   не входят в authoring-surface: новый код использует `Agent(...)`.
 - Агент **не** является барьером исполнения: это именованная группа, а не

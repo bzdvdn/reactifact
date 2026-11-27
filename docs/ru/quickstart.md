@@ -68,16 +68,17 @@ smoke-запуска.
 ```python
 import asyncio
 
-from reactifact import Daemon
+from reactifact import Daemon, RunConfig
 
 asyncio.run(
     Daemon(
         pipeline,
         seed_source=next_tick,   # sync/async: индекс тика -> seed | None
+        config=RunConfig(traces=True),
         interval=60,
     ).serve()
 )
-# tracing настраивается на Pipeline (traces=True/путь), а не на Daemon
+# runtime-настройки (включая tracing) живут в RunConfig, а не в Daemon
 ```
 
 `reactifact daemon app.pipeline:pipeline --seed app.seeds:next_tick --interval 60`
@@ -134,12 +135,12 @@ app = chat.http(
 
 ## Одно определение: `Pipeline` + `PipelineRunner`
 
-`Pipeline` — декларативное определение: агенты, ресурсы и дефолты.
-`PipelineRunner` исполняет его и на каждый запуск создаёт свежие
-`Context` + `Runtime`.
+`Pipeline` — декларативное определение: агенты, маршруты и seed/answer модели.
+`PipelineRunner` владеет ресурсами, бюджетом, tracing и исполнением, а на каждый
+запуск создаёт свежие `Context` + `Runtime`.
 
 ```python
-from reactifact import Agent, Pipeline, PipelineRunner
+from reactifact import Agent, Pipeline, PipelineRunner, RunConfig
 
 pipeline = Pipeline(
     agents=[
@@ -167,7 +168,7 @@ Async-варианты — `arun(seed)` и `astream(seed)`; низкоуровн
 def answer(question: Question, llm: LLMProvider) -> Answer: ...
 
 pipeline = Pipeline(agents=[Agent("answer", steps=[answer])])
-runner = PipelineRunner(pipeline, llm=default_llm)
+runner = PipelineRunner(pipeline, config=RunConfig(llm=default_llm))
 runner.override(LLMProvider, FakeLLM())
 ```
 
@@ -179,7 +180,7 @@ async def lifespan():
     yield build_resources()
     await close_resources()
 
-async with PipelineRunner(pipeline, lifespan=lifespan) as runner:
+async with PipelineRunner(pipeline, config=RunConfig(lifespan=lifespan)) as runner:
     result = await runner.arun(Question(text="..."))
 ```
 
@@ -254,10 +255,10 @@ pipeline = Pipeline(
     agents=[Agent("answer", steps=[extract, classify, answer])],
     seed_type=Question,
     answer_type=Answer,
-    traces=True,
 )
 
-app = pipeline.http()
+runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
+app = runner.http()
 ```
 
 `reactifact dev main:app` поднимает `POST /run`, `POST /stream`, `/health`,

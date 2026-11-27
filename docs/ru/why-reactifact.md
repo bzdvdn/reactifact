@@ -171,15 +171,14 @@ Runtime проверяет результат по `produces`, коммитит 
 запуска, `Chat` — для разговора:
 
 ```python
-from reactifact import Chat, Agent, Pipeline, PipelineRunner
+from reactifact import Chat, Agent, Pipeline, PipelineRunner, RunConfig
 
 pipeline = Pipeline(
     agents=[Agent("answer", steps=[search, answer])],
     seed_type=Question,
     answer_type=Answer,
-    traces=True,
 )
-result = PipelineRunner(pipeline).run(Question(text="почему выросли расходы во Q2?"))
+result = PipelineRunner(pipeline, config=RunConfig(traces=True)).run(Question(text="почему выросли расходы во Q2?"))
 
 chat = Chat(
     agents=[Agent("answer", steps=[search, answer])],

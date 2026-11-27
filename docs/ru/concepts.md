@@ -277,7 +277,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Реакция на тип | `Consume(Type)` |
 | Только одно lifecycle-событие | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `consumes` (автоматически), `Annotated[T, Wakes(False)]`, когда `consumes` выводится, `Consume(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
+| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `reads` (автоматически), `Annotated[T, Wakes(False)]`, когда `reads` выводится, `Read(..., required=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
 | История между ходами | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (добавьте `Wakes(False)` для чтения) |
 | Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 

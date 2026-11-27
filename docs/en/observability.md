@@ -122,7 +122,7 @@ reactifact trace traces.db <run_id> --format html --out trace.html
 reactifact trace traces.db <run_id> --against <other_id>
 ```
 
-`Pipeline(traces=True)` or `traces="traces.db"` records every run without
+`PipelineRunner(..., config=RunConfig(traces=True))` or `RunConfig(traces="traces.db")` records every run without
 building a `Tracer` by hand; `result.trace_id` and `await result.trace()` read
 it back. This is the non-FastAPI path: scripts, notebooks and CI use the same
 trace store.

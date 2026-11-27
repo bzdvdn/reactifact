@@ -65,6 +65,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Progress",
             "Pipeline",
             "PipelineRunner",
+            "RunConfig",
             "PendingAction",
             "PendingQuestion",
             "ProvenanceLink",

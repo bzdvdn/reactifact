@@ -5,8 +5,8 @@
     Daemon(
         pipeline,
         seed_source=next_tick,   # sync/async: tick index -> seed | None
+        config=RunConfig(traces=True),
         interval=60,
-        traces=True,
         run_once=False,
     ).serve()
 
@@ -26,7 +26,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from typing import Any
 
-from .pipeline import Pipeline
+from .pipeline import Pipeline, PipelineRunner, RunConfig
 
 logger = logging.getLogger("reactifact.daemon")
 
@@ -41,8 +41,9 @@ class Daemon:
 
     def __init__(
         self,
-        pipeline: Pipeline | None = None,
+        pipeline: Pipeline | PipelineRunner | None = None,
         *,
+        config: RunConfig | None = None,
         seed_source: SeedSource | None = None,
         tick: TickFn | None = None,
         interval: float = 60.0,
@@ -54,6 +55,7 @@ class Daemon:
     ):
         self._tick: TickFn | None = None
         self.pipeline: Pipeline | None = None
+        self.runner: PipelineRunner | None = None
         self.seed_source: SeedSource | None = None
         if tick is not None:
             if pipeline is not None or seed_source is not None:
@@ -62,7 +64,13 @@ class Daemon:
         else:
             if pipeline is None or seed_source is None:
                 raise TypeError("Daemon requires tick= or pipeline= + seed_source=")
-            self.pipeline = pipeline
+            if isinstance(pipeline, PipelineRunner):
+                if config is not None:
+                    raise TypeError("Pass config= only with a Pipeline, not a runner")
+                self.runner = pipeline
+            else:
+                self.runner = PipelineRunner(pipeline, config=config)
+            self.pipeline = self.runner.pipeline
             self.seed_source = seed_source
         if interval < 0:
             raise ValueError("interval must be >= 0")
@@ -92,13 +100,16 @@ class Daemon:
         if self._tick is not None:
             result = self._tick(sequence)
         else:
-            assert self.pipeline is not None and self.seed_source is not None
+            assert self.runner is not None and self.seed_source is not None
             seed = self.seed_source(sequence)
             if inspect.isawaitable(seed):
                 seed = await seed
             if seed is None:
                 return None
-            result = await self.pipeline.arun(seed)
+            result = await self.runner.arun(seed)
+            if self.pipeline is not None:
+                self.pipeline.last_result = self.runner.last_result
+                self.pipeline.last_context = self.runner.last_context
         if inspect.isawaitable(result):
             result = await result
         return result

@@ -36,6 +36,10 @@ is in how it's used, not its bare signature.
 
 ::: reactifact.PipelineRunner
 
+### RunConfig
+
+::: reactifact.RunConfig
+
 ### Agent
 
 ::: reactifact.Agent

@@ -72,7 +72,7 @@ from .interaction import Human, Outbox, Progress
 from .interrupt import PendingAction, PendingQuestion
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
-from .pipeline import Pipeline, PipelineRunner
+from .pipeline import Pipeline, PipelineRunner, RunConfig
 from .policy import RetryPolicy
 from .provenance import (
     CALCULATED_FROM,
@@ -161,6 +161,7 @@ __all__ = [
     "Read",
     "Pipeline",
     "PipelineRunner",
+    "RunConfig",
     "PendingAction",
     "PendingQuestion",
     "Progress",

@@ -31,9 +31,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   declarative `Agent(steps=[...])` and `@agent` forms stay canonical.
 - **`CommitRead`.** `reactifact.commit.Read` is now `CommitRead` (old name is
   a compatibility alias); `reactifact.Read` is the step input descriptor.
-- **`PipelineRunner`.** `PipelineRunner(pipeline, resources=..., budget=...)`
-  owns execution and offers `run/arun/astream/answer/aanswer`, overrides and
-  `last_result`; `Pipeline` remains the declarative definition.
+- **`PipelineRunner` + `RunConfig`.** `Pipeline` is the declarative
+  definition; `PipelineRunner(pipeline, config=RunConfig(...))` owns resources,
+  budget, tracing, lifespan and execution (`run/arun/astream/answer/aanswer`,
+  overrides, HTTP/as-tool/test clients). The old runtime keyword arguments and
+  `Pipeline.run`-style shortcuts remain compatibility shims.
+- **`Daemon` accepts a runner.** `Daemon(pipeline, config=RunConfig(...), ...)`
+  is the short form; `Daemon(runner, ...)` reuses an existing execution object.
 - **`Chat(pipeline=...)`.** A `Chat` can reuse a `Pipeline` definition and infer
   its seed/answer types and agents. `Chat`/`ChatAssistant`/`quick.chat_agent`
   accept `agents=` (`groups=` stays a compatibility alias).

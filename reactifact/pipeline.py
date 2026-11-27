@@ -1,12 +1,13 @@
-"""`Pipeline` — the FastAPI-style facade over Context + Runtime.
+"""`Pipeline` is the definition; `PipelineRunner` is the execution.
 
-    pipeline = Pipeline(steps=[plan, search, answer])
-    result = pipeline.run(Question(text="..."))
-    result.latest(Answer)
+    pipeline = Pipeline(agents=[...], seed_type=Question, answer_type=Answer)
+    runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
+    result = runner.run(Question(text="..."))
 
-`Pipeline` is a thin facade, not a second engine: each run builds a fresh
-`Context` and `Runtime` from the same steps/resources. The low-level objects
-stay public for branch/merge, replay and tests.
+`Pipeline` owns structure and seed/answer models. `PipelineRunner` owns
+resources, budget, tracing and execution; its compatibility shortcuts on
+`Pipeline` delegate to a runner. The low-level objects stay public for
+branch/merge, replay and tests.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from __future__ import annotations
 import copy
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -43,6 +45,27 @@ class _RouteLike(Protocol):
     def groups(self) -> list[Agent]: ...
 
 
+@dataclass
+class RunConfig:
+    """Runtime settings for `PipelineRunner` (and the compatibility wrappers).
+
+    `Pipeline` owns the definition; this object owns resources and execution
+    policy. All fields are optional: unset values fall back to the pipeline's
+    legacy defaults (for compatibility) or to `Runtime` defaults.
+    """
+
+    resources: RuntimeResources | None = None
+    llm: LLMProvider | None = None
+    budget: Budget | None = None
+    tracer: Any = None
+    max_concurrency: int | None = None
+    isolate_errors: bool | None = None
+    on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None
+    lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]] | None = None
+    traces: bool | str | Path | Any | None = None
+    trace_sample: Any = None
+
+
 class Pipeline:
     """A reusable agent pipeline definition: agents + routes.
 
@@ -50,8 +73,9 @@ class Pipeline:
     route cases are `Agent` objects. ``steps=``/``groups=`` remain the low-level
     shorthand; both normalize into ``pipeline.agents``.
 
-    `Pipeline` owns the definition, default seed/answer types and compatibility
-    run methods. New code can execute it through `PipelineRunner`.
+    `Pipeline` owns the definition and seed/answer models. Runtime settings
+    belong to `PipelineRunner`/`RunConfig`; the legacy resources/llm/budget/
+    tracing arguments and `run()` shortcuts remain for compatibility.
     """
 
     def __init__(
@@ -235,9 +259,7 @@ class Pipeline:
         Needs `seed_type=` and `answer_type=`. FastAPI is imported lazily, so
         the core package does not depend on it; install `reactifact[web]`.
         """
-        from .web import create_pipeline_router
-
-        return create_pipeline_router(self, **kwargs)
+        return PipelineRunner(self).router(**kwargs)
 
     def http(self, **kwargs: Any) -> Any:
         """A ready FastAPI app: run/stream routes, `/docs`, `/contracts`, traces.
@@ -245,9 +267,7 @@ class Pipeline:
         The web adapter, not the core: `Pipeline` stays usable from a CLI,
         daemon, queue or MCP without FastAPI installed.
         """
-        from .web import create_http_app
-
-        return create_http_app(self, **kwargs)
+        return PipelineRunner(self).http(**kwargs)
 
     def as_tool(
         self,
@@ -264,10 +284,7 @@ class Pipeline:
         latest `answer_type`; `create_mcp_server([pipeline.as_tool()])` is the
         MCP adapter. Requires `seed_type=` and `answer_type=`.
         """
-        if self.seed_type is None or self.answer_type is None:
-            raise TypeError("Pipeline.as_tool requires seed_type= and answer_type=")
-        return _PipelineTool(
-            self,
+        return PipelineRunner(self).as_tool(
             name=name,
             description=description,
             destructive=destructive,
@@ -275,35 +292,14 @@ class Pipeline:
             timeout=timeout,
         )
 
-    def _prepare(self, seed: Artifact[Any] | Any) -> tuple[Context, Runtime]:
-        if self.lifespan is not None and self._lifespan_cm is None:
-            raise RuntimeError(
-                "this Pipeline has a lifespan; use `async with pipeline:` and "
-                "`await pipeline.arun(...)`"
-            )
-        resources = self.resources
-        if self.llm is not None:
-            resources = copy.copy(resources)
-            resources.llm = self.llm
-        if self._overrides:
-            resources = resources.with_overrides(self._overrides)
-        context = Context(resources=resources)
-        if isinstance(seed, Artifact):
-            if context.get(seed.id) is None:
-                context.create(seed.data, id=seed.id)
-        else:
-            context.create(seed)
-        runtime = Runtime(
-            context,
-            agents=self.agents,
-            budget=self.budget,
-            tracer=self.tracer,
-            max_concurrency=self.max_concurrency,
-            isolate_errors=self.isolate_errors,
-            on_agent_error=self.on_agent_error,
-        )
-        self.last_context = context
-        return context, runtime
+    def _compat_runner(self) -> PipelineRunner:
+        runner = PipelineRunner(self)
+        # `async with pipeline:` already entered the lifespan; the runner must
+        # reuse those resources instead of trying to enter it again.
+        if self._lifespan_cm is not None:
+            runner.resources = self.resources
+            runner.lifespan = None
+        return runner
 
     def run(
         self,
@@ -313,20 +309,15 @@ class Pipeline:
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
     ) -> RunResult:
-        """Seed one artifact, run to completion, return a `RunResult`."""
-        context, runtime = self._prepare(seed)
-        runs = runtime.run(
+        """Compatibility shortcut for `PipelineRunner(self).run(...)`."""
+        runner = self._compat_runner()
+        result = runner.run(
+            seed,
             max_iterations=max_iterations,
-            budget=budget or self.budget,
+            budget=budget,
             request=request,
         )
-        result = RunResult(
-            context,
-            runs,
-            runtime.outcome,
-            trace_id=runtime.run_id,
-            trace_store=self.trace_store,
-        )
+        self.last_context = result.context
         self.last_result = result
         return result
 
@@ -338,20 +329,15 @@ class Pipeline:
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
     ) -> RunResult:
-        """Async form of `run()`."""
-        context, runtime = self._prepare(seed)
-        runs = await runtime.arun(
+        """Compatibility shortcut for `PipelineRunner(self).arun(...)`."""
+        runner = self._compat_runner()
+        result = await runner.arun(
+            seed,
             max_iterations=max_iterations,
-            budget=budget or self.budget,
+            budget=budget,
             request=request,
         )
-        result = RunResult(
-            context,
-            runs,
-            runtime.outcome,
-            trace_id=runtime.run_id,
-            trace_store=self.trace_store,
-        )
+        self.last_context = result.context
         self.last_result = result
         return result
 
@@ -363,21 +349,17 @@ class Pipeline:
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
     ) -> BaseModel:
-        """Run once and return the typed `answer_type` artifact.
-
-        The `Pipeline` equivalent of `Chat.answer()`; requires `answer_type=...`.
-        """
-        if self.answer_type is None:
-            raise TypeError("Pipeline.answer requires answer_type=...")
-        result = self.run(
-            seed, max_iterations=max_iterations, budget=budget, request=request
+        """Compatibility shortcut for `PipelineRunner(self).answer(...)`."""
+        runner = self._compat_runner()
+        result = runner.answer(
+            seed,
+            max_iterations=max_iterations,
+            budget=budget,
+            request=request,
         )
-        artifact = result.context.latest(self.answer_type)
-        if artifact is None:
-            raise LookupError(
-                f"Pipeline.answer: no {self.answer_type.__name__} was produced"
-            )
-        return artifact.data
+        self.last_context = runner.last_context
+        self.last_result = runner.last_result
+        return result
 
     async def aanswer(
         self,
@@ -387,29 +369,17 @@ class Pipeline:
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
     ) -> BaseModel:
-        """Async form of `answer()`."""
-        if self.answer_type is None:
-            raise TypeError("Pipeline.answer requires answer_type=...")
-        result = await self.arun(
-            seed, max_iterations=max_iterations, budget=budget, request=request
+        """Compatibility shortcut for `PipelineRunner(self).aanswer(...)`."""
+        runner = self._compat_runner()
+        result = await runner.aanswer(
+            seed,
+            max_iterations=max_iterations,
+            budget=budget,
+            request=request,
         )
-        artifact = result.context.latest(self.answer_type)
-        if artifact is None:
-            raise LookupError(
-                f"Pipeline.answer: no {self.answer_type.__name__} was produced"
-            )
-        return artifact.data
-
-    def close(self) -> None:
-        """Close the trace store opened by `traces=` (no-op otherwise)."""
-        if self.trace_store is not None and hasattr(self.trace_store, "close"):
-            self.trace_store.close()
-
-    def test_client(self, *, traces: bool = True) -> Any:
-        """An in-memory `Pipeline` for tests (fresh overrides, trace store)."""
-        from .testing.client import TestPipeline
-
-        return TestPipeline(self, traces=traces)
+        self.last_context = runner.last_context
+        self.last_result = runner.last_result
+        return result
 
     async def astream(
         self,
@@ -419,35 +389,44 @@ class Pipeline:
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
     ) -> AsyncIterator[Any]:
-        """Yield progress events; `last_result` is filled at the end."""
-        context, runtime = self._prepare(seed)
-        async for event in runtime.astream(
-            budget=budget or self.budget,
+        """Compatibility shortcut for `PipelineRunner(self).astream(...)`."""
+        runner = self._compat_runner()
+        async for event in runner.astream(
+            seed,
             max_iterations=max_iterations,
+            budget=budget,
             request=request,
         ):
             yield event
-        self.last_result = RunResult(
-            context,
-            runtime.last_stats.runs if runtime.last_stats else 0,
-            runtime.outcome,
-            trace_id=runtime.run_id,
-            trace_store=self.trace_store,
-        )
+        self.last_context = runner.last_context
+        self.last_result = runner.last_result
+
+    def close(self) -> None:
+        """Compatibility shortcut for `PipelineRunner(self).close()`."""
+        PipelineRunner(self).close()
+
+    def test_client(self, *, traces: bool = True) -> Any:
+        """An in-memory `Pipeline` for tests (fresh overrides, trace store)."""
+        from .testing.client import TestPipeline
+
+        return TestPipeline(self, traces=traces)
 
 
 class PipelineRunner:
     """Executes a `Pipeline` definition with runtime resources and defaults.
 
     `Pipeline` owns the structure (agents/routes/steps/seed/answer); the runner
-    owns resources, budget, tracer, concurrency and overrides. `run()` /
-    `arun()` seed one artifact and return a `RunResult`; `astream()` streams
-    progress events and leaves the final `last_result` behind.
+    owns resources, budget, tracer, concurrency and overrides. Pass a
+    `RunConfig` for the canonical configuration; explicit keyword arguments
+    remain as compatibility overrides. `run()`/`arun()` seed one artifact and
+    return a `RunResult`; `astream()` streams progress events and leaves the
+    final `last_result` behind.
     """
 
     def __init__(
         self,
         pipeline: Pipeline,
+        config: RunConfig | None = None,
         *,
         resources: RuntimeResources | None = None,
         llm: LLMProvider | None = None,
@@ -461,33 +440,82 @@ class PipelineRunner:
         traces: bool | str | Path | Any | None = None,
         trace_sample: Any = None,
     ) -> None:
+        base = config or RunConfig()
         self.pipeline = pipeline
-        self.resources = resources if resources is not None else pipeline.resources
-        self.llm = llm if llm is not None else pipeline.llm
-        self.budget = budget if budget is not None else pipeline.budget
+        self.config = config
+        self.resources = (
+            resources
+            if resources is not None
+            else base.resources
+            if base.resources is not None
+            else pipeline.resources
+        )
+        self.llm = (
+            llm
+            if llm is not None
+            else base.llm
+            if base.llm is not None
+            else pipeline.llm
+        )
+        self.budget = (
+            budget
+            if budget is not None
+            else base.budget
+            if base.budget is not None
+            else pipeline.budget
+        )
         self.max_concurrency = (
-            max_concurrency if max_concurrency is not None else pipeline.max_concurrency
+            max_concurrency
+            if max_concurrency is not None
+            else base.max_concurrency
+            if base.max_concurrency is not None
+            else pipeline.max_concurrency
         )
         self.isolate_errors = (
-            isolate_errors if isolate_errors is not None else pipeline.isolate_errors
+            isolate_errors
+            if isolate_errors is not None
+            else base.isolate_errors
+            if base.isolate_errors is not None
+            else pipeline.isolate_errors
         )
         self.on_agent_error = (
-            on_agent_error if on_agent_error is not None else pipeline.on_agent_error
+            on_agent_error
+            if on_agent_error is not None
+            else base.on_agent_error
+            if base.on_agent_error is not None
+            else pipeline.on_agent_error
         )
-        self.lifespan = lifespan if lifespan is not None else pipeline.lifespan
+        self.lifespan = (
+            lifespan
+            if lifespan is not None
+            else base.lifespan
+            if base.lifespan is not None
+            else pipeline.lifespan
+        )
         self.trace_sample = (
-            trace_sample if trace_sample is not None else pipeline.trace_sample
+            trace_sample
+            if trace_sample is not None
+            else base.trace_sample
+            if base.trace_sample is not None
+            else pipeline.trace_sample
         )
         self.trace_store: Any = pipeline.trace_store
-        self.tracer = tracer if tracer is not None else pipeline.tracer
-        if traces:
+        self.tracer = (
+            tracer
+            if tracer is not None
+            else base.tracer
+            if base.tracer is not None
+            else pipeline.tracer
+        )
+        selected_traces = traces if traces is not None else base.traces
+        if selected_traces:
             from .tracing import TraceStore
 
             self.trace_store = (
-                TraceStore(str(traces))
-                if isinstance(traces, (str, Path))
-                else traces
-                if not isinstance(traces, bool)
+                TraceStore(str(selected_traces))
+                if isinstance(selected_traces, (str, Path))
+                else selected_traces
+                if not isinstance(selected_traces, bool)
                 else TraceStore(":memory:")
             )
             if self.tracer is None:

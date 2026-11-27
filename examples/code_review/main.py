@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from reactifact import Agent, Pipeline, PipelineRunner, RuntimeResources
+from reactifact import Agent, Pipeline, PipelineRunner, RunConfig, RuntimeResources
 from reactifact.providers import LLMProvider
 
 from .models import ReviewReport, ReviewRequest
@@ -48,7 +48,9 @@ def run_review(
     llm: LLMProvider | None = None,
 ) -> ReviewReport | None:
     """Run the review pipeline; returns the final report (or None)."""
-    runner = PipelineRunner(PIPELINE, resources=RuntimeResources(llm=llm))
+    runner = PipelineRunner(
+        PIPELINE, config=RunConfig(resources=RuntimeResources(llm=llm))
+    )
     result = runner.run(ReviewRequest(diff=diff, instructions=instructions))
     report = result.context.latest(ReviewReport)
     return report.data if report is not None else None

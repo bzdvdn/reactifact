@@ -77,15 +77,14 @@ The same typed pipeline runs as a library, CLI, HTTP service, daemon or MCP
 tool. Web and MCP are adapters, not the core.
 
 ```python
-from reactifact import Agent, Pipeline, PipelineRunner
+from reactifact import Agent, Pipeline, PipelineRunner, RunConfig
 
 pipeline = Pipeline(
     agents=[Agent("answer", consumes=[Question], steps=[...])],
     seed_type=Question,
     answer_type=Answer,
-    traces=True,
 )
-runner = PipelineRunner(pipeline)
+runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
 
 runner.run(seed)                           # library
 app = runner.http()                        # /run, /stream, /docs, /contracts, /traces

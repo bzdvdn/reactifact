@@ -124,7 +124,7 @@ reactifact trace traces.db <run_id> --format html --out trace.html
 reactifact trace traces.db <run_id> --against <other_id>
 ```
 
-`Pipeline(traces=True)` или `traces="traces.db"` пишет каждый запуск без ручной
+`PipelineRunner(..., config=RunConfig(traces=True))` или `RunConfig(traces="traces.db")` пишет каждый запуск без ручной
 сборки `Tracer`; `result.trace_id` и `await result.trace()` читают его обратно.
 Это путь без FastAPI: скрипты, ноутбуки и CI используют тот же trace store.
 
