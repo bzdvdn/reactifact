@@ -77,30 +77,31 @@ duplicated. `on_start` / `on_count` give you progress announces over SSE.
 from reactifact.recipes import MemoryStore
 
 memory = MemoryStore(backend, namespace=f"user:{user_id}")
-await memory.put(
-    "tone",
-    {"value": "concise"},
-    text="prefers concise answers with citations",
+await memory.remember(
+    "prefers concise answers with citations",
+    value={"tone": "concise"},
     tags={"kind": "preference"},
     ttl_seconds=90 * 24 * 3600,
 )
-hits = await memory.search("how should answers be written?", k=3)
+hits = await memory.recall("how should answers be written?", k=3)
 ```
 
 Namespaces are mandatory (or set on the store), so a recall cannot read another
 user/workspace; `tags` filter, `ttl_seconds` expires on read/list/search, and
-`search` is deterministic keyword ranking (`keyword_score`, stems/plurals) with
-a pluggable `searcher(record, query)` for semantic recall. `forget()` clears a
-namespace. Records persist through any `KVBackend` (file/SQLite/Postgres).
+`recall` is deterministic keyword ranking (`keyword_score`, stems/plurals) with
+a pluggable `searcher(record, query)` for semantic recall. `remember` derives a
+stable key from the text unless you pass one. `forget()` clears a namespace.
+Records persist through any `KVBackend` (file/SQLite/Postgres); `put`/`get`/
+`list`/`search` remain the lower-level engine API.
 
 A store is a **cross-session index, not a copy of the chat**: sessions and
-checkpoints stay the source of truth. `remember_from(artifact, key=…)`
+checkpoints stay the source of truth. `remember_artifact(artifact, key=…)`
 indexes a curated artifact (a report, a preference) and records its
 `source_session` / `source_artifact` / `source_version`, so the entry can be
 rebuilt or erased later:
 
 ```python
-record = await memory.remember_from(
+record = await memory.remember_artifact(
     report,
     key=f"incident:{report.id}",
     source_session=session_id,          # explicit: request/UserMsg/app state
@@ -116,20 +117,29 @@ ambient runtime state. Pass the session from the request/user artifact, or `""`
 when the memory is not tied to one; `forget_source("")` is rejected so an empty
 key can never mass-delete sessionless records.
 
-When the write must happen **after** the artifact commits, use the outbox form
-from a step; the recipe owns the action payload and the dispatcher:
+When the write must happen **after** the artifact commits, return the
+instruction from a step; the recipe owns the action payload and the dispatcher:
 
 ```python
-memory.remember_after_commit(
-    effects, report, key=f"incident:{report.id}", source_session=session_id
-)
+from reactifact import Artifact, Ensure, PendingAction, step
+
+@step(produces=PendingAction, reads=Report)
+async def remember(report: Artifact[Report]) -> Ensure:
+    return memory.remember_later(
+        report,
+        key=f"incident:{report.id}",
+        source_session=session_id,
+    )
+
 # app: Runtime(..., dispatcher=MemoryStore.dispatch)
 ```
 
-`remember_after_commit` records a `PendingAction`; `MemoryStore.dispatch`
-resolves the registered store from `context.resources` and calls `put` after the
-commit. Unknown action kinds are ignored, so it can be composed with other
-dispatchers.
+`remember_later` returns `Ensure(PendingAction)` — the runtime writes it like
+any other return-style step result, with no `Effects`/`Outbox` at the call
+site. `MemoryStore.dispatch` resolves the registered store from
+`context.resources` and performs the write after the commit. Unknown action
+kinds are ignored, so it can be composed with other dispatchers.
+`remember_after_commit(effects, …)` remains the compatibility spelling.
 
 ## `map_reduce` — fan out typed tasks, then reduce (§24)
 

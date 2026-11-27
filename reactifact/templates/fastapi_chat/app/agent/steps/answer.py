@@ -2,34 +2,41 @@
 
 from __future__ import annotations
 
-from reactifact import Artifact, Effects, Step
+from reactifact import Artifact, Ensure, LLMProvider, step
 from reactifact.structured import structured_llm
 
 from app.agent.prompts import ANSWER_SYSTEM
 from app.models import Answer, AnswerBody, UserQuery
 
 
-class AnswerStep(Step):
-    consumes = (UserQuery,)
-    produces = (Answer,)
+@step(produces=Answer, reads=UserQuery)
+async def answer(
+    query: Artifact[UserQuery],
+    llm: LLMProvider | None,
+) -> Ensure | None:
+    """Turn a non-empty query into one idempotent answer.
 
-    async def run(self, query: Artifact[UserQuery], effects: Effects) -> None:
-        if not query.data.text.strip():
-            return None
-        body = await structured_llm(
-            self.context.resources.llm,
-            schema=AnswerBody,
-            system=ANSWER_SYSTEM,
-            user=query.data.text,
-        )
-        if body is None:
-            return None
-        effects.create_once_from(
-            query,
-            Answer(query_id=query.id, text=body.text),
-            prefix="answer",
-        )
+    The typed signature is the whole contract: `Artifact[UserQuery]` is the
+    step input, `LLMProvider | None` is injected from resources, and the
+    returned `Ensure` expresses "create once from this query" without touching
+    `Effects` or inventing the answer id by hand. An empty query or an offline
+    provider returns `None` — no fake answer artifact.
+    """
+    if not query.data.text.strip():
         return None
+    body = await structured_llm(
+        llm,
+        schema=AnswerBody,
+        system=ANSWER_SYSTEM,
+        user=query.data.text,
+    )
+    if body is None:
+        return None
+    return Ensure(
+        Answer(query_id=query.id, text=body.text),
+        source=query,
+        prefix="answer",
+    )
 
 
-__all__ = ["AnswerStep"]
+__all__ = ["answer"]

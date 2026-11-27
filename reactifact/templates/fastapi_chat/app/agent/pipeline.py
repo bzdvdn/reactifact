@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from reactifact import Budget, Chat, Agent, SessionStore
+from reactifact import Agent, Budget, Chat, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.recipes.conversation import MessageSpec, Transcript
 from reactifact.tracing import Tracer, TraceStore
 
 from app.agent.resources import build_resources
-from app.agent.steps import AnswerStep
+from app.agent.steps import answer
 from app.config import Settings
 from app.models import Answer, UserQuery
 
@@ -25,7 +25,7 @@ _TRANSCRIPT = Transcript(
 
 def build_answer_agent(*, timeout: float | None = None) -> Agent:
     """The assistant's one agent, with an optional per-turn deadline."""
-    return Agent("answer", steps=[AnswerStep()], timeout=timeout)
+    return Agent("answer", steps=[answer], timeout=timeout)
 
 
 #: The default agent (no deadline); `bootstrap.py` builds one with the setting.

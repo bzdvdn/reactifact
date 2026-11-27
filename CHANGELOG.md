@@ -39,6 +39,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   is canonical on `PipelineRunner` (`Pipeline.test_client()` delegates).
 - **`Daemon` accepts a runner.** `Daemon(pipeline, config=RunConfig(...), ...)`
   is the short form; `Daemon(runner, ...)` reuses an existing execution object.
+- **High-level memory verbs.** `MemoryStore.remember(text, ...)` derives a
+  stable key and stores searchable text plus an optional mapping/model;
+  `recall(query, ...)` is the high-level search spelling, and
+  `remember_artifact(artifact, ...)` indexes a curated artifact with its
+  provenance. Step code records a post-commit write by returning
+  `remember_later(artifact, ...)` — an `Ensure(PendingAction)` — instead of
+  touching `Effects`/`Outbox`; `remember_after_commit` remains a compatibility
+  wrapper.
 - **`Chat(pipeline=..., config=...)`.** A `Chat` can reuse a `Pipeline`
   definition and infer its seed/answer types and agents, and `Chat(config=RunConfig(...))`
   shares the same run settings as `PipelineRunner`. `Chat`/`ChatAssistant`/

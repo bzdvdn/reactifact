@@ -74,31 +74,32 @@ refs = await fan_out_sources(
 from reactifact.recipes import MemoryStore
 
 memory = MemoryStore(backend, namespace=f"user:{user_id}")
-await memory.put(
-    "tone",
-    {"value": "concise"},
-    text="prefers concise answers with citations",
+await memory.remember(
+    "prefers concise answers with citations",
+    value={"tone": "concise"},
     tags={"kind": "preference"},
     ttl_seconds=90 * 24 * 3600,
 )
-hits = await memory.search("how should answers be written?", k=3)
+hits = await memory.recall("how should answers be written?", k=3)
 ```
 
 Namespace обязателен (или задан на store), поэтому recall не прочитает чужого
 пользователя/workspace; `tags` фильтруют, `ttl_seconds` истекает на
-read/list/search, а `search` — детерминированный keyword-ranking
+read/list/search, а `recall` — детерминированный keyword-ranking
 (`keyword_score`, стемы/плюрализация) с подключаемым `searcher(record, query)`
-для семантики. `forget()` очищает namespace. Записи персистятся через любой
-`KVBackend` (file/SQLite/Postgres).
+для семантики. `remember` сам выводит стабильный ключ из текста, если ключ не
+передан. `forget()` очищает namespace. Записи персистятся через любой
+`KVBackend` (file/SQLite/Postgres); `put`/`get`/`list`/`search` остаются
+низкоуровневым API движка.
 
 Store — это **межсессионный индекс, а не копия чата**: сессии и чекипоинты
-остаются источником истины. `remember_from(artifact, key=…)` индексирует
+остаются источником истины. `remember_artifact(artifact, key=…)` индексирует
 curated-артефакт (отчёт, предпочтение) и записывает
 `source_session` / `source_artifact` / `source_version`, поэтому запись можно
 пересобрать или удалить:
 
 ```python
-record = await memory.remember_from(
+record = await memory.remember_artifact(
     report,
     key=f"incident:{report.id}",
     source_session=session_id,          # явно: request/UserMsg/состояние приложения
@@ -114,20 +115,29 @@ ambient-состояние рантайма. Передайте сессию и�
 или `""`, если запись не привязана к сессии; `forget_source("")` отклоняется,
 чтобы пустой ключ не удалил разом все записи без сессии.
 
-Если запись должна происходить **после** коммита артефакта, используйте
-outbox-форму из шага; рецепт сам формирует payload и dispatcher:
+Если запись должна происходить **после** коммита артефакта, верните инструкцию
+из шага; рецепт сам формирует payload и dispatcher:
 
 ```python
-memory.remember_after_commit(
-    effects, report, key=f"incident:{report.id}", source_session=session_id
-)
+from reactifact import Artifact, Ensure, PendingAction, step
+
+@step(produces=PendingAction, reads=Report)
+async def remember(report: Artifact[Report]) -> Ensure:
+    return memory.remember_later(
+        report,
+        key=f"incident:{report.id}",
+        source_session=session_id,
+    )
+
 # app: Runtime(..., dispatcher=MemoryStore.dispatch)
 ```
 
-`remember_after_commit` записывает `PendingAction`; `MemoryStore.dispatch`
-находит зарегистрированный store в `context.resources` и вызывает `put` после
-коммита. Неизвестные kinds игнорируются, поэтому его можно комбинировать с
-другими dispatcher'ами.
+`remember_later` возвращает `Ensure(PendingAction)` — рантайм записывает его
+как обычный return-style результат шага, без `Effects`/`Outbox` в месте
+вызова. `MemoryStore.dispatch` находит зарегистрированный store в
+`context.resources` и выполняет запись после коммита. Неизвестные kinds
+игнорируются, поэтому его можно комбинировать с другими dispatcher'ами.
+`remember_after_commit(effects, …)` остаётся compatibility-формой.
 
 ## `map_reduce` — fan-out типизированных задач и reduce (§24)
 

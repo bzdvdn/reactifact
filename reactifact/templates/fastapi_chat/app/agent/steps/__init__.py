@@ -1,3 +1,3 @@
-from .answer import AnswerStep
+from .answer import answer
 
-__all__ = ["AnswerStep"]
+__all__ = ["answer"]

@@ -1,7 +1,7 @@
 """Curated devops memory: record an index intent, never write memory here.
 
-The step is pure: `MemoryStore.remember_after_commit` turns a committed report
-into a `PendingAction` with the summary and its provenance. The runtime
+The step is pure: `MemoryStore.remember_later` returns an
+`Ensure(PendingAction)` with the summary and its provenance. The runtime
 dispatches it **after** the generation commits
 (`dispatcher=MemoryStore.dispatch`), so a failed turn cannot leave a memory
 entry pointing at a report version that never existed.
@@ -9,7 +9,7 @@ entry pointing at a report version that never existed.
 
 from __future__ import annotations
 
-from reactifact import Artifact, Effects, PendingAction, Step
+from reactifact import Artifact, Ensure, PendingAction, Step
 from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import MemoryStore
 
@@ -26,8 +26,7 @@ class RememberReport(Step):
     async def run(
         self,
         report: Artifact[K8sReport | GitlabReport | AnsibleReport],
-        effects: Effects,
-    ) -> None:
+    ) -> Ensure | None:
         text = getattr(report.data, "text", "") or ""
         if not text.strip():
             return None
@@ -38,8 +37,7 @@ class RememberReport(Step):
             else ""
         )
         memory = self.context.resources.require(MemoryStore)
-        memory.remember_after_commit(
-            effects,
+        return memory.remember_later(
             report,
             key=f"report:{report.id}",
             source_session=source_session,
@@ -50,7 +48,6 @@ class RememberReport(Step):
             },
             ttl_seconds=90 * 24 * 3600,
         )
-        return None
 
 
 __all__ = ["RememberReport"]

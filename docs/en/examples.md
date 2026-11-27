@@ -123,7 +123,7 @@ and sent as `X-User` (demo authentication only). Each runs with a
 `Principal` + `PermissionPolicy` (`policy.py`), so `admin2` can chat, use k8s and
 GitLab but is refused before the Ansible agent starts. Long-term memory is
 per-user (`MemoryStore(namespace="user:<name>")`): a report summary is recorded
-as an outbox `PendingAction` (`remember_after_commit`) and indexed after the
+as an outbox `PendingAction` (`remember_later`) and indexed after the
 report commits (`MemoryStore.dispatch`), so a failed turn cannot leave a
 dangling entry; recall is folded into routing in later sessions, never copied
 from the chat history, and never visible in the other user's namespace. Run

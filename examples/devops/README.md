@@ -237,9 +237,9 @@ ctx.create(UserMsg(text="проверь под", session_id="admin1:s1"))
 await Runtime(ctx, agents=PIPELINE.agents, dispatcher=MemoryStore.dispatch).arun()
 ```
 
-`MemoryStore` is **not** a copy of the chat. `RememberReport` calls
-`memory.remember_after_commit(effects, report, …)`: the step commits a
-`PendingAction` with a short summary and its provenance, the runtime dispatches
+`MemoryStore` is **not** a copy of the chat. `RememberReport` returns
+`memory.remember_later(report, …)`: the step commits a `PendingAction` with a
+short summary and its provenance, the runtime dispatches
 it **after** the report commits, and `MemoryStore.dispatch` writes the index
 entry. The session id is not ambient: the chat layer stamps it on `UserMsg`
 (`create_message(ctx, text, session_id)`), the report keeps that message id in

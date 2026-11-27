@@ -43,7 +43,7 @@ class RouteProblem(Step):
         memory_text = ""
         if memory is not None:
             try:
-                hits = await memory.search(msg.data.text, k=3, tags={"kind": "report"})
+                hits = await memory.recall(msg.data.text, k=3, tags={"kind": "report"})
             except Exception:
                 # Recall is an enhancement: a broken/unavailable memory backend
                 # must not take the whole routing turn down with it.

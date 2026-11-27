@@ -6,20 +6,39 @@ deterministic keyword search (or a custom searcher). Namespaces are mandatory
 (or set once on the store) so a recall cannot silently read another user's or
 workspace's memory.
 
-    memory = MemoryStore(backend, namespace=f"user:{user_id}")
-    await memory.put("preference", {"tone": "concise"}, text="prefers concise answers")
-    hits = await memory.search("how does the user like answers?", k=3)
+The high-level surface is two verbs — `remember` and `recall` — plus the
+artifact-aware `remember_artifact`:
 
-For a write that must happen only after the artifact commits, a step calls
-`memory.remember_after_commit(effects, artifact, ...)` and the app passes
-`dispatcher=MemoryStore.dispatch` to the runtime (the recipe owns the action
-payload and the handler).
+    memory = MemoryStore(backend, namespace=f"user:{user_id}")
+    await memory.remember(
+        "prefers concise answers with citations",
+        tags={"kind": "preference"},
+    )
+    hits = await memory.recall("how does the user like answers?", k=3)
+
+`remember` derives a stable key from the text when one is omitted, so the
+caller does not hand-manage a record id. The lower-level `put`/`get`/`list`/
+`search` methods remain public for migrations and custom indexes.
+
+For a write that must happen only after the artifact commits, a `@step`
+returns `remember_later(artifact, ...)` — an `Ensure(PendingAction)` the
+runtime writes like any other return value; the app passes
+`dispatcher=MemoryStore.dispatch` so the recipe performs the actual write
+after the generation commits:
+
+    @step(produces=PendingAction, reads=Report)
+    async def remember(report: Artifact[Report]) -> Ensure:
+        return memory.remember_later(report, key=f"report:{report.id}", ...)
+
+`remember_after_commit(effects, ...)` is the 0.x effects-slot spelling kept for
+compatibility.
 """
 
 from __future__ import annotations
 
 import asyncio
 import builtins
+import hashlib
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -29,20 +48,27 @@ from urllib.parse import quote
 
 from pydantic import BaseModel, Field
 
+from ..agent import Ensure
 from ..checkpoints import KVBackend
 from ..interaction import Outbox
+from ..interrupt import PendingAction
 from .text import keyword_score
 
 if TYPE_CHECKING:
     from ..artifacts import Artifact
     from ..context import Context
     from ..effects import Effects, Handle
-    from ..interrupt import PendingAction
 
 #: Outbox action kind for `remember_after_commit` / `MemoryStore.dispatch`.
 MEMORY_ACTION = "memory.remember"
 
 Searcher = Callable[["MemoryRecord", str], float]
+
+
+def _stable_key(text: str) -> str:
+    """A deterministic, readable key for a memory remembered without one."""
+    digest = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:16]
+    return f"text:{digest}"
 
 
 def _artifact_text(artifact: Artifact[Any]) -> str:
@@ -102,7 +128,12 @@ def _default_score(record: MemoryRecord, query: str) -> float:
 
 
 class MemoryStore:
-    """Namespaced records over `KVBackend` with TTL and keyword search."""
+    """Namespaced long-term memory with TTL and keyword recall.
+
+    The high-level API is `remember`/`recall` plus `remember_artifact` and
+    `remember_later`; `put`/`get`/`list`/`search` are the lower-level engine
+    methods kept for custom indexes and migrations.
+    """
 
     def __init__(
         self,
@@ -159,7 +190,11 @@ class MemoryStore:
         source_artifact: str | None = None,
         source_version: int | None = None,
     ) -> MemoryRecord:
-        """Creates or replaces a record (`created_at` is preserved on replace)."""
+        """Low-level write: creates or replaces a record by explicit key.
+
+        `remember` is the high-level spelling; `created_at` is preserved when a
+        key is replaced.
+        """
         if not key.strip():
             raise ValueError("memory key must be non-empty")
         ns = self._ns(namespace)
@@ -205,9 +240,55 @@ class MemoryStore:
             await self.backend.set(self._key(ns, key), record.model_dump(mode="json"))
         return record
 
+    async def remember(
+        self,
+        text: str,
+        *,
+        key: str | None = None,
+        value: Mapping[str, Any] | BaseModel | None = None,
+        tags: Mapping[str, str] | None = None,
+        ttl_seconds: float | None = None,
+        kind: str = "fact",
+        source_session: str = "",
+        source_artifact: str = "",
+        source_version: int | None = None,
+        namespace: str | None = None,
+    ) -> MemoryRecord:
+        """High-level write: searchable text plus optional structured value.
+
+        The key is derived from the normalized text when omitted, so the common
+        "remember this fact" call has no storage key to invent. Pass one
+        explicitly when the same fact must replace an earlier entry under a
+        stable domain key. `value` may be a mapping or any pydantic model.
+        """
+        if not text.strip() and value is None:
+            raise ValueError("remember needs non-empty text or value")
+        storage_value = (
+            value.model_dump(mode="json")
+            if isinstance(value, BaseModel)
+            else dict(value or {})
+        )
+        searchable = text.strip() or json.dumps(
+            storage_value, ensure_ascii=False, sort_keys=True, default=str
+        )
+        resolved_key = key or _stable_key(searchable)
+        return await self.put(
+            resolved_key,
+            storage_value,
+            namespace=namespace,
+            text=searchable,
+            tags=tags,
+            ttl_seconds=ttl_seconds,
+            kind=kind,
+            source_session=source_session,
+            source_artifact=source_artifact,
+            source_version=source_version,
+        )
+
     async def get(
         self, key: str, *, namespace: str | None = None
     ) -> MemoryRecord | None:
+        """Low-level read by explicit key (expired records are removed)."""
         ns = self._ns(namespace)
         record = await self._load(ns, key)
         if record is None:
@@ -256,7 +337,10 @@ class MemoryStore:
         min_score: float = 0.0,
         tags: Mapping[str, str] | None = None,
     ) -> builtins.list[MemoryHit]:
-        """Keyword-ranked records in one namespace (ties: newest first)."""
+        """Low-level search: keyword-ranked records (ties: newest first).
+
+        `recall` is the high-level spelling with the same semantics.
+        """
         if k < 1:
             return []
         records = await self.list(namespace=namespace)
@@ -281,11 +365,29 @@ class MemoryStore:
         )
         return hits[:k]
 
-    async def remember_from(
+    async def recall(
+        self,
+        query: str,
+        *,
+        namespace: str | None = None,
+        k: int = 5,
+        min_score: float = 0.0,
+        tags: Mapping[str, str] | None = None,
+    ) -> builtins.list[MemoryHit]:
+        """High-level search spelling; same ranking and filters as `search`."""
+        return await self.search(
+            query,
+            namespace=namespace,
+            k=k,
+            min_score=min_score,
+            tags=tags,
+        )
+
+    async def remember_artifact(
         self,
         artifact: Artifact[Any],
         *,
-        key: str,
+        key: str | None = None,
         source_session: str,
         text: str | None = None,
         value: Mapping[str, Any] | None = None,
@@ -303,14 +405,16 @@ class MemoryStore:
         `source_session` is explicit, not ambient: pass the session the entry
         came from (often `request`/`UserMsg.session_id`, or `""` when the
         memory is not tied to one) so `forget_source()` can erase everything
-        derived from that session later.
+        derived from that session later. `key` defaults to
+        `<data-type>:<artifact-id>`, which is stable across re-indexing.
         """
         if text is None:
             text = _artifact_text(artifact)
         if value is None:
             value = {"artifact": artifact.id, "data_type": artifact.data_type}
+        resolved_key = key or f"{type(artifact.data).__name__.lower()}:{artifact.id}"
         return await self.put(
-            key,
+            resolved_key,
             value,
             namespace=namespace,
             text=text,
@@ -321,6 +425,76 @@ class MemoryStore:
             source_artifact=artifact.id,
             source_version=artifact.version,
         )
+
+    #: Compatibility alias for `remember_artifact`.
+    remember_from = remember_artifact
+
+    def _action_payload(
+        self,
+        artifact: Artifact[Any],
+        *,
+        key: str,
+        source_session: str,
+        text: str | None,
+        tags: Mapping[str, str] | None,
+        ttl_seconds: float | None,
+        kind: str,
+    ) -> dict[str, Any]:
+        if not key.strip():
+            raise ValueError("memory key must be non-empty")
+        return {
+            "key": key,
+            "text": text if text is not None else _artifact_text(artifact),
+            "kind": kind,
+            "tags": dict(tags or {}),
+            "ttl_seconds": ttl_seconds,
+            "source_session": source_session,
+            "source_artifact": artifact.id,
+            "source_version": artifact.version,
+            "data_type": artifact.data_type,
+        }
+
+    def remember_later(
+        self,
+        artifact: Artifact[Any],
+        *,
+        key: str,
+        source_session: str,
+        text: str | None = None,
+        tags: Mapping[str, str] | None = None,
+        ttl_seconds: float | None = None,
+        kind: str = "summary",
+    ) -> Ensure:
+        """Return an `Ensure(PendingAction)` for a post-commit memory write.
+
+        Use it as a `@step` return value instead of wiring `Effects`/`Outbox`
+        at the call site:
+
+            @step(produces=PendingAction, reads=Report)
+            async def remember(report: Artifact[Report]) -> Ensure:
+                return memory.remember_later(
+                    report, key=f"report:{report.id}", source_session=session_id
+                )
+
+        The runtime writes the action like any other return instruction;
+        `MemoryStore.dispatch` performs the actual write after the generation
+        commits, so a failed turn never leaves a dangling memory entry.
+        """
+        payload = self._action_payload(
+            artifact,
+            key=key,
+            source_session=source_session,
+            text=text,
+            tags=tags,
+            ttl_seconds=ttl_seconds,
+            kind=kind,
+        )
+        action = PendingAction(
+            kind=MEMORY_ACTION,
+            idempotency_key=f"memory:{key}",
+            payload=payload,
+        )
+        return Ensure(action, id=f"action:memory:{key}")
 
     def remember_after_commit(
         self,
@@ -334,30 +508,20 @@ class MemoryStore:
         ttl_seconds: float | None = None,
         kind: str = "summary",
     ) -> Handle | None:
-        """Records an outbox intent; `MemoryStore.dispatch` writes after commit.
+        """Compatibility wrapper for `remember_later` in an effects slot.
 
-        Use this from a step instead of `remember_from` when the memory write
-        must not happen before the artifact's generation commits. The payload
-        carries the summary and provenance, so the dispatcher does not depend on
-        the artifact still being in the live context.
-
-        Wire `Runtime(..., dispatcher=MemoryStore.dispatch)` (or pass
-        `dispatcher=MemoryStore.dispatch` to `Chat`); a dispatcher
-        composed for several action kinds can call it alongside its own handler.
+        New step code returns `remember_later(...)`; this spelling stays for
+        callers that already pass `effects` explicitly.
         """
-        if not key.strip():
-            raise ValueError("memory key must be non-empty")
-        payload: dict[str, Any] = {
-            "key": key,
-            "text": text if text is not None else _artifact_text(artifact),
-            "kind": kind,
-            "tags": dict(tags or {}),
-            "ttl_seconds": ttl_seconds,
-            "source_session": source_session,
-            "source_artifact": artifact.id,
-            "source_version": artifact.version,
-            "data_type": artifact.data_type,
-        }
+        payload = self._action_payload(
+            artifact,
+            key=key,
+            source_session=source_session,
+            text=text,
+            tags=tags,
+            ttl_seconds=ttl_seconds,
+            kind=kind,
+        )
         return Outbox(effects).act(MEMORY_ACTION, key=f"memory:{key}", payload=payload)
 
     @classmethod

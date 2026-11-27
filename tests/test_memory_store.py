@@ -6,7 +6,14 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from reactifact import Context, Create, Effects, PendingAction, RuntimeResources
+from reactifact import (
+    Context,
+    Create,
+    Effects,
+    Ensure,
+    PendingAction,
+    RuntimeResources,
+)
 from reactifact.checkpoints import FileKVBackend, InMemoryKVBackend
 from reactifact.recipes.memory_store import MemoryStore
 
@@ -37,6 +44,44 @@ def test_put_get_update_and_list():
     assert loaded.text == "prefers concise answers"
     assert loaded.tags == {"kind": "preference"}
     assert [record.key for record in listed] == ["preference"]
+
+
+def test_remember_and_recall_are_the_high_level_api():
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+
+    async def go():
+        first = await memory.remember(
+            "prefers concise answers with citations",
+            value={"tone": "concise"},
+            tags={"kind": "preference"},
+        )
+        second = await memory.remember(
+            "prefers concise answers with citations",
+            value={"tone": "warm"},
+        )
+        hits = await memory.recall("how should answers be written?", k=1)
+        return first, second, hits
+
+    first, second, hits = asyncio.run(go())
+
+    assert first.key == second.key
+    assert first.key.startswith("text:")
+    assert second.value == {"tone": "warm"}
+    assert second.tags == {"kind": "preference"}
+    assert hits[0].record.key == first.key
+
+
+def test_remember_accepts_a_pydantic_value_without_text():
+    from pydantic import BaseModel
+
+    class Preference(BaseModel):
+        tone: str
+
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+    record = asyncio.run(memory.remember("", value=Preference(tone="warm")))
+
+    assert record.value == {"tone": "warm"}
+    assert record.text == '{"tone": "warm"}'
 
 
 def test_namespaces_are_isolated():
@@ -158,6 +203,21 @@ def test_remember_from_records_provenance_and_forget_source():
     assert asyncio.run(memory.list()) == []
 
 
+def test_remember_artifact_derives_a_provenance_key():
+    from pydantic import BaseModel
+
+    class Report(BaseModel):
+        text: str
+
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+    report = Context().create(Report(text="worker-2f1 OOMKilled"))
+
+    record = asyncio.run(memory.remember_artifact(report, source_session="admin1:s1"))
+
+    assert record.key == f"report:{report.id}"
+    assert record.source_artifact == report.id
+
+
 def test_forget_source_rejects_an_empty_session():
     memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
 
@@ -197,6 +257,31 @@ def test_remember_after_commit_records_an_outbox_intent():
     assert action.idempotency_key == f"memory:report:{report.id}"
     assert action.payload["source_artifact"] == report.id
     assert action.payload["source_session"] == "admin1:s1"
+
+
+def test_remember_later_is_a_return_style_step_instruction():
+    """The high-level spelling needs no Effects/Outbox at the call site."""
+    from pydantic import BaseModel
+
+    class Report(BaseModel):
+        text: str
+
+    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
+    report = Context().create(Report(text="worker-2f1 OOMKilled"))
+
+    instruction = memory.remember_later(
+        report,
+        key=f"report:{report.id}",
+        source_session="admin1:s1",
+    )
+
+    assert isinstance(instruction, Ensure)
+    assert instruction.id == f"action:memory:report:{report.id}"
+    assert isinstance(instruction.data, PendingAction)
+    assert instruction.data.kind == "memory.remember"
+    assert instruction.data.idempotency_key == f"memory:report:{report.id}"
+    assert instruction.data.payload["source_artifact"] == report.id
+    assert instruction.data.payload["source_session"] == "admin1:s1"
 
 
 def test_memory_dispatch_indexes_a_committed_action():

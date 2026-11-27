@@ -13,28 +13,28 @@ async def run_memory_scene() -> dict[str, Any]:
     user = MemoryStore(backend, namespace="user:alice")
     team = MemoryStore(backend, namespace="team:acme")
 
-    await user.put(
-        "tone",
-        {"value": "concise"},
-        text="Alice prefers concise answers with citations",
+    await user.remember(
+        "Alice prefers concise answers with citations",
+        key="tone",
+        value={"value": "concise"},
         tags={"kind": "preference"},
     )
-    await user.put(
-        "timezone",
-        {"value": "Europe/Berlin"},
-        text="Alice is in the Berlin timezone",
+    await user.remember(
+        "Alice is in the Berlin timezone",
+        key="timezone",
+        value={"value": "Europe/Berlin"},
         tags={"kind": "profile"},
     )
-    await team.put(
-        "escalation",
-        {"value": "manager"},
-        text="Support escalations go to the duty manager",
+    await team.remember(
+        "Support escalations go to the duty manager",
+        key="escalation",
+        value={"value": "manager"},
         tags={"kind": "policy"},
     )
 
-    user_hits = await user.search("how should answers be written?", k=2)
-    policy_hits = await team.search("who handles escalations?", k=1)
-    other_hits = await user.search("escalations", k=5)
+    user_hits = await user.recall("how should answers be written?", k=2)
+    policy_hits = await team.recall("who handles escalations?", k=1)
+    other_hits = await user.recall("escalations", k=5)
     return {
         "user_hits": [hit.record.key for hit in user_hits],
         "user_top": user_hits[0].record.value if user_hits else None,

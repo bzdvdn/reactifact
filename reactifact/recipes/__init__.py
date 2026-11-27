@@ -39,6 +39,10 @@ keep reappearing across agent codebases and the bundled examples:
   accept threshold, and completion detection owned by the recipe; domain
   supplies `draft`/`critique`/`rewrite`/`finish` (§24, §42, §69) — see
   `recipes.reflection`;
+- `MemoryStore` — namespaced cross-session facts with `remember`/`recall`,
+  artifact provenance, TTL, keyword search and an optional post-commit index
+  (`remember_later` → `dispatcher=MemoryStore.dispatch`) (§27) — see
+  `recipes.memory_store`;
 - `WindowSummarizer` / `WindowPruner` / `llm_summarizer` — bounded
   conversation memory: periodic summarization + pruning as two plain
   steps, domain owns the summarizer callback and the summary artifact
