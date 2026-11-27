@@ -111,7 +111,9 @@ for turn-scoped context vars or resource cleanup. `chat.router()` returns a
 ready FastAPI `APIRouter` (SSE + history), and `chat.test_client()` is a copy
 with an in-memory store and traces. A pending `PendingQuestion` is reported as
 `waiting: true`; with `Chat(..., resume_pending=True)` the next user message is
-its answer, so HITL needs no separate endpoint.
+its answer, so HITL needs no separate endpoint. Run settings shared with
+`PipelineRunner` (`resources`, `budget`, tracing, lifespan) can be passed as
+`Chat(..., config=RunConfig(...))`; explicit keywords win over the config.
 
 For a sessionful HTTP app, `chat.http()` adds the same paths as the DEVOPS-style
 API:
@@ -188,7 +190,7 @@ async with PipelineRunner(pipeline, config=RunConfig(lifespan=lifespan)) as runn
 Tests get an in-memory trace store and isolated overrides:
 
 ```python
-client = pipeline.test_client()
+client = PipelineRunner(pipeline).test_client()
 client.override(LLMProvider, FakeLLM())
 result = client.run(Question(text="..."))
 assert asyncio.run(client.traces.query())["total"] >= 1

@@ -198,7 +198,7 @@ async def get_pod(name: str, k8s: K8sClient) -> Pod:
     return await k8s.get(name)
 ```
 
-`Pipeline.test_client()`, `Chat.test_client()`, `ScenarioLab` и `FakeLLM`
+`PipelineRunner.test_client()`, `Chat.test_client()`, `ScenarioLab` и `FakeLLM`
 позволяют тестировать тот же код без сети. `Chat.router()` монтирует
 SSE-контракт на FastAPI, когда нужен HTTP; ядро от FastAPI не зависит.
 

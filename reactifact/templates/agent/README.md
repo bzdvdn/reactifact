@@ -10,5 +10,5 @@ uv run reactifact trace
 ```
 
 `reactifact run` writes `.reactifact/traces.db`; `reactifact trace` renders the
-latest run as Mermaid. Add `await pipeline.arun(...)` or `pipeline.astream(...)`
-for async/streaming, and `pipeline.http()` when you want HTTP.
+latest run as Mermaid. Use `PipelineRunner(pipeline)` for `run`/`arun`/
+`astream`/`http`; pass `RunConfig(...)` for resources, tracing and concurrency.

@@ -280,8 +280,8 @@ assert result.context.latest(Answer).data.text == "HELLO"
   priority policy; it **is** the scheduling unit.
 - `Pipeline(agents=[...], routes=[...])` is declarative structure;
   `Pipeline.agents` expands agents and `Route.agents()` for `Runtime`.
-- `PipelineRunner` + `RunConfig` own resources/budget/tracing and run; `Chat(pipeline=...)`
-  reuses a pipeline for a conversation.
+- `PipelineRunner` + `RunConfig` own resources/budget/tracing and run;
+  `Chat(pipeline=..., config=RunConfig(...))` reuses both for a conversation.
 - An agent is a named group, not an execution barrier: `Runtime` still schedules
   by artifact availability.
 

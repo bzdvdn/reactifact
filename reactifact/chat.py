@@ -41,6 +41,7 @@ from .budget import Budget
 from .consume import Consume
 from .context import Context
 from .events import Event
+from .pipeline import RunConfig
 from .request import reset_request, set_request
 from .resources import RuntimeResources
 from .runtime import Dispatcher, DispatchErrorHandler, Runtime
@@ -782,8 +783,11 @@ class Chat:
     the user-message hook and the reply payload from the types; `pipeline=`
     reuses a whole `Pipeline` definition, and `seed_factory`/`per_turn` cover
     app-specific hooks (a request category, a secret vault).
-    `traces=`/`trace_sample=`/`lifespan=` mirror `Pipeline`; `answer()` returns
-    the typed `answer_type` instead of the transport payload.
+    `config=RunConfig(...)` supplies the same run settings as `PipelineRunner`
+    (resources, tracing, budget, concurrency, lifespan); explicit keywords win
+    over the config, and `traces=`/`trace_sample=`/`lifespan=` still mirror
+    `Pipeline`. `answer()` returns the typed `answer_type` instead of the
+    transport payload.
     """
 
     def __init__(
@@ -793,6 +797,7 @@ class Chat:
         agents: Sequence[Agent] | None = None,
         groups: Sequence[Agent] | None = None,
         pipeline: Any | None = None,
+        config: RunConfig | None = None,
         store: SessionStore | str | Path | None = None,
         seed_type: type[BaseModel] | None = None,
         seed_field: str = "text",
@@ -817,7 +822,7 @@ class Chat:
             [str, str, Mapping[str, Any]], AbstractAsyncContextManager[Any]
         ]
         | None = None,
-        isolate_errors: bool = False,
+        isolate_errors: bool | None = None,
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         create_message: Callable[..., str] | None = None,
         resume_pending: bool = False,
@@ -828,6 +833,7 @@ class Chat:
             raise ValueError("Pass only one of agents= or groups=")
         if agents is not None:
             groups = agents
+        base = config or RunConfig()
         if pipeline is not None:
             if steps is not None or groups is not None:
                 raise ValueError(
@@ -838,20 +844,42 @@ class Chat:
                 seed_type = pipeline.seed_type
             if answer_type is None:
                 answer_type = pipeline.answer_type
-            if resources is None:
+            if resources is None and base.resources is None:
                 resources = pipeline.resources
-            if llm is None:
+            if llm is None and base.llm is None:
                 llm = pipeline.llm
-            if budget is None:
+            if budget is None and base.budget is None:
                 budget = pipeline.budget
-            if max_concurrency is None:
+            if max_concurrency is None and base.max_concurrency is None:
                 max_concurrency = pipeline.max_concurrency
-            if tracer is None:
+            if tracer is None and base.tracer is None:
                 tracer = pipeline.tracer
-            if lifespan is None:
+            if lifespan is None and base.lifespan is None:
                 lifespan = pipeline.lifespan
-            if on_agent_error is None:
+            if on_agent_error is None and base.on_agent_error is None:
                 on_agent_error = pipeline.on_agent_error
+        # Precedence: an explicit keyword beats the run config, which beats
+        # the pipeline's compatibility defaults.
+        resources = resources if resources is not None else base.resources
+        llm = llm if llm is not None else base.llm
+        budget = budget if budget is not None else base.budget
+        max_concurrency = (
+            max_concurrency if max_concurrency is not None else base.max_concurrency
+        )
+        tracer = tracer if tracer is not None else base.tracer
+        trace_sample = trace_sample if trace_sample is not None else base.trace_sample
+        lifespan = lifespan if lifespan is not None else base.lifespan
+        on_agent_error = (
+            on_agent_error if on_agent_error is not None else base.on_agent_error
+        )
+        selected_traces = traces if traces is not None else base.traces
+        isolate_errors = (
+            isolate_errors
+            if isolate_errors is not None
+            else base.isolate_errors
+            if base.isolate_errors is not None
+            else False
+        )
         if steps is None and groups is None:
             raise TypeError("Chat requires steps=, agents= or a pipeline=")
         if seed_type is None:
@@ -870,6 +898,7 @@ class Chat:
         self.agents = list(groups) if groups is not None else None
         self.groups = self.agents
         self.pipeline = pipeline
+        self.config = config
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type
@@ -878,14 +907,14 @@ class Chat:
         self.resources = resources
         self.trace_sample = trace_sample
         self.trace_store: Any = None
-        if traces:
+        if selected_traces:
             from .tracing import TraceStore
 
             self.trace_store = (
-                TraceStore(str(traces))
-                if isinstance(traces, (str, Path))
-                else traces
-                if not isinstance(traces, bool)
+                TraceStore(str(selected_traces))
+                if isinstance(selected_traces, (str, Path))
+                else selected_traces
+                if not isinstance(selected_traces, bool)
                 else TraceStore(":memory:")
             )
             if tracer is None:

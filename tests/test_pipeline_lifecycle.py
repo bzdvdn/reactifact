@@ -80,6 +80,21 @@ def test_test_client_has_an_in_memory_trace_store():
     client.close()
 
 
+def test_pipeline_runner_test_client_keeps_the_run_config():
+    pipeline = Pipeline(steps=[with_service], seed_type=Question, answer_type=Answer)
+    runner = PipelineRunner(
+        pipeline,
+        config=RunConfig(
+            resources=RuntimeResources().with_overrides({Service: Service("config")})
+        ),
+    )
+
+    with runner.test_client() as client:
+        result = client.run(Question(text="q"))
+        assert result.latest(Answer).data.text == "config:q"
+        assert client.traces is not None
+
+
 def test_pipeline_runner_accepts_run_config():
     pipeline = Pipeline(steps=[with_service], seed_type=Question, answer_type=Answer)
     runner = PipelineRunner(

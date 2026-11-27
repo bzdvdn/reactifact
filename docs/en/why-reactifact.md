@@ -190,7 +190,7 @@ async def get_pod(name: str, k8s: K8sClient) -> Pod:
     return await k8s.get(name)
 ```
 
-`Pipeline.test_client()`, `Chat.test_client()`, `ScenarioLab` and `FakeLLM`
+`PipelineRunner.test_client()`, `Chat.test_client()`, `ScenarioLab` and `FakeLLM`
 let you test the same code without a network. `Chat.router()` mounts the SSE
 contract on FastAPI when you need HTTP; the core does not depend on it.
 

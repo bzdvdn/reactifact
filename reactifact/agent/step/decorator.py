@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import types
 from collections.abc import Callable, Sequence
-from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    overload,
+)
 
 from pydantic import BaseModel
 
@@ -57,6 +66,11 @@ def _infer_produces(func: Callable[..., Any]) -> tuple[type[BaseModel], ...] | N
     return _return_types(hints.get("return"))
 
 
+@overload
+def step(__func: Callable[..., Any], /) -> Step[Any]: ...
+
+
+@overload
 def step(
     artifact_type: ArtifactType | None = None,
     *,
@@ -80,7 +94,33 @@ def step(
     name: str | None = None,
     retry: RetryPolicy | None = None,
     once: bool | None = None,
-) -> Callable[[Callable[..., Any]], Step[Any]]:
+) -> Callable[[Callable[..., Any]], Step[Any]]: ...
+
+
+def step(
+    artifact_type: ArtifactType | Callable[..., Any] | None = None,
+    *,
+    produces: ArtifactType | Sequence[ArtifactType] | None = None,
+    deletes: ArtifactType | Sequence[ArtifactType] | None = None,
+    reads: Read
+    | Consume
+    | ArtifactType
+    | Sequence[Read | Consume | ArtifactType]
+    | None = None,
+    consumes: Read
+    | Consume
+    | ArtifactType
+    | Sequence[Read | Consume | ArtifactType]
+    | None = None,
+    timeout: float | None = None,
+    provenance: RelationName | str | bool | None = None,
+    scope: Scope | str | None = None,
+    priority: int | None = None,
+    concurrency_limit: int | None = None,
+    name: str | None = None,
+    retry: RetryPolicy | None = None,
+    once: bool | None = None,
+) -> Step[Any] | Callable[[Callable[..., Any]], Step[Any]]:
     """Decorator to create a Step from a function.
 
     The canonical spellings:
@@ -118,7 +158,9 @@ def step(
         return step()(artifact_type)
 
     inferred = produces is None and artifact_type is None
-    resolved_produces = produces if produces is not None else artifact_type
+    resolved_produces = (
+        produces if produces is not None else cast(ArtifactType | None, artifact_type)
+    )
 
     def decorator(func: Callable[..., Any]) -> Step[Any]:
         inferred_produces = _infer_produces(func) if inferred else None

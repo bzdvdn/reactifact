@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Chat, RuntimeResources, step
+from reactifact import Chat, RunConfig, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -106,6 +106,33 @@ class Svc:
 @step(consumes=Question)
 def via_service(question: Question, svc: Svc) -> Answer:
     return Answer(text=f"{svc.prefix}:{question.text}")
+
+
+def test_chat_accepts_run_config_and_explicit_values_win():
+    config = RunConfig(
+        resources=RuntimeResources().with_overrides({Svc: Svc("config")}),
+        max_concurrency=3,
+        isolate_errors=True,
+    )
+    chat = Chat(
+        steps=[via_service],
+        seed_type=Question,
+        answer_type=Answer,
+        config=config,
+    )
+    assert chat.config is config
+    assert chat.assistant._isolate_errors is True
+    assert chat.assistant._max_concurrency == 3
+    assert asyncio.run(chat.answer("q")).text == "config:q"
+
+    explicit = Chat(
+        steps=[via_service],
+        seed_type=Question,
+        answer_type=Answer,
+        config=config,
+        resources=RuntimeResources().with_overrides({Svc: Svc("explicit")}),
+    )
+    assert asyncio.run(explicit.answer("q")).text == "explicit:q"
 
 
 def test_chat_answer_returns_the_typed_model():

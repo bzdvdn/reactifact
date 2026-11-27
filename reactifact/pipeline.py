@@ -406,10 +406,8 @@ class Pipeline:
         PipelineRunner(self).close()
 
     def test_client(self, *, traces: bool = True) -> Any:
-        """An in-memory `Pipeline` for tests (fresh overrides, trace store)."""
-        from .testing.client import TestPipeline
-
-        return TestPipeline(self, traces=traces)
+        """Compatibility shortcut for `PipelineRunner(self).test_client()`."""
+        return PipelineRunner(self).test_client(traces=traces)
 
 
 class PipelineRunner:
@@ -596,6 +594,12 @@ class PipelineRunner:
         from .web import create_http_app
 
         return create_http_app(self, **kwargs)
+
+    def test_client(self, *, traces: bool = True) -> Any:
+        """An isolated copy of this runner with an in-memory trace store."""
+        from .testing.client import TestPipeline
+
+        return TestPipeline(self, traces=traces)
 
     def as_tool(
         self,

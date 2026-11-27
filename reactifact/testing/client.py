@@ -6,7 +6,7 @@ import copy
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-from ..pipeline import Pipeline
+from ..pipeline import Pipeline, PipelineRunner
 from ..resources import RuntimeResources
 from ..runtime import RunResult
 
@@ -15,53 +15,58 @@ if TYPE_CHECKING:
 
 
 class TestPipeline:
-    """A copy of a `Pipeline` with isolated overrides and a trace store.
+    """A copy of a `Pipeline`/`PipelineRunner` with isolated overrides.
 
     Nothing touches the network by itself: pass a fake LLM through
     `override(LLMProvider, FakeLLM())` (or the pipeline's `llm=`). The trace
     store is SQLite `:memory:` so assertions can inspect spans after a run.
     """
 
-    def __init__(self, pipeline: Pipeline, *, traces: bool = True):
-        if pipeline.lifespan is not None:
+    def __init__(
+        self, source: Pipeline | PipelineRunner, *, traces: bool = True
+    ) -> None:
+        runner = (
+            source if isinstance(source, PipelineRunner) else PipelineRunner(source)
+        )
+        if runner.lifespan is not None:
             raise RuntimeError(
-                "test_client does not run a Pipeline lifespan; enter the "
-                "pipeline with `async with pipeline:` instead"
+                "test_client does not run a lifespan; enter the pipeline with "
+                "`async with pipeline:` instead"
             )
-        self.pipeline = copy.copy(pipeline)
-        self.pipeline._overrides = dict(pipeline._overrides)
+        self.runner = copy.copy(runner)
+        self.runner._overrides = dict(runner._overrides)
+        self.pipeline = self.runner.pipeline
         self.traces: Any = None
         if traces:
             from ..tracing import Tracer, TraceStore
 
             self.traces = TraceStore(":memory:")
-            self.pipeline.tracer = Tracer(
-                store=self.traces, sample=pipeline.trace_sample
-            )
+            self.runner.trace_store = self.traces
+            self.runner.tracer = Tracer(store=self.traces, sample=runner.trace_sample)
 
     def override(self, kind: type[Any], instance: Any) -> TestPipeline:
-        self.pipeline.override(kind, instance)
+        self.runner.override(kind, instance)
         return self
 
     def run(self, seed: Any, **kwargs: Any) -> RunResult:
-        return self.pipeline.run(seed, **kwargs)
+        return self.runner.run(seed, **kwargs)
 
     async def arun(self, seed: Any, **kwargs: Any) -> RunResult:
-        return await self.pipeline.arun(seed, **kwargs)
+        return await self.runner.arun(seed, **kwargs)
 
     def answer(self, seed: Any, **kwargs: Any) -> Any:
-        return self.pipeline.answer(seed, **kwargs)
+        return self.runner.answer(seed, **kwargs)
 
     async def aanswer(self, seed: Any, **kwargs: Any) -> Any:
-        return await self.pipeline.aanswer(seed, **kwargs)
+        return await self.runner.aanswer(seed, **kwargs)
 
     @property
     def last_result(self) -> RunResult | None:
-        return self.pipeline.last_result
+        return self.runner.last_result
 
     @property
     def last_context(self) -> Any:
-        return self.pipeline.last_context
+        return self.runner.last_context
 
     def close(self) -> None:
         if self.traces is not None:

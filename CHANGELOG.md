@@ -35,12 +35,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   definition; `PipelineRunner(pipeline, config=RunConfig(...))` owns resources,
   budget, tracing, lifespan and execution (`run/arun/astream/answer/aanswer`,
   overrides, HTTP/as-tool/test clients). The old runtime keyword arguments and
-  `Pipeline.run`-style shortcuts remain compatibility shims.
+  `Pipeline.run`-style shortcuts remain compatibility shims. `test_client()`
+  is canonical on `PipelineRunner` (`Pipeline.test_client()` delegates).
 - **`Daemon` accepts a runner.** `Daemon(pipeline, config=RunConfig(...), ...)`
   is the short form; `Daemon(runner, ...)` reuses an existing execution object.
-- **`Chat(pipeline=...)`.** A `Chat` can reuse a `Pipeline` definition and infer
-  its seed/answer types and agents. `Chat`/`ChatAssistant`/`quick.chat_agent`
-  accept `agents=` (`groups=` stays a compatibility alias).
+- **`Chat(pipeline=..., config=...)`.** A `Chat` can reuse a `Pipeline`
+  definition and infer its seed/answer types and agents, and `Chat(config=RunConfig(...))`
+  shares the same run settings as `PipelineRunner`. `Chat`/`ChatAssistant`/
+  `quick.chat_agent` accept `agents=` (`groups=` stays a compatibility alias).
 - **Keyword tool agents.** `LLMAgent`/`HITLLMAgent` now take `system=`, `tools=`,
   `consumes=`, `max_steps=`, `max_asks=`, `resume_announce=` and the sampling
   options directly, so a declarative agent no longer needs a five-line

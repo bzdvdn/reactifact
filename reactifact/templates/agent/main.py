@@ -12,7 +12,7 @@ Or directly:
 from __future__ import annotations
 
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Agent, Consume, Pipeline, PipelineRunner, step
 
 
 class Question(BaseModel):
@@ -23,18 +23,18 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 
 
 pipeline = Pipeline(
-    steps=[answer],
+    agents=[Agent("answer", consumes=[Consume(Question)], steps=[answer])],
     seed_type=Question,
     answer_type=Answer,
 )
 
 
 if __name__ == "__main__":
-    result = pipeline.run(Question(text="hello from reactifact"))
+    result = PipelineRunner(pipeline).run(Question(text="hello from reactifact"))
     print(result.latest(Answer).data.text)

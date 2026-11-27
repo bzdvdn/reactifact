@@ -108,7 +108,7 @@ single-pass variants.
 | Need | Use | Why |
 | --- | --- | --- |
 | one run of a pipeline (script, job, service) | `Pipeline(agents=[...])` + `PipelineRunner` | `Pipeline` owns structure; the runner plus `RunConfig` owns resources/budget/tracing and `run/arun`/`answer()` |
-| a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()` |
+| a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` with `config=RunConfig(...)`, or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()`, shared run config |
 | a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| agents=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
 
 For example, the same `Answerer` as a one-shot pipeline:

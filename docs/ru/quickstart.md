@@ -111,7 +111,9 @@ async context manager для turn-scoped contextvars или очистки ре�
 `chat.test_client()` — копию с in-memory store и traces. Pending
 `PendingQuestion` отдаётся как `waiting: true`; с `Chat(..., resume_pending=True)`
 следующее сообщение пользователя становится ответом — отдельный HITL-endpoint
-не нужен.
+не нужен. Настройки запуска, общие с `PipelineRunner` (`resources`, `budget`,
+tracing, lifespan), передаются как `Chat(..., config=RunConfig(...))`; явные
+аргументы перекрывают конфиг.
 
 Для HTTP-чата с сессиями `chat.http()` повторяет DEVOPS-стиль путей:
 
@@ -187,7 +189,7 @@ async with PipelineRunner(pipeline, config=RunConfig(lifespan=lifespan)) as runn
 Тесты получают in-memory trace store и изолированные overrides:
 
 ```python
-client = pipeline.test_client()
+client = PipelineRunner(pipeline).test_client()
 client.override(LLMProvider, FakeLLM())
 result = client.run(Question(text="..."))
 assert asyncio.run(client.traces.query())["total"] >= 1
