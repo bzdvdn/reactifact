@@ -10,7 +10,7 @@ from reactifact import (
     Patch,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
     step,
 )
 from reactifact.recipes import StatusMachine
@@ -44,7 +44,7 @@ class Turn(BaseModel):
 class Echo(Step[Answer]):
     artifact_type = Answer
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         return Patch().create(Answer(text="echo"))
 
 

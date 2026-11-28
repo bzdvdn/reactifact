@@ -55,7 +55,7 @@ On reactifact the *edges disappear* — they become `consumes`/`produces`:
 
 ```python
 from pydantic import BaseModel
-from reactifact import StepCall, step
+from reactifact import StepInvocation, step
 
 
 class Question(BaseModel):
@@ -72,17 +72,17 @@ class Reply(BaseModel):
 
 
 @step(produces=Route, reads=Question)
-async def classify(call: StepCall) -> None:
-    question = call.trigger
+async def classify(inv: StepInvocation) -> None:
+    question = inv.trigger
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
-    call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
+    inv.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
 @step(produces=Reply, reads=Route)
-async def answer(call: StepCall) -> None:
-    route = call.trigger  # this step runs because a Route was created
+async def answer(inv: StepInvocation) -> None:
+    route = inv.trigger  # this step runs because a Route was created
     # ... call the model with run-scoped input ...
-    call.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
+    inv.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
 ```
 
 ```python
@@ -187,7 +187,7 @@ not a hardcoded chain — swap the source, keep the agents.
 | sessions | `SessionStore` over `FileKVBackend`/`SQLiteKVBackend`/`PostgreSQLKVBackend` |
 | budgets / limits | `Budget(max_runs, max_seconds, max_iterations, max_tool_calls)` |
 | error policy | fail-loud by default; `Runtime(isolate_errors=True, on_agent_error=…)` opts into partial progress |
-| per-request data | `Runtime.arun(request={...})` → `call.request` (no ContextVar plumbing) |
+| per-request data | `Runtime.arun(request={...})` → `inv.request` (no ContextVar plumbing) |
 | resource lifecycle | `RuntimeResources.scope(factory)` / `async with` (loop-safe clients) |
 
 ## 10. Migration checklist

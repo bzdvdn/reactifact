@@ -8,7 +8,7 @@ from reactifact import (
     PendingQuestion,
     Runtime,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.recipes import ApprovalGate, Router
 
@@ -54,7 +54,7 @@ class MyRouter(Router[Request, Task]):
 class Specialist(Step[SpecialistReport]):
     artifact_type = SpecialistReport
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         task = call.trigger
         if task is None or not isinstance(task.data, Task):
             return None

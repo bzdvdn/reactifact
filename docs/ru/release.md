@@ -21,11 +21,16 @@ Changelog). При бампе версии:
 
 ## Обновление между версиями
 
-Для 0.25.0 есть [migration-гайд](migration-0.25.md); для 0.24.0 — [свой](migration-0.24.md); для 0.23.0 — [свой](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
+Для 0.30.0 есть [migration-гайд](migration-0.30.md); для 0.25.0 — [свой](migration-0.25.md); для 0.24.0 — [свой](migration-0.24.md); для 0.23.0 — [свой](migration-0.23.md); для 0.20.0 — [свой](migration-0.20.md). Источник истины
 о том, что изменилось, — `CHANGELOG.md`; ломающие изменения помечены по правилу
 выше. Несколько изменений, о которых стоит знать при переходе (см. также
 [migrating.md](migrating.md) для переноса с других фреймворков):
 
+- **0.30.0** — разделение `Agent`/`Step` завершено: шаги владеют `reads`,
+  агенты — `consumes`, `StepGroup` и все алиасы `groups=` удалены, `Pipeline`
+  стал определением (`PipelineRunner` + `RunConfig` исполняют его), а `Chat`
+  принимает runtime-настройки через `RunConfig`. См.
+  [migration-гайд 0.30](migration-0.30.md).
 - **0.25.0** — в основном аддитивная эргономика: `scope=` у `Step`/`@step`,
   `Unscoped()` для истории между ходами, рецепт `TurnContext`, side-effect-only
   шаги, типизированный `CurrentRequest`, `Step.progress`, конфиг

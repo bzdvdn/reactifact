@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Scheduled reactifact agent daemon: settings-driven LLM/budget, graceful shutdown"
 requires-python = ">=3.11"
 dependencies = [
-    "reactifact>=0.25.1",
+    "reactifact>=0.30.0",
     "pydantic-settings>=2.0",
 ]
 

@@ -21,11 +21,17 @@ entry when the version is bumped:
 
 ## Upgrading
 
-0.25.0 has a [migration guide](migration-0.25.md); 0.24.0 has [its own](migration-0.24.md); 0.23.0 has [its own](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
+0.30.0 has a [migration guide](migration-0.30.md); 0.25.0 has [its own](migration-0.25.md); 0.24.0 has [its own](migration-0.24.md); 0.23.0 has [its own](migration-0.23.md); 0.20.0 has [its own](migration-0.20.md). `CHANGELOG.md`
 remains the source of truth for what changed between versions, and breaking
 entries are marked per the rule above. A few changes worth knowing if you're
 crossing them (see also [migrating.md](migrating.md) for porting from other
 frameworks):
+
+- **0.30.0** — the `Agent`/`Step` split is complete: steps own `reads`, agents
+  own `consumes`, `StepGroup` and every `groups=` alias are gone, `Pipeline` is
+  definition-only (`PipelineRunner` + `RunConfig` execute it), and `Chat` takes
+  runtime settings through `RunConfig`. See the
+  [0.30 migration guide](migration-0.30.md).
 
 - **0.25.0** — mostly additive ergonomics: `scope=` on `Step`/`@step`,
   cross-turn `Unscoped()`, the `TurnContext` recipe, side-effect-only steps,

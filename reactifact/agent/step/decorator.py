@@ -23,8 +23,8 @@ from ...policy import RetryPolicy
 from ...provenance import DERIVED_FROM, RelationName
 from ...read import Read
 from .annotations import Scope
-from .call import StepCall
 from .core import Step
+from .invocation import StepInvocation
 from .resolve import invoke_step
 
 
@@ -115,18 +115,18 @@ def step(
 
     The canonical spellings:
 
-        @step(produces=(Answer,), reads=(Question,))
-        async def answer(call: StepCall) -> None: ...
-
         @step(produces=Answer, reads=Question)
-        def answer(call): return Answer(...)
+        def answer(question: Question) -> Answer: ...
+
+        @step(produces=(Answer,), reads=(Question,))
+        async def answer(inv: StepInvocation) -> None: ...
 
     `artifact_type` is the 0.1.x spelling kept for compatibility (the same as a
     one-element `produces`).
     — put extra creates in `produces` and inputs in `reads`.
 
-    The function may take one `call: StepCall` (the 0.1.x shape) or a typed
-    signature — parameter annotations are artifact types (`T`, `list[T]`,
+    The function may take a typed signature (the canonical form) or one
+    low-level `inv: StepInvocation` (any annotated name) — parameter annotations are artifact types (`T`, `list[T]`,
     `Optional[T]`, `Artifact[T]`, `Latest[T]`), plus `Context`, `Effects`,
     `Event`, `inputs`, `trigger`. A single `call` keeps
     `.context`/`.inputs`/`.event`/`.trigger`/`.effects`:
@@ -169,7 +169,7 @@ def step(
         class _FunctionStep(Step[Any]):
             _func: Callable[..., Any]
 
-            async def run(self, call: StepCall) -> Any:
+            async def run(self, call: StepInvocation) -> Any:
                 return await invoke_step(self, call)
 
         instance = _FunctionStep(

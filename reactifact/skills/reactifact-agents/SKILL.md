@@ -37,7 +37,7 @@ consumes are derived from the step.
 Prefer a returned model, `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or
 `self.progress(...)` over reaching for `Context`. Take `effects: Effects`
 only when the write needs an imperative handle or a batch of conditional
-effects; the legacy single `call: StepCall` form is an integration escape
+effects; a single `inv: StepInvocation` parameter is the low-level integration escape
 hatch, not the ordinary style.
 
 ```python

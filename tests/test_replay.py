@@ -11,7 +11,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -35,7 +35,7 @@ class Seed(BaseModel):
 class Pass(Step[Note]):
     artifact_type = Note
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         note1 = call.effects.create(Note(text="v1"), id="note:1")
         call.effects.create(Note(text="v2"), id="note:2")
         note1.link("supported_by", "note:2")

@@ -1,4 +1,4 @@
-"""StepCall and the per-run contextvars."""
+"""StepInvocation and the per-run contextvars."""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 _ACTIVE_CONTEXT: ContextVar[Context | None] = ContextVar(
     "reactifact_step_context", default=None
 )
-_ACTIVE_CALL: ContextVar[StepCall | None] = ContextVar(
-    "reactifact_step_call", default=None
+_ACTIVE_INVOCATION: ContextVar[StepInvocation | None] = ContextVar(
+    "reactifact_step_invocation", default=None
 )
 
 
@@ -35,17 +35,17 @@ def reset_step_context(token: Token[Any]) -> None:
     _ACTIVE_CONTEXT.reset(token)
 
 
-def current_step_call() -> StepCall | None:
-    """The `StepCall` of the step currently running, or `None`."""
-    return _ACTIVE_CALL.get()
+def current_step_invocation() -> StepInvocation | None:
+    """The `StepInvocation` of the step currently running, or `None`."""
+    return _ACTIVE_INVOCATION.get()
 
 
-def set_step_call(call: StepCall | None) -> Token[Any]:
-    return _ACTIVE_CALL.set(call)
+def set_step_invocation(call: StepInvocation | None) -> Token[Any]:
+    return _ACTIVE_INVOCATION.set(call)
 
 
-def reset_step_call(token: Token[Any]) -> None:
-    _ACTIVE_CALL.reset(token)
+def reset_step_invocation(token: Token[Any]) -> None:
+    _ACTIVE_INVOCATION.reset(token)
 
 
 if TYPE_CHECKING:
@@ -53,9 +53,13 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class StepCall:
-    """The single argument `step()` receives, both class-style and
-    `@step`-decorated functions.
+class StepInvocation:
+    """The runtime view of one step invocation.
+
+    The low-level form: a class-style step receives its fields through
+    parameters, while a `@step` function may take one `inv: StepInvocation`
+    (any annotated name works; unannotated `call`/`step_call` is the legacy path)
+    to reach the same state.
 
     - `context` — the working `Context` (queries, `list_artifacts`, ...).
     - `inputs` — this agent's whole declared working set (via `reads`),
@@ -103,7 +107,7 @@ class StepCall:
         slot = current_effects()
         if slot is None:
             raise RuntimeError(
-                "StepCall.effects is only available while the runtime "
+                "StepInvocation.effects is only available while the runtime "
                 "executes this produce — write effects inside step(), "
                 "not before it."
             )

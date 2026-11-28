@@ -83,7 +83,7 @@ def _active_resources() -> RuntimeResources | None:
     resources = _bound_resources.get()
     if resources is not None:
         return resources
-    from ..agent.step.call import current_step_context
+    from ..agent.step.invocation import current_step_context
 
     context: Context | None = current_step_context()
     return context.resources if context is not None else None

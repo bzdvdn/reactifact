@@ -18,7 +18,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
     tool,
 )
 from reactifact.tools import ToolError, ToolOutput, execute_tool
@@ -70,7 +70,7 @@ def test_injection_works_inside_a_step_without_explicit_resources():
         artifact_type = Answer
         reads = [Consume(Question)]
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             output = await execute_tool(get_pod, {"name": call.trigger.data.text})
             call.effects.create(Answer(text=output.data["name"]))
 

@@ -22,14 +22,14 @@ from ..policy import RetryPolicy
 from ..provenance import DERIVED_FROM
 from ..tools import reset_current_produce, set_current_produce
 from ..triggers import Trigger
-from .step.call import (
-    StepCall,
-    reset_step_call,
-    reset_step_context,
-    set_step_call,
-    set_step_context,
-)
 from .step.core import Step, _scope_matches, _scope_value
+from .step.invocation import (
+    StepInvocation,
+    reset_step_context,
+    reset_step_invocation,
+    set_step_context,
+    set_step_invocation,
+)
 from .step.resolve import invoke_step
 
 #: Per-task log of the produces that ran for the current agent execution:
@@ -73,7 +73,7 @@ def end_produce_runs(token: Token[Any]) -> None:
 
 def _apply_provenance(
     step: Step[Any],
-    call: StepCall,
+    call: StepInvocation,
     slot: Effects,
     start: int,
 ) -> None:
@@ -493,7 +493,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             before = len(slot.operations) if slot is not None else 0
             started_at = datetime.now(UTC)
             started = time.monotonic()
-            call = StepCall(
+            call = StepInvocation(
                 context=context,
                 inputs=step_inputs,
                 event=event,
@@ -503,7 +503,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             )
             produce_token = set_current_produce(p.name)
             context_token = set_step_context(context)
-            call_token = set_step_call(call)
+            call_token = set_step_invocation(call)
             try:
                 if p.timeout is not None:
                     async with asyncio.timeout(p.timeout):
@@ -516,7 +516,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                 if trigger_cursor:
                     context._step_cursors[cursor_key] = trigger_cursor
             finally:
-                reset_step_call(call_token)
+                reset_step_invocation(call_token)
                 reset_step_context(context_token)
                 reset_current_produce(produce_token)
                 # Record the produce even when it raises — a failing produce is
@@ -541,8 +541,8 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         p: Step[Any], event: Event | None, context: Context
     ) -> tuple[bool, Artifact[Any] | None]:
         """Whether to call `p.run()` for `event`, and the triggering
-        artifact to put on the `StepCall.trigger` field (see `Step`'s
-        docstring, and `StepCall`'s, for the full contract).
+        artifact to put on the `StepInvocation.trigger` field (see `Step`'s
+        docstring, and `StepInvocation`'s, for the full contract).
 
         `p.reacts_to is None` (the default): unrestricted, matching the
         pre-`reacts_to` behavior where every produce ran on every event this

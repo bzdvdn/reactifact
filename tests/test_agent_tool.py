@@ -8,7 +8,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.llm_agent import HITLLMAgent, LLMAgent
 from reactifact.providers import LLMProvider, LLMRequest, LLMResponse
@@ -65,7 +65,7 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
     class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -126,7 +126,7 @@ def test_agent_as_tool_isolated_from_parent_history():
     class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -177,7 +177,7 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
     class BuildReport(Step[MainReport]):
         artifact_type = MainReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None

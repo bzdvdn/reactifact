@@ -16,7 +16,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -51,7 +51,7 @@ class Chatty(Step[Number]):
 
     artifact_type = Number
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         await call.context.resources.llm.complete(  # type: ignore[union-attr]
             LLMRequest(messages=[Message.user("hi")])
         )
@@ -87,7 +87,7 @@ class StreamUsageLLM(LLMProvider):
 class Streaming(Step[Number]):
     artifact_type = Number
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         llm = call.context.resources.llm
         assert llm is not None
         async for _ in llm.stream(LLMRequest(messages=[Message.user("hi")])):

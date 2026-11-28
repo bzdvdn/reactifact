@@ -17,8 +17,8 @@ from ...events import Event
 from ...interaction import Human, Outbox, Progress
 from ...request import CurrentRequest
 from .annotations import Latest, Scope, Unscoped
-from .call import StepCall
 from .core import Step, _annotation_types, _scope_matches, _scope_value
+from .invocation import StepInvocation
 
 
 def _resolved_hints(target: Callable[..., Any]) -> dict[str, Any]:
@@ -89,7 +89,7 @@ class MissingInputError(TypeError):
         return message
 
 
-def _use(call: StepCall, *artifacts: Artifact[Any]) -> None:
+def _use(call: StepInvocation, *artifacts: Artifact[Any]) -> None:
     """Records artifacts actually resolved for this call (for `provenance=`)."""
     seen = {artifact.id for artifact in call.used}
     for artifact in artifacts:
@@ -111,7 +111,7 @@ def _is_unscoped(annotation: Any) -> bool:
     return any(isinstance(meta, Unscoped) for meta in get_args(annotation)[1:])
 
 
-def _resolve_service(call: StepCall, annotation: Any) -> Any | None:
+def _resolve_service(call: StepInvocation, annotation: Any) -> Any | None:
     """Resolve a non-artifact service parameter (`LLMProvider`, `X | None`, …).
 
     Explicit typed registrations win over the artifact heuristic: an app may
@@ -179,7 +179,7 @@ def _handles_shape(annotation: Any) -> tuple[list[type], bool, bool] | None:
 
 
 def _scoped_inputs(
-    call: StepCall,
+    call: StepInvocation,
     types_: list[type],
     scope: Scope | str | None,
     scope_value: Any,
@@ -197,7 +197,7 @@ def _scoped_inputs(
 
 
 def _scoped_trigger(
-    call: StepCall,
+    call: StepInvocation,
     types_: list[type],
     scope: Scope | str | None,
     scope_value: Any,
@@ -220,7 +220,7 @@ def _with_trigger(
 
 
 def _missing(
-    call: StepCall,
+    call: StepInvocation,
     name: str,
     types_: list[type],
     step_name: str,
@@ -246,7 +246,7 @@ class _Selection:
 
 
 def _select(
-    call: StepCall,
+    call: StepInvocation,
     types_: list[type],
     is_list: bool,
     optional: bool,
@@ -263,7 +263,7 @@ def _select(
 
 
 def _resolve_selected(
-    call: StepCall,
+    call: StepInvocation,
     name: str,
     selected: _Selection,
     step_name: str,
@@ -288,7 +288,7 @@ def _resolve_selected(
 
 
 def _resolve_latest(
-    call: StepCall,
+    call: StepInvocation,
     annotation: Any,
     scope: Scope | str | None,
     scope_value: Any,
@@ -329,11 +329,11 @@ def _optional_base(annotation: Any) -> Any:
     return annotation
 
 
-def _resolve_injected(name: str, annotation: Any, call: StepCall) -> Any:
+def _resolve_injected(name: str, annotation: Any, call: StepInvocation) -> Any:
     """Collaborators injected by type, or by name for untyped legacy steps."""
     base = _optional_base(annotation)
     untyped = _untyped(annotation) or _untyped(base)
-    if base is StepCall or (untyped and name in {"call", "step_call"}):
+    if base is StepInvocation or (untyped and name in {"call", "step_call"}):
         return call
     if base is Context or (untyped and name == "context"):
         return call.context
@@ -363,7 +363,7 @@ def _resolve_injected(name: str, annotation: Any, call: StepCall) -> Any:
 def _resolve_arg(
     name: str,
     annotation: Any,
-    call: StepCall,
+    call: StepInvocation,
     scope: Scope | str | None = None,
     scope_value: Any = None,
     *,
@@ -400,10 +400,11 @@ async def _call_target(target: Callable[..., Any], *args: Any, **kwargs: Any) ->
     return result
 
 
-async def invoke_step(step: Step[Any], call: StepCall) -> Any:
-    """Calls a step's run/function with either a `StepCall` or typed inputs.
+async def invoke_step(step: Step[Any], call: StepInvocation) -> Any:
+    """Calls a step's run/function with either a `StepInvocation` or typed inputs.
 
-    A single `call: StepCall` parameter keeps the 0.1.x shape. Any other
+    A single annotated `StepInvocation` parameter (any name) is the low-level
+    form; unannotated `call`/`step_call` is the legacy path. Any other
     signature is Celery-style: parameters may be artifact data (`T`,
     `list[T]`, `T | None`), artifact handles (`Artifact[T]`,
     `list[Artifact[T]]`, `Artifact[T] | None`), `Latest[T]` context queries or
@@ -426,7 +427,8 @@ async def invoke_step(step: Step[Any], call: StepCall) -> Any:
     if not params:
         return await _call_target(target, *prefix)
     if len(params) == 1 and (
-        params[0].name in {"call", "step_call"} or params[0].annotation is StepCall
+        params[0].name in {"call", "step_call"}
+        or params[0].annotation is StepInvocation
     ):
         return await _call_target(target, *prefix, call)
     hints = _resolved_hints(target)

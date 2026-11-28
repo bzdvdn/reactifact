@@ -69,7 +69,7 @@ class Evidence(BaseModel):
 Авторская поверхность — слот **effects** (см. [Контракт шага](effects.md),
 §24): шаг пишет `create/update/delete/link/upsert` и возвращает `None`. Класс-шаг
 объявляет `effects: Effects` в `run()`; функция `@step` использует
-`call.effects`. Рантайм компилирует набор эффектов в один атомарный
+`inv.effects`. Рантайм компилирует набор эффектов в один атомарный
 **`Patch`** — скомпилированный транспорт.
 
 ```python
@@ -203,13 +203,13 @@ class PickStage(Step):
 связей). Добавляйте `| None` к любой форме, если вход может отсутствовать:
 `Artifact[T] | None` даёт handle или `None`, а не модель данных.
 
-Функциональная форма принимает один `call: StepCall` и пишет через
-`call.effects`:
+Функциональная форма принимает один `StepInvocation` и пишет через
+`inv.effects`:
 
 ```python
 @step(produces=Answer, reads=Evidence)
-async def answer(call: StepCall) -> Answer:
-    return Answer(text=call.trigger.data.text)
+async def answer(inv: StepInvocation) -> Answer:
+    return Answer(text=inv.trigger.data.text)
 ```
 
 Возврат модели — create-сахар; `effects.*` — для update, link, HITL и
@@ -266,7 +266,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 
 | Что нужно | Что использовать | Заметка |
 | --- | --- | --- |
-| Одно типизированное преобразование | `@step(produces=..., reads=...)` | верните модель или используйте `call.effects` для update/link |
+| Одно типизированное преобразование | `@step(produces=..., reads=...)` | верните модель или используйте `inv.effects` для update/link |
 | Типизированные входы, несколько эффектов, HITL | класс `Step` с `run(..., effects: Effects)` | полная форма; см. [Effects](effects.md) |
 | Ручная сборка операций / императивный агент | `Patch`, `Agent.run(event, context)` | escape hatch, не повседневный стиль |
 

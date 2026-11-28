@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Agent, Step, StepCall
+from reactifact import Agent, Step, StepInvocation
 from reactifact.chat import ChatAssistant, ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
@@ -22,7 +22,7 @@ from reactifact.session import SessionStore
 class _Echo(Step[ConversationMessage]):
     artifact_type = ConversationMessage
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         trigger = call.trigger
         if trigger is not None and trigger.data.role == "user":
             call.effects.create(
@@ -154,7 +154,7 @@ class _BotMsg(BaseModel):
 class _Bot(Step[_BotMsg]):
     artifact_type = _BotMsg
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         trigger = call.trigger
         if trigger is not None and isinstance(trigger.data, _UserMsg):
             call.effects.create(

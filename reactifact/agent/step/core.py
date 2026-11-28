@@ -33,10 +33,10 @@ from ...policy import RetryPolicy
 from ...provenance import DERIVED_FROM, RelationName
 from ...read import Read
 from .annotations import Latest, Scope, Wakes, When
-from .call import (
-    StepCall,
-    current_step_call,
+from .invocation import (
+    StepInvocation,
     current_step_context,
+    current_step_invocation,
 )
 
 if TYPE_CHECKING:
@@ -210,7 +210,7 @@ class Step(Generic[TOut]):
     #: it; the runtime does not gate deletes on it.
     deletes: tuple[ArtifactType, ...] = ()
     #: Input contract: the artifacts this step reads. The runtime gates the
-    #: step on their availability and collects them into `StepCall.inputs`.
+    #: step on their availability and collects them into `StepInvocation.inputs`.
     reads: tuple[Any, ...] | None = None
     #: Correlation scope for same-run lookups, e.g. `scope = "query_id"` or
     #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
@@ -521,7 +521,7 @@ class Step(Generic[TOut]):
     def request(self) -> CurrentRequest:
         """The active turn's per-request payload (`Runtime.arun(request=...)`).
 
-        The same data as `StepCall.request` / `current_request()`, as a small
+        The same data as `StepInvocation.request` / `current_request()`, as a small
         read-only `CurrentRequest` mapping. Empty outside a request.
         """
         from ...request import CurrentRequest, current_request
@@ -543,7 +543,7 @@ class Step(Generic[TOut]):
     @property
     def cursor(self) -> dict[type, dict[str, int]]:
         """The input cursor of the current run (type → {artifact id → version})."""
-        call = current_step_call()
+        call = current_step_invocation()
         if call is None:
             return {}
         return {
@@ -553,7 +553,7 @@ class Step(Generic[TOut]):
     @property
     def scope_value(self) -> Any:
         """The current run's correlation value (e.g. its `query_id`)."""
-        call = current_step_call()
+        call = current_step_invocation()
         if call is None:
             return None
         if call.scope is not None:
@@ -588,7 +588,7 @@ class Step(Generic[TOut]):
 
             async def run(self, question: Question) -> Answer: ...
 
-        The `call: StepCall` shape still works for steps that need the raw call.
+        One annotated `StepInvocation` parameter still works for steps that need the raw invocation.
         """
         return None
 
@@ -623,7 +623,7 @@ class Step(Generic[TOut]):
     def name(self, value: str) -> None:
         self._name = value
 
-    def _return_id(self, data: Any, call: StepCall | None) -> str | None:
+    def _return_id(self, data: Any, call: StepInvocation | None) -> str | None:
         """A stable id for a return-style create, when `once` is on."""
         if not self.once or call is None or call.trigger is None:
             return None
@@ -637,7 +637,7 @@ class Step(Generic[TOut]):
         self,
         result: Any,
         effects: Effects,
-        call: StepCall | None = None,
+        call: StepInvocation | None = None,
     ) -> None:
         """Writes a `@step`-decorated function's return-style result into
         the effect slot (§24).

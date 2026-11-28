@@ -14,7 +14,7 @@ from reactifact import (
     Context,
     Runtime,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.audit import context_hash
 
@@ -28,7 +28,7 @@ class Increment(Step[Number]):
 
     artifact_type = Number
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         trigger = call.trigger
         if trigger is None:
             return None

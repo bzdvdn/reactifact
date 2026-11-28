@@ -11,7 +11,7 @@ from reactifact import (
     Consume,
     Context,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.audit import context_hash
 from reactifact.testing import ScenarioLab, assert_golden_file
@@ -91,7 +91,7 @@ class Out(BaseModel):
 class Doubler(Step[Out]):
     artifact_type = Out
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         seed = next((a for a in call.inputs if isinstance(a.data, Seed)), None)
         if seed is None:
             return None

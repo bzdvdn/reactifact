@@ -69,7 +69,7 @@ The authoring surface is the **effects** slot (see
 [The step contract](effects.md), §24): a step writes
 `create/update/delete/link/upsert` and returns `None`. A class-style step declares
 `effects: Effects` in `run()`; a `@step` function uses
-`call.effects`. The runtime compiles the effect set into one atomic
+`inv.effects`. The runtime compiles the effect set into one atomic
 **`Patch`** — its compiled transport.
 
 ```python
@@ -197,12 +197,12 @@ declared input.
 for `Edit`/links). Add `| None` to either form when the input may be absent:
 `Artifact[T] | None` gives the handle or `None`, not the data model.
 
-The function form takes one `call: StepCall` and uses `call.effects`:
+The function form takes one `StepInvocation` and uses `inv.effects`:
 
 ```python
 @step(produces=Answer, reads=Evidence)
-async def answer(call: StepCall) -> Answer:
-    return Answer(text=call.trigger.data.text)
+async def answer(inv: StepInvocation) -> Answer:
+    return Answer(text=inv.trigger.data.text)
 ```
 
 Returning a model is create-sugar; `effects.*` is for updates, links, HITL and
@@ -260,7 +260,7 @@ when the task actually needs it.
 
 | Need | Use | Notes |
 | --- | --- | --- |
-| One typed transformation | `@step(produces=..., reads=...)` | return the produced model, or use `call.effects` for updates/links |
+| One typed transformation | `@step(produces=..., reads=...)` | return the produced model, or use `inv.effects` for updates/links |
 | Typed inputs, several effects, HITL | class `Step` with `run(..., effects: Effects)` | the full form; see [Effects](effects.md) |
 | Hand-assembled operations / imperative agent | `Patch`, `Agent.run(event, context)` | escape hatch, not the everyday style |
 

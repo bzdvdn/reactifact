@@ -16,7 +16,7 @@ from reactifact import (
     Latest,
     Runtime,
     Step,
-    StepCall,
+    StepInvocation,
     Unscoped,
     step,
 )
@@ -148,7 +148,7 @@ def test_side_effect_only_step_allows_empty_produces_and_reports_deletes():
 
 def test_decorated_side_effect_step_can_declare_empty_produces():
     @step(reads=Question, produces=())
-    async def cleanup(call: StepCall) -> None:
+    async def cleanup(call: StepInvocation) -> None:
         for artifact in call.context.list_artifacts(Answer):
             call.effects.delete(artifact)
 

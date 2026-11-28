@@ -10,7 +10,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
     tool,
 )
 from reactifact.effects import Effects
@@ -108,7 +108,7 @@ def test_single_agent_loop_and_report():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -173,7 +173,7 @@ def test_deferred_tool_group_loads_on_demand_once():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -220,7 +220,7 @@ def test_two_agents_do_not_crossfire():
     class BuildK8sReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             invoked["k8s_report"] += 1
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
@@ -230,7 +230,7 @@ def test_two_agents_do_not_crossfire():
     class BuildGitlabReport(Step[GitlabReport]):
         artifact_type = GitlabReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             invoked["gitlab_report"] += 1
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
@@ -302,7 +302,7 @@ def test_tool_failure_is_returned_to_llm():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -333,7 +333,7 @@ def test_budget_max_tool_calls_stops_loop():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -363,7 +363,7 @@ def test_unknown_tool_reported_to_llm():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -433,7 +433,7 @@ def test_llm_agent_tools_only_no_produces():
     class RenderFromBaseChat(Step[ChatReply]):
         artifact_type = ChatReply
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if (
                 a is None
@@ -471,7 +471,7 @@ def test_forced_answer_when_loop_hits_step_limit():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -502,7 +502,7 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -558,7 +558,7 @@ def test_max_asks_caps_rephrased_clarifications():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -600,7 +600,7 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -644,7 +644,7 @@ def test_hitl_destructive_tool_denied_is_not_executed():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None
@@ -685,7 +685,7 @@ def test_max_approvals_caps_repeated_destructive_calls():
     class BuildReport(Step[K8sReport]):
         artifact_type = K8sReport
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             a = call.trigger
             if a is None or not isinstance(a.data, ToolAnswer):
                 return None

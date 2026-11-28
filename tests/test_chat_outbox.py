@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, PendingAction, Step, StepCall
+from reactifact import Agent, PendingAction, Step, StepInvocation
 from reactifact.chat import ChatAssistant
 from reactifact.checkpoints import InMemoryKVBackend
 from reactifact.consume import Consume
@@ -24,7 +24,7 @@ class _Reply(BaseModel):
 class _Notifier(Step[_Reply]):
     produces = (_Reply, PendingAction)
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         msg = call.trigger
         if msg is None:
             return

@@ -17,8 +17,8 @@ child tasks a generation fans out to, and isolated between concurrent turns
     await runtime.arun(request={"user": "bob", "tenant": "acme"})
 
     @step(produces=(Answer,))
-    async def answer(call: StepCall) -> Answer:
-        user = call.request.get("user", "anonymous")
+    async def answer(inv: StepInvocation) -> Answer:
+        user = inv.request.get("user", "anonymous")
         return Answer(text=f"hello, {user}")
 
 `request=None` (the default) means "no explicit request": a nested run (e.g.

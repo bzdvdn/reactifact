@@ -216,7 +216,9 @@ async def classify(question: Question) -> Route:
 ```
 
 `classify` — это `Agent`; монтируйте его в `Pipeline` или `Runtime` как любой
-другой. Передайте `@agent(consumes=[...])`, когда условию пробуждения нужен
+другой. Импортируйте декоратор из пакета `reactifact.agent`: сам `reactifact.agent`
+и есть пакет, поэтому `from reactifact import agent` даёт модуль, а не декоратор.
+Передайте `@agent(consumes=[...])`, когда условию пробуждения нужен
 `Consume` (`by_field`, `debounce`, событие approval, …). Если работы несколько
 шагов — используйте явную форму:
 

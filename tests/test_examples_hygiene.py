@@ -31,7 +31,7 @@ FORBIDDEN = {
     "legacy Step kwargs": re.compile(r"\b(?:also_creates|reacts_to)\s*="),
     "legacy effects helpers": re.compile(r"\beffects\.(?:ask|resume|act)\s*\("),
     "direct state mutation": re.compile(r"\bcontext\.state\b|\bartifact\.update\s*\("),
-    "legacy StepCall": re.compile(r"\bStepCall\b"),
+    "legacy StepInvocation": re.compile(r"\bStepInvocation\b"),
 }
 
 

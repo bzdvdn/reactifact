@@ -217,7 +217,9 @@ async def classify(question: Question) -> Route:
 ```
 
 `classify` is an `Agent`; mount it in a `Pipeline` or `Runtime` like any other.
-Pass `@agent(consumes=[...])` when the wake condition needs a `Consume`
+Import the decorator from the `reactifact.agent` package: `reactifact.agent` is
+the package itself, so `from reactifact import agent` gives the module, not the
+decorator. Pass `@agent(consumes=[...])` when the wake condition needs a `Consume`
 (`by_field`, `debounce`, an approval event, …). When the work needs several
 steps, use the explicit form:
 

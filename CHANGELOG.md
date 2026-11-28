@@ -24,6 +24,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   now `ContractReport.agents`; `GroupContract` is `AgentContract`; the CLI
   config key is `[tool.reactifact] agents`.
 - **`ValidationIssue.groups` is `ValidationIssue.agents`.**
+- **`StepCall` is `StepInvocation`.** The object a step receives is named for
+  what it is — one invocation of one step — since it carries the trigger, the
+  input cursor, the effect slot and the per-turn request, not a call. Fields
+  and channels are unchanged, and an untyped `call`/`step_call` parameter still
+  binds it.
 - **`Pipeline` is definition-only.** Runtime construction and execution moved
   to `PipelineRunner(pipeline, config=RunConfig(...))`; the legacy runtime
   keyword arguments, execution shortcuts (`run/arun/answer/aanswer/astream/
@@ -39,17 +44,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 ### Added
 - **`Agent` is the authoring and scheduling unit.** `Agent("intake",
   steps=[...], consumes=..., retry=..., timeout=...)` is the user-facing group
-  of steps. `Runtime` accepts
-  `agents=` (`groups=` is a deprecated alias), `Pipeline.agents` is the
-  expanded agent list, and `Pipeline(agents=[...], routes=[...])` adds
-  `mermaid()` rendering. `Route` exposes `agents()` (`groups()` is an alias)
-  and cases accept `Agent` objects.
+  of steps. `Runtime` accepts `agents=`, `Pipeline.agents` is the expanded
+  agent list, and `Pipeline(agents=[...], routes=[...])` adds `mermaid()`
+  rendering. `Route` exposes `agents()` and cases accept `Agent` objects.
 - **`@agent` for one-function agents.** `@agent` turns a typed function into an
   `Agent` with one step; `Agent(name, consumes=[...], steps=[...])` is the
   multi-step form. `Agent` is the authoring and scheduling unit now.
 - **Authoring package.** `reactifact.agent` holds `Agent`/`@agent` and the
-  `reactifact.agent.step` module holds `Step`/`@step`; `reactifact.step` stays
-  importable as a compatibility shim.
+  `reactifact.agent.step` module holds `Step`/`@step`; `reactifact.step` is
+  gone.
 - **`Read` and `Selector`.** `Read` is the step input contract (`required`,
   `on_create`/`on_update`/`on_stale`/`after_delete`, `by_field`); `Consume` is
   the agent wake contract. Both inherit `Selector`; `Step.reads` exposes
@@ -63,9 +66,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`PipelineRunner` + `RunConfig`.** `Pipeline` is the declarative
   definition; `PipelineRunner(pipeline, config=RunConfig(...))` owns resources,
   budget, tracing, lifespan and execution (`run/arun/astream/answer/aanswer`,
-  overrides, HTTP/as-tool/test clients). The old runtime keyword arguments and
-  `Pipeline.run`-style shortcuts remain compatibility shims. `test_client()`
-  is canonical on `PipelineRunner` (`Pipeline.test_client()` delegates).
+  overrides, HTTP/as-tool/test clients). `test_client()` lives on
+  `PipelineRunner`.
 - **`Daemon` accepts a runner.** `Daemon(pipeline, config=RunConfig(...), ...)`
   is the short form; `Daemon(runner, ...)` reuses an existing execution object.
 - **High-level memory verbs.** `MemoryStore.remember(text, ...)` derives a
@@ -79,7 +81,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **`Chat(pipeline=..., config=...)`.** A `Chat` can reuse a `Pipeline`
   definition and infer its seed/answer types and agents, and `Chat(config=RunConfig(...))`
   shares the same run settings as `PipelineRunner`. `Chat`/`ChatAssistant`/
-  `quick.chat_agent` accept `agents=` (`groups=` stays a compatibility alias).
+  `quick.chat_agent` take `agents=`.
 - **Keyword tool agents.** `LLMAgent`/`HITLLMAgent` now take `system=`, `tools=`,
   `consumes=`, `max_steps=`, `max_asks=`, `resume_announce=` and the sampling
   options directly, so a declarative agent no longer needs a five-line
@@ -95,13 +97,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 - **`Pipeline.agents` replaces `Pipeline.groups`.** `pipeline.agents` is the
   expanded agent list; `Runtime(agents=...)`, `validate_contracts(agents=...)`
-  and `Route.agents()` use the same name. The legacy `steps=`/`groups=`
-  constructor arguments, `Route.groups()` and `Pipeline.run(...)` remain as
-  compatibility shortcuts.
-- **`StepGroup` leaves the advertised surface.** It stays importable as
-  `StepGroup is Agent` for 0.x code, but is no longer in `__all__`, public type
-  hints, recipes, templates, examples or current docs. `create_step_group` and
-  `StepGroupSpan` follow the same compatibility-only rule.
+  and `Route.agents()` use the same name. `Pipeline(steps=...)` still accepts
+  raw steps for the low-level/testing path.
 - **Skills and the devops example teach the current model.** The bundled
   skills use `@step` functions, `Read` inputs and `Consume` wake-ups; the
   devops router, report builders, reply, memory and branch scenarios are
@@ -113,7 +110,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Daemon template uses the pipeline runner.** Its monitor is a typed `@step`
   returning `Ensure(Report)`, and `run_once` executes a `Pipeline` through
   `PipelineRunner` + `RunConfig` instead of hand-building a `Runtime`. The
-  agent/daemon/chat templates now require reactifact 0.25.1.
+  agent/daemon/chat templates now require reactifact 0.30.0.
 - **Repair stages tolerate a seeded project.** `CollectStage`/`PickStage`/
   `ApprovalStage`/`AssistantStage` take an optional user message, so a project
   seeded past the conversation (the estimate scenario) advances without a

@@ -27,7 +27,7 @@ async def run(
 
 Класс-шаг, который пишет эффекты, объявляет `effects: Effects` в `run()` —
 рантайм инжектит слот, привязанный к запуску. Функция `@step` получает один
-аргумент `call: StepCall` и пишет через `call.effects`; это один и тот же
+аргумент `StepInvocation` (по соглашению `inv`) и пишет через `inv.effects`; это один и тот же
 набор эффектов, просто разные поверхности (у функции нет `self`).
 
 Входы можно выбирать аннотациями: `Annotated[T, When(...)]` задаёт условие.
@@ -170,7 +170,7 @@ status-артефактом (`recipes.status.StatusMachine`).
 
 Слот эффектов привязан к запуску: рантайм кладёт новый перед вызовом и убирает
 после (contextvar) — безопасно при параллельных шагах. Класс-шаг получает его
-параметром (`effects: Effects`), функция — через `call.effects`. Хэндлы можно
+параметром (`effects: Effects`), функция — через `inv.effects`. Хэндлы можно
 строить между выражениями (`evidence` создан выше и связывается ниже), поэтому
 код читается «про артефакты», а не «про id».
 
@@ -196,15 +196,15 @@ guard → decide → describe (effects) → return None
 
 ## Функциональная форма (`@step`) — та же поверхность
 
-Декорированная функция получает `call` и использует `call.effects`:
+Декорированная функция получает `call` и использует `inv.effects`:
 
 ```python
-from reactifact import StepCall, step
+from reactifact import StepInvocation, step
 
 @step(produces=Answer, reads=Question)
-async def answer_turn(call: StepCall) -> None:
-    question = call.trigger
-    answer = call.effects.create(
+async def answer_turn(inv: StepInvocation) -> None:
+    question = inv.trigger
+    answer = inv.effects.create(
         Answer(text=...), id=f"answer:{question.id}"
     )
     answer.link("derived_from", question)

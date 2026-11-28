@@ -14,7 +14,7 @@ from reactifact import (
     Context,
     Runtime,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.providers import (
     LLMProvider,
@@ -144,7 +144,7 @@ class Answer(BaseModel):
 class Ask(Step[Answer]):
     artifact_type = Answer
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         response = await call.context.resources.llm.complete(  # type: ignore[union-attr]
             LLMRequest(messages=[Message.user("hi")])
         )

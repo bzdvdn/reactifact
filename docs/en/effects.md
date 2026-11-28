@@ -28,7 +28,7 @@ async def run(
 
 A class step that writes effects declares an `effects: Effects` parameter in
 `run()` — the runtime injects the step-scoped slot. A `@step` function receives
-the single `call: StepCall` argument and writes `call.effects`; both reach the
+one `StepInvocation` argument (conventionally `inv`) and writes `inv.effects`; both reach the
 same effect set, just through a different surface (the function form has no
 `self`).
 
@@ -179,7 +179,7 @@ reads/writes/relations all derive from the same compiled ops.
 The effects slot is step-scoped: the runtime pushes a fresh one before each
 execution and pops it after (a contextvar) — safe under parallel steps. A class
 step names it as a parameter (`effects: Effects`); a function step reaches it
-through `call.effects`. You can build handles across statements (`evidence`
+through `inv.effects`. You can build handles across statements (`evidence`
 created above is linked below), which is why call sites read "about artifacts",
 not "about ids".
 
@@ -205,15 +205,15 @@ the runtime does the compiling.
 
 ## The function form (`@step`) — same authoring surface
 
-A decorated function receives `call` and uses `call.effects`:
+A decorated function receives one `StepInvocation` and uses `inv.effects`:
 
 ```python
-from reactifact import StepCall, step
+from reactifact import StepInvocation, step
 
 @step(produces=Answer, reads=Question)
-async def answer_turn(call: StepCall) -> None:
-    question = call.trigger
-    answer = call.effects.create(
+async def answer_turn(inv: StepInvocation) -> None:
+    question = inv.trigger
+    answer = inv.effects.create(
         Answer(text=...), id=f"answer:{question.id}"
     )
     answer.link("derived_from", question)

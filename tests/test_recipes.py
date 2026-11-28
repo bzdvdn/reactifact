@@ -12,7 +12,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.artifacts import Artifact
 from reactifact.recipes import (
@@ -54,7 +54,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
     class Scout(Step[SourceRef]):
         artifact_type = SourceRef
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             await fan_out_sources(
                 call.context,
                 "vitamin D nutritional supplementation",
@@ -88,7 +88,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
     class Scout(Step[SourceRef]):
         artifact_type = SourceRef
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             await fan_out_sources(
                 call.context, "prevents colds", owner_id="q1", limit=1
             )
@@ -97,7 +97,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
     class Resolver(Step[Doc]):
         artifact_type = Doc
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             ref_art = call.trigger
             if ref_art is None or not isinstance(ref_art.data, SourceRef):
                 return None
@@ -133,7 +133,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
 class Fill(Step[Job]):
     artifact_type = Job
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         target = call.trigger
         if target is None:
             return None
@@ -184,7 +184,7 @@ class Final(BaseModel):
 class MakeScratch(Step[Scratch]):
     artifact_type = Scratch
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         question = call.trigger
         if question is None or not isinstance(question.data, Question):
             return None
@@ -197,7 +197,7 @@ class MakeScratch(Step[Scratch]):
 class MakeFinal(Step[Final]):
     artifact_type = Final
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         if call.event is None:
             return None
         scratch = call.trigger
@@ -475,7 +475,7 @@ def test_fan_out_sources_as_artifacts_then_materialize_doc(tmp_path):
         produces = (SourceRef, Doc)
         reads = (Consume(Job),)
 
-        async def run(self, call: StepCall) -> None:
+        async def run(self, call: StepInvocation) -> None:
             handles = await fan_out_sources(
                 call.context,
                 "prevents colds",
@@ -522,7 +522,7 @@ def test_materialize_doc_reuses_an_existing_document():
         produces = (SourceRef, Doc)
         reads = (Consume(Job),)
 
-        async def run(self, call: StepCall) -> None:
+        async def run(self, call: StepInvocation) -> None:
             await materialize_doc(
                 call.context,
                 SourceRef(source_id="count", locator="x"),
@@ -537,7 +537,7 @@ def test_materialize_doc_reuses_an_existing_document():
         produces = (SourceRef, Doc)
         reads = (Consume(Doc),)
 
-        async def run(self, call: StepCall) -> None:
+        async def run(self, call: StepInvocation) -> None:
             await materialize_doc(
                 call.context,
                 SourceRef(source_id="count", locator="x"),
@@ -563,7 +563,7 @@ def test_materialize_doc_reports_a_missing_source():
         produces = (Doc,)
         reads = (Consume(Job),)
 
-        async def run(self, call: StepCall) -> None:
+        async def run(self, call: StepInvocation) -> None:
             result = await materialize_doc(
                 call.context,
                 SourceRef(source_id="missing", locator="x"),

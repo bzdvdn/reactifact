@@ -14,7 +14,7 @@ from reactifact import (
     Context,
     Runtime,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.metrics import Metrics, MetricsTracer, create_metrics_router
 from reactifact.resources import RuntimeResources
@@ -190,7 +190,7 @@ class Number(BaseModel):
 class Bump(Step[Number]):
     artifact_type = Number
 
-    async def run(self, call: StepCall) -> None:
+    async def run(self, call: StepInvocation) -> None:
         trigger = call.trigger
         if trigger is not None and trigger.data.value < 2:
             call.effects.create(Number(value=trigger.data.value + 1))

@@ -3,7 +3,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Patch, Runtime, Step, StepCall
+from reactifact import Agent, Consume, Context, Patch, Runtime, Step, StepInvocation
 
 
 class Trigger(BaseModel):
@@ -13,7 +13,7 @@ class Trigger(BaseModel):
 class Explode(Step[Trigger]):
     artifact_type = Trigger
 
-    async def run(self, call: StepCall) -> Patch | None:
+    async def run(self, call: StepInvocation) -> Patch | None:
         raise RuntimeError("boom inside the agent")
 
 
@@ -58,7 +58,7 @@ class Ok(BaseModel):
 class Survive(Step[Ok]):
     artifact_type = Ok
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         if call.context.get("ok") is not None:
             return None
         call.effects.create(Ok(), id="ok")
@@ -118,7 +118,7 @@ _attempts = {"n": 0}
 class Flaky(Step[Done]):
     artifact_type = Done
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         _attempts["n"] += 1
         if _attempts["n"] == 1:
             raise RuntimeError("transient failure")

@@ -11,7 +11,7 @@ from reactifact import (
     Runtime,
     RuntimeResources,
     Step,
-    StepCall,
+    StepInvocation,
 )
 from reactifact.effects import Effects, Handle, current_effects
 from reactifact.patches import Create, Link, Update
@@ -109,7 +109,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
     class Refresh(Step[Note]):
         artifact_type = Note
 
-        async def run(self, call: StepCall):
+        async def run(self, call: StepInvocation):
             call.effects.upsert(Note(text="v2"), id="note:1")
             return None
 
@@ -211,7 +211,7 @@ def test_effects_resume_accepts_typed_answer():
 class Greeting(Step[Note]):
     artifact_type = Note
 
-    async def run(self, call: StepCall):
+    async def run(self, call: StepInvocation):
         trigger = call.trigger
         note = call.effects.create(Note(text="hi"), id="note:1")
         note.link("supported_by", trigger)  # trigger: Doc artifact

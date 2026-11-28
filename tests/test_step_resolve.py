@@ -5,7 +5,16 @@ from typing import Annotated, Any
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Artifact, Context, Latest, Runtime, Step, Wakes
+from reactifact import (
+    Artifact,
+    Context,
+    Latest,
+    Runtime,
+    Step,
+    StepInvocation,
+    Wakes,
+    step,
+)
 from reactifact.agent.step.resolve import MissingInputError
 
 
@@ -233,3 +242,19 @@ def test_optional_annotated_collaborator_is_injected() -> None:
     asyncio.run(Runtime(context, steps=[OptionalAnnotatedContextStep()]).arun())
 
     assert context.latest(Out).data.text == "ok"
+
+
+def test_invocation_parameter_name_is_free_when_annotated() -> None:
+    # This module uses `from __future__ import annotations`, so the annotation
+    # reaches the resolver as a string: the documented `inv: StepInvocation`
+    # spelling must resolve through the hints, not the parameter name.
+    @step(reads=Question, produces=Out)
+    async def answer(inv: StepInvocation) -> None:
+        inv.effects.create(Out(text=inv.trigger.data.text.upper()))
+
+    context = Context()
+    context.create(Question(text="q"))
+
+    asyncio.run(Runtime(context, steps=[answer]).arun())
+
+    assert context.latest(Out).data.text == "Q"

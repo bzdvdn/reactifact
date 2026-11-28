@@ -56,7 +56,7 @@ graph.add_edge("classify", "answer")
 
 ```python
 from pydantic import BaseModel
-from reactifact import StepCall, step
+from reactifact import StepInvocation, step
 
 
 class Question(BaseModel):
@@ -73,17 +73,17 @@ class Reply(BaseModel):
 
 
 @step(produces=Route, reads=Question)
-async def classify(call: StepCall) -> None:
-    question = call.trigger
+async def classify(inv: StepInvocation) -> None:
+    question = inv.trigger
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
-    call.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
+    inv.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
 @step(produces=Reply, reads=Route)
-async def answer(call: StepCall) -> None:
-    route = call.trigger  # этот шаг запускается, потому что создан Route
+async def answer(inv: StepInvocation) -> None:
+    route = inv.trigger  # этот шаг запускается, потому что создан Route
     # ... вызов модели с входом, ограниченным ходом ...
-    call.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
+    inv.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
 ```
 
 ```python
@@ -191,7 +191,7 @@ answer = await r.ask("what's the total gpu cost?")   # answer.text, answer.sourc
 | сессии | `SessionStore` поверх `FileKVBackend`/`SQLiteKVBackend`/`PostgreSQLKVBackend` |
 | бюджеты/лимиты | `Budget(max_runs, max_seconds, max_iterations, max_tool_calls)` |
 | политика ошибок | fail-loud по умолчанию; `Runtime(isolate_errors=True, on_agent_error=…)` — частичный прогресс |
-| per-request данные | `Runtime.arun(request={...})` → `call.request` (без ручных ContextVar) |
+| per-request данные | `Runtime.arun(request={...})` → `inv.request` (без ручных ContextVar) |
 | жизненный цикл ресурсов | `RuntimeResources.scope(factory)` / `async with` (loop-safe клиенты) |
 
 ## 10. Чеклист переезда
