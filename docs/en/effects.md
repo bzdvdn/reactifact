@@ -221,7 +221,7 @@ async def answer_turn(inv: StepInvocation) -> None:
 
 Returning a model / list of models / `Patch` / `None` is compiled by the
 runtime, so short steps stay one-liners:
-`def f(call): return Answer(...)`.
+`def f(inv): return Answer(...)`.
 
 ## Provenance is a query
 

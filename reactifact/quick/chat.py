@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..agent import Agent, Step
+from ..agent import Agent, AgentSource, Step
 from ..budget import Budget
 from ..chat import Chat
 from ..checkpoints import FileKVBackend, InMemoryKVBackend
@@ -47,7 +47,7 @@ def _default_reply(
 
 
 def chat_agent(
-    agents: Sequence[Agent] | None = None,
+    agents: Sequence[Agent | AgentSource] | None = None,
     *,
     steps: Sequence[Step] | None = None,
     store: SessionStore | str | Path | None = None,

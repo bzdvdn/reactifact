@@ -279,16 +279,16 @@ resume-строке), `Answer` = последний ответ на этот м�
 
 ```python
 from reactifact import Runtime
-from reactifact.tracing import LangfuseTracer, PostgresStore, TraceStore
+from reactifact.tracing import LangfuseTracer, PostgresStore, Tracer, TraceStore
 
 runtime = Runtime(
     ctx,
     agents=[...],
     tracer=[
-        TraceStore("traces.db"),                        # локальный дашборд
+        Tracer(store=TraceStore("traces.db")),          # локальный дашборд
         LangfuseTracer(public_key="...", private_key="...",
                        host="https://cloud.langfuse.com"),
-        PostgresStore(dsn="postgresql://…"),            # требуется extra pg
+        Tracer(store=PostgresStore(dsn="postgresql://…")),  # требуется extra pg
     ],
 )
 ```
@@ -406,14 +406,14 @@ runtime = Runtime(
 )
 
 # внутри шага, в точке решения:
-call.context.resources.metrics.increment("route_total", route=route)
-call.context.resources.metrics.observe("docs_found", len(docs), source=source)
+context.resources.metrics.increment("route_total", route=route)
+context.resources.metrics.observe("docs_found", len(docs), source=source)
 ```
 
 `Metrics.render()` выдаёт Prometheus text exposition напрямую (без
 `prometheus_client`), поэтому `create_metrics_router` просто отдаёт его;
 `MetricsTracer` также композируется с приёмниками
-(`tracer=[TraceStore(…), MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят только
+(`tracer=[Tracer(store=TraceStore(…)), MetricsTracer(metrics)]`). Как и в трейсах, спаны эмитят только
 **меняющие состояние** агенты, поэтому settle-поколение не считается.
 
 ## Модель эмиссии

@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
-from .agent import Agent, Step
+from .agent import Agent, AgentSource, Step
 from .agent.agent import normalize_units
 from .artifacts import Artifact
 from .budget import Budget
@@ -484,7 +484,11 @@ class ChatAssistant:
         self,
         *,
         store: SessionStore,
-        agents: Sequence[Agent] | Callable[[], Sequence[Agent]] | None = None,
+        agents: (
+            Sequence[Agent | AgentSource]
+            | Callable[[], Sequence[Agent | AgentSource]]
+            | None
+        ) = None,
         steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
@@ -507,9 +511,10 @@ class ChatAssistant:
         if len(provided) > 1:
             raise ValueError("Pass only one of steps= or agents=")
         if steps is not None:
-            resolved: Sequence[Agent] | Callable[[], Sequence[Agent]] = normalize_units(
-                steps=list(steps)
-            )
+            resolved: (
+                Sequence[Agent | AgentSource]
+                | Callable[[], Sequence[Agent | AgentSource]]
+            ) = normalize_units(steps=list(steps))
         elif agents is not None:
             resolved = agents
         else:
@@ -789,7 +794,7 @@ class Chat:
         self,
         steps: Sequence[Step[Any]] | None = None,
         *,
-        agents: Sequence[Agent] | None = None,
+        agents: Sequence[Agent | AgentSource] | None = None,
         pipeline: Any | None = None,
         config: RunConfig | None = None,
         store: SessionStore | str | Path | None = None,

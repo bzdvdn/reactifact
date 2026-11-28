@@ -14,7 +14,7 @@
 
 ## Стабильность
 
-reactifact всё ещё pre-1.0 (`0.25.1`), но не `rc` — поверхность ниже это
+reactifact всё ещё pre-1.0 (`0.30.0`), но не `rc` — поверхность ниже это
 стабильный контракт, а не движущаяся цель. Он **проверяется машиной**:
 `tests/test_public_api.py` фиксирует `reactifact.__all__` и экспорты
 канонических подмодулей (`reactifact.agent`, `reactifact.consume`,
@@ -64,7 +64,7 @@ Top-level `reactifact` — удобный shortlist для core-примитив
 
 | Что | Канонический импорт |
 | --- | --- |
-| шаги, агенты, return-style инструкции, аннотации входов | `from reactifact.agent import Agent, Read, Step, agent`; `from reactifact.agent.step import step, Emit, Scope, Unscoped, Wakes` |
+| шаги, агенты, return-style инструкции, аннотации входов | `from reactifact.agent import Agent, AgentSource, Read, Step, agent`; `from reactifact.agent.step import step, Emit, Scope, Unscoped, Wakes` |
 | consume-декларации и lifecycle-варианты | `from reactifact.consume import Consume, IdempotentConsume, JoinConsume` |
 | chat-хуки и память | `from reactifact.chat import Chat, ChatAssistant, ChatReply, ChatMemory` |
 | tool loops | `from reactifact.tools.use import ToolUse, NativeToolUse, ToolUseHITL` |
@@ -78,9 +78,9 @@ Top-level `reactifact` — удобный shortlist для core-примитив
 даёт пакет), а `@step` — из `reactifact` или `reactifact.agent.step` (а не
 `from reactifact.agent import step`, который даёт пакет шагов).
 
-`reactifact.__all__` остаётся shortlist’ом для `Context`, `Artifact`, `Step`,
-`Agent`, `Read`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `PipelineRunner`, `Chat`,
-`Budget`,
+`reactifact.__all__` остаётся shortlist’ом для `Context`, `Artifact`, `Step`, `StepInvocation`,
+`Agent`, `Read`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `PipelineRunner`,
+`RunConfig`, `Chat`, `Budget`,
 lifecycle-consume’ов, `CurrentRequest`, аннотаций входов и инструментов.
 Freeze-тест фиксирует и top-level набор, и `__all__` канонических подмодулей.
 
@@ -109,7 +109,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 | `ResourceKey[T]` | типизированный ключ для регистрации двух ресурсов одного типа (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with`-билдер: создаёт ресурсы на текущем loop и закрывает на выходе — loop-safe способ владеть провайдерами |
 | `current_request()` | request-маппинг активного хода (то же, что `StepInvocation.request`) |
-| `CurrentRequest` | read-only `Mapping` из `Runtime.arun(request=...)`; инжектируйте `request: CurrentRequest` (или используйте `Step.request`/`call.request`) вместо contextvar |
+| `CurrentRequest` | read-only `Mapping` из `Runtime.arun(request=...)`; инжектируйте `request: CurrentRequest` (или используйте `Step.request`/`inv.request`) вместо contextvar |
 | `Commit`, `Read`, `Write` | учёт версий и записанные операции провенанса |
 | `ContextCheckpoint` | лёгкое представление одного коммита (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
@@ -120,7 +120,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 | `Artifact` | неизменяемый handle `(id, version, data, content_hash)`; история — в `Context` (`artifact_version`/`version_history`/`find_versions`) |
 | `ArtifactConflict` | конфликт optimistic-concurrency: `effects.update(..., expected_version=…)` / `Context.update` ожидал другую версию; runtime проверяет всю generation до применения хоть одного patch |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | стабильная персистентная идентичность типа: переименование/перенос модели больше не ломает загрузку старых сессий/коммитов/событий. `type_id_of`/`resolve`/`migrate_payload`; дефолтный id — qualified name |
-| `Patch` | скомпилированный набор изменений рантайма (транспорт); шаги пишут эффекты (`effects`/`call.effects`), `Patch` собирает рантайм |
+| `Patch` | скомпилированный набор изменений рантайма (транспорт); шаги пишут эффекты (`effects`/`inv.effects`), `Patch` собирает рантайм |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | скомпилированные операции, которые несёт патч (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | записи операций, из которых строятся патчи |
 
@@ -132,11 +132,11 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 | `Read` | вход шага: `Read(Query)`, `Read.by_field(Query, "test", 123)`, `Read.on_create(Query)`, `Read.after_delete(Scratch)`; `required=False` — читать, только если есть |
 | `agent` (`@agent`) | декоратор: одна функция → один `Agent` с одним шагом; типизированные параметры — чтение, аннотация возврата — `produces` (явная форма: `@agent(consumes=..., produces=..., retry=..., timeout=...)`). Импортируется из `reactifact.agent` (`from reactifact.agent import agent`): `reactifact.agent` — это пакет, поэтому `from reactifact import agent` даёт модуль |
 | `Runtime(steps=..., agents=...)` | диспетчеризует шаги и агенты вместе (сначала шаги). Каждый голый `Step` оборачивается в неявного агента из одного. |
-| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | типизированный чат-фасад: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `store=`. Передайте `pipeline=`, чтобы переиспользовать определение `Pipeline` (seed/answer и агенты выводятся), и `config=` для ресурсов/tracing; явно задаётся только per-turn resources hook. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
-| `Pipeline(steps=..., agents=..., routes=..., seed_type=..., answer_type=...)` | переиспользуемое определение пайплайна: `Pipeline.agents` — развёрнутый список агентов (`routes` разворачиваются через `route.agents()`); `.validate()` / `.describe()` / `.mermaid()` — статические. Исполнение — всегда `PipelineRunner(pipeline, config=RunConfig(...))` |
-| `PipelineRunner(pipeline, config=RunConfig(...))` | исполняет `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.override`, `.test_client`, `.validate`, `.describe`, `.mermaid`; владеет ресурсами, бюджетом, tracing, concurrency и `last_result`/`last_context` последнего прогона |
+| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | типизированный чат-фасад (`agents=` принимает `Agent` или `AgentSource`, например `Route`): `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `store=`. Передайте `pipeline=`, чтобы переиспользовать определение `Pipeline` (seed/answer и агенты выводятся), и `config=` для ресурсов/tracing; явно задаётся только per-turn resources hook. Pending `PendingQuestion` делает дефолтный ответ `waiting: true` со структурным `question`; `resume_pending=True` превращает следующий ход в ответ на него. `.validate()` / `.describe()` повторяют Pipeline; `.http()` — FastAPI-приложение с сессиями |
+| `Pipeline(steps=..., agents=..., seed_type=..., answer_type=...)` | переиспользуемое определение пайплайна: `agents` принимает `Agent` или `AgentSource`, например `recipes.Route`; `Pipeline.agents` — развёрнутый упорядоченный список агентов; `.validate()` / `.describe()` / `.mermaid()` — статические. Исполнение — всегда `PipelineRunner(pipeline, config=RunConfig(...))` |
+| `PipelineRunner(pipeline, config=RunConfig(...))` | исполняет `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.router`/`.http`/`.as_tool`, `.test_client`, `.override`, `.close`, `.validate`, `.describe`, `.mermaid`; владеет ресурсами, бюджетом, tracing, concurrency и `last_result`/`last_context` последнего прогона |
 | `RunConfig` | настройки исполнения для `PipelineRunner`: `resources`, `llm`, `budget`, `tracer`, `max_concurrency`, `isolate_errors`, `on_agent_error`, `lifespan`, `traces`, `trace_sample`; используйте `PipelineRunner(pipeline, config=RunConfig(...))` |
-| `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | цикл по интервалу над Pipeline: `seed_source(tick)` может быть sync/async и вернуть `None`, чтобы пропустить тик; graceful SIGINT/SIGTERM, изоляция ошибок тика. `Daemon(tick=fn)` — форма для готовой tick-функции (шаблон daemon) |
+| `Daemon(pipeline, *, config=RunConfig(...), seed_source=, interval=, run_once=, max_ticks=)` | цикл по интервалу над Pipeline или `PipelineRunner`: `seed_source(tick)` может быть sync/async и вернуть `None`, чтобы пропустить тик; graceful SIGINT/SIGTERM, изоляция ошибок тика. `Daemon(tick=fn)` — форма для готовой tick-функции (шаблон daemon) |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | политика повторов на агента: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; повтор получает свежий `Effects`, поэтому коммитится только успешный patch |
 | `run_subflow(parent, *, agents, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | запускает дочерних агентов на изолированном Context (или ветке родителя), опционально линкует выходы к seed, прокидывает tracer и пишет `trace_metadata.parent_run_id`; возвращает `SubflowResult` |
@@ -148,7 +148,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 | `reactifact.consume.CorrelatedConsume` | срабатывает (и питает входы) только для ключа корреляции, где присутствуют все типы из `require` и отсутствуют все из `forbid` — механизм за `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | фабрика над `CorrelatedConsume`: срабатывает, когда для одного ключа существуют все перечисленные типы |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | фабрика над `CorrelatedConsume`: срабатывает для `type`, только если для того же ключа ещё нет `absent_type` |
-| `Step` / `@step` | единица работы (также `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` для side-effect-only шагов): класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает типизированные входы либо один низкоуровневый `inv: StepInvocation`, когда нужны эффект-слот, trigger или request (имя параметра любое; legacy-форма — только неаннотированный `call`/`step_call`). `reads` объявляет входы, `produces` — разрешённые Create-типы; если `reads` задан явно, типизированные артефактные параметры, которых там нет, добавляются как read-only входы (`Read(..., required=False)`); возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявную группу. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными, `Ensure(...)` — для идемпотентного create, `Edit`/`Drop`/`Relate` — для одиночной мутации |
+| `Step` / `@step` | единица работы (также `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` для side-effect-only шагов): класс `run(...)` получает типизированные входы + `effects: Effects`; функция `@step` получает типизированные входы либо один низкоуровневый `inv: StepInvocation`, когда нужны эффект-слот, trigger или request (имя параметра любое; legacy-форма — только неаннотированный `call`/`step_call`). `reads` объявляет входы, `produces` — разрешённые Create-типы; если `reads` задан явно, типизированные артефактные параметры, которых там нет, добавляются как read-only входы (`Read(..., required=False)`); возврат модели — create-сахар. `Annotated[T, When(...)]`/`Consume.by_*` задают условия; дополнительные create — в том же tuple (`produces=(Primary, Extra)`). `timeout=` — жёсткий дедлайн шага; `retry=`, `priority=`, `concurrency_limit=` и `name=` копируются в неявного агента. Возвращайте `Emit(model, id=..., links=(...))`, когда id/провенанс должны быть явными, `Ensure(...)` — для идемпотентного create, `Edit`/`Drop`/`Relate` — для одиночной мутации |
 | `Human` / `Outbox` | инжектируемые не-данные коллабораторы: `human.ask/resume` (HITL, `PendingQuestion`) и `outbox.act` (внешнее намерение, `PendingAction`); старые `Effects.ask/resume/act` удалены в 0.23 |
 | `Progress` | инжектируемый эфемерный progress-канал: `progress(message, kind="status", **data)` сразу публикует `ProgressEvent` (тонкая обёртка над `Context.announce`, никогда не коммитится). Шагу, который только объявляет статус и вызывает LLM/инструменты, `Context` не нужен; class-step может использовать `self.progress(...)` |
 | `Emit` / `Ensure` / `Edit` / `Drop` / `Relate` | return-style инструкции изменений: create с явным id/links, идемпотентный create (по id или источнику), update полей, delete, link — компилируются в тот же атомарный патч. `Emit` с существующим id обновляет артефакт (`upsert`); `Ensure` пропускает, если он уже есть |
@@ -205,9 +205,9 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 | `install_error_handlers(app, *, extra=…)` | отображает `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` в JSON-ответы (403/422/429/409) с `{"error": {"code", "message", "request_id", "trace_id"}}`; `extra` добавляет/переопределяет. `create_*_app` ставит его вместе с `install_request_id`. |
 | `install_request_id(app)` | middleware, проставляющий `X-Request-ID` (и `request.state.request_id`) в каждом ответе; error envelope переиспользует его и `X-Reactifact-Run-Id`, когда он есть |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` SSE-контракта (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — нужен extra `web`. **Словарь wire-событий настраивается** (переименовать kinds, отфильтровать, изменить payload, добавить терминальный фрейм); `request_factory(request)` строит request-маппинг хода из FastAPI `Request` (ходы с учётом идентичности/ACL); схема событий публикуется в OpenAPI `responses` маршрута |
-| `create_pipeline_router(pipeline, *, prefix=, routes_override=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` для типизированного `Pipeline`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; валидация/OpenAPI/`/docs` выводятся из моделей пайплайна. `PipelineRoutes` переопределяет пути |
+| `create_pipeline_router(runner, *, prefix=, routes_override=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` для типизированного `PipelineRunner`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; валидация/OpenAPI/`/docs` выводятся из моделей пайплайна. `PipelineRoutes` переопределяет пути |
 | `create_chat_app(chat, *, prefix="/api", routes=, traces=, contracts=True, dependencies=, validate=True)` | готовое FastAPI-приложение для `Chat`: сессии, история, clear, SSE, contracts и traces. `ChatRoutes` даёт DEVOPS-стиль `/chat`, `/chat/stream`, `/chat/history`, `/chat/clear` |
-| `create_http_app(pipeline, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | готовое FastAPI-приложение: pipeline-роутер + contracts-страница + trace dashboard + error handlers; `validate=True` падает на старте при разорванном контракте; `dependencies=` применяется ко всем роутерам |
+| `create_http_app(runner, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | готовое FastAPI-приложение вокруг `PipelineRunner`: pipeline-роутер + contracts-страница + trace dashboard + error handlers; `validate=True` падает на старте при разорванном контракте; `dependencies=` применяется ко всем роутерам |
 | `reactifact.web.sse(event, data)` | один SSE-фрейм |
 
 ## Визуализация (reactifact.viz + python -m reactifact)
@@ -328,7 +328,7 @@ OTLP/Langfuse-приёмников.
 | `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` — чистый поиск (ранжированные refs); `fan_out_sources` дополнительно пишет create-or-refresh refs (`source_ref_id`) в эффект-слот (или явный `effects=`) |
 | `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | ленивый реф → документ с провенансом; принимает артефакт, `SourceRef` или handle; `effects=` задаёт явный слот |
 | `StatusMachine` / `StatusState` | детерминированный жизненный цикл артефакта: прямой `StatusMachine(...)`, `from_funcs(...)` или subclass; `next_status(state)` по входам, отфильтрованным по ключу (`all`/`any`/`latest`), переопределяемый `owner_key`, опциональный `reads=`, `terminal`, `on_transition` |
-| `Route` / `RouteCase` | builder взаимоисключающих case-групп: сужаются только совпадения `on` по `key(value) == case`, поздние триггеры продолжают работать |
+| `Route` / `RouteCase` | builder взаимоисключающих case-агентов: сужаются только совпадения `on` по `key(value) == case`, поздние триггеры продолжают работать, а сам route передаётся прямо в `agents=[route, ...]` |
 | `ScopedCleanup` | реагирует на терминальный артефакт и удаляет scratch-типы в том же `scope`; объявляет `produces=()` и реальные `deletes=(...)` |
 | `TurnContext` / `TurnContextStep` / `TurnFacts` | один готовый к потреблению артефакт на пользовательский ход (текущий/предыдущий запрос, ограниченная история, digest, follow-up); `build(facts)` маппит доменный контекст без чтения `Context` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | периодические чекпоинты окна диалога, идемпотентны по числу сообщений; `message_type` может быть последовательностью типов. Не комбинируйте с `WindowPruner` (prune останавливает cadence по счётчику); для ограниченного raw-окна используйте `RollingDigestSummarizer` |

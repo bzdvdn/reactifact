@@ -108,14 +108,12 @@ operational: one trigger, retry policy, timeout, priority, concurrency limit, or
 one atomic commit. `Runtime` accepts `steps=` and `agents=` together (steps first).
 
 ```python
-from reactifact import Agent
+from reactifact import Agent, Consume
 
 RepairFlow = Agent(
     "repair_flow",
-    steps=[
-        CollectStage(), PickStage(), PlanStage(),
-        EstimateStage(), ApprovalStage(), AssistantStage(),
-    ],
+    consumes=[Consume(UserMsg), Consume(Project)],
+    steps=[collect, pick, plan, estimate, approval, assistant],
 )
 ```
 
@@ -124,17 +122,18 @@ RepairFlow = Agent(
   create set. Put the primary output first and extra create-only types in the
   same tuple: `produces = (Primary, Extra)`; the old `also_creates=` spelling
   was removed in 0.23, so extra types belong in `produces` itself.
-- `Agent.consumes` still exists for the imperative escape hatch (a group
-  subclass overriding `run(event, context)` directly), but declarative code
-  should put contracts on steps.
-- When `consumes` is explicit, typed artifact params missing from it are added
-  as read-only inputs automatically; `Consume(..., wakes=False)` remains for an
-  explicit list without a typed param. `IdempotentConsume(T, id_of=...)` wakes
-  only while the derived target id is absent. `debounce=True` collapses several
-  same-generation events into one run; `Consume.by_base(Base)` also wakes on
-  subclasses. `JoinConsume`/`AbsentConsume` correlate across types — see
+- `Agent.consumes` is the wake contract; a step's `reads` never wakes anything.
+  Typed artifact params missing from an explicit `reads=` are added as
+  read-only inputs automatically. `Consume(..., wakes=False)` keeps an explicit
+  input without waking; `IdempotentConsume(T, id_of=...)` wakes only while the
+  derived target id is absent. `debounce=True` collapses several same-generation
+  events into one run; `Consume.by_base(Base)` also wakes on subclasses.
+  `JoinConsume`/`AbsentConsume` correlate across types — see
   [patterns](patterns.md).
-- The runtime wakes groups on events, respecting budget and concurrency.
+- An `Agent` subclass overriding `run(event, context)` directly is the
+  imperative escape hatch; declarative code keeps contracts on steps and
+  `consumes`.
+- The runtime wakes agents on events, respecting budget and concurrency.
 
 `Agent.run(event, context) -> Patch | None` remains the low-level escape
 hatch for hand-assembling a `Patch`; it is not a third everyday style.

@@ -276,16 +276,16 @@ A trace can go to several places at once via `CompositeTracer`, passed to the
 
 ```python
 from reactifact import Runtime
-from reactifact.tracing import LangfuseTracer, PostgresStore, TraceStore
+from reactifact.tracing import LangfuseTracer, PostgresStore, Tracer, TraceStore
 
 runtime = Runtime(
     ctx,
     agents=[...],
     tracer=[
-        TraceStore("traces.db"),                        # local dashboard
+        Tracer(store=TraceStore("traces.db")),          # local dashboard
         LangfuseTracer(public_key="...", private_key="...",
                        host="https://cloud.langfuse.com"),
-        PostgresStore(dsn="postgresql://…"),            # pg extra required
+        Tracer(store=PostgresStore(dsn="postgresql://…")),  # pg extra required
     ],
 )
 ```
@@ -404,13 +404,13 @@ runtime = Runtime(
 )
 
 # inside a step, at the decision point:
-call.context.resources.metrics.increment("route_total", route=route)
-call.context.resources.metrics.observe("docs_found", len(docs), source=source)
+context.resources.metrics.increment("route_total", route=route)
+context.resources.metrics.observe("docs_found", len(docs), source=source)
 ```
 
 `Metrics.render()` emits the Prometheus text exposition directly (no
 `prometheus_client`), so `create_metrics_router` just serves it; `MetricsTracer`
-also composes with the sinks (`tracer=[TraceStore(…), MetricsTracer(metrics)]`).
+also composes with the sinks (`tracer=[Tracer(store=TraceStore(…)), MetricsTracer(metrics)]`).
 As with traces, only **state-changing** agents emit spans, so a settle-only
 generation isn't counted.
 

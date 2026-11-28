@@ -74,12 +74,14 @@ await runtime.arun()   # продолжает: отложенные тригге
 дублировал ([§42](../constitution.md)):
 
 ```python
+from reactifact import Artifact, Emit, step
+
+
 @step(produces=Summary, reads=Msg)
-async def summarize(call):
-    doc = call.trigger
+def summarize(doc: Artifact[Msg]) -> Emit:
     # Stable id делает повтор идемпотентным: повторное создание вернёт тот же
     # артефакт и не породит второго события.
-    call.effects.create(Summary(text=...), id=f"summary:{doc.data.url}")
+    return Emit(Summary(text=...), id=f"summary:{doc.data.url}")
 ```
 
 `effects.create_once_from(...)` (stable id, выведенный из триггера) и
@@ -95,7 +97,7 @@ async def summarize(call):
   [паттернах](patterns.md#outbox-side-effects)). Сам I/O фреймворк
   по-прежнему не может сделать exactly-once — диспетчер должен быть
   идемпотентен по `idempotency_key` (передаётся в `action.data`), и это
-  закрывает остаточное окно at-least-once. (`call.request` доступен для
+  закрывает остаточное окно at-least-once. (`inv.request` доступен для
   correlation id; см. `reactifact.request`.)
 - **Фонового relay нет.** Фреймворк не запускает процесс, который сам бы
   бесконечно ретраил outbox: следующий `arun()` дренирует закоммиченные

@@ -149,7 +149,7 @@ first one's output exists, and the answer carries *proof* of where it came from:
 ```python
 from pydantic import BaseModel
 
-from reactifact import Budget, Context, Runtime, RuntimeResources, step
+from reactifact import Artifact, Budget, Context, Emit, Runtime, RuntimeResources, step
 
 
 class Question(BaseModel):
@@ -171,17 +171,14 @@ DOCS = {
 
 
 @step(produces=Evidence, reads=Question)
-async def find_evidence(call):
-    question = call.trigger
-    hit = next((v for k, v in DOCS.items() if k in question.data.text.lower()), None)
-    if hit is not None:
-        call.effects.create(Evidence(text=hit))
+def find_evidence(question: Question) -> Evidence | None:
+    hit = next((v for k, v in DOCS.items() if k in question.text.lower()), None)
+    return Evidence(text=hit) if hit is not None else None
 
 
 @step(produces=Answer, reads=Evidence)
-async def answer_from_evidence(call):
-    evidence = call.trigger
-    call.effects.create(Answer(text=evidence.data.text)).link("supported_by", evidence)
+def answer_from_evidence(evidence: Artifact[Evidence]) -> Emit:
+    return Emit(Answer(text=evidence.data.text), links=(("supported_by", evidence),))
 
 
 ctx = Context(resources=RuntimeResources())

@@ -44,6 +44,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   keyword arguments, execution shortcuts (`run/arun/answer/aanswer/astream/
   http/as_tool/test_client/close`) and `Pipeline` lifespan/overrides were
   removed.
+- **`Pipeline(routes=...)` is gone.** `agents=` accepts an `Agent` or an
+  agent source such as `recipes.Route` (anything with `.agents()`), expanded
+  eagerly and in list order. The same rule now applies to `Runtime`, `Chat` and
+  `validate_contracts`, so a route is passed directly instead of being spread
+  with `*route.agents()`.
 - **`PipelineRunner` takes only `config=`.** Resources, LLM, budget, tracer,
   concurrency, lifespan and tracing are all `RunConfig` fields.
 - **`Chat` takes only `config=` for runtime settings.** The direct `llm=`,

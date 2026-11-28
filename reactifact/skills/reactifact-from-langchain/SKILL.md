@@ -21,9 +21,9 @@ and the graph grows.
 | tool-calling loop (`AgentExecutor`) | `LLMAgent` (system + tools) plus `steps=[...]` to turn the final `ToolAnswer` into domain artifacts, or `ToolUse` / `NativeToolUse` |
 | `MemorySaver` / checkpointer | `Session` + a checkpoint/KV store |
 | `messages: list[...]` as memory | artifacts (`Question`/`Answer`/…) across turns, or `ChatMemory` |
-| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates; `recipes.Route` when exactly one branch must run (`route.agents()`) |
+| conditional edges | `Consume.by_status(...)` / `by_field(...)`, absent-consume gates; `recipes.Route` when exactly one branch must run (pass it in `agents=[route, ...]`) |
 | `app.invoke(...)` | `Runtime(ctx, agents=[...]).arun()` |
-| LangSmith traces | `reactifact.tracing.TraceStore` (`tracer=[...]`) |
+| LangSmith traces | `Tracer(store=TraceStore(...))`, or a list of `Tracer`s on `Runtime`/`RunConfig` |
 | `langchain.evaluation` / LangSmith evals | `reactifact.eval` (`docs/en/eval.md`) |
 
 ## Porting recipe

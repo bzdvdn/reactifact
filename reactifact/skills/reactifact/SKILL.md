@@ -15,6 +15,11 @@ artifacts *is* the program state.
 Read this skill first, then load only the focused skill the task needs (see the
 routing table below). Loading every skill wastes context and blurs the rules.
 
+**When not to use it.** A fixed A → B → C chain, a one-off script, or a single
+function call does not need a runtime: plain Python (or LangGraph) is simpler.
+reactifact earns its keep when state is shared across steps, must be auditable,
+or must be re-derived after a crash. Don't wrap every script in an `Agent`.
+
 ## The three invariants
 
 Everything else follows from these. Violating one is what makes an LLM's
@@ -52,7 +57,7 @@ do.
    `Read.idempotent`/`Read.join`/`Read.correlated` mirror the advanced
    consume variants.
 3. **A recipe** when the flow is a known pattern: `TurnContextStep` for a
-   conversation window + digest, `Route` (expand with `route.agents()`) for
+   conversation window + digest, `Route` (pass it in `agents=[route, ...]`) for
    mutually exclusive cases, `ApprovalGate`, `ReflectionLoop`, `PlanExecute`,
    `StatusMachine`, `WindowPruner`, `materialize_doc`. Use `Verify(Answer)` for
    live quality checks without a dummy `Step(...)`.
@@ -152,7 +157,7 @@ do not skip ahead, because a wrong artifact model is expensive to unwind.
 3. **Implement the steps.** Effects or a returned model; deterministic logic in
    Python, the LLM only for reasoning. Exit when no step mutates and every
    answer links its evidence. → `reactifact-agents`, `reactifact-llm`
-4. **Wire and run.** Group steps into a `Agent`, build
+4. **Wire and run.** Bundle steps into an `Agent`, build
    `Runtime(ctx, agents=[...])`, seed inputs, `arun()`. Exit when the run
    reaches a fixpoint and produces the target artifact.
 5. **Test, then evaluate.** Assert on the produced graph with `ScenarioLab`
@@ -196,6 +201,7 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
 | state in a module global or a plain dict | make it an artifact (typed, versioned, traced) |
 | free-text answer with no links | create source artifacts and `link("supported_by")` |
 | a manual `isinstance(trigger...)` guard | declare `Agent.consumes` or `Annotated[T, When(...)]` |
+| `Agent(steps=[...])` with no `consumes` | spell `consumes=[...]` out; dev mode warns because the derived wake set hides the scheduling contract |
 | guessing an API from memory | check it: `python -c "import reactifact; help(...)"` or the docs |
 
 ## Glossary
@@ -233,7 +239,7 @@ Docs (when the skills are not enough): `docs/en/concepts.md`,
    what justifies it.
 3. Every step's inputs and outputs are artifacts (or it is an explicit
    side-effect-only step with `produces=()` / `deletes=(...)`), and `Runtime`
-   is built once with the full group/step list.
+   is built once with the full agent/step list.
 4. Tests assert on artifacts, the path, and relations — not on returned values
    — and pass with no network (`FakeLLM`/`ReplayLLM` or no LLM at all).
 5. You verified the real API of anything you were unsure about; you did not

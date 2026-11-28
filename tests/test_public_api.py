@@ -124,6 +124,7 @@ FROZEN: dict[str, frozenset[str]] = {
     "reactifact.agent": frozenset(
         {
             "Agent",
+            "AgentSource",
             "Read",
             "Drop",
             "Edit",

@@ -54,10 +54,12 @@ result = runner.run(Question(text="hello"))
   напрямую.
 - `Step.reads` описывает входы (`Read`/типы), `Step.produces` — выходы;
   `Read.after_delete` — event-only и не даёт данных артефакта.
-- `Pipeline.agents=[...]` и `Pipeline.routes=[...]` — декларативная структура;
-  `Pipeline.agents` разворачивает её для `Runtime`.
-- `PipelineRunner` + `RunConfig` владеют ресурсами/бюджетом/tracing и выполняют прогон.- Агент **не** является барьером исполнения: это именованная группа, а не
-  ограничение порядка. Runtime по-прежнему планирует по доступности артефактов.
+- `Pipeline(agents=[...])` — декларативная структура; каждый элемент — `Agent`
+  или источник агентов вроде `Route`, а `Pipeline.agents` — развёрнутый список
+  для `Runtime`.
+- `PipelineRunner` + `RunConfig` владеют ресурсами/бюджетом/tracing и выполняют прогон.
+- Агент **не** является барьером исполнения: это именованная единица
+  планирования, а не ограничение порядка. Runtime по-прежнему планирует по доступности артефактов.
 
 Для stateful-кода в class-style `Agent` можно наследовать, а `@step` вешать на
 его методы:
@@ -329,7 +331,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-FlowAgent = Agent("flow_agent", steps=Flow().produces())
+FlowAgent = Flow().agent("flow_agent")
 ```
 
 `PlanExecute` выполняет ровно один шаг за поколение и перезапускается от
@@ -407,7 +409,7 @@ class DirectFinalize(Step):
 `Annotated[T, When(...)]` на шаге. Runtime пропускает шаг для событий вне
 контракта, поэтому тело не нуждается в type guard. Исключение — DELETED-событие
 для потребляемого типа: `trigger` там `None` (данных уже нет); используйте
-`call.event`/`event: Event`.
+`inv.event`/`event: Event`.
 
 ## Реакция на удаление
 
@@ -438,7 +440,7 @@ class ResetPlan(Step):
 Два правила для deletion-reactive шагов:
 
 - **Триггерного артефакта нет** — данных уже нет. Принимайте `event: Event`
-  (или `call.event`), а не `Artifact[T]`; используйте `event.artifact_id` /
+  (или `inv.event`), а не `Artifact[T]`; используйте `event.artifact_id` /
   `event.artifact_type`.
 - Version store хранит историю: `ctx.get(id)` — `None`, а
   `ctx.version_history(id)` / `find_versions(...)` по-прежнему отдают прошлые

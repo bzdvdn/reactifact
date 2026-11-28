@@ -58,6 +58,8 @@ agent.
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | `Consume.on_create` / `on_update` / `on_stale` / `on_delete`, or `Read` with the same classmethods |
 | `StepGroup`, `create_step_group`, `StepGroupSpan` | `Agent` |
 | `groups=` on `Runtime`/`Pipeline`/`Chat`/`subflow`/`swarm` | `agents=` |
+| `Pipeline(routes=[...])` | `Pipeline(agents=[route])` |
+| `Runtime(agents=[*route.agents(), ...])` | `Runtime(agents=[route, ...])` |
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` in `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (same fields and channels) |

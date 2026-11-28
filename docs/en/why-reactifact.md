@@ -163,17 +163,17 @@ The same model does not require framework ceremony. `Pipeline` is the facade for
 one run, `Chat` for a conversation:
 
 ```python
-from reactifact import Chat, Agent, Pipeline, PipelineRunner, RunConfig
+from reactifact import Agent, Chat, Consume, Pipeline, PipelineRunner, RunConfig
 
 pipeline = Pipeline(
-    agents=[Agent("answer", steps=[search, answer])],
+    agents=[Agent("answer", consumes=[Consume(Question)], steps=[search, answer])],
     seed_type=Question,
     answer_type=Answer,
 )
 result = PipelineRunner(pipeline, config=RunConfig(traces=True)).run(Question(text="why did costs grow in Q2?"))
 
 chat = Chat(
-    agents=[Agent("answer", steps=[search, answer])],
+    agents=[Agent("answer", consumes=[Consume(Question)], steps=[search, answer])],
     store="sessions.db",
     seed_type=Question,
     answer_type=Answer,

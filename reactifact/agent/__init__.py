@@ -5,7 +5,7 @@
 """
 
 from ..read import Read
-from .agent import Agent
+from .agent import Agent, AgentSource
 from .decorator import agent
 from .step import (
     Drop,
@@ -24,6 +24,7 @@ from .step import (
 
 __all__ = [
     "Agent",
+    "AgentSource",
     "Drop",
     "Edit",
     "Emit",

@@ -109,14 +109,12 @@ HITL — это `human.ask(...)` → `PendingQuestion`, ответ через
 (сначала шаги).
 
 ```python
-from reactifact import Agent
+from reactifact import Agent, Consume
 
 RepairFlow = Agent(
     "repair_flow",
-    steps=[
-        CollectStage(), PickStage(), PlanStage(),
-        EstimateStage(), ApprovalStage(), AssistantStage(),
-    ],
+    consumes=[Consume(UserMsg), Consume(Project)],
+    steps=[collect, pick, plan, estimate, approval, assistant],
 )
 ```
 
@@ -126,17 +124,18 @@ RepairFlow = Agent(
   в том же tuple: `produces = (Primary, Extra)`; старое написание
   `also_creates=` удалено в 0.23, поэтому дополнительные типы указываются
   прямо в `produces`.
-- `Agent.consumes` остаётся для imperative escape hatch (группа
-  переопределяет `run(event, context)`), но декларативный код держит контракты
-  на шагах.
-- Если `consumes` задан явно, типизированные артефактные параметры, которых там
-  нет, автоматически добавляются как read-only входы; `Consume(..., wakes=False)`
-  остаётся для явного списка без типизированного параметра.
-  `IdempotentConsume(T, id_of=...)` будит только пока производного id нет.
-  `debounce=True` схлопывает несколько событий одного поколения в один запуск;
-  `Consume.by_base(Base)` будит и на наследниках. `JoinConsume`/
-  `AbsentConsume` коррелируют типы — см. [patterns](patterns.md).
-- Runtime будит группы по событиям, соблюдая бюджет и параллельность.
+- `Agent.consumes` — контракт пробуждения; `reads` шага сам никогда ничего не
+  будит. Типизированные артефактные параметры, которых нет в явном `reads=`,
+  автоматически добавляются как read-only входы. `Consume(..., wakes=False)`
+  оставляет вход без пробуждения; `IdempotentConsume(T, id_of=...)` будит
+  только пока производного id нет. `debounce=True` схлопывает несколько
+  событий одного поколения в один запуск; `Consume.by_base(Base)` будит и на
+  наследниках. `JoinConsume`/`AbsentConsume` коррелируют типы — см.
+  [patterns](patterns.md).
+- Подкласс `Agent`, переопределяющий `run(event, context)` напрямую, — это
+  imperative escape hatch; декларативный код держит контракты на шагах и
+  `consumes`.
+- Runtime будит агентов по событиям, соблюдая бюджет и параллельность.
 
 `Agent.run(event, context) -> Patch | None` остаётся низкоуровневым escape
 hatch для ручной сборки `Patch`; это не третий повседневный стиль.

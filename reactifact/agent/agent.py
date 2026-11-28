@@ -8,7 +8,7 @@ from abc import ABC
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from ..artifacts import Artifact, ArtifactConflict
 from ..authz import AuthorizationError
@@ -569,6 +569,17 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         return True, trigger
 
 
+class AgentSource(Protocol):
+    """An object that expands into concrete agents.
+
+    `recipes.Route` is the built-in case: `Route.agents()` returns the routed
+    copies of its cases. `agents=` accepts an `Agent` or an `AgentSource`, so a
+    route can be passed directly instead of being spread by hand.
+    """
+
+    def agents(self) -> Sequence[Agent]: ...
+
+
 def normalize_units(
     *,
     steps: list[Any] | None = None,
@@ -577,24 +588,37 @@ def normalize_units(
     """Normalizes the constructor keywords into dispatch units.
 
     `steps=` accepts only `Step` and wraps each in an `Agent` of one, copying
-    `priority`/`concurrency_limit`; `agents=` accepts only `Agent`.
-    Result order is steps, then agents, preserving each list.
+    `priority`/`concurrency_limit`; `agents=` accepts an `Agent` or an
+    `AgentSource` (anything with `.agents()`, e.g. `recipes.Route`), expanded
+    eagerly and in order. Result order is steps, then agents.
     """
     declared_agents = agents
 
     def check_agents(items: list[Any], keyword: str) -> list[Agent]:
         checked: list[Agent] = []
         for item in items:
+            if isinstance(item, Agent):
+                checked.append(item)
+                continue
             if isinstance(item, Step):
                 raise TypeError(
-                    f"{keyword}= accepts Agent, not Step; pass raw steps "
-                    "to steps=[...] instead"
+                    f"{keyword}= accepts Agent or an agent source like Route, "
+                    "not Step; pass raw steps to steps=[...] instead"
                 )
-            if not isinstance(item, Agent):
+            source = getattr(item, "agents", None)
+            if not callable(source):
                 raise TypeError(
-                    f"{keyword}= expects Agent instances, got {type(item).__name__}"
+                    f"{keyword}= expects Agent or an object with .agents() "
+                    f"(e.g. Route), got {type(item).__name__}"
                 )
-            checked.append(item)
+            produced = list(source())
+            for agent in produced:
+                if not isinstance(agent, Agent):
+                    raise TypeError(
+                        f"{keyword}= source {type(item).__name__}.agents() "
+                        f"must return Agents, got {type(agent).__name__}"
+                    )
+            checked.extend(produced)
         return checked
 
     merged: list[Agent] = []

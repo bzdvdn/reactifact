@@ -72,12 +72,14 @@ Give steps a **stable id** so a re-run upserts instead of duplicating
 ([§42](../constitution.md)):
 
 ```python
+from reactifact import Artifact, Emit, step
+
+
 @step(produces=Summary, reads=Msg)
-async def summarize(call):
-    doc = call.trigger
+def summarize(doc: Artifact[Msg]) -> Emit:
     # A stable id makes the re-run idempotent: creating it twice returns the
     # same artifact and emits no second event.
-    call.effects.create(Summary(text=...), id=f"summary:{doc.data.url}")
+    return Emit(Summary(text=...), id=f"summary:{doc.data.url}")
 ```
 
 `effects.create_once_from(...)` (stable id derived from the trigger) and
@@ -93,7 +95,7 @@ async def summarize(call):
   [Patterns](patterns.md#outbox-external-side-effects)). The framework still
   cannot make the I/O *itself* exactly-once — the dispatcher must be idempotent
   on `idempotency_key` (passed through in `action.data`), which closes the
-  residual at-least-once window. (`call.request` is available for a correlation
+  residual at-least-once window. (`inv.request` is available for a correlation
   id; see `reactifact.request`.)
 - **No background relay.** The framework never runs a process that keeps
   retrying the outbox on its own: the next `arun()` drains committed actions,

@@ -512,11 +512,11 @@ LLM при `context.resources.llm is None`, и откатывается на
 `previous + "\n" + history` (обрезанный), если провайдер бросил исключение,
 вернул `None` или пустой текст. `fallback=` переопределяет это поведение.
 
-## `Route` — одна группа на значение артефакта
+## `Route` — один case-агент на значение артефакта
 
-`Route` — для частого случая «в ходе есть ключ ветвления; должна выполниться
-только одна downstream-группа». Это builder над обычными `Agent`, без
-вложенных групп в runtime. Каждая case-группа сохраняет свои шаги и поздние
+`Route` — для частого случая «в ходе есть ключ ветвления; должен выполниться
+только один downstream case-агент». Это builder над обычными `Agent`, без
+вложенных агентов в runtime. Каждый case-агент сохраняет свои шаги и поздние
 триггеры; сужаются только совпадения события `on` по `key(value) == case`.
 
 ```python
@@ -532,10 +532,10 @@ route = Route(
     default="rag",       # значения вне map идут в rag
 )
 
-Runtime(ctx, agents=[*route.agents(), planner, ...])
+Runtime(ctx, agents=[route, planner, ...])
 ```
 
-Сгенерированные группы несут `route_case`-маркер. `validate_contracts`
+Сгенерированные агенты несут `route_case`-маркер. `validate_contracts`
 использует его, чтобы не выдавать `ambiguous_producer`, если один артефакт
 производят разные case одной route; producer'ы вне route по-прежнему дают
 warning.
@@ -578,8 +578,9 @@ cleanup = ScopedCleanup(
 ```python
 from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
 
+# inside a step with `context: Context` and `effects: Effects`
 result = await run_tool_loop(
-    call.context,
+    context,
     system="You are a research assistant.",
     user=question,
     tools=[search_knowledge, read_source],
@@ -590,7 +591,7 @@ result = await run_tool_loop(
     parse_calls=parse_tool_calls_with_textual,  # терпеть DSML/XML-провайдеров
     on_event=lambda name, payload: ...,         # round/tool/final для SSE
 )
-call.effects.create(Answer(text=result.text))
+effects.create(Answer(text=result.text))
 ```
 
 - `Budget` хода соблюдается между раундами: `max_tool_calls` ограничивает
@@ -723,7 +724,7 @@ FlowAgent = Agent(
 )
 ```
 
-Тот же поток без подкласса — и с автоматической сборкой группы/пайплайна:
+Тот же поток без подкласса — и с автоматической сборкой агента/пайплайна:
 
 ```python
 from reactifact.recipes import PlanExecute

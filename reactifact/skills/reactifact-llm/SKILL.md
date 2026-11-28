@@ -90,8 +90,8 @@ testable and never blocks a run.
 ## Tool calling
 
 `LLMAgent` runs a tool loop: it reads the provider, lets the model choose tools,
-executes them, and finally produces a `ToolAnswer`. Add `steps=[...]` (merged
-with the internal tool step in 0.25) to consume that answer and create domain
+executes them, and finally produces a `ToolAnswer`. Add `steps=[...]`
+(merged with the internal tool step) to consume that answer and create domain
 artifacts. Tools come from the `@tool` decorator over an `async def` (the JSON
 schema is derived from the signature):
 
@@ -204,7 +204,7 @@ resources.register(K8sClient, K8sClient())
 
 - a parameter annotated with a plain class (`K8sClient`) is **injected**, not
   part of the model's JSON schema; register it with
-  `resources.register(Type, instance)` or `Pipeline.override(...)`;
+  `resources.register(Type, instance)` or `PipelineRunner(...).override(Type, instance)`;
 - use `Annotated[T, Inject()]` when the type would be ambiguous (a dataclass,
   a protocol, a scalar-looking service); `Inject` is exported from
   `reactifact` (`Depends` is a FastAPI-style alias);

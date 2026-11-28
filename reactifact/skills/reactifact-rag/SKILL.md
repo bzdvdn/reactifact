@@ -227,7 +227,7 @@ the hooks.
 | --- | --- |
 | `fan_out_sources` / `materialize_doc` | retrieval + provenance (above) |
 | `Router` | classify into a route with a deterministic fallback |
-| `Route` / `RouteCase` | mutually exclusive case groups over one artifact field; expand with `route.agents()` |
+| `Route` / `RouteCase` | mutually exclusive case agents over one artifact field; pass the `Route` in `agents=[route, ...]` |
 | `PlanExecute` | plan → execute → finish, gating each step on its predecessor |
 | `ReflectionLoop` | draft → critique → rewrite, with the accept threshold |
 | `StatusMachine` | advance an artifact's `status` via a pure `next_status` |

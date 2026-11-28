@@ -51,10 +51,12 @@ result = runner.run(Question(text="hello"))
 
 - `Agent(steps=[...])` owns the steps and policy; it **is** the scheduling
   unit. `Route` and `Pipeline` accept it directly.
-- `Pipeline.agents=[...]` and `Pipeline.routes=[...]` are declarative structure;
-  `Pipeline.agents` flattens them for `Runtime`.
-- `PipelineRunner` + `RunConfig` own resources/budget/tracing and execution.- An agent is **not** an execution barrier: it is a named group, not an ordering
-  constraint. The runtime still schedules by artifact availability.
+- `Pipeline(agents=[...])` is declarative structure; each item is an `Agent` or
+  an agent source like `Route`, and `Pipeline.agents` is the expanded list
+  `Runtime` receives.
+- `PipelineRunner` + `RunConfig` own resources/budget/tracing and execution.
+- An agent is **not** an execution barrier: it is a named scheduling unit, not
+  an ordering constraint. The runtime still schedules by artifact availability.
 
 ## HITL: humans as first-class participants
 
@@ -303,7 +305,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
     async def finish(self, context, goal, results): ...
 
 
-FlowAgent = Agent("flow_agent", steps=Flow().produces())
+FlowAgent = Flow().agent("flow_agent")
 ```
 
 `PlanExecute` runs exactly one step per generation and re-triggers itself from
@@ -382,7 +384,7 @@ For conditional selectors, use `Consume.by_field`/`by_status` or
 `Annotated[T, When(...)]` on the step. The runtime skips the step entirely for
 events outside its contract, so the body needs no type guard. A DELETED event on
 the step's own consumed type is the one exception: `trigger` is `None` there
-(the data is gone); use `call.event`/`event: Event` when reacting to deletions.
+(the data is gone); use `inv.event`/`event: Event` when reacting to deletions.
 
 ## Reacting to deletions
 
@@ -413,7 +415,7 @@ class ResetPlan(Step):
 Two rules for deletion-reactive steps:
 
 - There is **no trigger artifact** — the data is gone. Take `event: Event`
-  (or `call.event`), not `Artifact[T]`; use `event.artifact_id` /
+  (or `inv.event`), not `Artifact[T]`; use `event.artifact_id` /
   `event.artifact_type`.
 - The version store keeps history: `ctx.get(id)` is `None`, while
   `ctx.version_history(id)` / `find_versions(...)` still return prior versions.

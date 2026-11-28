@@ -64,7 +64,7 @@ def test_agent_rejects_empty_steps():
         Agent("bad", steps=[])
 
 
-def test_pipeline_expands_agents_and_routes():
+def test_pipeline_expands_agents_and_agent_sources():
     route = Route(
         on=Question,
         key=lambda question: "main",
@@ -73,8 +73,7 @@ def test_pipeline_expands_agents_and_routes():
     )
     pipeline = Pipeline(
         name="qa",
-        agents=[Agent("main", steps=[Answerer()])],
-        routes=[route],
+        agents=[Agent("main", steps=[Answerer()]), route],
         seed_type=Question,
         answer_type=Answer,
     )
@@ -84,6 +83,31 @@ def test_pipeline_expands_agents_and_routes():
     assert [agent.name for agent in pipeline.agents] == ["main", "qa:main"]
     assert "flowchart LR" in pipeline.mermaid()
     assert pipeline.validate().ok
+
+
+def test_agent_source_expands_in_runtime():
+    route = Route(
+        on=Question,
+        key=lambda question: "main",
+        cases={"main": Agent("route_case", steps=[Answerer()])},
+        name="qa",
+    )
+    context = Context()
+    context.create(Question(text="hello"))
+
+    asyncio.run(Runtime(context, agents=[route]).arun())
+
+    assert context.latest(Answer).data.text == "HELLO"
+
+
+def test_pipeline_rejects_objects_without_agents():
+    with pytest.raises(TypeError, match=r"\.agents\(\)"):
+        Pipeline(agents=[object()])
+
+
+def test_pipeline_requires_a_structure():
+    with pytest.raises(TypeError, match="requires steps= or agents="):
+        Pipeline(agents=[])
 
 
 def test_pipeline_rejects_raw_and_structured_sources_together():

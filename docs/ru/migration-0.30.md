@@ -58,6 +58,8 @@ intake = Agent("intake", steps=[classify, reply], consumes=[Consume(Question)])
 | `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | `Consume.on_create` / `on_update` / `on_stale` / `on_delete`, либо `Read` с теми же classmethod |
 | `StepGroup`, `create_step_group`, `StepGroupSpan` | `Agent` |
 | `groups=` в `Runtime`/`Pipeline`/`Chat`/`subflow`/`swarm` | `agents=` |
+| `Pipeline(routes=[...])` | `Pipeline(agents=[route])` |
+| `Runtime(agents=[*route.agents(), ...])` | `Runtime(agents=[route, ...])` |
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` в `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (те же поля и каналы) |

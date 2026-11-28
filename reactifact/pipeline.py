@@ -16,12 +16,12 @@ from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
 from .agent import Agent, Step
-from .agent.agent import normalize_units
+from .agent.agent import AgentSource, normalize_units
 from .artifacts import Artifact
 from .budget import Budget
 from .context import Context
@@ -35,12 +35,6 @@ from .tools import Tool, ToolError, ToolOutput
 if TYPE_CHECKING:
     from .contracts.report import ContractReport
     from .validate import ValidationReport
-
-
-class _RouteLike(Protocol):
-    """Structural type for `Route`-like objects without a core→recipes import."""
-
-    def agents(self) -> list[Agent]: ...
 
 
 @dataclass
@@ -64,11 +58,12 @@ class RunConfig:
 
 
 class Pipeline:
-    """A reusable agent pipeline definition: agents + routes.
+    """A reusable agent pipeline definition.
 
-    The canonical form is ``Pipeline(agents=[...], routes=[...])``: agents and
-    route cases are `Agent` objects. ``steps=`` remains the low-level
-    shorthand; both normalize into ``pipeline.agents``.
+    The canonical form is ``Pipeline(agents=[...])``. Each element is an
+    `Agent` or an `AgentSource` — anything with `.agents()`, e.g.
+    `recipes.Route` — expanded eagerly and in list order. ``steps=`` remains
+    the low-level shorthand; both normalize into ``pipeline.agents``.
 
     `Pipeline` owns the definition and seed/answer models. Runtime settings
     belong to `PipelineRunner`/`RunConfig`.
@@ -79,38 +74,23 @@ class Pipeline:
         steps: Sequence[Step[Any]] | None = None,
         *,
         name: str | None = None,
-        agents: Sequence[Agent] | None = None,
-        routes: Sequence[_RouteLike] | None = None,
+        agents: Sequence[Agent | AgentSource] | None = None,
         seed_type: type[BaseModel] | None = None,
         seed_field: str = "text",
         answer_type: type[BaseModel] | None = None,
     ):
-        declared_agents = list(agents) if agents is not None else []
-        declared_routes = list(routes) if routes is not None else []
-        has_structured = bool(declared_agents or declared_routes)
-        has_raw = steps is not None
-        if has_raw and has_structured:
-            raise TypeError("Pipeline takes either steps= or agents=/routes=, not both")
-        if not has_raw and not has_structured:
-            raise TypeError("Pipeline requires steps= or agents=/routes=")
+        if steps is not None and agents is not None:
+            raise TypeError("Pipeline takes either steps= or agents=, not both")
+        if steps is None and not agents:
+            raise TypeError("Pipeline requires steps= or agents=")
         self.name = name or "pipeline"
-        self.routes = declared_routes or None
-        self.steps: list[Step[Any]] | None
-        self.agents: list[Agent]
-        if has_structured:
-            expanded: list[Agent] = []
-            for agent in declared_agents:
-                expanded.extend(agent.agents())
-            for route in declared_routes:
-                expanded.extend(route.agents())
-            self.steps = None
-            self.agents = expanded
-        else:
-            self.steps = list(steps) if steps is not None else None
-            self.agents = normalize_units(
-                steps=list(steps) if steps is not None else None,
-                agents=None,
-            )
+        self.steps: list[Step[Any]] | None = (
+            list(steps) if steps is not None else None
+        )
+        self.agents = normalize_units(
+            steps=list(steps) if steps is not None else None,
+            agents=list(agents) if agents is not None else None,
+        )
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type

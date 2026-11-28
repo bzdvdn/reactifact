@@ -1,7 +1,7 @@
 # API reference
 
 Top-level symbols exported by `reactifact` (see `reactifact/__init__.py`). The format
-for each group: name — one-line role. Details live in the doc-strings of the
+for each section: name — one-line role. Details live in the doc-strings of the
 modules — see [the auto-generated reference](../reference/index.md) for those
 rendered directly from source (signatures, types, full docstring text) on
 the docs site, rather than copied here by hand. Per-area pages:
@@ -11,7 +11,7 @@ the docs site, rather than copied here by hand. Per-area pages:
 
 ## Stability
 
-reactifact is pre-1.0 (`0.25.1`) but not `rc` — the surface below is the stable
+reactifact is pre-1.0 (`0.30.0`) but not `rc` — the surface below is the stable
 contract, not a moving target. It is **machine-checked**: `tests/test_public_api.py`
 pins `reactifact.__all__` and the canonical submodule exports
 (`reactifact.agent`, `reactifact.consume`, `reactifact.chat`,
@@ -58,7 +58,7 @@ from there when you want the full surface:
 
 | What | Canonical import |
 | --- | --- |
-| steps, agents, return-style instructions, input annotations | `from reactifact.agent import Agent, Read, Step, agent`; `from reactifact.agent.step import step, Emit, Scope, Unscoped, Wakes` |
+| steps, agents, return-style instructions, input annotations | `from reactifact.agent import Agent, AgentSource, Read, Step, agent`; `from reactifact.agent.step import step, Emit, Scope, Unscoped, Wakes` |
 | consume declarations and lifecycle variants | `from reactifact.consume import Consume, IdempotentConsume, JoinConsume` |
 | chat hooks and memory | `from reactifact.chat import Chat, ChatAssistant, ChatReply, ChatMemory` |
 | tool loops | `from reactifact.tools.use import ToolUse, NativeToolUse, ToolUseHITL` |
@@ -73,9 +73,9 @@ which gives the package), and the `@step` decorator from `reactifact` or
 `reactifact.agent.step` (not `from reactifact.agent import step`, which gives
 the step package).
 
-`reactifact.__all__` remains the shortcut for `Context`, `Artifact`, `Step`,
-`Agent`, `Read`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `PipelineRunner`, `Chat`,
-`Budget`,
+`reactifact.__all__` remains the shortcut for `Context`, `Artifact`, `Step`, `StepInvocation`,
+`Agent`, `Read`, `Consume`, `Effects`, `Runtime`, `Pipeline`, `PipelineRunner`,
+`RunConfig`, `Chat`, `Budget`,
 the lifecycle consumes, `CurrentRequest`, the input annotations, and tools.
 The freeze test pins both the top-level set and the canonical submodule
 `__all__` lists.
@@ -105,7 +105,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `ResourceKey[T]` | a typed handle for registering two resources of one type (primary/replica, per-tenant) |
 | `ResourceScope` / `RuntimeResources.scope(factory)` | `async with` builder that creates resources on the current loop and closes them on exit — the loop-safe way to own providers (see the class docstring) |
 | `current_request()` | the active turn's request mapping (same as `StepInvocation.request`) |
-| `CurrentRequest` | read-only `Mapping` of `Runtime.arun(request=...)`; inject `request: CurrentRequest` (or use `Step.request`/`call.request`) instead of a contextvar |
+| `CurrentRequest` | read-only `Mapping` of `Runtime.arun(request=...)`; inject `request: CurrentRequest` (or use `Step.request`/`inv.request`) instead of a contextvar |
 | `Commit`, `Read`, `Write` | version bookkeeping and recorded provenance ops |
 | `ContextCheckpoint` | lightweight view of one commit (`id`, `version`, `parent_ids`, `created_at`, `author`, `message`, `writes`); `context.checkpoints()`, `context.checkpoint(id/version)`, `context.at(checkpoint)` |
 
@@ -116,7 +116,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `Artifact` | immutable `(id, version, data, content_hash)` handle; history lives in `Context` (`artifact_version`/`version_history`/`find_versions`) |
 | `ArtifactConflict` | optimistic-concurrency failure: `effects.update(..., expected_version=…)` / `Context.update` expected a different version; the runtime validates the whole generation before applying any patch |
 | `register_type(Model, *, type_id=, aliases=, migrate=)` (`reactifact.types`) | stable persisted type identity: a rename/move of a model no longer breaks loading old sessions/commits/events. `type_id_of`/`resolve`/`migrate_payload`; default id is the qualified name |
-| `Patch` | the runtime's compiled change-set (transport); steps write effects (`effects`/`call.effects`), `Patch` is assembled by the runtime |
+| `Patch` | the runtime's compiled change-set (transport); steps write effects (`effects`/`inv.effects`), `Patch` is assembled by the runtime |
 | `reactifact.operations` (`Create`/`Update`/`Delete`/`Link`/`Unlink`/`Relation`) | the compiled operations a patch carries (§12) |
 | `Create`, `Update`, `Delete`, `Link`, `Unlink`, `Relation` | op records from which patches are built |
 
@@ -128,11 +128,11 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `Read` | a step input: `Read(Query)`, `Read.by_field(Query, "test", 123)`, `Read.on_create(Query)`, `Read.after_delete(Scratch)`; `required=False` reads only when present |
 | `agent` (`@agent`) | decorator: one function → one `Agent` with a single step; typed parameters are reads and the return annotation is `produces` (`@agent(consumes=..., produces=..., retry=..., timeout=...)` for the explicit form). Import it from `reactifact.agent` (`from reactifact.agent import agent`): `reactifact.agent` is the package, so `from reactifact import agent` gives the module |
 | `Runtime(steps=..., agents=...)` | dispatches steps and agents together (steps first). Each raw `Step` is wrapped in an implicit agent of one. |
-| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `store=`. Pass `pipeline=` to reuse a `Pipeline` definition (seed/answer and agents are inferred) and `config=` for run resources/tracing; only the per-turn resources hook is explicit. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
-| `Pipeline(steps=..., agents=..., routes=..., seed_type=..., answer_type=...)` | reusable pipeline definition: `Pipeline.agents` is the expanded agent list (`routes` expand through `route.agents()`); `.validate()` / `.describe()` / `.mermaid()` are static. Execution is always `PipelineRunner(pipeline, config=RunConfig(...))` |
-| `PipelineRunner(pipeline, config=RunConfig(...))` | executes a `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.override`, `.test_client`, `.validate`, `.describe`, `.mermaid`; owns resources, budget, tracing, concurrency and the `last_result`/`last_context` of the most recent run |
+| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | typed chat facade (`agents=` takes `Agent` or an `AgentSource` such as `Route`): `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `store=`. Pass `pipeline=` to reuse a `Pipeline` definition (seed/answer and agents are inferred) and `config=` for run resources/tracing; only the per-turn resources hook is explicit. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
+| `Pipeline(steps=..., agents=..., seed_type=..., answer_type=...)` | reusable pipeline definition: `agents` may be an `Agent` or an `AgentSource` such as `recipes.Route`; `Pipeline.agents` is the expanded, ordered agent list; `.validate()` / `.describe()` / `.mermaid()` are static. Execution is always `PipelineRunner(pipeline, config=RunConfig(...))` |
+| `PipelineRunner(pipeline, config=RunConfig(...))` | executes a `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.router`/`.http`/`.as_tool`, `.test_client`, `.override`, `.close`, `.validate`, `.describe`, `.mermaid`; owns resources, budget, tracing, concurrency and the `last_result`/`last_context` of the most recent run |
 | `RunConfig` | runtime settings for `PipelineRunner`: `resources`, `llm`, `budget`, `tracer`, `max_concurrency`, `isolate_errors`, `on_agent_error`, `lifespan`, `traces`, `trace_sample`; use `PipelineRunner(pipeline, config=RunConfig(...))` |
-| `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
+| `Daemon(pipeline, *, config=RunConfig(...), seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline or a `PipelineRunner`: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
 | `RetryPolicy` | per-agent retry config: `max_attempts`, `backoff`, `max_backoff`, `retry_on`; a retry gets a fresh `Effects` slot, so only the successful patch commits |
 | `run_subflow(parent, *, agents, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
@@ -144,7 +144,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
-| `Step` / `@step` | the work unit (also `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` for side-effect-only steps): class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets typed inputs, or one low-level `inv: StepInvocation` when it needs the effect slot, trigger or request (any parameter name works; only an unannotated `call`/`step_call` is the legacy form). `reads` declares inputs, `produces` the allowed create types; when `reads` is explicit, typed artifact params missing from it are added as read-only inputs (`Read(..., required=False)`); return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit group. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit, `Ensure(...)` for an idempotent create, or `Edit`/`Drop`/`Relate` for a single mutation. |
+| `Step` / `@step` | the work unit (also `scope=` / `Step(..., scope=...)`, `produces=()` + `deletes=(T,)` for side-effect-only steps): class `run(...)` gets typed inputs + `effects: Effects`; function `@step` gets typed inputs, or one low-level `inv: StepInvocation` when it needs the effect slot, trigger or request (any parameter name works; only an unannotated `call`/`step_call` is the legacy form). `reads` declares inputs, `produces` the allowed create types; when `reads` is explicit, typed artifact params missing from it are added as read-only inputs (`Read(..., required=False)`); return a model for create-sugar. `Annotated[T, When(...)]`/`Consume.by_*` select conditions; put extra creates in the same tuple (`produces=(Primary, Extra)`). `timeout=` is a hard per-step deadline; `retry=`, `priority=`, `concurrency_limit=` and `name=` are copied into the implicit agent. Return `Emit(model, id=..., links=(...))` when the id/provenance must be explicit, `Ensure(...)` for an idempotent create, or `Edit`/`Drop`/`Relate` for a single mutation. |
 | `Human` / `Outbox` | injected non-data collaborators: `human.ask/resume` (HITL, `PendingQuestion`) and `outbox.act` (outbound intent, `PendingAction`); the old `Effects.ask/resume/act` were removed in 0.23 |
 | `Progress` | injected ephemeral progress channel: `progress(message, kind="status", **data)` publishes a `ProgressEvent` immediately (a thin view over `Context.announce`, never committed). A step that only announces and then calls an LLM/tools needs no `Context`; class steps can use `self.progress(...)` |
 | `Emit` / `Ensure` / `Edit` / `Drop` / `Relate` | return-style change instructions: create with explicit id/links, idempotent create (by id or source), update fields, delete, link — compiled into the same atomic patch. `Emit` with an existing id refreshes it (`upsert`); `Ensure` skips when it exists |
@@ -201,9 +201,9 @@ The canonical authoring package is `reactifact.agent` (with
 | `install_error_handlers(app, *, extra=…)` | maps `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` to JSON HTTP responses (403/422/429/409) with `{"error": {"code", "message", "request_id", "trace_id"}}`; `extra` overrides/adds mappings. `create_*_app` installs it together with `install_request_id`. |
 | `install_request_id(app)` | middleware assigning `X-Request-ID` (and `request.state.request_id`) to every response; error envelopes reuse it and `X-Reactifact-Run-Id` when available |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); `request_factory(request)` builds the per-turn `request=` mapping from the FastAPI `Request` (identity/ACL-aware turns); the event schema is published in the route's OpenAPI `responses` |
-| `create_pipeline_router(pipeline, *, prefix=, routes_override=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` for a typed `Pipeline`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; FastAPI derives validation/OpenAPI/`/docs` from the pipeline's models. `PipelineRoutes` overrides the paths |
+| `create_pipeline_router(runner, *, prefix=, routes_override=, request_factory=, max_iterations=, with_health=)` | FastAPI `APIRouter` for a typed `PipelineRunner`: `POST /run` (body `seed_type`, response `answer_type`), `POST /stream` (SSE `progress`…`done`/`error`), `GET /health`; FastAPI derives validation/OpenAPI/`/docs` from the pipeline's models. `PipelineRoutes` overrides the paths |
 | `create_chat_app(chat, *, prefix="/api", routes=, traces=, contracts=True, dependencies=, validate=True)` | ready FastAPI app for a `Chat`: sessions, history, clear, SSE, contracts and traces. `ChatRoutes` can expose the DEVOPS-style `/chat`, `/chat/stream`, `/chat/history`, `/chat/clear` |
-| `create_http_app(pipeline, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | ready FastAPI app: pipeline router + contracts page + trace dashboard + error handlers; `validate=True` fails at startup on a broken contract; `dependencies=` applies to every router |
+| `create_http_app(runner, *, title=, version=, prefix=, traces=, contracts=True, dependencies=, request_factory=, validate=True, gzip=True)` | ready FastAPI app around a `PipelineRunner`: pipeline router + contracts page + trace dashboard + error handlers; `validate=True` fails at startup on a broken contract; `dependencies=` applies to every router |
 | `reactifact.web.sse(event, data)` | one SSE frame |
 
 ## Visualization (reactifact.viz + python -m reactifact)
@@ -324,7 +324,7 @@ current event loop**, so one provider instance stays usable across repeated
 | `search_sources(context, query, owner_id, …)` / `fan_out_sources(…, as_artifacts=False, effects=)` | `search_sources` is pure (ranked, scoped refs); `fan_out_sources` also writes create-or-refresh refs (`source_ref_id`) into the effect slot (or an explicit `effects=`) |
 | `materialize_doc(context, ref, doc_factory=None, *, doc_type=, refresh=, on_error=, relation=, effects=)` | lazy ref → document with provenance; accepts an artifact, `SourceRef` or handle; `effects=` selects an explicit slot |
 | `StatusMachine` / `StatusState` | deterministic artifact lifecycle: direct `StatusMachine(...)`, `from_funcs(...)` or subclass; key-scoped `next_status(state)` (`all`/`any`/`latest`), overridable `owner_key`, optional `reads=`, `terminal`, `on_transition` |
-| `Route` / `RouteCase` | builder for mutually exclusive case groups: only matches of `on` are narrowed by `key(value) == case`, and later triggers keep working |
+| `Route` / `RouteCase` | builder for mutually exclusive case agents: only matches of `on` are narrowed by `key(value) == case`, later triggers keep working, and the route is passed straight into `agents=[route, ...]` |
 | `ScopedCleanup` | reacts to a terminal artifact and deletes scratch types in the same `scope`; declares `produces=()` and real `deletes=(...)` |
 | `TurnContext` / `TurnContextStep` / `TurnFacts` | one ready-to-consume artifact per user turn (current/previous query, bounded history, digest, follow-up); `build(facts)` maps a domain context without reading `Context` |
 | `WindowSummarizer(message_type, artifact_type, summarize=…, build=…)` | periodic conversation-window checkpoints, idempotent by message count; `message_type` may be a sequence of types. Do not pair with `WindowPruner` (pruning stops the count-based cadence); use `RollingDigestSummarizer` when the raw window must be bounded |

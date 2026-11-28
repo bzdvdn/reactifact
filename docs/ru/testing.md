@@ -158,7 +158,7 @@ print(result.explain())
 
 `Verify` применяет ground-truth-free метрики `reactifact.eval` к *живому*
 `Answer` в той же генерации, что его создала (batch-eval скорит готовый
-`Context` постфактум). Добавьте его в `steps` группы; `Verify` сам объявляет
+`Context` постфактум). Добавьте его в `steps` агента; `Verify` сам объявляет
 свои `VerificationResult`/`VerificationFailed`/`PendingQuestion`, поэтому
 dummy-шаги `Step(...)` не нужны. Передача класса модели делает шаг
 самопланирующимся:
@@ -177,7 +177,7 @@ ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```
 
 `Verify("Answer")` сохраняет режим по имени для кода, который не импортирует
-доменную модель; тогда `Consume(Answer)` задаёт группа.
+доменную модель; тогда `Consume(Answer)` задаёт агент.
 `Verify(threshold=...)` переопределяет общий порог;
 `required_metrics=("provenance_grounded",)` проваливает ответ независимо от
 среднего; `on_fail="ask"` (дефолт) поднимает HITL

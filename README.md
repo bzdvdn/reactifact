@@ -151,7 +151,8 @@ records `policy_hash`, and downstream code still checks
 
 LLM calls are provider methods now: a step takes `llm: LLMProvider` and calls
 `await llm.structured(Schema, user=...)` (or `llm.reply`, `llm.structured_json`,
-`llm.chat`); `context.resources.llm` is still accepted by the old helpers.
+`llm.chat`). The function helpers (`structured_llm(llm, ...)`, `llm_reply(llm, ...)`)
+remain for callers that prefer a free function.
 
 ## Define a step, run it
 
@@ -165,7 +166,7 @@ class Question(BaseModel):
 class Answer(BaseModel):
     text: str
 
-@step                                     # consumes/produces inferred from the signature
+@step                                     # reads/produces inferred from the signature
 def answer(question: Question) -> Answer:
     return Answer(text=f"you asked: {question.text}")
 

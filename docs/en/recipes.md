@@ -510,11 +510,11 @@ the LLM when `context.resources.llm is None`, and falls back to
 `previous + "\n" + history` (truncated) when the provider raises, returns
 `None`, or returns blank text. `fallback=` overrides that policy.
 
-## `Route` — one case group per artifact value
+## `Route` — one case agent per artifact value
 
 `Route` is for the common "the turn carries a branch key; only one downstream
-group should run" shape. It stays a builder over ordinary `Agent`s — no
-nested groups in the runtime. Each case group keeps its own steps and later
+case agent should run" shape. It stays a builder over ordinary `Agent`s — no
+nested agents in the runtime. Each case agent keeps its own steps and later
 triggers; only matches of the route's `on` event are narrowed by
 `key(value) == case`.
 
@@ -528,13 +528,13 @@ route = Route(
         "meta": kb_react_group,
         "rag": rag_group,
     },
-    default="rag",       # values outside the map use the rag group
+    default="rag",       # values outside the map use the rag agent
 )
 
-Runtime(ctx, agents=[*route.agents(), planner, ...])
+Runtime(ctx, agents=[route, planner, ...])
 ```
 
-Generated groups carry a `route_case` marker. `validate_contracts` uses it to
+Generated agents carry a `route_case` marker. `validate_contracts` uses it to
 suppress the `ambiguous_producer` warning when the same artifact is produced by
 distinct cases of one route; producers outside the route still warn.
 
@@ -575,8 +575,9 @@ answer — `run_tool_loop` is the opt-in recipe; it is not a reactive `Agent`:
 ```python
 from reactifact.recipes import parse_tool_calls_with_textual, run_tool_loop
 
+# inside a step with `context: Context` and `effects: Effects`
 result = await run_tool_loop(
-    call.context,
+    context,
     system="You are a research assistant.",
     user=question,
     tools=[search_knowledge, read_source],
@@ -587,7 +588,7 @@ result = await run_tool_loop(
     parse_calls=parse_tool_calls_with_textual,  # tolerate DSML/XML providers
     on_event=lambda name, payload: ...,         # round/tool/final for SSE
 )
-call.effects.create(Answer(text=result.text))
+effects.create(Answer(text=result.text))
 ```
 
 - The turn's `Budget` is honoured between rounds: `max_tool_calls` caps
@@ -719,7 +720,7 @@ FlowAgent = Agent(
 )
 ```
 
-The same flow without a subclass — and with the group/pipeline wiring inferred:
+The same flow without a subclass — and with the agent/pipeline wiring inferred:
 
 ```python
 from reactifact.recipes import PlanExecute

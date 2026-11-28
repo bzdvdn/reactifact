@@ -90,10 +90,10 @@ asyncio.run(
 моделей, сессии сохраняются, стриминг и history готовы.
 
 ```python
-from reactifact import Chat, Agent
+from reactifact import Agent, Chat, Consume
 
 chat = Chat(
-    agents=[Agent("answer", steps=[search, answer])],
+    agents=[Agent("answer", consumes=[Consume(Question)], steps=[search, answer])],
     store="sessions.db",
     seed_type=Question,
     answer_type=Answer,
@@ -112,8 +112,8 @@ async context manager для turn-scoped contextvars или очистки ре�
 `PendingQuestion` отдаётся как `waiting: true`; с `Chat(..., resume_pending=True)`
 следующее сообщение пользователя становится ответом — отдельный HITL-endpoint
 не нужен. Настройки запуска, общие с `PipelineRunner` (`resources`, `budget`,
-tracing, lifespan), передаются как `Chat(..., config=RunConfig(...))`; явные
-аргументы перекрывают конфиг.
+tracing, lifespan), передаются как `Chat(..., config=RunConfig(...))`; явно
+задаётся только per-turn `resources=` hook.
 
 Для HTTP-чата с сессиями `chat.http()` повторяет DEVOPS-стиль путей:
 
@@ -137,16 +137,16 @@ app = chat.http(
 
 ## Одно определение: `Pipeline` + `PipelineRunner`
 
-`Pipeline` — декларативное определение: агенты, маршруты и seed/answer модели.
+`Pipeline` — декларативное определение: агенты (включая набор case-агентов `Route`) и seed/answer модели.
 `PipelineRunner` владеет ресурсами, бюджетом, tracing и исполнением, а на каждый
 запуск создаёт свежие `Context` + `Runtime`.
 
 ```python
-from reactifact import Agent, Pipeline, PipelineRunner, RunConfig
+from reactifact import Agent, Consume, Pipeline, PipelineRunner, RunConfig
 
 pipeline = Pipeline(
     agents=[
-        Agent("audit", steps=[compute_spend, compute_variance, answer]),
+        Agent("audit", consumes=[Consume(Question)], steps=[compute_spend, compute_variance, answer]),
     ],
     seed_type=Question,
     answer_type=Answer,
@@ -169,7 +169,7 @@ Async-варианты — `arun(seed)` и `astream(seed)`; низкоуровн
 @step(reads=Question)
 def answer(question: Question, llm: LLMProvider) -> Answer: ...
 
-pipeline = Pipeline(agents=[Agent("answer", steps=[answer])])
+pipeline = Pipeline(agents=[Agent("answer", consumes=[Consume(Question)], steps=[answer])])
 runner = PipelineRunner(pipeline, config=RunConfig(llm=default_llm))
 runner.override(LLMProvider, FakeLLM())
 ```
@@ -256,7 +256,7 @@ Web-адаптер опционален; когда нужен HTTP, он пол
 
 ```python
 pipeline = Pipeline(
-    agents=[Agent("answer", steps=[extract, classify, answer])],
+    agents=[Agent("answer", consumes=[Consume(Question)], steps=[extract, classify, answer])],
     seed_type=Question,
     answer_type=Answer,
 )
@@ -270,7 +270,7 @@ app = runner.http()
 `/traces`. Каждый ответ несёт `X-Request-ID`; `/run` добавляет
 `X-Reactifact-Run-Id`, а доменные ошибки используют
 `{"error": {"code", "message", "request_id", "trace_id"}}`. Для встраивания в
-существующее приложение: `app.include_router(pipeline.router(prefix="/agent"))`.
+существующее приложение: `app.include_router(runner.router(prefix="/agent"))`.
 
 ## 0. Он-рамп для 80%: `reactifact.quick`
 
@@ -453,7 +453,7 @@ resources.register(K8sClient, K8sClient())
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Context, Runtime, RuntimeResources, Agent, step
+from reactifact import Agent, Artifact, Consume, Context, Runtime, RuntimeResources, step
 from reactifact.recipes import fan_out_sources, materialize_doc, find, keyword_score
 from reactifact.sources import FileSystemSource, SourceRef
 
@@ -472,28 +472,26 @@ class Answer(BaseModel):
 
 
 @step(produces=SourceRef, reads=Question)
-async def search(call):
-    question = call.trigger
-    await fan_out_sources(call.context, question.data.text, owner_id=question.id, limit=3)
+async def search(context: Context, question: Artifact[Question]) -> None:
+    await fan_out_sources(
+        context, question.data.text, owner_id=question.id, limit=3
+    )
 
 
 @step(produces=Doc, reads=SourceRef)
-async def resolve(call):
-    ref = call.trigger
-    await materialize_doc(call.context, ref, lambda ctx, ref, content: Doc(text=content))
+async def resolve(context: Context, ref: Artifact[SourceRef]) -> None:
+    await materialize_doc(context, ref, lambda ctx, ref, content: Doc(text=content))
 
 
 @step(produces=Answer, reads=Doc)
-async def answer(call):
-    docs = call.inputs
-    d = docs[0]
-    sources = call.context.related(d.id, "materialized_from")
-    return Answer(text=d.data.text.strip(), sources=[s.data.locator for s in sources])
+def answer(context: Context, doc: Artifact[Doc]) -> Answer:
+    sources = context.related(doc.id, "materialized_from")
+    return Answer(text=doc.data.text.strip(), sources=[s.data.locator for s in sources])
 
 
-search_group = Agent("search", steps=[search])
-resolve_group = Agent("resolve", steps=[resolve])
-answer_group = Agent("answer", steps=[answer])
+search_agent = Agent("search", consumes=[Consume(Question)], steps=[search])
+resolve_agent = Agent("resolve", consumes=[Consume(SourceRef)], steps=[resolve])
+answer_agent = Agent("answer", consumes=[Consume(Doc)], steps=[answer])
 
 
 async def main():
@@ -503,7 +501,7 @@ async def main():
         sources={"docs": FileSystemSource("./docs", source_id="docs", scorer=keyword_score)},
     )
     ctx = Context(resources=resources)
-    runtime = Runtime(ctx, agents=[search_group, resolve_group, answer_group])
+    runtime = Runtime(ctx, agents=[search_agent, resolve_agent, answer_agent])
     ctx.create(Question(text="what is your refunds policy?"))
     await runtime.arun()
     a = ctx.latest(Answer)
@@ -537,9 +535,16 @@ keyword-триггерный skill. Запуск: `.venv/bin/python examples/kno
 import asyncio
 from pydantic import BaseModel
 
-from reactifact import Chat, RuntimeResources, SessionStore, Agent
+from reactifact import (
+    Agent,
+    Artifact,
+    Chat,
+    Consume,
+    RuntimeResources,
+    SessionStore,
+    step,
+)
 from reactifact.checkpoints import FileKVBackend
-from reactifact import step
 
 
 class UserMsg(BaseModel):
@@ -553,12 +558,11 @@ class Reply(BaseModel):
 
 
 @step(produces=Reply, reads=UserMsg)
-async def echo(call):
-    msg = call.trigger
+def echo(msg: Artifact[UserMsg]) -> Reply:
     return Reply(query_id=msg.id, text=f"you said: {msg.data.text}")
 
 
-echo_group = Agent("echo", steps=[echo])
+echo_agent = Agent("echo", consumes=[Consume(UserMsg)], steps=[echo])
 
 
 def reply(ctx, msg_id):
@@ -570,7 +574,7 @@ async def main():
     store = SessionStore(FileKVBackend("./sessions"))
     assistant = Chat(
         store=store,
-        agents=[echo_group],
+        agents=[echo_agent],
         seed_type=UserMsg,
         reply=reply,
         resources=RuntimeResources,  # свежий RuntimeResources на каждый ход

@@ -11,15 +11,15 @@ turns. Observability is a matter of *subscribing* to it: pass sinks to the
 
 ## Traces
 
-Attach a tracer (or several — `tracer=[a, b]` composes):
+Attach a tracer (or several — `tracer=[a, b]` composes `Tracer` instances):
 
 ```python
 # not-run: illustrative
-from reactifact.tracing import TraceStore
 from reactifact import Runtime
+from reactifact.tracing import Tracer, TraceStore
 
 store = TraceStore("traces.db", max_runs=200)
-runtime = Runtime(ctx, agents=agents, tracer=store)
+runtime = Runtime(ctx, agents=agents, tracer=Tracer(store=store))
 await runtime.arun()
 ```
 

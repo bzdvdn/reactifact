@@ -21,6 +21,14 @@ several steps. Subclassing `Agent` is optional sugar for stateful
 class-oriented code, not the default. Overriding `run()` with no `consumes` is
 the imperative escape hatch, not the ordinary style.
 
+| You need | Use |
+| --- | --- |
+| one transformation with typed inputs | `@step(reads=..., produces=...)` |
+| a one-function agent | `@agent(consumes=...)` |
+| several steps sharing policy or `self` state | `Agent(consumes=..., steps=[...])` |
+| many agents with seed/answer models | `Pipeline(agents=[...])` + `PipelineRunner` |
+| a conversation across turns | `Chat(agents=..., seed_type=..., answer_type=...)` |
+
 ## A step reads its inputs and writes effects
 
 A `@step` function declares its inputs with `Read` (or with typed parameters,
@@ -84,8 +92,8 @@ async def answer(
     )
 
 
-Pipeline = Agent(
-    "pipeline",
+qa = Agent(
+    "qa",
     consumes=[Consume(Question), Consume(Evidence)],
     steps=[scout, answer],
 )
@@ -93,7 +101,7 @@ Pipeline = Agent(
 
 ctx = Context(resources=RuntimeResources())
 ctx.create(Question(text="hello"))
-asyncio.run(Runtime(ctx, agents=[Pipeline]).arun())
+asyncio.run(Runtime(ctx, agents=[qa]).arun())
 
 answer_artifact = ctx.latest(Answer)
 assert answer_artifact is not None
@@ -313,11 +321,11 @@ assert result.context.latest(Answer).data.text == "HELLO"
 - `Agent(consumes=[...], steps=[...])` owns the wake contract and
   retry/timeout/fallback/priority policy; it **is** the scheduling unit.
   Spell `consumes` out even though the runtime can derive it from the steps.
-- `Pipeline(agents=[...], routes=[...])` is declarative structure;
+- `Pipeline(agents=[...])` is declarative structure; `agents=` takes `Agent` or an agent source like `Route`,
   `Pipeline.agents` expands agents and `Route.agents()` for `Runtime`.
 - `PipelineRunner` + `RunConfig` own resources/budget/tracing and run;
   `Chat(pipeline=..., config=RunConfig(...))` reuses both for a conversation.
-- An agent is a named group, not an execution barrier: `Runtime` still schedules
+- An agent is a named scheduling unit, not an execution barrier: `Runtime` still schedules
   by artifact availability.
 
 For stateful class-oriented code, `Agent` can be subclassed and `@step` applied
@@ -355,15 +363,15 @@ agents; use the subclass form when methods need `self` state.
   relying on intra-generation order; make the dependency an artifact instead.
 - **Mutually exclusive cases**: when one artifact field selects one of several
   downstream groups, build them with `recipes.Route(on=..., key=..., cases=...)`
-  and expand with `Runtime(agents=[*route.agents(), ...])`; `validate_contracts`
+  and pass it directly: `Runtime(agents=[route, ...])`; `validate_contracts`
   warns about `ambiguous_producer` outside a route.
 - **Idempotency**: agents may re-wake on an update. Use stable ids with
   `create_once`/`upsert` (or return-style `Ensure`/`Emit`), or gate with
   `AbsentConsume`, so a second wake is a no-op rather than a duplicate.
 
-## Degradation at the group boundary
+## Degradation at the agent boundary
 
-When a group's main step can fail on an external dependency, declare a fallback
+When an agent's main step can fail on an external dependency, declare a fallback
 instead of copying try/except into the step:
 
 ```python
@@ -402,7 +410,7 @@ fallback = fallback_answer("Не удалось собрать ответ.")
 the artifact contract.
 
 `fallback=` runs once after retries, in a fresh effects slot; the failed
-attempt is discarded. It accepts a `Step`, not a group. `fallback_on` /
+attempt is discarded. It accepts a `Step`, not an `Agent`. `fallback_on` /
 `fallback_skip` keep authz, guardrail and artifact-conflict errors from being
 silently converted into a normal answer. `Chat(fallback_reply=...)` remains the
 last-resort transport fallback when even the fallback step cannot answer.
@@ -426,7 +434,7 @@ returned model/`Emit` is enough.
 ## Reviewing existing agent code
 
 Look for: mutation of `context`/`.data`; a step result read by the caller
-instead of becoming an artifact; a step or group invoked directly instead of
+instead of becoming an artifact; a step or agent invoked directly instead of
 through `consumes`; a step and its consumer coupled by a shared global instead
 of an artifact type; an agent that fires once per history artifact (missing
 `wakes=False`); duplicates on re-wake (missing stable id).

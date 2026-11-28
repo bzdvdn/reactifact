@@ -94,12 +94,13 @@ server = create_mcp_server([search_catalog], name="my-app")
 await server.run_stdio_async()
 ```
 
-A typed `Pipeline` is a tool as well — the MCP argument schema comes from
-`seed_type`, and the result is the latest `answer_type`:
+A typed `PipelineRunner` is a tool as well — the MCP argument schema comes
+from the pipeline's `seed_type`, and the result is the latest `answer_type`:
 
 ```python
+runner = PipelineRunner(pipeline)
 server = create_mcp_server(
-    [pipeline.as_tool(name="ask_knowledge", description="Ask the KB pipeline")],
+    [runner.as_tool(name="ask_knowledge", description="Ask the KB pipeline")],
     name="my-app",
 )
 ```

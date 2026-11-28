@@ -157,7 +157,7 @@ print(result.explain())
 
 `Verify` applies `reactifact.eval`'s ground-truth-free metrics to a *live*
 `Answer`, in the generation that produced it (batch eval scores a finished
-`Context` after the fact). Add it to the group's `steps`; `Verify` declares its
+`Context` after the fact). Add it to the agent's `steps`; `Verify` declares its
 own `VerificationResult`/`VerificationFailed`/`PendingQuestion` outputs, so it
 needs no dummy `Step(...)` entries. Passing the model class makes it
 self-scheduling:
@@ -176,7 +176,7 @@ ctx = Context(resources=RuntimeResources(verification_threshold=0.8))
 ```
 
 `Verify("Answer")` keeps the by-name mode for callers that do not import the
-domain model; then the containing group supplies `Consume(Answer)`.
+domain model; then the containing agent supplies `Consume(Answer)`.
 `Verify(threshold=...)` overrides the resource-wide bar;
 `required_metrics=("provenance_grounded",)` fails regardless of the weighted
 average; `on_fail="ask"` (default) raises a HITL
