@@ -15,6 +15,7 @@ from ...context import Context
 from ...effects import Effects
 from ...events import Event
 from ...interaction import Human, Outbox, Progress
+from ...invocation import Invocation, current_invocation
 from ...request import CurrentRequest
 from .annotations import Latest, Scope, Unscoped
 from .core import Step, _annotation_types, _scope_matches, _scope_value
@@ -347,6 +348,8 @@ def _resolve_injected(name: str, annotation: Any, call: StepInvocation) -> Any:
         return Progress(call.context.announce)
     if base is CurrentRequest or (untyped and name == "request"):
         return call.request
+    if base is Invocation or (untyped and name == "invocation"):
+        return call.invocation or current_invocation()
     if base is Event or (untyped and name == "event"):
         return call.event
     # `trigger`/`inputs` are reserved pseudo-parameters: steps often annotate

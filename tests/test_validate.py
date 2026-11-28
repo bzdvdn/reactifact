@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Consume,
     Step,
     ValidationError,
     validate_contracts,
@@ -84,6 +85,72 @@ def test_dead_output_is_a_warning_unless_terminal():
         agents=[_producer()], seeds=[Question], terminal=[Middle]
     )
     assert clean.warnings == []
+
+
+def test_read_only_step_input_keeps_an_artifact_alive():
+    """An explicit agent `consumes` must not hide read-only step inputs."""
+
+    class ReadsMiddle(Step):
+        reads = (Question, Middle)
+        produces = (Final,)
+
+        async def run(self, question: Question, middle: Middle) -> Final:
+            return Final(text=f"{question.text}:{middle.text}")
+
+    reader = Agent(
+        "reader",
+        consumes=[Consume(Question)],
+        steps=[ReadsMiddle()],
+    )
+    report = validate_contracts(
+        agents=[_producer(), reader],
+        seeds=[Question],
+        terminal=[Final],
+    )
+
+    assert report.ok is True
+    assert [issue.code for issue in report.warnings] == []
+
+
+def test_read_only_step_input_still_needs_a_producer():
+    class ReadsMissing(Step):
+        reads = (Question, Middle)
+        produces = (Final,)
+
+        async def run(self, question: Question, middle: Middle) -> Final:
+            return Final(text=f"{question.text}:{middle.text}")
+
+    reader = Agent(
+        "reader",
+        consumes=[Consume(Question)],
+        steps=[ReadsMissing()],
+    )
+    report = validate_contracts(
+        agents=[reader],
+        seeds=[Question],
+        terminal=[Final],
+    )
+
+    assert report.ok is False
+    assert [issue.code for issue in report.errors] == ["unknown_input"]
+    assert "Middle" in report.errors[0].message
+
+
+def test_never_scheduled_ignores_read_only_reads():
+    class ReadOnly(Step):
+        reads = (Consume(Question, wakes=False),)
+        produces = (Final,)
+
+        async def run(self, question: Question) -> Final:
+            return Final(text=question.text)
+
+    report = validate_contracts(
+        agents=[Agent("readonly", steps=[ReadOnly()])],
+        seeds=[Question],
+        terminal=[Final],
+    )
+
+    assert any(issue.code == "never_scheduled" for issue in report.warnings)
 
 
 def test_duplicate_agent_names_are_errors():

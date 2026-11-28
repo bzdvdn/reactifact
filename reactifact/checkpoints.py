@@ -4,9 +4,11 @@ import asyncio
 import contextlib
 import copy
 import json
+import os
 import sqlite3
 import time
 import urllib.parse
+import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, cast
@@ -43,6 +45,17 @@ class KVBackend(ABC):
 
     @abstractmethod
     async def keys(self) -> list[str]: ...
+
+    async def set_if_absent(self, key: str, data: dict[str, Any]) -> bool:
+        """Create `key` only if it is absent; return whether it was created.
+
+        The default is a read-then-set: safe within one event loop, not atomic
+        across processes. Backends with a native atomic create override it.
+        """
+        if await self.get(key) is not None:
+            return False
+        await self.set(key, data)
+        return True
 
     async def aclose(self) -> None:  # noqa: B027
         """Releases held resources (a pooled connection, ...). No-op by default."""
@@ -95,6 +108,12 @@ class InMemoryKVBackend(KVBackend):
     async def set(self, key: str, data: dict[str, Any]) -> None:
         self._data[key] = copy.deepcopy(data)
 
+    async def set_if_absent(self, key: str, data: dict[str, Any]) -> bool:
+        if key in self._data:
+            return False
+        self._data[key] = copy.deepcopy(data)
+        return True
+
     async def get(self, key: str) -> dict[str, Any] | None:
         data = self._data.get(key)
         return copy.deepcopy(data) if data is not None else None
@@ -139,6 +158,25 @@ class FileKVBackend(KVBackend):
 
     async def set(self, key: str, data: dict[str, Any]) -> None:
         await asyncio.to_thread(self._set_sync, key, data)
+
+    def _set_if_absent_sync(self, key: str, data: dict[str, Any]) -> bool:
+        self.directory.mkdir(parents=True, exist_ok=True)
+        path = self._path(key)
+        tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+        payload = json.dumps({"key": key, "data": data})
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(payload)
+        try:
+            os.link(tmp, path)  # atomic create; fails if the key exists
+            return True
+        except FileExistsError:
+            return False
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                tmp.unlink()
+
+    async def set_if_absent(self, key: str, data: dict[str, Any]) -> bool:
+        return await asyncio.to_thread(self._set_if_absent_sync, key, data)
 
     def _get_sync(self, key: str) -> dict[str, Any] | None:
         path = self._path(key)
@@ -251,6 +289,18 @@ class _AsyncSQLite:
                 self._conn = await asyncio.to_thread(self._connect)
             return await asyncio.to_thread(self._exec, sql, params)
 
+    def _exec_rowcount(self, sql: str, params: tuple[Any, ...]) -> int:
+        assert self._conn is not None
+        cur = self._conn.execute(sql, params)
+        self._conn.commit()
+        return cur.rowcount
+
+    async def execute_rowcount(self, sql: str, params: tuple[Any, ...] = ()) -> int:
+        async with self._lock:
+            if self._conn is None:
+                self._conn = await asyncio.to_thread(self._connect)
+            return await asyncio.to_thread(self._exec_rowcount, sql, params)
+
     async def aclose(self) -> None:
         async with self._lock:
             if self._conn is not None:
@@ -288,6 +338,13 @@ class SQLiteKVBackend(AppendBackend):
             "SELECT data FROM kv_entries WHERE key = ?", (key,)
         )
         return cast(dict[str, Any], json.loads(rows[0][0])) if rows else None
+
+    async def set_if_absent(self, key: str, data: dict[str, Any]) -> bool:
+        rowcount = await self._sql.execute_rowcount(
+            "INSERT OR IGNORE INTO kv_entries (key, data) VALUES (?, ?)",
+            (key, json.dumps(data)),
+        )
+        return rowcount > 0
 
     async def delete(self, key: str) -> None:
         await self._sql.execute("DELETE FROM kv_entries WHERE key = ?", (key,))
@@ -451,6 +508,15 @@ class PostgreSQLKVBackend(AppendBackend):
             "SELECT data FROM kv_entries WHERE key = %s", (key,), fetch="fetchone"
         )
         return cast(dict[str, Any], json.loads(row[0])) if row is not None else None
+
+    async def set_if_absent(self, key: str, data: dict[str, Any]) -> bool:
+        row = await self._run(
+            "INSERT INTO kv_entries (key, data) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO NOTHING RETURNING key",
+            (key, json.dumps(data)),
+            fetch="fetchone",
+        )
+        return row is not None
 
     async def delete(self, key: str) -> None:
         await self._run("DELETE FROM kv_entries WHERE key = %s", (key,))

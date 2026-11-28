@@ -81,16 +81,7 @@ def _name(value: type | str) -> str:
     return value if isinstance(value, str) else value.__name__
 
 
-def _consume_types(agent: Agent) -> set[str]:
-    specs: Iterable[Consume]
-    if agent.consumes is not None:
-        specs = agent.consumes
-    else:
-        specs = [
-            consume
-            for step in agent.steps or ()
-            for consume in (step.read_specs() or ())
-        ]
+def _types_of(specs: Iterable[Consume]) -> set[str]:
     names: set[str] = set()
     for spec in specs:
         if isinstance(spec, CorrelatedConsume):
@@ -98,6 +89,34 @@ def _consume_types(agent: Agent) -> set[str]:
         elif spec.artifact_type is not None:
             names.add(_name(spec.artifact_type))
     return names
+
+
+def _wake_types(agent: Agent) -> set[str]:
+    """Types that can wake the agent.
+
+    Explicit `Agent.consumes` wins; otherwise the wake set is derived from the
+    steps' reads (the pre-`consumes` behavior).
+    """
+    if agent.consumes is not None:
+        return _types_of(agent.consumes)
+    return _types_of(
+        consume
+        for step in agent.steps or ()
+        for consume in (step.wake_specs() or ())
+        if consume.wakes
+    )
+
+
+def _read_types(agent: Agent) -> set[str]:
+    """Every type the agent's steps read, including read-only inputs.
+
+    Read-only step inputs (`Read(..., required=False)` / `Consume(..., wakes=False)`)
+    are not part of the agent's wake contract, but they are still real inputs:
+    they must be produced and they keep an artifact from being a dead output.
+    """
+    return _types_of(
+        consume for step in agent.steps or () for consume in (step.wake_specs() or ())
+    )
 
 
 def _produced_types(agent: Agent) -> set[str]:
@@ -177,6 +196,7 @@ def validate_contracts(
 
     producers: dict[str, set[str]] = {}
     consumers: dict[str, set[str]] = {}
+    wake_types: dict[str, set[str]] = {}
     seen_names: dict[str, str] = {}
     for agent in agent_list:
         if agent.name in seen_names:
@@ -189,12 +209,14 @@ def validate_contracts(
                 )
             )
         seen_names[agent.name] = agent.name
-        consumed = _consume_types(agent)
+        wakes = _wake_types(agent)
+        consumed = wakes | _read_types(agent)
         produced = _produced_types(agent)
+        wake_types[agent.name] = wakes
         consumers[agent.name] = consumed
         for artifact in produced:
             producers.setdefault(artifact, set()).add(agent.name)
-        if not consumed and not agent.triggers:
+        if not wakes and not agent.triggers:
             report.issues.append(
                 ValidationIssue(
                     "warning",
@@ -259,12 +281,12 @@ def validate_contracts(
         )
 
     available = set(seed_names)
-    remaining = [agent for agent in agent_list if consumers.get(agent.name)]
+    remaining = [agent for agent in agent_list if wake_types.get(agent.name)]
     progressed = True
     while progressed:
         progressed = False
         for agent in list(remaining):
-            if consumers[agent.name] & available:
+            if wake_types[agent.name] & available:
                 available.update(_produced_types(agent))
                 remaining.remove(agent)
                 progressed = True

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar, cast
@@ -13,6 +14,53 @@ from .types import migrate_payload, resolve, type_id_of
 
 TData = TypeVar("TData", bound=BaseModel)
 ArtifactType = type[BaseModel]
+
+
+@dataclass(frozen=True)
+class ArtifactKey(Generic[TData]):
+    """A stable, typed id scheme for one artifact type.
+
+    ``AnswerKey = ArtifactKey(Answer, prefix="answer", field="query_id")``
+    then ``AnswerKey(query_id) == "answer:<id>"``. Use the bound string with
+    `Ensure`/`Emit`/`Context.create`, and the unbound key with
+    `Read.idempotent(AnswerKey)` (or a guard): it derives the target id from
+    the triggering artifact's field.
+
+    The prefix is explicit (not the model class name) so renaming a pydantic
+    model does not invalidate persisted sessions. A key with no `field`/
+    `id_of` is a singleton id (e.g. a digest).
+    """
+
+    artifact_type: type[TData]
+    prefix: str
+    field: str | None = None
+    id_of: Callable[[Artifact[Any]], str | None] | None = None
+
+    def __post_init__(self) -> None:
+        if not self.prefix:
+            raise ValueError("ArtifactKey.prefix must be a non-empty string")
+        if ":" in self.prefix:
+            raise ValueError("ArtifactKey.prefix must not contain ':'")
+        if self.field is not None and self.id_of is not None:
+            raise ValueError("ArtifactKey takes field= or id_of=, not both")
+
+    def __call__(self, *values: object) -> str:
+        """Build the id string for this key (`AnswerKey(qid)`)."""
+        if not values:
+            return self.prefix
+        return ":".join([self.prefix, *(str(value) for value in values)])
+
+    def __str__(self) -> str:
+        return self.prefix
+
+    def from_artifact(self, artifact: Artifact[Any]) -> str | None:
+        """The key for an existing artifact (the idempotency target)."""
+        if self.id_of is not None:
+            return self.id_of(artifact)
+        if self.field is None:
+            return self.prefix
+        value = getattr(artifact.data, self.field, None)
+        return None if value is None else self(value)
 
 
 def payload_content_hash(payload: dict[str, Any]) -> str:

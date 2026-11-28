@@ -31,6 +31,8 @@ from .agent import (
     Edit,
     Emit,
     Ensure,
+    Guard,
+    GuardResult,
     Latest,
     Relate,
     Scope,
@@ -41,7 +43,7 @@ from .agent import (
     When,
 )
 from .agent.step import step
-from .artifacts import Artifact, ArtifactConflict
+from .artifacts import Artifact, ArtifactConflict, ArtifactKey
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .chat import Chat
@@ -49,14 +51,26 @@ from .commit import ContextCheckpoint
 from .consume import Consume, IdempotentConsume
 from .context import Context, ProvenanceLink, View
 from .daemon import Daemon
+from .decisions import Decision
 from .di import Depends, Inject
 from .effects import Effects, Handle
 from .events import Event, EventType
 from .interaction import Human, Outbox, Progress
 from .interrupt import PendingAction, PendingQuestion
+from .invocation import Invocation, current_invocation
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
-from .pipeline import Pipeline, PipelineRunner, RunConfig
+from .pipeline import (
+    Pipeline,
+    PipelineDefinition,
+    PipelineRunner,
+    ReactiveSchedule,
+    RunConfig,
+    Schedule,
+    Stage,
+    StagedPipeline,
+    StagedSchedule,
+)
 from .policy import RetryPolicy
 from .provenance import (
     CALCULATED_FROM,
@@ -103,6 +117,7 @@ except _PackageNotFoundError:  # source checkout without an installed distributi
 __all__ = [
     "Unscoped",
     "Artifact",
+    "ArtifactKey",
     "ArtifactConflict",
     "Budget",
     "Chat",
@@ -114,12 +129,15 @@ __all__ = [
     "ContextCheckpoint",
     "Create",
     "Daemon",
+    "Decision",
     "Delete",
     "Depends",
     "EmbeddingProvider",
     "Effects",
     "Emit",
     "Ensure",
+    "Guard",
+    "GuardResult",
     "Relate",
     "Edit",
     "Drop",
@@ -136,12 +154,20 @@ __all__ = [
     "MergeConflict",
     "Outbox",
     "Inject",
+    "Invocation",
+    "current_invocation",
     "Patch",
     "Agent",
     "Read",
     "Pipeline",
+    "PipelineDefinition",
     "PipelineRunner",
     "RunConfig",
+    "Schedule",
+    "Stage",
+    "StagedPipeline",
+    "StagedSchedule",
+    "ReactiveSchedule",
     "PendingAction",
     "PendingQuestion",
     "Progress",

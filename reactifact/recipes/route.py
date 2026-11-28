@@ -123,6 +123,16 @@ class Route:
     step `reads`); other triggers keep working unchanged. `default`
     must name a case and covers values not present in `cases`; without it, an
     unknown value wakes no case.
+
+    `agents()` returns one routed **copy** per case (`_RoutedGroup`), not the
+    inner agent. The copy preserves steps, triggers, retry, priority and
+    fallback policy, and exposes `.inner` plus `.route_case` for inspection.
+    Cases may also contain an agent that does not react to `on` at all; its
+    own triggers keep working, while the route marker still tells
+    `validate_contracts` that the cases' outputs are mutually exclusive.
+    Pass the `Route` itself to `Runtime(agents=[route, ...])`,
+    `Pipeline(agents=[route, ...])` or `validate_contracts(agents=[route])` to
+    expand it; `.agents()` is the manual spelling.
     """
 
     def __init__(

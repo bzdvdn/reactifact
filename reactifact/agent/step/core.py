@@ -7,6 +7,7 @@ import hashlib
 import inspect
 import json
 import types
+import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import (
@@ -33,6 +34,7 @@ from ...policy import RetryPolicy
 from ...provenance import DERIVED_FROM, RelationName
 from ...read import Read
 from .annotations import Latest, Scope, Wakes, When
+from .guard import Guard, normalize_guard
 from .invocation import (
     StepInvocation,
     current_step_context,
@@ -212,6 +214,10 @@ class Step(Generic[TOut]):
     #: Input contract: the artifacts this step reads. The runtime gates the
     #: step on their availability and collects them into `StepInvocation.inputs`.
     reads: tuple[Any, ...] | None = None
+    #: Dynamic run condition, evaluated `pre` (before input resolution) and
+    #: `post` (after inputs are collected). A denied guard skips the step
+    #: without running it or reporting missing inputs.
+    guard: Guard | None = None
     #: Correlation scope for same-run lookups, e.g. `scope = "query_id"` or
     #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
     #: and `related()` are restricted to artifacts in the trigger's scope.
@@ -384,6 +390,7 @@ class Step(Generic[TOut]):
             | Sequence[Read | Consume | ArtifactType]
             | None
         ) = None,
+        guard: Guard | Sequence[Guard] | Callable[..., Any] | None = None,
         timeout: float | None = None,
         provenance: RelationName | str | bool | None = None,
         scope: Scope | str | None = None,
@@ -393,6 +400,17 @@ class Step(Generic[TOut]):
         retry: RetryPolicy | None = None,
         once: bool | None = None,
     ):
+        removed_attrs = {
+            "consumes": "Step.reads + Agent(consumes=...)",
+            "reacts_to": "Read.on_create/on_update/on_stale",
+            "also_creates": "produces=(Primary, Extra)",
+        }
+        for attr, replacement in removed_attrs.items():
+            if attr in type(self).__dict__:
+                raise TypeError(
+                    f"{type(self).__name__} declares removed `{attr}`; "
+                    f"use {replacement} instead."
+                )
         resolved_produces = self._normalize_types(produces)
         if resolved_produces is None:
             resolved_produces = self._normalize_types(
@@ -434,6 +452,9 @@ class Step(Generic[TOut]):
             if resolved_consumes is not None
             else None
         )
+        self.guard = normalize_guard(
+            guard if guard is not None else getattr(self.__class__, "guard", None)
+        )
         self.scope = (
             scope if scope is not None else getattr(self.__class__, "scope", None)
         )
@@ -472,14 +493,35 @@ class Step(Generic[TOut]):
         if not isinstance(self.once, bool):
             raise TypeError("Step.once must be a bool")
 
-    def read_specs(self) -> tuple[Consume, ...] | None:
-        """The runtime `Consume` view of `reads`."""
+    @property
+    def inputs(self) -> tuple[Read, ...]:
+        """The public input contract: one `Read` per artifact type."""
+        raw = self.reads if self.reads is not None else getattr(self, "reads", None)
+        return tuple(raw or ())
+
+    def wake_specs(self) -> tuple[Consume, ...] | None:
+        """The wake view of `reads` (what a derived agent would wake on).
+
+        Step inputs are `Read`s; `Consume` is only the runtime view used to
+        derive triggers when an `Agent` has no explicit `consumes`. A
+        `wakes=False` read is collected as an input but never runs the step on
+        its own.
+        """
         raw = (
             self.reads
             if self.reads is not None
             else getattr(self.__class__, "reads", None)
         )
         return self._normalize_reads(raw)
+
+    def read_specs(self) -> tuple[Consume, ...] | None:
+        """Deprecated alias for `wake_specs()` (0.31)."""
+        warnings.warn(
+            "Step.read_specs() is the wake view; use Step.wake_specs()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.wake_specs()
 
     def bind(self, owner: Any) -> Step[Any]:
         """Bind a `@step`-decorated method to its `Agent` instance.
@@ -495,7 +537,7 @@ class Step(Generic[TOut]):
 
     def collect_inputs(self, context: Context) -> list[Artifact[Any]]:
         """Artifacts this step reads, in declaration order."""
-        specs = self.read_specs()
+        specs = self.wake_specs()
         if not specs:
             return []
         inputs: list[Artifact[Any]] = []

@@ -97,6 +97,24 @@ def test_route_runs_only_the_matching_case():
     assert answers == {"rag:q1", "meta:q2"}
 
 
+def test_route_is_an_agent_source_with_visible_case_copies():
+    rag = _group("rag")
+    route = Route(
+        on=ResearchTurn,
+        key=lambda turn: turn.domain,
+        cases={"rag": rag, "meta": _group("meta")},
+    )
+    routed = route.agents()
+    assert routed[0] is not rag
+    assert routed[0].inner is rag
+    assert routed[0].route_case.case == "rag"
+
+    context = Context()
+    context.create(ResearchTurn(query_id="q1", domain="rag"))
+    asyncio.run(Runtime(context, agents=[route]).arun())
+    assert [a.data.text for a in context.list_artifacts(Answer)] == ["rag:q1"]
+
+
 def test_route_default_covers_unknown_values():
     route = Route(
         on=ResearchTurn,

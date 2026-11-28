@@ -10,6 +10,7 @@ from ...artifacts import Artifact
 from ...context import Context
 from ...effects import Effects
 from ...events import Event
+from ...invocation import Invocation
 
 if TYPE_CHECKING:
     from ...request import CurrentRequest
@@ -98,6 +99,8 @@ class StepInvocation:
     #: whole `inputs` working set). `provenance=` uses this so provenance points
     #: at what the step read, not at everything the agent could read.
     used: list[Artifact[Any]] = field(default_factory=list)
+    #: The generic invocation (turn/tick/webhook) driving this run.
+    invocation: Invocation | None = None
 
     @property
     def effects(self) -> Effects:

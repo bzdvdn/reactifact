@@ -63,6 +63,7 @@ agent.
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` in `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (same fields and channels) |
+| `Read(T, required=False)` (optional input) | `Read(T, wakes=False)` + `T | None` for an optional parameter |
 | `Agent.produces` | `Agent(steps=...)` / `steps = [...]` |
 | `reactifact.commit.Read` | `CommitRead` |
 | `ProduceRun` | `StepRun` |

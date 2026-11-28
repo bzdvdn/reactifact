@@ -98,23 +98,25 @@ def test_chat_memory_compaction_only_adds_no_message_group():
 
 
 def test_chat_memory_keep_requires_a_message_type():
-    assistant = ChatAssistant(
-        store=SessionStore(InMemoryKVBackend()),
-        agents=[],
-        user_message=ConversationMessage,
-        reply=_reply,
-        memory=ChatMemory(keep=5),  # no message_type
-    )
-
     with pytest.raises(ValueError, match="message_type"):
-        assistant._memory_agents()
+        ChatMemory(keep=5)  # no message_type
 
 
 def test_chat_memory_summarize_requires_a_summary_type():
-    assistant, _ = _assistant(summarize=lambda ctx, previous, stale: None)
-
     with pytest.raises(ValueError, match="summary_type"):
-        assistant._memory_agents()
+        _assistant(summarize=lambda ctx, previous, stale: None)
+
+
+def test_chat_memory_rejects_conflicting_message_fields():
+    with pytest.raises(ValueError, match="not both"):
+        ChatMemory(message_type=ConversationMessage, message_types=[], keep=2)
+
+
+def test_chat_memory_rejects_bad_limits():
+    with pytest.raises(ValueError, match="keep"):
+        ChatMemory(message_type=ConversationMessage, keep=-1)
+    with pytest.raises(ValueError, match="compact_commits"):
+        ChatMemory(compact_commits=0)
 
 
 def test_chat_memory_digest_defaults_to_a_text_summary_model():
@@ -129,16 +131,34 @@ def test_chat_memory_digest_defaults_to_a_text_summary_model():
     assert len(agents) == 1
 
 
+def test_chat_memory_digest_window_above_default_trigger():
+    """A `keep` larger than the summarizer's default trigger (12) is valid.
+
+    Regression: `window=keep` with the fixed `trigger=12` made
+    `RollingDigestSummarizer` reject any `ChatMemory(keep=20, summarize=...)`.
+    """
+
+    class Summary(BaseModel):
+        text: str
+
+    assistant, _ = _assistant(
+        summarize=lambda ctx, previous, stale: None,
+        summary_type=Summary,
+        keep=20,
+    )
+
+    agents = assistant._memory_agents()
+    assert len(agents) == 1
+    assert agents[0].steps[0].window == 20
+    assert agents[0].steps[0].trigger >= 20
+
+
 def test_chat_memory_digest_requires_build_without_a_text_field():
     class Summary(BaseModel):
         note: str
 
-    assistant, _ = _assistant(
-        summarize=lambda ctx, previous, stale: None, summary_type=Summary
-    )
-
     with pytest.raises(ValueError, match="build_summary"):
-        assistant._memory_agents()
+        _assistant(summarize=lambda ctx, previous, stale: None, summary_type=Summary)
 
 
 class _UserMsg(BaseModel):

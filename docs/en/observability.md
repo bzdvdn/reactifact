@@ -120,7 +120,14 @@ The CLI mirrors this and can compare two runs:
 reactifact trace traces.db <run_id> --format text
 reactifact trace traces.db <run_id> --format html --out trace.html
 reactifact trace traces.db <run_id> --against <other_id>
+reactifact trace traces.db <run_id> --why
+reactifact trace traces.db <run_id> --why --filter evidence
 ```
+
+`--why` prints the run's scheduling decisions (`skipped_guard`,
+`skipped_missing_input`, `event_unmatched`, `stage_enter`/`stage_settled`,
+fallback/outcome); `--filter` narrows them. The same list appears in the
+trace detail page and in `RunTrace.decisions`.
 
 `PipelineRunner(..., config=RunConfig(traces=True))` or `RunConfig(traces="traces.db")` records every run without
 building a `Tracer` by hand; `result.trace_id` and `await result.trace()` read

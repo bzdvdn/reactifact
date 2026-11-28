@@ -16,14 +16,19 @@ list is expected.
 
 | Form | Meaning |
 | --- | --- |
-| `Read(T)` | required input |
-| `Read(T, required=False)` | optional input |
+| `Read(T)` | required input; a missing artifact is a `MissingInputError` |
+| `Read(T, wakes=False)` | read-only input: never wakes a derived agent on its own |
+| `T | None` (typed param) | optional input; a missing artifact resolves to `None` |
 | `Read.on_create(T)` / `on_update` / `on_stale` | one lifecycle event |
 | `Read.after_delete(T)` | only delete read; take `event: Event`/`trigger`, never `T` |
 | `Read.by_status(T, "ready")` / `by_field(T, "kind", "x")` / `where(T, fn)` | condition |
 | `Read.idempotent(T, id_of=...)` | only while the derived target id is absent |
 | `Read.join(A, B, key=...)` | correlated group of inputs |
 | `Read.correlated(key=..., require=[...], forbid=[...])` | custom correlated group |
+`wakes` only controls whether an explicit read can feed a *derived* agent
+wake set; it never means "optional". Optional inputs come from the signature
+(`T | None`), and `Read.required` is a deprecated alias for `wakes`.
+
 
 ```python
 # not-run: illustrative
@@ -32,11 +37,11 @@ from reactifact import Read, step
 @step(
     reads=(
         Read.on_create(Query),
-        Read(Evidence, required=False),
+        Read(Evidence),
     ),
     produces=Answer,
 )
-async def handle(query: Query) -> Answer: ...
+async def handle(query: Query, evidence: Evidence | None = None) -> Answer: ...
 ```
 
 For delete-only work, `Read.after_delete(Scratch)` is the one delete read:

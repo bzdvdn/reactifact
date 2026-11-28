@@ -35,6 +35,17 @@ _BUDGET_KEYS = {
     "max_cost",
 }
 
+_CONFIG_KEYS = {
+    "agents",
+    "seeds",
+    "terminal",
+    "scenarios",
+    "evals",
+    "overall",
+    "gates",
+    "budget",
+}
+
 
 @dataclass(frozen=True)
 class ProjectConfig:
@@ -73,6 +84,15 @@ def load_config(start: Path | None = None) -> ProjectConfig:
     raw = data.get("tool", {}).get("reactifact", {})
     if not isinstance(raw, dict):
         raise SystemExit("[tool.reactifact] must be a table")
+    if "groups" in raw:
+        raise SystemExit(
+            "[tool.reactifact] `groups` was renamed to `agents` in reactifact 0.30"
+        )
+    unknown = set(raw) - _CONFIG_KEYS
+    if unknown:
+        raise SystemExit(
+            "[tool.reactifact] unknown keys: " + ", ".join(sorted(unknown))
+        )
     budget = raw.get("budget", {})
     if not isinstance(budget, dict):
         raise SystemExit("[tool.reactifact] budget must be a table")

@@ -84,7 +84,7 @@ def agent(
             scope=scope,
             provenance=provenance,
         )(fn)
-        specs = function_step.read_specs() or ()
+        specs = function_step.wake_specs() or ()
         if not specs:
             raise TypeError(
                 f"@agent({fn.__name__!r}) needs at least one consumed artifact: "

@@ -5,8 +5,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Agent, Consume, SessionStore, step
-from reactifact.chat import ChatAssistant
+from reactifact import Agent, Budget, Consume, RunConfig, SessionStore, step
+from reactifact.chat import ChatAssistant, ChatConfigError
 from reactifact.checkpoints import FileKVBackend, SQLiteKVBackend
 from reactifact.web import create_chat_router
 
@@ -630,6 +630,47 @@ def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):
 
     assert events[-1].kind == "message"
     assert events[-1].payload["reply"] == "degraded"
+
+
+def test_configuration_error_is_not_hidden_as_fallback(tmp_path):
+    """A bad agent list is a deployment bug, not a transient chat failure."""
+
+    assistant = ChatAssistant(
+        store=SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess"))),
+        agents=[object()],
+        user_message=Q,
+        reply=lambda ctx, mid: {"reply": "never", "waiting": False},
+    )
+
+    with pytest.raises(ChatConfigError, match="configuration"):
+        _drain(assistant.stream("hi", session_id="bad-config"))
+
+
+def test_chat_assistant_accepts_run_config(tmp_path):
+    config = RunConfig(budget=Budget(max_runs=3), max_concurrency=2)
+    assistant = ChatAssistant(
+        store=SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess"))),
+        agents=[ANSWER_AGENT],
+        user_message=Q,
+        reply=lambda ctx, mid: {"reply": "never", "waiting": False},
+        config=config,
+    )
+
+    assert assistant._config is config
+    assert assistant._budget is config.budget
+    assert assistant._max_concurrency == 2
+
+
+def test_chat_assistant_rejects_config_and_direct_runtime_args(tmp_path):
+    with pytest.raises(TypeError, match="not both"):
+        ChatAssistant(
+            store=SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess"))),
+            agents=[ANSWER_AGENT],
+            user_message=Q,
+            reply=lambda ctx, mid: {"reply": "never", "waiting": False},
+            config=RunConfig(),
+            budget=Budget(max_runs=3),
+        )
 
 
 def test_typed_transcript_keeps_dialog_order_after_append_reload(tmp_path):

@@ -27,6 +27,7 @@ from typing import Any, Protocol
 
 from ._shared import (
     SORT_COLUMNS,
+    decisions_from_value,
     iso,
     like,
     run_insert_values,
@@ -168,7 +169,8 @@ class TraceStore:
                 outcome TEXT NOT NULL,
                 prompt_tokens INTEGER NOT NULL DEFAULT 0,
                 completion_tokens INTEGER NOT NULL DEFAULT 0,
-                truncated INTEGER NOT NULL DEFAULT 0
+                truncated INTEGER NOT NULL DEFAULT 0,
+                decisions TEXT NOT NULL DEFAULT '[]'
             );
             CREATE TABLE IF NOT EXISTS spans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -272,6 +274,10 @@ class TraceStore:
         if "truncated" not in run_cols:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN truncated INTEGER NOT NULL DEFAULT 0"
+            )
+        if "decisions" not in run_cols:
+            self._conn.execute(
+                "ALTER TABLE runs ADD COLUMN decisions TEXT NOT NULL DEFAULT '[]'"
             )
         self._conn.commit()
 
@@ -397,8 +403,8 @@ class TraceStore:
             self._conn.execute(
                 "INSERT INTO runs (id, session_id, scope, parent_run_id, branch, "
                 "metadata, started_at, duration_ms, outcome, prompt_tokens, "
-                "completion_tokens, truncated) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "completion_tokens, truncated, decisions) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 run_insert_values(trace, timestamp=lambda moment: moment.timestamp()),
             )
             for span in trace.spans:
@@ -768,7 +774,8 @@ class TraceStore:
     ) -> RunTrace | None:
         row = self._conn.execute(
             "SELECT id, session_id, scope, parent_run_id, branch, metadata, "
-            "started_at, duration_ms, outcome, truncated FROM runs WHERE id = ?",
+            "started_at, duration_ms, outcome, truncated, decisions "
+            "FROM runs WHERE id = ?",
             (trace_id,),
         ).fetchone()
         if row is None:
@@ -811,6 +818,7 @@ class TraceStore:
             has_more_spans=span_offset + len(spans) < span_total,
             trace_truncated=bool(row[9]),
             annotations=annotations,
+            decisions=decisions_from_value(row[10]),
         )
 
     def _sessions_sync(

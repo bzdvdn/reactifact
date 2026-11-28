@@ -49,3 +49,19 @@ def test_config_rejects_unknown_budget_keys(tmp_path):
     )
     with pytest.raises(SystemExit, match="unknown budget"):
         load_config(tmp_path)
+
+
+def test_config_rejects_unknown_top_level_keys(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.reactifact]\nagent = "app.pipeline:AGENTS"\n'
+    )
+    with pytest.raises(SystemExit, match="unknown keys"):
+        load_config(tmp_path)
+
+
+def test_config_points_groups_to_agents(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.reactifact]\ngroups = "app.pipeline:AGENTS"\n'
+    )
+    with pytest.raises(SystemExit, match="renamed to `agents`"):
+        load_config(tmp_path)

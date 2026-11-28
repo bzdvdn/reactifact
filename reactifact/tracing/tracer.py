@@ -23,6 +23,7 @@ from collections.abc import AsyncIterator, Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from ..decisions import Decision
 from ..patches import Create, Link, Unlink, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 from ..tools import ToolRun, current_produce_name
@@ -510,6 +511,7 @@ class RunTracer:
         self._truncate: int | None = TRACE_TRUNCATE
         self.run_id = ""
         self.spans: list[AgentSpan] = []
+        self.decisions: list[Decision] = []
         #: Workspace/scope of this run (copied onto `RunTrace.scope`), so a
         #: self-hosted dashboard can filter traces per workspace.
         self.scope = ""
@@ -528,6 +530,7 @@ class RunTracer:
         self._max_spans = limits.max_spans
         self._max_refs = limits.max_refs_per_span
         self._max_llm = limits.max_llm_calls_per_span
+        self._max_decisions = limits.max_decisions
         self._truncate = limits.max_data_chars
         self.truncated = False
 
@@ -716,6 +719,7 @@ class RunTracer:
             )
         self.run_id = str(uuid.uuid4())
         self.spans = []
+        self.decisions = []
         self.truncated = False
         self.scope = scope
         self.parent_run_id = parent_run_id
@@ -729,6 +733,18 @@ class RunTracer:
             )
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_turn_begin", exc)
+
+    def decision(self, decision: Decision) -> None:
+        """Buffer one explainability decision for this run."""
+        if self.tracer is None:
+            return
+        if (
+            self._max_decisions is not None
+            and len(self.decisions) >= self._max_decisions
+        ):
+            self.truncated = True
+            return
+        self.decisions.append(decision)
 
     def generation_started(self, generation: int) -> None:
         if self.tracer is None:
@@ -890,6 +906,7 @@ class RunTracer:
             branch=self.branch,
             metadata=self.metadata,
             spans=self.spans,
+            decisions=self.decisions,
             trace_truncated=self.truncated,
         )
         try:

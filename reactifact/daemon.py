@@ -26,7 +26,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from typing import Any
 
-from .pipeline import Pipeline, PipelineRunner, RunConfig
+from .pipeline import PipelineDefinition, PipelineRunner, RunConfig
 
 logger = logging.getLogger("reactifact.daemon")
 
@@ -41,7 +41,7 @@ class Daemon:
 
     def __init__(
         self,
-        pipeline: Pipeline | PipelineRunner | None = None,
+        pipeline: PipelineDefinition | PipelineRunner | None = None,
         *,
         config: RunConfig | None = None,
         seed_source: SeedSource | None = None,
@@ -54,7 +54,7 @@ class Daemon:
         stop_event: asyncio.Event | None = None,
     ):
         self._tick: TickFn | None = None
-        self.pipeline: Pipeline | None = None
+        self.pipeline: PipelineDefinition | None = None
         self.runner: PipelineRunner | None = None
         self.seed_source: SeedSource | None = None
         if tick is not None:

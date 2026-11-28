@@ -57,6 +57,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   per-turn `resources=` remains.
 
 ### Added
+- **`ArtifactKey` for stable typed ids.** `ArtifactKey(Answer, prefix="answer",
+  field="query_id")` builds `answer:<query_id>`; pass the bound string to
+  `Ensure`/`Emit`/`Context.create`, or the key itself to
+  `Read.idempotent(AnswerKey)` to derive the idempotency target from the
+  triggering artifact. The explicit prefix keeps persisted session ids stable
+  across model renames; a key without `field`/`id_of` is a singleton id.
+- **`Guard` for step run conditions.** `Step(guard=...)` / `@step(guard=...)`
+  takes a two-phase condition: `pre(context, event, trigger)` runs before typed
+  input resolution (idempotency/event/field checks), `post(invocation)` runs on
+  the collected inputs (`ready`/`has`). `Guard.idempotent(AnswerKey)`,
+  `Guard.field`, `Guard.ready`, `Guard.has`, `Guard.all/any/not_` and
+  `Guard.custom` compose; a denied guard skips the step without a
+  `MissingInputError` and without running it.
+- **`StagedPipeline` for ordered stages.** `PipelineDefinition` is the shared
+  definition (`Pipeline` is still the reactive default); `StagedPipeline(stages=
+  [Stage(...)])` runs each stage to quiescence before the next, while agents
+  inside a stage stay fully reactive. `Stage(reopen=True)` lets later events
+  re-enter an earlier stage. The strategy is a `Schedule`
+  (`ReactiveSchedule`/`StagedSchedule`) carried by `RunConfig.schedule`, so
+  `PipelineRunner`, `Chat` and `Daemon` share the same semantics. A stage's
+  wake pass gives its agents artifacts produced before the boundary, even when
+  an earlier stage consumed their creation events.
+- **`Invocation` identity and idempotent chat turns.** `Invocation` is the
+  transport-neutral run identity (`id`, `idempotency_key`, `scope`, `metadata`);
+  it is injected into steps by type and carried on `RunResult`.
+  `PipelineRunner.run/arun/astream` accept `invocation=`. `Chat`/
+  `ChatAssistant` accept `invocation=` and, with `SessionStore` invocation
+  records, replay a completed turn from its stored message id instead of
+  running it twice; a failed turn stays retryable and a running one is refused.
+  `recipes.conversation.Turn` is the chat specialization
+  (`Turn.new(session_id, idempotency_key=...)`).
+- **Decision traces.** `RunTrace.decisions` records why a step did not run:
+  `skipped_guard` (with the guard code and pre/post phase),
+  `skipped_missing_input` (parameter/expected types), `event_unmatched`
+  (no agent consumed the event), `stage_enter`/`stage_settled`, `fallback` and
+  non-completed `outcome`. `TraceLimits(max_decisions=...)` bounds the list;
+  decisions are best-effort and never break a run.
+- **`trace --why` and a Decisions panel.** `reactifact trace <store>
+  [run_id] --why [--filter TEXT]` prints the decisions (or their JSON with
+  `--format json`), and the trace detail page renders the same list. SQLite and
+  Postgres persist `decisions`; old stores get an empty default via migration.
+- **`reactifact.pipeline` is a package.** Definitions live in
+  `pipeline/definition.py`, `RunConfig` in `pipeline/config.py`,
+  `PipelineRunner` in `pipeline/runner.py`, and `Stage`/`Schedule` in
+  `pipeline/schedule.py`; `reactifact.pipeline` and the top-level names keep
+  the same public API. `reactifact/scheduler.py` remains the distinct
+  adaptive *work-ordering* policy (`Runtime(scheduler=...)`), not the turn
+  schedule.
 - **`Agent` is the authoring and scheduling unit.** `Agent("intake",
   steps=[...], consumes=..., retry=..., timeout=...)` is the user-facing unit
   of steps. `Runtime` accepts `agents=`, `Pipeline.agents` is the expanded
@@ -121,6 +169,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   trace_store)` maps the template settings to budget, tracing and chat
   concurrency; `Chat(config=...)` consumes it, and the generated project
   requires the current reactifact release.
+- **`ChatAssistant` takes `config=RunConfig(...)`.** It now carries the same
+  `resources`/`llm`/`budget`/`max_concurrency`/`tracer`/`isolate_errors`/
+  `on_agent_error` settings as `Chat`/`PipelineRunner`; the direct runtime
+  keywords still work but cannot be combined with `config=`. `Chat` itself
+  passes a `RunConfig` to its inner assistant.
+- **`Read.required` is `Read.wakes`; `Step.read_specs()` is
+  `Step.wake_specs()`.** `wakes` names the real meaning (does this read
+  participate in a derived agent wake), while `required` stays as an alias.
+  **`required=False` no longer makes an input optional**: a missing artifact
+  is allowed only when the parameter is optional (`T | None`); `wakes=False`
+  just keeps the read out of a derived wake set.
+  `Step.inputs` exposes the public `Read` tuple; `read_specs()` remains a
+  deprecated alias. Gating still uses the wake view, so read-only inputs
+  never run a step on their own.
+- **CLI config errors and `check --verbose`.** `[tool.reactifact]` rejects
+  unknown keys and points the legacy `groups` key at `agents`; `check` prints
+  warning details only with `--verbose`, with a hint otherwise. `check` also
+  accepts an `AgentSource` (e.g. `Route`) inside a list target.
 - **Daemon template uses the pipeline runner.** Its monitor is a typed `@step`
   returning `Ensure(Report)`, and `run_once` executes a `Pipeline` through
   `PipelineRunner` + `RunConfig` instead of hand-building a `Runtime`. The
@@ -148,6 +214,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Dev-mode consumes warning.** With `REACTIFACT_DEV=1` (or
   `REACTIFACT_ENV=dev`), `Agent(steps=...)` without `consumes` warns that the
   wake set is being derived from step reads. Production stays quiet.
+
+### Fixed
+
+- **Invocation claims are event-loop-safe and atomic across processes.**
+  `SessionStore` kept one `asyncio.Lock`, which binds to the loop where it
+  first waits; a store reused across `asyncio.run` calls could then raise
+  `bound to a different event loop` under contention. Claims now use one lock
+  per running loop, and `KVBackend.set_if_absent` gives memory/file/SQLite/
+  Postgres a native atomic create, so two workers cannot both claim a key.
+  Chat scopes its turn key by session, and `invocation_stale_after=` (default
+  600s) lets a crashed worker's `running` claim be reclaimed; the read-then-set
+  fallback for custom backends stays single-process only.
+- **`config.llm` with a per-turn `resources=` factory is rejected.**
+  `Chat`/`ChatAssistant` used to silently ignore the provider in that
+  combination; both now raise `TypeError` and point at the factory's
+  `RuntimeResources`.
+- **`ChatMemory` is validated at construction.** `keep`/`summarize` with no
+  message type, `summarize` without `summary_type`, a summary model with no
+  `text` field and no `build_summary`, conflicting `message_type=`/
+  `message_types=`, negative `keep` and non-positive `compact_commits` now
+  fail when the policy is created instead of on the first chat turn.
+- **Chat configuration errors are not hidden as fallback replies.**
+  `ChatAssistant.stream()` still degrades transient failures (store down,
+  reply hook crash) to `fallback_reply`, but a bad agent list or memory policy
+  raises `ChatConfigError` with the deployment error, so a web layer can
+  report it instead of showing a fake answer.
+- **`ChatMemory(keep=...)` works for windows above the digest trigger.**
+  `Chat._memory_agents` used `keep` as the summarizer `window` while leaving
+  `trigger` at its default (12), so any `keep > 12` raised
+  `ValueError: trigger must be >= window` when a session opened. The trigger
+  now tracks the configured window (`max(12, window)`), so the default
+  app-side `keep=20` policy builds its memory agent.
+- **Contract validation counts read-only step inputs.** `validate_contracts`
+  derived "consumed" types from `Agent.consumes` only when it was explicit,
+  so a type read by a step but not part of the agent's wake contract was
+  reported as a `dead_output` (or, worse, a missing producer went unnoticed).
+  Reads now count for `unknown_input`/`dead_output`/cycle edges; only wake
+  types drive `never_scheduled`/`unreachable`.
+- **Removed step attributes fail loudly.** A `Step` subclass that still
+  declares `consumes`, `reacts_to` or `also_creates` now raises `TypeError`
+  with the 0.30 replacement instead of silently ignoring the declaration
+  (which dropped event conditions and lifecycle semantics).
 
 ## [0.25.1] — 2026-11-27
 

@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..decisions import Decision
 from ..tools import ToolRun
 
 
@@ -139,6 +140,8 @@ class TraceLimits(BaseModel):
     max_llm_calls_per_span: int | None = 20
     #: Per-artifact/response text cap. `None` disables the clip.
     max_data_chars: int | None = 1500
+    #: Cap on explainability decisions per run.
+    max_decisions: int | None = 1000
 
 
 class AgentSpan(BaseModel):
@@ -198,6 +201,8 @@ class RunTrace(BaseModel):
     #: Reviewer annotations attached *after* the run (UI review workflow, §54).
     #: The runtime always leaves this empty; `TraceStore.get` populates it.
     annotations: list[TagAssignment] = Field(default_factory=list)
+    #: Explainability records: guard/missing-input/stage decisions.
+    decisions: list[Decision] = Field(default_factory=list)
 
     @property
     def llm_calls(self) -> list[LLMCall]:
@@ -233,6 +238,71 @@ class RunTrace(BaseModel):
                 rows.append((key, value))
         return rows
 
+    def why(self, query: str | None = None) -> list[Decision]:
+        """Decisions for this run, optionally filtered by a substring.
+
+        The filter is case-insensitive across code/agent/step/reason/event and
+        detail keys/values, so `why("evidence")` finds a missing-input decision
+        as well as a guard reason mentioning it.
+        """
+        if not query:
+            return list(self.decisions)
+        needle = query.lower()
+
+        def haystack(decision: Decision) -> str:
+            detail = " ".join(
+                f"{key} {value}" for key, value in decision.detail.items()
+            )
+            return " ".join(
+                [
+                    decision.code,
+                    decision.agent,
+                    decision.step,
+                    decision.reason,
+                    decision.event_type,
+                    decision.event_artifact_type,
+                    decision.event_artifact_id,
+                    detail,
+                ]
+            ).lower()
+
+        return [decision for decision in self.decisions if needle in haystack(decision)]
+
+    def why_text(self, query: str | None = None) -> str:
+        """A compact human report for `reactifact trace --why`."""
+        decisions = self.why(query)
+        if not decisions:
+            suffix = f" matching {query!r}" if query else ""
+            return f"no decisions recorded for trace {self.id}{suffix}"
+        lines = [f"trace {self.id}: {len(decisions)} decision(s)"]
+        for decision in decisions:
+            event = "/".join(
+                part
+                for part in (
+                    decision.event_type,
+                    decision.event_artifact_type,
+                    decision.event_artifact_id[:8]
+                    if decision.event_artifact_id
+                    else "",
+                )
+                if part
+            )
+            line = (
+                f"  {decision.code:<24}"
+                f" {decision.agent or '-':<18}"
+                f" {decision.step or '-':<18}"
+            )
+            if event:
+                line += f" event={event}"
+            if decision.reason:
+                line += f" reason={decision.reason}"
+            if decision.detail:
+                line += " " + ", ".join(
+                    f"{key}={value}" for key, value in sorted(decision.detail.items())
+                )
+            lines.append(line)
+        return "\n".join(lines)
+
     def to_text(self) -> str:
         """A plain terminal report: summary + spans + steps + LLM calls."""
         lines = [f"trace {self.id}"]
@@ -257,6 +327,14 @@ class RunTrace(BaseModel):
                 )
             for write in span.writes:
                 lines.append(f"    write {write.data_type} {write.artifact_id}")
+        if self.decisions:
+            lines.append("  decisions")
+            for decision in self.decisions:
+                lines.append(
+                    f"    {decision.code} {decision.agent or '-'}"
+                    f"/{decision.step or '-'}"
+                    + (f" — {decision.reason}" if decision.reason else "")
+                )
         return "\n".join(lines)
 
     def to_markdown(self) -> str:
@@ -267,7 +345,9 @@ class RunTrace(BaseModel):
         for key, value in self._summary():
             lines.append(f"| {key} | `{value}` |")
         if not self.spans:
-            return "\n".join(lines) + "\n\n_No spans._"
+            lines.extend(["", "_No spans._"])
+            self._append_decisions_markdown(lines)
+            return "\n".join(lines) + "\n"
         lines.extend(["", "### Spans", ""])
         for span in self.spans:
             lines.append(
@@ -287,7 +367,20 @@ class RunTrace(BaseModel):
                 )
             for write in span.writes:
                 lines.append(f"  - write `{write.data_type}` `{write.artifact_id}`")
+        self._append_decisions_markdown(lines)
         return "\n".join(lines) + "\n"
+
+    def _append_decisions_markdown(self, lines: list[str]) -> None:
+        if not self.decisions:
+            return
+        lines.extend(["", "### Decisions", ""])
+        for decision in self.decisions:
+            event = decision.event_artifact_type or decision.event_type or "-"
+            reason = f" — {decision.reason}" if decision.reason else ""
+            lines.append(
+                f"- `{decision.code}` **{decision.agent or '-'}**"
+                f"/`{decision.step or '-'}` on `{event}`{reason}"
+            )
 
     def to_html(self) -> str:
         """A self-contained HTML report (no server, no external assets)."""
@@ -335,5 +428,25 @@ class RunTrace(BaseModel):
             "details{margin:.5rem 0;padding:.5rem;border:1px solid #ddd;border-radius:6px}"
             "summary{cursor:pointer}h4{margin:.5rem 0 .25rem}</style></head><body>"
             f"<h1>Trace <code>{html.escape(self.id)}</code></h1>"
-            f"<table>{rows}</table>{''.join(spans)}</body></html>"
+            f"<table>{rows}</table>{''.join(spans)}"
+            "<h2>Decisions</h2>"
+            + (
+                "<ul>"
+                + "".join(
+                    "<li><code>"
+                    + html.escape(decision.code)
+                    + "</code> <b>"
+                    + html.escape(decision.agent or "-")
+                    + "</b>/<code>"
+                    + html.escape(decision.step or "-")
+                    + "</code>"
+                    + (" — " + html.escape(decision.reason) if decision.reason else "")
+                    + "</li>"
+                    for decision in self.decisions
+                )
+                + "</ul>"
+                if self.decisions
+                else "<p><i>No decisions recorded.</i></p>"
+            )
+            + "</body></html>"
         )

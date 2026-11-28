@@ -104,7 +104,11 @@ async def _test_postgres_kv_roundtrip(dsn: str) -> None:
         await backend.set("k1", {"hello": "world"})
         assert await backend.get("k1") == {"hello": "world"}
         assert await backend.keys() == ["k1"]
+        assert await backend.set_if_absent("k2", {"v": 1}) is True
+        assert await backend.set_if_absent("k2", {"v": 2}) is False
+        assert await backend.get("k2") == {"v": 1}
         await backend.delete("k1")
+        await backend.delete("k2")
         assert await backend.get("k1") is None
     finally:
         await backend.aclose()

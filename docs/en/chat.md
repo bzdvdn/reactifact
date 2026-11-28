@@ -75,7 +75,9 @@ await assistant.invoke("...", session_id="s1", request={"category": "helm"})
 ```
 
 `resources=` may also be a plain `RuntimeResources` instance when you want one
-long-lived provider shared across sessions. Per-turn budget/deadline/token
+long-lived provider shared across sessions. A `resources=` factory owns the
+provider: put it in the returned `RuntimeResources`; `config.llm` next to a
+factory is rejected instead of being silently ignored. Per-turn budget/deadline/token
 tracking and tracing wrappers are installed on a shallow copy, so concurrent
 turns never mutate the shared instance.
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import copy
@@ -8,7 +10,7 @@ from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ..agent import Agent
 from ..agent.agent import (
@@ -21,8 +23,15 @@ from ..agent.step.resolve import MissingInputError
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
 from ..commit import Commit, CommitRead
 from ..context import Context
+from ..decisions import (
+    build_decision,
+    record_decision,
+    reset_decision_sink,
+    set_decision_sink,
+)
 from ..effects import Effects, current_effects, reset_effects, set_effects
 from ..events import Event
+from ..invocation import Invocation, reset_invocation, set_invocation
 from ..logging import get_logger, reset_context, set_context
 from ..patches import Patch
 from ..request import current_request, reset_request, set_request
@@ -43,6 +52,9 @@ from ..tracing.tracer import CompositeTracer, RunTracer, Tracer
 from .budget import TurnBudget
 from .events import RunEventCollector
 from .loop import run_generations
+
+if TYPE_CHECKING:
+    from ..pipeline.schedule import Schedule
 from .outbox import (
     Dispatcher as Dispatcher,
 )
@@ -99,7 +111,7 @@ class RunInfo:
 #: In-flight runs of this process, keyed by run id (single event loop; not
 #: persisted, not cross-process — a readiness/ops view, not a task queue).
 _ACTIVE_RUNS: dict[str, RunInfo] = {}
-_RUN_TASKS: dict[str, "asyncio.Task[Any]"] = {}
+_RUN_TASKS: dict[str, asyncio.Task[Any]] = {}
 
 #: How long `astream` waits for a cancelled runner to unwind before giving up
 #: (a well-behaved turn stops immediately; this only guards a misbehaving agent
@@ -133,7 +145,7 @@ class Runtime:
         self,
         context: Context,
         max_concurrency: int | None = None,
-        session: "Session | None" = None,
+        session: Session | None = None,
         budget: Budget | None = None,
         tracer: Tracer | list[Tracer] | None = None,
         scheduler: Scheduler | None = None,
@@ -145,6 +157,7 @@ class Runtime:
         trace_scope: str = "",
         agents: list[Any] | None = None,
         steps: list[Any] | None = None,
+        schedule: Schedule | None = None,
     ):
         self.context = context
         #: The merged dispatch units. `steps=` wraps each step in an implicit
@@ -154,6 +167,11 @@ class Runtime:
         self.session = session
         self.budget = budget
         self.scheduler = scheduler
+        #: Turn execution strategy (`ReactiveSchedule` by default; a
+        #: `StagedSchedule` gates later stages behind a quiescence barrier).
+        self.schedule = schedule
+        #: The generic invocation of the most recent run (turn/tick/webhook).
+        self.invocation: Invocation | None = None
         # Outbox (§42): when set, the runtime performs every committed-but-
         # undispatched `PendingAction` after the generation commits, once per
         # stable id, and records the outcome as state. Replay never runs the
@@ -392,7 +410,13 @@ class Runtime:
             self._end_turn_resources()
             self._exit_turn()
 
-    async def _arun_once_impl(self, budget: Budget | None = None) -> int:
+    async def _arun_once_impl(
+        self,
+        budget: Budget | None = None,
+        *,
+        agents: Sequence[Agent] | None = None,
+        events: Sequence[Event] | None = None,
+    ) -> int:
         if not self._turn_started:
             self._begin_turn(budget)
         self._generation += 1
@@ -401,11 +425,11 @@ class Runtime:
         if info is not None:
             info.generation = self._generation
         self._outbox.warn_if_unconfigured()
-        events = self.context.pending_events()
+        batch = list(events) if events is not None else self.context.pending_events()
         # A settled turn can still have outbox work: a `PendingAction` committed
         # by an earlier generation (or adopted via `merge()`) with no events left
         # to drain. Proceed when either is non-empty.
-        if not events and not self._outbox.has_pending_actions():
+        if not batch and not self._outbox.has_pending_actions():
             return 0
         if self._budget_exhausted():
             return 0
@@ -424,8 +448,8 @@ class Runtime:
         # event is treated as non-debounced for that event — debouncing only
         # kicks in when nothing about the match demands immediacy.
         debounced: dict[Agent, tuple[Event, list[CommitRead]]] = {}
-        ordered_agents = sorted(self.agents, key=lambda a: a.priority)
-        for event in events:
+        ordered_agents = sorted(agents or self.agents, key=lambda a: a.priority)
+        for event in batch:
             if self._budget_exhausted():
                 break
             for agent in ordered_agents:
@@ -453,6 +477,17 @@ class Runtime:
         # Limit the number of runs by the max_runs budget. Set the budget_runs_exceeded
         # outcome only when the limit is actually reached, not when the event simply
         # has no subscribed agents.
+        matched_event_ids = {id(event) for _, event, _ in work}
+        for event in batch:
+            if id(event) not in matched_event_ids:
+                self._trace.decision(
+                    build_decision(
+                        "event_unmatched",
+                        event=event,
+                        reason="no agent matched this event",
+                    )
+                )
+
         if self.scheduler is not None and work:
             work = await self.scheduler(self.context, work)
 
@@ -474,7 +509,7 @@ class Runtime:
         # `runtime.arun()`) re-runs the work the exception would otherwise have
         # silently dropped. Events appended by the commits themselves — the
         # next generation's triggers — follow the batch and are preserved.
-        self.context.consume_events(events)
+        self.context.consume_events(batch)
         # Outbox drain: perform committed intents *after* the commit, so a
         # produce never does the I/O itself. Replay reconstructs state without
         # running the runtime, so it never re-dispatches; a retried produce
@@ -706,6 +741,7 @@ class Runtime:
         # an agent bug, so it always propagates (not swallowed by isolate_errors).
         self.context.resources.require_authorized("run", agent.name)
         self._trace.agent_started(agent, event, reads)
+        decision_token = set_decision_sink(self._trace.decision)
         started = time.monotonic()
         task = asyncio.current_task()
         self._trace.register_task(task, agent.name)
@@ -752,6 +788,18 @@ class Runtime:
                     attempt_slot = current_effects()
                 except Exception as exc:
                     attempt_error = exc
+                    if isinstance(exc, MissingInputError):
+                        record_decision(
+                            "skipped_missing_input",
+                            agent=agent.name,
+                            step=exc.step_name,
+                            reason=str(exc),
+                            event=event,
+                            detail={
+                                "parameter": exc.parameter,
+                                "expected": ", ".join(sorted(exc.expected)),
+                            },
+                        )
                 finally:
                     # A failed attempt's effects are discarded: only the
                     # successful attempt's slot below becomes the patch.
@@ -790,6 +838,7 @@ class Runtime:
                     await asyncio.sleep(delay)
         finally:
             self._trace.unregister_task(task)
+            reset_decision_sink(decision_token)
 
         if error is not None and agent.should_fallback(error):
             fallback_slot: Effects | None = None
@@ -825,6 +874,12 @@ class Runtime:
                 slot = fallback_slot
                 runs = fallback_runs
                 tools = fallback_tools
+                record_decision(
+                    "fallback",
+                    agent=agent.name,
+                    reason=f"{type(error).__name__}: {error}",
+                    event=event,
+                )
                 logger.warning(
                     "agent fallback used",
                     extra={"agent": agent.name, "error": repr(error)},
@@ -886,12 +941,16 @@ class Runtime:
         budget: Budget | None = None,
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> int:
         self._enter_turn()
+        self.invocation = invocation
         token = set_request(request) if request is not None else None
+        invocation_token = set_invocation(invocation)
         try:
             return await self._arun_impl(max_iterations, budget)
         finally:
+            reset_invocation(invocation_token)
             if token is not None:
                 reset_request(token)
             self._end_turn_resources()
@@ -907,9 +966,10 @@ class Runtime:
         )
         logger.info("run started", extra={"max_iterations": limit})
         total_runs = 0
+        runner = self.schedule.run if self.schedule is not None else run_generations
         remaining = self._turn_budget.remaining_seconds()
         if remaining is None:
-            total_runs = await run_generations(self, limit)
+            total_runs = await runner(self, limit)
         else:
             # Hard deadline: cancel the in-flight generation when wall-clock
             # runs out (the soft `_budget_exhausted` check only fires between
@@ -921,7 +981,7 @@ class Runtime:
             # misreported as `budget_time_exceeded`.
             try:
                 async with asyncio.timeout(remaining):
-                    total_runs = await run_generations(self, limit)
+                    total_runs = await runner(self, limit)
             except TimeoutError:
                 self.outcome = RunOutcome.BUDGET_TIME_EXCEEDED
                 logger.warning(
@@ -945,6 +1005,8 @@ class Runtime:
         )
         if total_runs == 0:
             self._warn_no_runs()
+        if self.outcome != RunOutcome.COMPLETED:
+            self._trace.decision(build_decision("outcome", reason=self.outcome.value))
         await self._trace.end_turn(
             session_id=self.session.session_id if self.session is not None else "",
             # `time.monotonic()` is seconds; the trace's `duration_ms` (and every
@@ -975,8 +1037,11 @@ class Runtime:
         budget: Budget | None = None,
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> int:
-        return asyncio.run(self.arun(max_iterations, budget, request=request))
+        return asyncio.run(
+            self.arun(max_iterations, budget, request=request, invocation=invocation)
+        )
 
     async def replay_run(
         self,
@@ -1050,6 +1115,7 @@ class Runtime:
         max_iterations: int = 1000,
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> AsyncIterator[ProgressEvent]:
         """Stream of a run: run_start → status (agent announces) → run_end.
 
@@ -1065,7 +1131,10 @@ class Runtime:
                 # request is installed on this task's context; the generation's
                 # child tasks inherit it, so `call.request` works there too.
                 await self.arun(
-                    max_iterations=max_iterations, budget=budget, request=request
+                    max_iterations=max_iterations,
+                    budget=budget,
+                    request=request,
+                    invocation=invocation,
                 )
             finally:
                 done.set()
@@ -1127,6 +1196,7 @@ class Runtime:
         *,
         request: Mapping[str, Any] | None = None,
         stream_mode: str | Sequence[str] = "debug",
+        invocation: Invocation | None = None,
     ) -> AsyncIterator[RunEvent]:
         """Typed event stream of a run (§54): `RunEvent` union, not status text.
 
@@ -1212,7 +1282,10 @@ class Runtime:
             nonlocal failure
             try:
                 await self.arun(
-                    max_iterations=max_iterations, budget=budget, request=request
+                    max_iterations=max_iterations,
+                    budget=budget,
+                    request=request,
+                    invocation=invocation,
                 )
             except BaseException as exc:
                 failure = exc

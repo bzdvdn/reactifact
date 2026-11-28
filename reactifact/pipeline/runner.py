@@ -1,155 +1,30 @@
-"""`Pipeline` is the definition; `PipelineRunner` is the execution.
-
-    pipeline = Pipeline(agents=[...], seed_type=Question, answer_type=Answer)
-    runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
-    result = runner.run(Question(text="..."))
-
-`Pipeline` owns structure and seed/answer models. `PipelineRunner` owns
-resources, budget, tracing and execution. The low-level objects stay public for
-branch/merge, replay and tests.
-"""
+"""`PipelineRunner`: runtime resources and execution around a definition."""
 
 from __future__ import annotations
 
 import copy
-from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from .agent import Agent, Step
-from .agent.agent import AgentSource, normalize_units
-from .artifacts import Artifact
-from .budget import Budget
-from .context import Context
-from .events import Event
-from .policy import RetryPolicy
-from .providers import LLMProvider
-from .resources import RuntimeResources
-from .runtime import RunResult, Runtime
-from .tools import Tool, ToolError, ToolOutput
+from ..agent import Agent, Step
+from ..artifacts import Artifact
+from ..budget import Budget
+from ..context import Context
+from ..invocation import Invocation
+from ..policy import RetryPolicy
+from ..resources import RuntimeResources
+from ..runtime import RunResult, Runtime
+from ..tools import Tool, ToolError, ToolOutput
+from .config import RunConfig
+from .definition import PipelineDefinition
 
 if TYPE_CHECKING:
-    from .contracts.report import ContractReport
-    from .validate import ValidationReport
-
-
-@dataclass
-class RunConfig:
-    """Runtime settings for `PipelineRunner`.
-
-    `Pipeline` owns the definition; this object owns resources and execution
-    policy. All fields are optional and fall back to `Runtime` defaults.
-    """
-
-    resources: RuntimeResources | None = None
-    llm: LLMProvider | None = None
-    budget: Budget | None = None
-    tracer: Any = None
-    max_concurrency: int | None = None
-    isolate_errors: bool | None = None
-    on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None
-    lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]] | None = None
-    traces: bool | str | Path | Any | None = None
-    trace_sample: Any = None
-
-
-class Pipeline:
-    """A reusable agent pipeline definition.
-
-    The canonical form is ``Pipeline(agents=[...])``. Each element is an
-    `Agent` or an `AgentSource` — anything with `.agents()`, e.g.
-    `recipes.Route` — expanded eagerly and in list order. ``steps=`` remains
-    the low-level shorthand; both normalize into ``pipeline.agents``.
-
-    `Pipeline` owns the definition and seed/answer models. Runtime settings
-    belong to `PipelineRunner`/`RunConfig`.
-    """
-
-    def __init__(
-        self,
-        steps: Sequence[Step[Any]] | None = None,
-        *,
-        name: str | None = None,
-        agents: Sequence[Agent | AgentSource] | None = None,
-        seed_type: type[BaseModel] | None = None,
-        seed_field: str = "text",
-        answer_type: type[BaseModel] | None = None,
-    ):
-        if steps is not None and agents is not None:
-            raise TypeError("Pipeline takes either steps= or agents=, not both")
-        if steps is None and not agents:
-            raise TypeError("Pipeline requires steps= or agents=")
-        self.name = name or "pipeline"
-        self.steps: list[Step[Any]] | None = (
-            list(steps) if steps is not None else None
-        )
-        self.agents = normalize_units(
-            steps=list(steps) if steps is not None else None,
-            agents=list(agents) if agents is not None else None,
-        )
-        self.seed_type = seed_type
-        self.seed_field = seed_field
-        self.answer_type = answer_type
-
-    def validate(
-        self,
-        *,
-        seeds: Sequence[type | str] = (),
-        terminal: Sequence[type | str] = (),
-    ) -> ValidationReport:
-        """Static contract check for this pipeline (no run, no LLM).
-
-        `seed_type`/`answer_type` are used as the default seeds/terminal when
-        set; pass `seeds=`/`terminal=` to override them. This is the same
-        `validate_contracts` the CLI and the HTTP adapter use at startup.
-        """
-        from .validate import validate_contracts
-
-        inferred_seeds: list[type | str] = list(seeds)
-        inferred_terminal: list[type | str] = list(terminal)
-        if not inferred_seeds and self.seed_type is not None:
-            inferred_seeds.append(self.seed_type)
-        if not inferred_terminal and self.answer_type is not None:
-            inferred_terminal.append(self.answer_type)
-        return validate_contracts(
-            agents=self.agents,
-            seeds=inferred_seeds,
-            terminal=inferred_terminal,
-        )
-
-    def describe(self) -> ContractReport:
-        """The static contract plus seed/answer JSON Schemas.
-
-        The transport-neutral "OpenAPI": the CLI prints it, the HTTP adapter
-        serves it as `/api/contracts`, and MCP/tool adapters read the same
-        models. It never runs the pipeline.
-        """
-        from .contracts.report import ContractReport, describe_contracts
-
-        base = describe_contracts(self.agents)
-        return ContractReport(
-            agents=base.agents,
-            seed_schema=(
-                self.seed_type.model_json_schema()
-                if self.seed_type is not None
-                else None
-            ),
-            answer_schema=(
-                self.answer_type.model_json_schema()
-                if self.answer_type is not None
-                else None
-            ),
-        )
-
-    def mermaid(self, *, with_stages: bool = True) -> str:
-        """Render this pipeline's declared agents as a Mermaid flowchart."""
-        from .viz import blueprint
-
-        return blueprint(self.agents, with_stages=with_stages, title=self.name)
+    from ..contracts.report import ContractReport
+    from ..validate import ValidationReport
 
 
 class PipelineRunner:
@@ -164,12 +39,13 @@ class PipelineRunner:
 
     def __init__(
         self,
-        pipeline: Pipeline,
+        pipeline: PipelineDefinition,
         config: RunConfig | None = None,
     ) -> None:
         base = config or RunConfig()
         self.pipeline = pipeline
         self.config = config
+        self.schedule = base.schedule or pipeline.schedule()
         self.resources = base.resources
         self.llm = base.llm
         self.budget = base.budget
@@ -181,7 +57,7 @@ class PipelineRunner:
         self.trace_store: Any = None
         self.tracer = base.tracer
         if base.traces:
-            from .tracing import TraceStore
+            from ..tracing import TraceStore
 
             self.trace_store = (
                 TraceStore(str(base.traces))
@@ -191,7 +67,7 @@ class PipelineRunner:
                 else TraceStore(":memory:")
             )
             if self.tracer is None:
-                from .tracing import Tracer
+                from ..tracing import Tracer
 
                 self.tracer = Tracer(
                     store=self.trace_store,
@@ -259,19 +135,19 @@ class PipelineRunner:
 
     def router(self, **kwargs: Any) -> Any:
         """A FastAPI `APIRouter` with `/run`, `/stream` and `/health`."""
-        from .web import create_pipeline_router
+        from ..web import create_pipeline_router
 
         return create_pipeline_router(self, **kwargs)
 
     def http(self, **kwargs: Any) -> Any:
         """A ready FastAPI app around this runner's pipeline."""
-        from .web import create_http_app
+        from ..web import create_http_app
 
         return create_http_app(self, **kwargs)
 
     def test_client(self, *, traces: bool = True) -> Any:
         """An isolated copy of this runner with an in-memory trace store."""
-        from .testing.client import TestPipeline
+        from ..testing.client import TestPipeline
 
         return TestPipeline(self, traces=traces)
 
@@ -324,6 +200,7 @@ class PipelineRunner:
             max_concurrency=self.max_concurrency,
             isolate_errors=self.isolate_errors,
             on_agent_error=self.on_agent_error,
+            schedule=self.schedule,
         )
         self.last_context = context
         return context, runtime
@@ -335,6 +212,7 @@ class PipelineRunner:
         max_iterations: int = 100,
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> RunResult:
         """Seed one artifact, run to completion, return a `RunResult`."""
         context, runtime = self._prepare(seed)
@@ -342,6 +220,7 @@ class PipelineRunner:
             max_iterations=max_iterations,
             budget=budget or self.budget,
             request=request,
+            invocation=invocation,
         )
         result = RunResult(
             context,
@@ -349,6 +228,7 @@ class PipelineRunner:
             runtime.outcome,
             trace_id=runtime.run_id,
             trace_store=self.trace_store,
+            invocation=runtime.invocation,
         )
         self.last_result = result
         return result
@@ -360,6 +240,7 @@ class PipelineRunner:
         max_iterations: int = 100,
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> RunResult:
         """Async form of `run()`."""
         context, runtime = self._prepare(seed)
@@ -367,6 +248,7 @@ class PipelineRunner:
             max_iterations=max_iterations,
             budget=budget or self.budget,
             request=request,
+            invocation=invocation,
         )
         result = RunResult(
             context,
@@ -374,6 +256,7 @@ class PipelineRunner:
             runtime.outcome,
             trace_id=runtime.run_id,
             trace_store=self.trace_store,
+            invocation=runtime.invocation,
         )
         self.last_result = result
         return result
@@ -385,12 +268,17 @@ class PipelineRunner:
         max_iterations: int = 100,
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> BaseModel:
         """Run once and return the typed `answer_type` artifact."""
         if self.answer_type is None:
             raise TypeError("PipelineRunner.answer requires answer_type=...")
         result = self.run(
-            seed, max_iterations=max_iterations, budget=budget, request=request
+            seed,
+            max_iterations=max_iterations,
+            budget=budget,
+            request=request,
+            invocation=invocation,
         )
         artifact = result.context.latest(self.answer_type)
         if artifact is None:
@@ -406,12 +294,17 @@ class PipelineRunner:
         max_iterations: int = 100,
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> BaseModel:
         """Async form of `answer()`."""
         if self.answer_type is None:
             raise TypeError("PipelineRunner.aanswer requires answer_type=...")
         result = await self.arun(
-            seed, max_iterations=max_iterations, budget=budget, request=request
+            seed,
+            max_iterations=max_iterations,
+            budget=budget,
+            request=request,
+            invocation=invocation,
         )
         artifact = result.context.latest(self.answer_type)
         if artifact is None:
@@ -427,6 +320,7 @@ class PipelineRunner:
         max_iterations: int = 1000,
         budget: Budget | None = None,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> AsyncIterator[Any]:
         """Yield progress events; `last_result` is filled at the end."""
         context, runtime = self._prepare(seed)
@@ -434,6 +328,7 @@ class PipelineRunner:
             budget=budget or self.budget,
             max_iterations=max_iterations,
             request=request,
+            invocation=invocation,
         ):
             yield event
         self.last_result = RunResult(
@@ -442,6 +337,7 @@ class PipelineRunner:
             runtime.outcome,
             trace_id=runtime.run_id,
             trace_store=self.trace_store,
+            invocation=runtime.invocation,
         )
 
     def close(self) -> None:
@@ -499,4 +395,4 @@ class _PipelineTool(Tool):
         )
 
 
-__all__ = ["Pipeline", "PipelineRunner"]
+__all__ = ["PipelineRunner"]

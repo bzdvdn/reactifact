@@ -20,6 +20,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from ...agent import Step
+from ...artifacts import ArtifactType
 from ...context import Context
 from ...provenance import DERIVED_FROM
 from ..base import Tool
@@ -80,7 +81,7 @@ class _ToolLoopBase(Step[ToolAnswer]):
     """
 
     artifact_type = ToolAnswer
-    produces: tuple[type[BaseModel], ...] = (ToolAnswer,)
+    produces: tuple[ArtifactType, ...] | None = (ToolAnswer,)
     provenance = DERIVED_FROM
 
     def __init__(

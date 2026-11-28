@@ -172,7 +172,7 @@ settings object (`resources.register(Settings, Settings(...))`) can be injected
 as a resource; unregistered pydantic models stay artifacts.
 
 A step's typed signature is its **read set**; an explicit `reads=` narrows it. A typed artifact parameter that is not in `reads` is
-added automatically as a read-only input (`Read(T, required=False)`):
+added automatically as a read-only input (`Read(T, wakes=False)`):
 
 ```python
 class PickStage(Step):
@@ -189,7 +189,7 @@ class PickStage(Step):
 `project` is still collected, validated and recorded as an input — it just never
 wakes the step on its own. If `reads` is omitted, the typed signature derives
 its reads; mark an individual read-only input there with
-`Annotated[T, Wakes(False)]` or use `Read(T, required=False)`. `Latest[T]` remains an ad-hoc context query, not a
+`Annotated[T, Wakes(False)]` or use `Read(T, wakes=False)`. `Latest[T]` remains an ad-hoc context query, not a
 declared input.
 
 `T` injects the data model, while `Artifact[T]` injects the handle (id, version,

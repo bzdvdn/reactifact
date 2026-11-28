@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from ..decisions import Decision
 from ..tools import ToolRun
 from .models import (
     AgentContract,
@@ -80,6 +81,7 @@ def run_insert_values(
         prompt_tokens,
         completion_tokens,
         1 if trace.trace_truncated else 0,
+        jsonify([decision.model_dump(mode="json") for decision in trace.decisions]),
     )
 
 
@@ -142,9 +144,14 @@ def tag_assignment_from_row(row: Sequence[Any]) -> TagAssignment:
     )
 
 
+def decisions_from_value(value: Any) -> list[Decision]:
+    return [Decision(**item) for item in _json(value or [])]
+
+
 __all__ = [
     "SORT_COLUMNS",
     "as_datetime",
+    "decisions_from_value",
     "iso",
     "like",
     "run_insert_values",

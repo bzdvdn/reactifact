@@ -122,7 +122,14 @@ CLI делает то же и умеет сравнивать запуски:
 reactifact trace traces.db <run_id> --format text
 reactifact trace traces.db <run_id> --format html --out trace.html
 reactifact trace traces.db <run_id> --against <other_id>
+reactifact trace traces.db <run_id> --why
+reactifact trace traces.db <run_id> --why --filter evidence
 ```
+
+`--why` печатает решения планировщика (`skipped_guard`,
+`skipped_missing_input`, `event_unmatched`, `stage_enter`/`stage_settled`,
+fallback/outcome); `--filter` сужает список. Тот же список виден на странице
+трейса и в `RunTrace.decisions`.
 
 `PipelineRunner(..., config=RunConfig(traces=True))` или `RunConfig(traces="traces.db")` пишет каждый запуск без ручной
 сборки `Tracer`; `result.trace_id` и `await result.trace()` читают его обратно.

@@ -5,6 +5,7 @@ Package: models (`models`), delivery (`tracer`), storage (`store`), UI
 but without `web`, so that importing the package does not pull in FastAPI.
 """
 
+from ..decisions import Decision
 from ..tools import ToolRun
 from .columns import TraceColumn
 from .diff import TraceDiff, diff_traces
@@ -39,6 +40,7 @@ __all__ = [
     "AgentSpan",
     "ArtifactRef",
     "CompositeTracer",
+    "Decision",
     "LLMCall",
     "LangfuseTracer",
     "OTLPTracer",

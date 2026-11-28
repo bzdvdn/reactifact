@@ -140,14 +140,19 @@ is a read rather than a wake reason. `Latest[T]` composes the same way:
 
 | Read form | Meaning |
 | --- | --- |
-| `Read(T)` | required input; the step waits for a `T` |
-| `Read(T, required=False)` | optional input |
+| `Read(T)` | required input; a missing artifact is a `MissingInputError` |
+| `Read(T, wakes=False)` | read-only input: never wakes a derived agent on its own |
+| `T | None` (typed param) | optional input; a missing artifact resolves to `None` |
 | `Read.on_create(T)` / `on_update` / `on_stale` | narrow the input to one lifecycle event |
 | `Read.after_delete(T)` | the only delete read; take `event: Event` or `trigger`, never `T` |
 | `Read.by_status(T, "ready")` / `Read.by_field(T, "kind", "x")` / `Read.where(T, fn)` | input condition |
 | `Read.idempotent(T, id_of=...)` | only while the derived target id is absent |
 | `Read.join(A, B, key=...)` | a correlated group of inputs |
 | `Read.correlated(key=..., require=[...], forbid=[...])` | a custom correlated group |
+`wakes` only controls whether an explicit read can feed a *derived* agent
+wake set; it never means "optional". Optional inputs come from the signature
+(`T | None`), and `Read.required` is a deprecated alias for `wakes`.
+
 
 | Consume form | Wakes when |
 | --- | --- |
@@ -241,10 +246,14 @@ step owns `reads` (input) and `produces`. `Read` is the input descriptor:
 ```python
 # not-run: illustrative
 @step(
-    reads=(Read.on_create(Query), Read(Evidence, required=False)),
+    reads=(Read.on_create(Query), Read(Evidence)),
     produces=Answer,
 )
-async def handle(context: Context, query: Query) -> Answer: ...
+async def handle(
+    context: Context,
+    query: Query,
+    evidence: Evidence | None = None,
+) -> Answer: ...
 ```
 
 For delete-only cleanup, use `Read.after_delete(Scratch)` and take `event: Event`

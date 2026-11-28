@@ -6,6 +6,7 @@ from .core import Drop, Edit, Emit, Ensure, Relate, Step
 from .core import _scope_matches as _scope_matches
 from .core import _scope_value as _scope_value
 from .decorator import step
+from .guard import Guard, GuardResult
 from .invocation import (
     StepInvocation,
     current_step_context,
@@ -22,6 +23,8 @@ __all__ = [
     "Edit",
     "Emit",
     "Ensure",
+    "Guard",
+    "GuardResult",
     "Latest",
     "Read",
     "Relate",

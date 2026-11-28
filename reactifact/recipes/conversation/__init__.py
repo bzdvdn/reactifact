@@ -51,6 +51,7 @@ from .core import (
     turn_count,
 )
 from .models import ConversationMessage, MessageBuilder, Role
+from .turn import Turn
 from .turn_context import TurnContext, TurnContextStep, TurnFacts, looks_like_follow_up
 from .views import MessageSpec, Transcript, TranscriptEntry
 
@@ -62,6 +63,7 @@ __all__ = [
     "Role",
     "Transcript",
     "TranscriptEntry",
+    "Turn",
     "TurnContext",
     "TurnContextStep",
     "TurnFacts",

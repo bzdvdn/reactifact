@@ -227,3 +227,12 @@ def test_consume_by_base_reads_all_subclass_artifacts():
     asyncio.run(runtime.arun())
 
     assert ctx.list_artifacts(Output)[-1].data.text == "a,b"
+
+
+@pytest.mark.parametrize("attr", ["consumes", "reacts_to", "also_creates"])
+def test_removed_step_attributes_fail_loudly(attr):
+    """0.30 removed these step-level declarations; a stale class attr must not
+    be silently ignored (it would drop conditions/lifecycle semantics)."""
+    old_step = type("OldStep", (Step,), {attr: (Input,), "produces": (Output,)})
+    with pytest.raises(TypeError, match=attr):
+        old_step()

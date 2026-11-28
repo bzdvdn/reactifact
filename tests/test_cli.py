@@ -20,7 +20,7 @@ from reactifact.cli import build_parser, main
 from reactifact.cli.common import load_agents, open_store
 from reactifact.commit import Commit
 from reactifact.session import SessionStore
-from reactifact.tracing import RunTrace, TraceStore
+from reactifact.tracing import Decision, RunTrace, TraceStore
 
 
 class Doc(BaseModel):
@@ -191,6 +191,40 @@ def test_trace_command_happy_path(tmp_path, capsys):
     assert main(["trace", db_path]) == 0
     out = capsys.readouterr().out
     assert "sequenceDiagram" in out
+
+
+def test_trace_why_prints_decisions(tmp_path, capsys):
+    db_path = str(tmp_path / "traces.db")
+    store = TraceStore(db_path)
+    run(
+        store.export(
+            RunTrace(
+                id="r-why",
+                session_id="s",
+                outcome="completed",
+                decisions=[
+                    Decision(
+                        code="skipped_guard",
+                        agent="answer",
+                        step="Build",
+                        reason="target answer:1 already exists",
+                    )
+                ],
+            )
+        )
+    )
+    store.close()
+
+    assert main(["trace", db_path, "r-why", "--why"]) == 0
+    out = capsys.readouterr().out
+    assert "skipped_guard" in out
+    assert "target answer:1 already exists" in out
+
+    assert main(["trace", db_path, "r-why", "--why", "--filter", "answer:1"]) == 0
+    assert "skipped_guard" in capsys.readouterr().out
+
+    assert main(["trace", db_path, "r-why", "--why", "--filter", "nomatch"]) == 0
+    assert "no decisions" in capsys.readouterr().out
 
 
 def test_trace_command_empty_store_reports_no_traces(tmp_path, capsys):

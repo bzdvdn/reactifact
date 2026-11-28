@@ -100,6 +100,12 @@ Traces, spans and stores. The narrative guide is [Observability](../en/observabi
 
 ::: reactifact.tracing.diff_traces
 
+## Constants and aliases
+
+### `Decision`
+
+::: reactifact.tracing.Decision
+
 ## Langfuse
 
 ### `LangfuseTracer`

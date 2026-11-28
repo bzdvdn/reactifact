@@ -24,6 +24,7 @@ from ...provenance import DERIVED_FROM, RelationName
 from ...read import Read
 from .annotations import Scope
 from .core import Step
+from .guard import Guard
 from .invocation import StepInvocation
 from .resolve import invoke_step
 
@@ -81,6 +82,7 @@ def step(
     | ArtifactType
     | Sequence[Read | Consume | ArtifactType]
     | None = None,
+    guard: Guard | Sequence[Guard] | Callable[..., Any] | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
     scope: Scope | str | None = None,
@@ -102,6 +104,7 @@ def step(
     | ArtifactType
     | Sequence[Read | Consume | ArtifactType]
     | None = None,
+    guard: Guard | Sequence[Guard] | Callable[..., Any] | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
     scope: Scope | str | None = None,
@@ -176,6 +179,7 @@ def step(
             produces=final_produces,
             deletes=deletes,
             reads=reads,
+            guard=guard,
             timeout=timeout,
             provenance=chosen_provenance,
             scope=scope,
@@ -187,7 +191,7 @@ def step(
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func
-        existing = instance.read_specs()
+        existing = instance.wake_specs()
         if existing is None:
             resolved_consumes = Step._derive_consumes(func)
         else:

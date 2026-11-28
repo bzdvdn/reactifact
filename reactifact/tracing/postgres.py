@@ -25,6 +25,7 @@ from typing import Any
 from ._shared import (
     SORT_COLUMNS,
     as_datetime,
+    decisions_from_value,
     like,
     run_insert_values,
     span_from_row,
@@ -81,7 +82,8 @@ class PostgresStore:
                         outcome TEXT NOT NULL,
                         prompt_tokens INTEGER NOT NULL DEFAULT 0,
                         completion_tokens INTEGER NOT NULL DEFAULT 0,
-                        truncated INTEGER NOT NULL DEFAULT 0
+                        truncated INTEGER NOT NULL DEFAULT 0,
+                        decisions JSONB NOT NULL DEFAULT '[]'
                     )
                     """
                 )
@@ -169,6 +171,10 @@ class PostgresStore:
                     "truncated INTEGER NOT NULL DEFAULT 0"
                 )
                 await cur.execute(
+                    "ALTER TABLE runs ADD COLUMN IF NOT EXISTS "
+                    "decisions JSONB NOT NULL DEFAULT '[]'"
+                )
+                await cur.execute(
                     "ALTER TABLE spans ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ"
                 )
                 await cur.execute(
@@ -207,8 +213,8 @@ class PostgresStore:
                 await cur.execute(
                     "INSERT INTO runs (id, session_id, scope, parent_run_id, branch, "
                     "metadata, started_at, duration_ms, outcome, prompt_tokens, "
-                    "completion_tokens, truncated) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "completion_tokens, truncated, decisions) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     run_insert_values(
                         trace,
                         timestamp=lambda moment: moment,
@@ -581,7 +587,7 @@ class PostgresStore:
             async with conn.cursor() as cur:
                 await cur.execute(
                     "SELECT id, session_id, scope, parent_run_id, branch, metadata, "
-                    "started_at, duration_ms, outcome, truncated "
+                    "started_at, duration_ms, outcome, truncated, decisions "
                     "FROM runs WHERE id = %s",
                     (trace_id,),
                 )
@@ -633,6 +639,7 @@ class PostgresStore:
             has_more_spans=span_offset + len(spans) < span_total,
             trace_truncated=bool(row[9]),
             annotations=annotations,
+            decisions=decisions_from_value(row[10]),
         )
 
     async def field_values(

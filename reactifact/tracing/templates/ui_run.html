@@ -71,6 +71,10 @@
         </div>
         <div class="card-body"><div class="hint" id="work-note"></div><div class="agents" id="agents"></div></div>
       </div>
+      <div class="card" id="decisions-card" style="display:none">
+        <div class="card-head"><h2>Decisions</h2><span class="hint">why a step ran or was skipped</span></div>
+        <div class="card-body"><div id="decisions"></div></div>
+      </div>
       <div class="card" id="json-card" style="display:none"><div class="card-head"><h2>Raw JSON</h2></div><div class="card-body"><pre id="json-pre" class="json-pre"></pre></div></div>
       <div class="card">
         <div class="card-head"><h2>Causal chain</h2><button class="btn sm" id="copy-mermaid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-label>copy mermaid</span></button><span class="hint">runtime → agent → step → LLM/tool → commit</span></div>
@@ -284,6 +288,7 @@ function render(t){
     tile('created',fmtTime(t.started_at));
   renderFields(t.fields||{});
   renderAnnot(t.annotations||[]);
+  renderDecisions(t.decisions||[]);
   const jp=document.getElementById('json-pre');if(jp)jp.textContent=JSON.stringify(t,null,2);
   renderWork();
   updateWorkNote();
@@ -317,6 +322,24 @@ async function loadTree(){
   if(!html){card.style.display='none';return;}
   card.style.display='block';
   document.getElementById('tree').innerHTML=html;
+}
+function renderDecisions(list){
+  const card=document.getElementById('decisions-card');
+  const el=document.getElementById('decisions');
+  if(!card||!el)return;
+  if(!list.length){card.style.display='none';return;}
+  card.style.display='block';
+  el.innerHTML=list.map(d=>{
+    const event=[d.event_type,d.event_artifact_type,d.event_artifact_id?('#'+shortId(d.event_artifact_id)):null].filter(Boolean).join(' · ');
+    const details=Object.entries(d.detail||{}).map(([k,v])=>'<code>'+escapeHtml(k)+'='+escapeHtml(v)+'</code>').join(' ');
+    const tone=d.code.indexOf('skipped')===0?'amber':(d.code==='outcome'||d.code==='fallback'?'err':'ok');
+    return '<div class="annot"><span class="badge '+tone+'">'+escapeHtml(d.code)+'</span> '+
+      '<b>'+escapeHtml(d.agent||'-')+'</b>/<code>'+escapeHtml(d.step||'-')+'</code>'+
+      (event?' · <span class="muted">'+escapeHtml(event)+'</span>':'')+
+      (d.reason?'<div class="note">'+escapeHtml(d.reason)+'</div>':'')+
+      (details?'<div class="hint">'+details+'</div>':'')+
+    '</div>';
+  }).join('');
 }
 function renderFields(fields){
   const card=document.getElementById('fields-card');

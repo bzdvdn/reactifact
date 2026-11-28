@@ -111,7 +111,7 @@ class Router(Generic[RequestT, TaskT], ABC):
         step = self.produce()
         return Agent(
             name,
-            consumes=list(step.read_specs() or ()),
+            consumes=list(step.wake_specs() or ()),
             steps=[step],
             **kwargs,
         )

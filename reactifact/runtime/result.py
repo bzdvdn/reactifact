@@ -5,14 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
+from pydantic import BaseModel
+
 from ..artifacts import Artifact
 from ..budget import RunOutcome
 from ..context import Context
+from ..invocation import Invocation
 
 if TYPE_CHECKING:
     from ..tracing.models import RunTrace
 
-TArtifact = TypeVar("TArtifact")
+TArtifact = TypeVar("TArtifact", bound=BaseModel)
 
 
 @dataclass
@@ -30,8 +33,10 @@ class RunResult:
     trace_id: str = ""
     #: The store to read the trace back from; not part of the state.
     trace_store: Any = None
+    #: The generic invocation that produced this result, if any.
+    invocation: Invocation | None = None
 
-    def latest(self, artifact_type: type[TArtifact]) -> Any:
+    def latest(self, artifact_type: type[TArtifact]) -> Artifact[TArtifact] | None:
         return self.context.latest(artifact_type)
 
     def sources(self, artifact: Artifact[Any] | str) -> list[str]:

@@ -153,7 +153,7 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
 
         return Agent(
             name,
-            consumes=list(self.read_specs() or ()),
+            consumes=list(self.wake_specs() or ()),
             steps=[self],
             **kwargs,
         )

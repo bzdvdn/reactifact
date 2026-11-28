@@ -68,6 +68,35 @@ def test_check_fails_a_contract(capsys):
     assert "check: FAILED" in out
 
 
+def test_check_verbose_prints_warning_details(capsys):
+    code = main(
+        [
+            "check",
+            "--contracts",
+            "tests.cli_agents_fixture:GROUPS",
+            "--seed",
+            "In",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "pass --verbose for details" in out
+
+    code = main(
+        [
+            "check",
+            "--contracts",
+            "tests.cli_agents_fixture:GROUPS",
+            "--seed",
+            "In",
+            "--verbose",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "WARN  dead_output" in out
+
+
 def test_check_fails_a_gate(capsys, tmp_path):
     code = main(
         [

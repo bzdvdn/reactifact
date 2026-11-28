@@ -63,6 +63,7 @@ intake = Agent("intake", steps=[classify, reply], consumes=[Consume(Question)])
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` в `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (те же поля и каналы) |
+| `Read(T, required=False)` (опциональный вход) | `Read(T, wakes=False)` + `T | None` для опционального параметра |
 | `Agent.produces` | `Agent(steps=...)` / `steps = [...]` |
 | `reactifact.commit.Read` | `CommitRead` |
 | `ProduceRun` | `StepRun` |

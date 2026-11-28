@@ -278,7 +278,7 @@ def _step_contract(step: Step[Any]) -> StepContract:
     return StepContract(
         name=getattr(step, "name", "") or type(step).__name__,
         kind=type(step).__name__,
-        consumes=_consumes(step.read_specs()),
+        consumes=_consumes(step.wake_specs()),
         produces=tuple(_type_name(item) for item in produces),
         deletes=tuple(
             _type_name(item) for item in (getattr(step, "deletes", None) or ())

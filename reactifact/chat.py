@@ -41,6 +41,7 @@ from .budget import Budget
 from .consume import Consume
 from .context import Context
 from .events import Event
+from .invocation import Invocation
 from .pipeline import RunConfig
 from .request import reset_request, set_request
 from .resources import RuntimeResources
@@ -56,6 +57,21 @@ logger = logging.getLogger("reactifact.chat")
 
 #: The three frame kinds of the canonical chat (start / progress / terminal).
 ChatEventKind = Literal["session", "status", "message"]
+
+
+def _invocation_storage_key(session_id: str, key: str) -> str:
+    """A chat turn's idempotency key is scoped to its session."""
+    return f"{session_id}:{key}" if session_id else key
+
+
+class ChatConfigError(RuntimeError):
+    """A static configuration error (bad agent/memory wiring), not a bad turn.
+
+    `ChatAssistant.stream()` keeps degrading *transient* failures (store down,
+    reply hook crash) to `fallback_reply`; a bad `ChatMemory`, agent list or
+    resource factory is a deployment bug and is raised instead, so a web layer
+    reports it once with the real message rather than showing a fake answer.
+    """
 
 
 class ChatEvent(BaseModel):
@@ -147,6 +163,8 @@ async def run_message(
     status_kinds: Sequence[str] = ("status",),
     fallback_reply: str = "No reply assembled.",
     request: Mapping[str, Any] | None = None,
+    invocation: Invocation | None = None,
+    on_message: Callable[[str], None] | None = None,
 ) -> AsyncIterator[ChatEvent]:
     """Run one user turn: create the input artifact, stream status events,
     emit the terminal reply.
@@ -187,6 +205,8 @@ async def run_message(
                 )
             else:
                 msg_id = ctx.create(user_message(text=text, session_id=session_id)).id
+            if on_message is not None:
+                on_message(msg_id)
         finally:
             if token is not None:
                 reset_request(token)
@@ -201,7 +221,7 @@ async def run_message(
 
     last: str | None = None
     try:
-        async for event in runtime.astream(request=request):
+        async for event in runtime.astream(request=request, invocation=invocation):
             if event.kind not in forwarded:
                 continue
             if event.message == last:
@@ -401,6 +421,35 @@ class ChatMemory:
     digest_id: str = "digest"
     compact_commits: int | None = None
 
+    def __post_init__(self) -> None:
+        """Validate the policy at construction, not on the first chat turn."""
+        if self.message_type is not None and self.message_types is not None:
+            raise ValueError(
+                "ChatMemory: pass message_type= or message_types=, not both"
+            )
+        if self.keep is not None and self.keep < 0:
+            raise ValueError("ChatMemory.keep must be >= 0")
+        if self.compact_commits is not None and self.compact_commits < 1:
+            raise ValueError("ChatMemory.compact_commits must be >= 1")
+        if not self.digest_id:
+            raise ValueError("ChatMemory.digest_id must be a non-empty string")
+        message_types = self.resolved_message_types()
+        if self.summarize is not None:
+            if self.summary_type is None:
+                raise ValueError(
+                    "ChatMemory.summarize needs message_type and summary_type"
+                )
+            if not message_types:
+                raise ValueError(
+                    "ChatMemory.summarize needs message_type and summary_type"
+                )
+            _digest_build(self.summary_type, self.build_summary)
+        elif self.keep is not None:
+            if not message_types:
+                raise ValueError("ChatMemory.keep needs message_type")
+        elif self.summary_type is not None or self.build_summary is not None:
+            raise ValueError("ChatMemory.summary_type/build_summary require summarize=")
+
     @classmethod
     def from_transcript(cls, transcript: Any, **kwargs: Any) -> ChatMemory:
         """Builds a policy bound to every type in a `Transcript`.
@@ -467,6 +516,13 @@ class ChatAssistant:
     and `create_message=` were otherwise the only two hooks in this class
     that never saw it.
 
+    `config=RunConfig(...)` carries the runtime settings (`llm`, `budget`,
+    `max_concurrency`, `tracer`, `isolate_errors`, `on_agent_error`) exactly
+    like `Chat`/`PipelineRunner`; a static `resources` instance can come from
+    config too, while a per-turn `resources=` factory stays a direct hook. The
+    direct keyword arguments remain for older call sites but cannot be mixed
+    with `config=`; `Chat` itself always passes a `RunConfig`.
+
     Base usage:
 
         assistant = ChatAssistant(
@@ -475,6 +531,7 @@ class ChatAssistant:
             user_message=UserQuery,
             reply=knowledge_reply,
             resources=lambda: build_resources(),
+            config=RunConfig(budget=Budget(max_runs=50)),
         )
         async for ev in assistant.stream("hello", session_id="s1"):
             ...
@@ -493,6 +550,7 @@ class ChatAssistant:
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
         session_state: Callable[[Context], dict[str, Any]] | None = None,
+        config: RunConfig | None = None,
         resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
         budget: Budget | None = None,
         max_concurrency: int | None = None,
@@ -500,13 +558,59 @@ class ChatAssistant:
         create_message: Callable[..., str] | None = None,
         status_kinds: Sequence[str] = ("status",),
         fallback_reply: str = "No reply assembled.",
-        isolate_errors: bool = False,
+        isolate_errors: bool | None = None,
         on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         memory: ChatMemory | None = None,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
+        if config is not None:
+            direct = {
+                "budget": budget,
+                "max_concurrency": max_concurrency,
+                "tracer": tracer,
+                "isolate_errors": isolate_errors,
+                "on_agent_error": on_agent_error,
+            }
+            conflicts = [name for name, value in direct.items() if value is not None]
+            if conflicts:
+                raise TypeError(
+                    "ChatAssistant: pass runtime settings via config= or as "
+                    f"direct arguments, not both ({', '.join(conflicts)})"
+                )
+            base = config
+        else:
+            base = RunConfig(
+                budget=budget,
+                max_concurrency=max_concurrency,
+                tracer=tracer,
+                isolate_errors=isolate_errors or False,
+                on_agent_error=on_agent_error,
+            )
+        if base.traces or base.trace_sample is not None or base.lifespan is not None:
+            raise ValueError(
+                "ChatAssistant does not manage trace stores or lifespans; "
+                "pass a tracer= via config, or use Chat"
+            )
+        if resources is not None and base.resources is not None:
+            raise TypeError(
+                "ChatAssistant: pass resources= or config.resources=, not both"
+            )
+        resources = resources if resources is not None else base.resources
+        if callable(resources):
+            if base.llm is not None:
+                raise TypeError(
+                    "ChatAssistant: config.llm cannot be combined with a per-turn "
+                    "resources= factory; set llm on the RuntimeResources the "
+                    "factory returns"
+                )
+        elif base.llm is not None:
+            if resources is None:
+                resources = RuntimeResources(llm=base.llm)
+            else:
+                resources = copy.copy(resources)
+                resources.llm = base.llm
         provided = [value for value in (agents, steps) if value is not None]
         if len(provided) > 1:
             raise ValueError("Pass only one of steps= or agents=")
@@ -520,19 +624,20 @@ class ChatAssistant:
         else:
             raise TypeError("ChatAssistant requires steps= or agents=")
         self.store = store
+        self._config = base
         self._agents = resolved
         self._user_message = user_message
         self._reply = reply
         self._session_state = session_state
         self._resources = resources
-        self._budget = budget
-        self._max_concurrency = max_concurrency
-        self._tracer = tracer
+        self._budget = base.budget
+        self._max_concurrency = base.max_concurrency
+        self._tracer = base.tracer
         self._create_message = create_message
         self._status_kinds = tuple(status_kinds)
         self._fallback_reply = fallback_reply
-        self._isolate_errors = isolate_errors
-        self._on_agent_error = on_agent_error
+        self._isolate_errors = bool(base.isolate_errors)
+        self._on_agent_error = base.on_agent_error
         self._session_save_policy: Literal["per_commit", "per_turn"] = (
             session_save_policy
         )
@@ -615,12 +720,17 @@ class ChatAssistant:
                 raise ValueError(
                     "ChatMemory.summarize needs message_type and summary_type"
                 )
+            # `keep` is the raw window the caller wants; the summarizer's
+            # default trigger (12) must not undercut a larger window or it
+            # rejects the configuration with "trigger must be >= window".
+            window = memory.keep if memory.keep is not None else 8
             produce = RollingDigestSummarizer(
                 message_type=message_types,
                 artifact_type=memory.summary_type,
                 summarize=memory.summarize,
                 build=_digest_build(memory.summary_type, memory.build_summary),
-                window=memory.keep if memory.keep is not None else 8,
+                window=window,
+                trigger=max(12, window),
                 digest_id=memory.digest_id,
             )
         elif memory.keep is not None:
@@ -651,7 +761,34 @@ class ChatAssistant:
             session_save_policy=self._session_save_policy,
             dispatcher=self._dispatcher,
             on_dispatch_error=self._on_dispatch_error,
+            schedule=self._config.schedule,
         )
+
+    def _reply_payload(self, context: Context, message_id: str) -> dict[str, Any]:
+        payload = (
+            self._reply.build(context, message_id)
+            if isinstance(self._reply, ChatReply)
+            else self._reply(context, message_id)
+        )
+        return payload or _fallback_payload(self._fallback_reply)
+
+    async def _replay_invocation(
+        self,
+        session_id: str,
+        request: Mapping[str, Any] | None,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        message_id = record.get("message_id")
+        if not isinstance(message_id, str) or not message_id:
+            return None
+        try:
+            session = await self._open(session_id, request, build_resources=False)
+            return self._reply_payload(session.context, message_id)
+        except Exception:
+            logger.exception(
+                "chat.ChatAssistant: invocation replay failed for %r", session_id
+            )
+            return _fallback_payload(self._fallback_reply)
 
     async def stream(
         self,
@@ -659,6 +796,7 @@ class ChatAssistant:
         session_id: str = "",
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> AsyncIterator[ChatEvent]:
         """Stream one turn: ``session`` → ``status``… → ``message``.
 
@@ -682,10 +820,77 @@ class ChatAssistant:
         design (see the module docstring).
         """
         async with self._locked_session(session_id):
+            inv = invocation
+            invocation_id = inv.id if inv is not None else ""
+            key = inv.idempotency_key if inv is not None else None
+            storage_key = (
+                _invocation_storage_key(session_id, key) if key is not None else None
+            )
+            if key is not None and storage_key is not None:
+                assert inv is not None
+                record = await self.store.get_invocation(storage_key)
+                if record is not None:
+                    status = record.get("status")
+                    if status == "done":
+                        payload = await self._replay_invocation(
+                            session_id, request, record
+                        )
+                        if payload is not None:
+                            yield ChatEvent(kind="session", session_id=session_id)
+                            yield ChatEvent(
+                                kind="message",
+                                session_id=session_id,
+                                payload=payload,
+                            )
+                            return
+                    if status != "running":
+                        # failed, or a completed record whose replay could not
+                        # produce a payload: start a fresh attempt.
+                        await self.store.delete_invocation(storage_key)
+                claimed, existing = await self.store.claim_invocation(
+                    storage_key,
+                    {
+                        "status": "running",
+                        "invocation_id": invocation_id,
+                        "session_id": session_id,
+                    },
+                )
+                if not claimed:
+                    status = existing.get("status") if existing else None
+                    if status == "done" and existing is not None:
+                        payload = await self._replay_invocation(
+                            session_id, request, existing
+                        )
+                        if payload is not None:
+                            yield ChatEvent(kind="session", session_id=session_id)
+                            yield ChatEvent(
+                                kind="message",
+                                session_id=session_id,
+                                payload=payload,
+                            )
+                            return
+                    raise ChatConfigError(f"invocation {key!r} is already running")
             session: Session | None = None
+            completed = False
             try:
                 session = await self._open(session_id, request)
                 runtime = self._build_runtime(session)
+            except (ChatConfigError, ValueError, TypeError) as exc:
+                logger.exception(
+                    "chat.ChatAssistant: configuration error for session %r",
+                    session_id,
+                )
+                if session is not None and callable(self._resources):
+                    with suppress(Exception):
+                        await session.context.resources.aclose()
+                if storage_key is not None:
+                    await self.store.put_invocation(
+                        storage_key,
+                        {"status": "failed", "invocation_id": invocation_id},
+                    )
+                raise ChatConfigError(
+                    f"chat configuration for session {session_id!r}: {exc}"
+                ) from exc
             except Exception:
                 logger.exception(
                     "chat.ChatAssistant: failed to open session %r", session_id
@@ -696,6 +901,11 @@ class ChatAssistant:
                 if session is not None and callable(self._resources):
                     with suppress(Exception):
                         await session.context.resources.aclose()
+                if storage_key is not None:
+                    await self.store.put_invocation(
+                        storage_key,
+                        {"status": "failed", "invocation_id": invocation_id},
+                    )
                 yield ChatEvent(
                     kind="message",
                     session_id=session_id,
@@ -703,6 +913,7 @@ class ChatAssistant:
                 )
                 return
             yield ChatEvent(kind="session", session_id=session_id)
+            message_ids: list[str] = []
             try:
                 async for event in run_message(
                     runtime,
@@ -714,7 +925,30 @@ class ChatAssistant:
                     fallback_reply=self._fallback_reply,
                     session_id=session_id,
                     request=request,
+                    invocation=inv,
+                    on_message=message_ids.append,
                 ):
+                    if event.kind == "message" and storage_key is not None:
+                        payload = event.payload or {}
+                        if payload.get("error") is True or not message_ids:
+                            await self.store.put_invocation(
+                                storage_key,
+                                {
+                                    "status": "failed",
+                                    "invocation_id": invocation_id,
+                                },
+                            )
+                        else:
+                            completed = True
+                            await self.store.put_invocation(
+                                storage_key,
+                                {
+                                    "status": "done",
+                                    "invocation_id": invocation_id,
+                                    "session_id": session_id,
+                                    "message_id": message_ids[-1],
+                                },
+                            )
                     yield event
             finally:
                 try:
@@ -726,6 +960,14 @@ class ChatAssistant:
                     logger.exception(
                         "chat.ChatAssistant: failed to save session %r", session_id
                     )
+                if storage_key is not None and not completed:
+                    # A cancelled/aborted turn must be retryable.
+                    record = await self.store.get_invocation(storage_key)
+                    if record is None or record.get("status") != "done":
+                        await self.store.put_invocation(
+                            storage_key,
+                            {"status": "failed", "invocation_id": invocation_id},
+                        )
                 if callable(self._resources):
                     # A callable `resources=` builds a fresh RuntimeResources (and
                     # typically a fresh provider + HTTP client) on every turn —
@@ -746,10 +988,13 @@ class ChatAssistant:
         session_id: str = "",
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> dict[str, Any]:
         """Run one turn and return the terminal reply (aggregated stream)."""
         message: dict[str, Any] = {}
-        async for event in self.stream(text, session_id=session_id, request=request):
+        async for event in self.stream(
+            text, session_id=session_id, request=request, invocation=invocation
+        ):
             if event.kind == "message":
                 message = dict(event.payload) or {"reply": self._fallback_reply}
         return message
@@ -829,6 +1074,7 @@ class Chat:
                 answer_type = pipeline.answer_type
             # A pipeline contributes structure and seed/answer models; its
             # runtime settings live in PipelineRunner/RunConfig.
+        pipeline_schedule = pipeline.schedule() if pipeline is not None else None
         # Runtime settings come from RunConfig; only the per-turn resources
         # hook stays a direct constructor argument.
         resources = resources if resources is not None else base.resources
@@ -845,7 +1091,13 @@ class Chat:
             raise TypeError("Chat requires steps=, agents= or a pipeline=")
         if seed_type is None:
             raise TypeError("Chat requires seed_type= or a pipeline with seed_type")
-        if llm is not None and not callable(resources):
+        if callable(resources):
+            if llm is not None:
+                raise TypeError(
+                    "Chat: config.llm cannot be combined with a per-turn resources= "
+                    "factory; set llm on the RuntimeResources the factory returns"
+                )
+        elif llm is not None:
             if resources is None:
                 resources = RuntimeResources(llm=llm)
             else:
@@ -895,14 +1147,17 @@ class Chat:
             reply=reply or self._default_reply,
             session_state=session_state,
             resources=resources,
-            budget=budget,
-            max_concurrency=max_concurrency,
-            tracer=tracer,
+            config=RunConfig(
+                budget=budget,
+                max_concurrency=max_concurrency,
+                tracer=tracer,
+                isolate_errors=isolate_errors,
+                on_agent_error=on_agent_error,
+                schedule=base.schedule or pipeline_schedule,
+            ),
             create_message=create,
             status_kinds=status_kinds,
             fallback_reply=fallback_reply,
-            isolate_errors=isolate_errors,
-            on_agent_error=on_agent_error,
             session_save_policy=session_save_policy,
             memory=memory,
             dispatcher=dispatcher,
@@ -1009,17 +1264,24 @@ class Chat:
         session_id: str = "",
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> AsyncIterator[ChatEvent]:
         self._check_lifespan()
         if self.per_turn is None:
             async for event in self.assistant.stream(
-                text, session_id=session_id, request=request
+                text,
+                session_id=session_id,
+                request=request,
+                invocation=invocation,
             ):
                 yield event
             return
         async with self.per_turn(text, session_id, request or {}):
             async for event in self.assistant.stream(
-                text, session_id=session_id, request=request
+                text,
+                session_id=session_id,
+                request=request,
+                invocation=invocation,
             ):
                 yield event
 
@@ -1029,9 +1291,12 @@ class Chat:
         session_id: str = "",
         *,
         request: Mapping[str, Any] | None = None,
+        invocation: Invocation | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {}
-        async for event in self.stream(text, session_id=session_id, request=request):
+        async for event in self.stream(
+            text, session_id=session_id, request=request, invocation=invocation
+        ):
             if event.kind == "message":
                 payload = dict(event.payload)
         return payload
@@ -1154,6 +1419,7 @@ def _as_store(store: SessionStore | str | Path | None) -> SessionStore:
 __all__ = [
     "Chat",
     "ChatAssistant",
+    "ChatConfigError",
     "ChatReply",
     "ChatEvent",
     "ChatEventKind",

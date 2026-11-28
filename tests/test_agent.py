@@ -74,8 +74,17 @@ def test_step_reads_are_the_input_contract():
 
     assert upper.reads is not None
     assert upper.reads[0].artifact_type is Question
-    assert upper.read_specs()[0].artifact_type is Question
+    assert upper.inputs[0].artifact_type is Question
+    assert upper.wake_specs()[0].artifact_type is Question
     assert upper.reads[0].required is True
+    assert upper.reads[0].wakes is True
+
+
+def test_read_specs_is_a_deprecated_alias():
+    with pytest.warns(DeprecationWarning, match="wake_specs"):
+        specs = UpperStep().read_specs()
+    assert specs is not None
+    assert specs[0].artifact_type is Question
 
 
 def test_typed_parameters_are_automatic_reads():

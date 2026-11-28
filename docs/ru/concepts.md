@@ -178,7 +178,7 @@ pydantic-настройки (`resources.register(Settings, Settings(...))`) мо
 Явный `reads` — это **набор входов** шага; типизированная подпись добавляет
 остальные чтения. Типизированный артефактный параметр, которого нет в
 `reads`, автоматически добавляется как read-only вход
-(`Read(T, required=False)`):
+(`Read(T, wakes=False)`):
 
 ```python
 class PickStage(Step):
@@ -195,7 +195,7 @@ class PickStage(Step):
 `project` по-прежнему собирается, валидируется и попадает в provenance — он
 просто никогда не будит шаг сам по себе. Если `reads` не задан, типизированная
 подпись выводит его чтения; отдельный read-only вход там помечается
-`Annotated[T, Wakes(False)]` или `Read(T, required=False)`. `Latest[T]` остаётся разовым запросом к контексту,
+`Annotated[T, Wakes(False)]` или `Read(T, wakes=False)`. `Latest[T]` остаётся разовым запросом к контексту,
 а не объявленным входом.
 
 `T` инжектит модель данных, а `Artifact[T]` — handle (id, версия, для `Edit`/
@@ -278,7 +278,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Реакция на тип | `Consume(Type)` |
 | Только одно lifecycle-событие | `Consume.on_create(Type)`, `Consume.on_update(Type)`, `Consume.on_delete(Type)`, `Consume.on_stale(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
-| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `reads` (автоматически), `Annotated[T, Wakes(False)]`, когда `reads` выводится, `Read(..., required=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
+| Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `reads` (автоматически), `Annotated[T, Wakes(False)]`, когда `reads` выводится, `Read(..., wakes=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
 | История между ходами | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (добавьте `Wakes(False)` для чтения) |
 | Периодический/join/absent/debounced | `Trigger`, `JoinConsume`, `AbsentConsume`, `debounce=True` |
 

@@ -43,6 +43,21 @@ def cmd_trace(args: argparse.Namespace) -> int:
         if trace is None:
             print(f"trace {trace_id!r} not found")
             return 1
+        if args.why:
+            if args.format == "json":
+                print(
+                    json.dumps(
+                        [
+                            decision.model_dump(mode="json")
+                            for decision in trace.why(args.filter)
+                        ],
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
+            else:
+                print(trace.why_text(args.filter))
+            return 0
         if args.against:
             other = await store.get(args.against)
             if other is None:
@@ -109,5 +124,16 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "--against",
         metavar="RUN_ID",
         help="compare with this run instead of rendering (trace diff)",
+    )
+    p_trace.add_argument(
+        "--why",
+        action="store_true",
+        help="show scheduling decisions (guard/missing-input/stage/event)",
+    )
+    p_trace.add_argument(
+        "--filter",
+        default=None,
+        metavar="QUERY",
+        help="with --why: only decisions containing this text",
     )
     p_trace.set_defaults(func=cmd_trace)

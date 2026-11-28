@@ -21,8 +21,8 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, cast
 
 from ..agent import Agent, Step
 from ..budget import Budget
@@ -68,12 +68,22 @@ def _units(obj: Any) -> tuple[list[Step[Any]], list[Agent]]:
     if isinstance(obj, Agent):
         return [], [obj]
     if isinstance(obj, (list, tuple)):
-        steps = [item for item in obj if isinstance(item, Step)]
-        groups = [item for item in obj if isinstance(item, Agent)]
-        if len(steps) + len(groups) != len(obj):
-            raise SystemExit(
-                "reactifact check: a list target may contain only Step/Agent instances"
-            )
+        steps: list[Step[Any]] = []
+        groups: list[Agent] = []
+        for item in obj:
+            if isinstance(item, Step):
+                steps.append(item)
+            elif isinstance(item, Agent):
+                groups.append(item)
+            else:
+                source = getattr(item, "agents", None)
+                if not callable(source):
+                    raise SystemExit(
+                        "reactifact check: a list target may contain only "
+                        "Step/Agent instances or agent sources like Route"
+                    )
+                expand = cast("Callable[[], Sequence[Any]]", source)
+                groups.extend(expand())
         return steps, groups
     raise SystemExit(
         "reactifact check: expected a Pipeline, Step, Agent or a list of them, "
@@ -125,6 +135,7 @@ def _contracts(
     seeds: Sequence[str],
     terminal: Sequence[str],
     budget: Budget | None = None,
+    verbose: bool = False,
 ) -> bool:
     obj = _load_object(spec)
     steps, groups = _units(obj)
@@ -151,6 +162,12 @@ def _contracts(
     )
     for issue in report.errors:
         print(f"  ERROR {issue.code}: {issue.message}")
+    if report.warnings:
+        if verbose:
+            for issue in report.warnings:
+                print(f"  WARN  {issue.code}: {issue.message}")
+        else:
+            print(f"  ({len(report.warnings)} warning(s); pass --verbose for details)")
     return report.ok
 
 
@@ -261,6 +278,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                 seeds=args.seed or config.seeds,
                 terminal=args.terminal or config.terminal,
                 budget=budget_from_config(config),
+                verbose=args.verbose,
             )
             and ok
         )
@@ -371,6 +389,11 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         "--no-contracts",
         action="store_true",
         help="skip the contract stage",
+    )
+    p_check.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print contract warning details",
     )
     p_check.set_defaults(func=cmd_check)
 

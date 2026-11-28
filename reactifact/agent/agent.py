@@ -14,9 +14,11 @@ from ..artifacts import Artifact, ArtifactConflict
 from ..authz import AuthorizationError
 from ..consume import Consume
 from ..context import Context
+from ..decisions import record_decision
 from ..effects import Effects, current_effects
 from ..events import Event, EventType
 from ..guardrails import GuardrailViolation
+from ..invocation import current_invocation
 from ..patches import Create, Link, Patch
 from ..policy import RetryPolicy
 from ..provenance import DERIVED_FROM
@@ -330,7 +332,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         """Derive the agent's wake set from its steps' `consumes` contracts."""
         result: list[Trigger] = []
         for step in self.steps or []:
-            for consume in step.read_specs() or ():
+            for consume in step.wake_specs() or ():
                 result.extend(consume.to_triggers())
         return result
 
@@ -457,6 +459,18 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             runs, trigger = self._resolve_produce_call(p, event, context)
             if not runs:
                 continue
+            if p.guard is not None:
+                decision = await p.guard.pre(context, event, trigger)
+                if not decision.allowed:
+                    record_decision(
+                        "skipped_guard",
+                        agent=self.name,
+                        step=p.name,
+                        reason=decision.reason,
+                        event=event,
+                        detail={"guard": decision.code, "phase": "pre"},
+                    )
+                    continue
             step_inputs = p.collect_inputs(context) if p.reads else inputs
             scope_value = _scope_value(p.scope, trigger)
             cursor_artifacts = (
@@ -484,7 +498,20 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                 trigger=trigger,
                 scope=scope_value,
                 cursor={t: dict(v) for t, v in input_cursor.items()},
+                invocation=current_invocation(),
             )
+            if p.guard is not None:
+                decision = await p.guard.post(call)
+                if not decision.allowed:
+                    record_decision(
+                        "skipped_guard",
+                        agent=self.name,
+                        step=p.name,
+                        reason=decision.reason,
+                        event=event,
+                        detail={"guard": decision.code, "phase": "post"},
+                    )
+                    continue
             produce_token = set_current_produce(p.name)
             context_token = set_step_context(context)
             call_token = set_step_invocation(call)
@@ -548,7 +575,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         not a race, so the produce still runs with `trigger=None` —
         deletion-reacting code is expected to handle that itself.
         """
-        reads = p.read_specs()
+        reads = p.wake_specs()
         if event is None:
             return (reads is None), None
         if reads is not None:
@@ -611,7 +638,8 @@ def normalize_units(
                     f"{keyword}= expects Agent or an object with .agents() "
                     f"(e.g. Route), got {type(item).__name__}"
                 )
-            produced = list(source())
+            expand = cast("Callable[[], Sequence[Any]]", source)
+            produced = list(expand())
             for agent in produced:
                 if not isinstance(agent, Agent):
                     raise TypeError(
