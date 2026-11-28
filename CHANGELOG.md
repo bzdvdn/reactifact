@@ -57,6 +57,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   per-turn `resources=` remains.
 
 ### Added
+- **`Stage(wake=...)`.** `"turn"` (default) seeds a stage from artifacts
+  created/updated in this turn; `"context"` also from long-lived context
+  artifacts; `"events"` relies on pending events only.
+- **Invocation metrics and observer.** `MetricsInvocationObserver` on
+  `SessionStore(observer=...)` counts claimed/replayed/stale_reclaimed/
+  conflict/completed/fenced_out; `MetricsTracer` counts
+  `reactifact_decisions_total{code}`.
+- **HTTP `Idempotency-Key`.** `create_pipeline_router(..., invocations=...)`
+  replays a completed response (`Idempotent-Replayed: true`), returns 409 for a
+  running key, retries a failed one and rejects a reused key with a different
+  body (422); `/stream` rejects the header.
+- **`InvocationStore` protocol.** `reactifact.invocation.InvocationStore`
+  names the claim/replay contract `SessionStore` implements.
 - **`ArtifactKey` for stable typed ids.** `ArtifactKey(Answer, prefix="answer",
   field="query_id")` builds `answer:<query_id>`; pass the bound string to
   `Ensure`/`Emit`/`Context.create`, or the key itself to

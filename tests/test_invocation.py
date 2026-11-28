@@ -416,3 +416,32 @@ def test_trace_store_roundtrips_invocation_fields(tmp_path):
     assert trace.invocation_id == inv.id
     assert trace.invocation_scope == "tenant-2"
     assert trace.idempotency_key == "persisted-key"
+
+
+def test_invocation_metrics_count_claims_and_replays():
+    from reactifact.metrics import Metrics, MetricsInvocationObserver
+
+    metrics = Metrics()
+    store = SessionStore(
+        InMemoryKVBackend(),
+        observer=MetricsInvocationObserver(metrics),
+    )
+
+    def reply(context, msg_id):
+        return {"reply": "ok", "waiting": False}
+
+    assistant = ChatAssistant(
+        store=store,
+        agents=[Agent("answerer", consumes=[Consume(Q)], steps=[Answerer()])],
+        user_message=Q,
+        reply=reply,
+    )
+    inv = Invocation.new(idempotency_key="metrics-key")
+
+    asyncio.run(assistant.invoke("hello", session_id="m1", invocation=inv))
+    asyncio.run(assistant.invoke("hello", session_id="m1", invocation=inv))
+
+    rendered = metrics.render()
+    assert 'reactifact_invocations_total{event="claimed"} 1' in rendered
+    assert 'reactifact_invocations_total{event="replayed"} 1' in rendered
+    assert 'reactifact_invocations_total{event="completed"} 1' in rendered

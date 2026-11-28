@@ -204,3 +204,27 @@ def test_decision_text_goes_through_the_redactor():
     assert skipped
     assert "bob@example.com" not in skipped[0].reason
     assert "[REDACTED:email]" in skipped[0].reason
+
+
+def test_decisions_are_counted_by_metrics_tracer():
+    from reactifact.metrics import Metrics, MetricsTracer
+
+    class Guarded(Step[Answer]):
+        reads = (Turn,)
+        guard = Guard.field("status", "answerable")
+
+        async def run(self, turn: Turn) -> Answer:
+            return Answer(text="never")
+
+    metrics = Metrics()
+    context = Context(resources=RuntimeResources())
+    context.create(Turn(query_id="q1"))
+    runtime = Runtime(
+        context,
+        agents=[Agent("answer", consumes=[Consume(Turn)], steps=[Guarded()])],
+        tracer=MetricsTracer(metrics),
+    )
+
+    asyncio.run(runtime.arun())
+
+    assert 'reactifact_decisions_total{code="skipped_guard"} 1' in metrics.render()

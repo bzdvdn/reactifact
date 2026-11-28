@@ -18,7 +18,9 @@ Counters: `reactifact_runs_total{outcome}`,
 `reactifact_llm_errors_total{provider,model}`, and (with a `pricer`)
 `reactifact_llm_cost_total{provider,model}`,
 `reactifact_tool_calls_total{tool,status}`,
-`reactifact_tool_errors_total{tool}`. Histograms:
+`reactifact_tool_errors_total{tool}`, `reactifact_decisions_total{code}` and
+`reactifact_invocations_total{event}` (with `MetricsInvocationObserver`).
+Histograms:
 `reactifact_agent_latency_seconds{agent}`, `reactifact_llm_latency_seconds`,
 `reactifact_tool_latency_seconds{tool}`.
 
@@ -68,6 +70,8 @@ _HELP = {
     "reactifact_tool_calls_total": "Tool executions, by tool and status.",
     "reactifact_tool_errors_total": "Tool executions that failed.",
     "reactifact_tool_latency_seconds": "Tool execution latency.",
+    "reactifact_decisions_total": "Explainability decisions, by code.",
+    "reactifact_invocations_total": "Invocation claims/replays/completions.",
 }
 
 
@@ -181,6 +185,16 @@ def _fmt_labels(labels: _Labels, **extra: str) -> str:
     return "{" + inner + "}"
 
 
+class MetricsInvocationObserver:
+    """`SessionStore(observer=...)` adapter that counts invocation lifecycle."""
+
+    def __init__(self, metrics: Metrics):
+        self.metrics = metrics
+
+    def record(self, event: str, *, key: str = "", session_id: str = "") -> None:
+        self.metrics.increment("reactifact_invocations_total", event=event)
+
+
 class MetricsTracer(Tracer):
     """A `Tracer` that records Prometheus metrics from each finished turn."""
 
@@ -195,6 +209,8 @@ class MetricsTracer(Tracer):
         metrics.increment("reactifact_runs_total", outcome=trace.outcome or "unknown")
         if trace.outcome.startswith("budget_"):
             metrics.increment("reactifact_budget_exceeded_total", outcome=trace.outcome)
+        for decision in trace.decisions:
+            metrics.increment("reactifact_decisions_total", code=decision.code)
         for span in trace.spans:
             status = "error" if span.error else "ok"
             metrics.increment(
@@ -307,6 +323,7 @@ def create_metrics_router(metrics: Metrics, *, path: str = "/metrics") -> Any:
 __all__ = [
     "DEFAULT_BUCKETS",
     "Metrics",
+    "MetricsInvocationObserver",
     "MetricsTracer",
     "create_metrics_router",
 ]

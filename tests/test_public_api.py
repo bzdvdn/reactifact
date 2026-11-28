@@ -53,6 +53,7 @@ FROZEN: dict[str, frozenset[str]] = {
             "Outbox",
             "Inject",
             "Invocation",
+            "InvocationStore",
             "current_invocation",
             "Human",
             "LLMProvider",

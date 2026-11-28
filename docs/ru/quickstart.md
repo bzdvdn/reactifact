@@ -289,6 +289,10 @@ runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
 app = runner.http()
 ```
 
+Передайте `invocations=SessionStore(SQLiteKVBackend("kv.db"))` в `runner.http()`,
+чтобы учитывать заголовок `Idempotency-Key` на `/run`: завершённый ключ
+переигрывает сохранённый ответ, running получает `409`, failed можно повторить.
+
 `reactifact dev main:app` поднимает `POST /run`, `POST /stream`, `/health`,
 интерактивный `/docs` (OpenAPI из `Question`/`Answer`), `/contracts` и
 `/traces`. Каждый ответ несёт `X-Request-ID`; `/run` добавляет

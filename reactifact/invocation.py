@@ -11,6 +11,7 @@ import uuid
 from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,26 @@ class Invocation:
         )
 
 
+class InvocationStore(Protocol):
+    """Durable invocation records: claim, replay and fenced completion.
+
+    `SessionStore` implements this protocol; an HTTP adapter or worker can also
+    provide its own store. Keys are caller-scoped (Chat prefixes the session).
+    """
+
+    async def claim_invocation(
+        self, key: str, record: dict[str, Any]
+    ) -> tuple[bool, dict[str, Any] | None]: ...
+
+    async def finish_invocation(
+        self, key: str, record: dict[str, Any], *, claim_id: str
+    ) -> bool: ...
+
+    async def get_invocation(self, key: str) -> dict[str, Any] | None: ...
+
+    async def delete_invocation(self, key: str) -> None: ...
+
+
 _CURRENT: ContextVar[Invocation | None] = ContextVar(
     "reactifact_invocation", default=None
 )
@@ -71,6 +92,7 @@ def reset_invocation(token: Token[Invocation | None]) -> None:
 
 __all__ = [
     "Invocation",
+    "InvocationStore",
     "current_invocation",
     "reset_invocation",
     "set_invocation",

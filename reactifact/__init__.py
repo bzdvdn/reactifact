@@ -57,7 +57,7 @@ from .effects import Effects, Handle
 from .events import Event, EventType
 from .interaction import Human, Outbox, Progress
 from .interrupt import PendingAction, PendingQuestion
-from .invocation import Invocation, current_invocation
+from .invocation import Invocation, InvocationStore, current_invocation
 from .logging import bind, configure_logging, get_logger
 from .patches import Create, Delete, Link, Patch, Relation, Unlink, Update
 from .pipeline import (
@@ -155,6 +155,7 @@ __all__ = [
     "Outbox",
     "Inject",
     "Invocation",
+    "InvocationStore",
     "current_invocation",
     "Patch",
     "Agent",

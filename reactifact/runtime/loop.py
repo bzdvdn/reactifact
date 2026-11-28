@@ -27,13 +27,15 @@ def _stage_events(runtime: Runtime, stage: Stage) -> list[Event]:
 def _wake_events(
     runtime: Runtime, stage: Stage, baseline: set[tuple[str, int]]
 ) -> list[Event]:
-    """Synthetic events for already-existing artifacts a stage consumes.
+    """Synthetic events for artifacts a stage consumes.
 
     A stage boundary is an eligibility filter, not an event reset: an artifact
     produced earlier may have had its creation event consumed by an earlier
     stage. The wake pass lets this stage's agents see the current state once,
     while the normal pending-event queue still feeds newly produced artifacts.
     """
+    if stage.wake == "events":
+        return []
     pending = runtime.context.pending_events()
     pending_ids = {event.artifact_id for event in pending}
     events: list[Event] = []
@@ -62,7 +64,7 @@ def _wake_events(
                 # Only artifacts created or updated during this turn wake a
                 # stage: a repeated run on the same context must stay quiescent
                 # instead of re-processing last turn's artifacts.
-                if (artifact.id, artifact.version) in baseline:
+                if stage.wake == "turn" and (artifact.id, artifact.version) in baseline:
                     continue
                 key = (artifact.id, type(artifact.data))
                 if key in seen:

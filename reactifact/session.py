@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, Protocol
 from weakref import WeakKeyDictionary
 
 from ._persistence import DEFAULT_COMPACT_EVERY, load_append, save_append
@@ -10,6 +10,12 @@ from .checkpoints import AppendBackend, KVBackend
 from .commit import ContextCheckpoint
 from .context import Context
 from .resources import RuntimeResources
+
+
+class InvocationObserver(Protocol):
+    """Receives claim/replay/completion events for operations dashboards."""
+
+    def record(self, event: str, *, key: str = "", session_id: str = "") -> None: ...
 
 
 class Session:
@@ -80,6 +86,7 @@ class SessionStore:
         *,
         compact_every: int | None = DEFAULT_COMPACT_EVERY,
         invocation_stale_after: float | None = 600.0,
+        observer: InvocationObserver | None = None,
     ):
         if compact_every is not None and compact_every < 1:
             raise ValueError("compact_every must be >= 1 or None")
@@ -91,6 +98,7 @@ class SessionStore:
         #: again, so a crashed worker does not block retries forever. `None`
         #: disables stale reclaim.
         self.invocation_stale_after = invocation_stale_after
+        self._observer = observer
         # One in-process guard per event loop: an `asyncio.Lock` binds to the
         # loop where it first waits, so a store reused across `asyncio.run`
         # calls must not share one lock. Backends with a native
@@ -158,6 +166,15 @@ class SessionStore:
             self._invocation_guards[loop] = guard
         return guard
 
+    def observe(self, event: str, *, key: str = "", session_id: str = "") -> None:
+        """Report an invocation lifecycle event (best-effort)."""
+        if self._observer is None:
+            return
+        try:
+            self._observer.record(event, key=key, session_id=session_id)
+        except Exception:  # noqa: BLE001 — observability must not break a turn
+            return
+
     def _invocation_is_stale(self, record: dict[str, Any]) -> bool:
         if self.invocation_stale_after is None:
             return False
@@ -189,6 +206,11 @@ class SessionStore:
         claimed_record = {**record, "started_at": time.time()}
         async with self._invocation_guard():
             if await self.backend.set_if_absent(f"invocation:{key}", claimed_record):
+                self.observe(
+                    "claimed",
+                    key=key,
+                    session_id=str(claimed_record.get("session_id", "")),
+                )
                 return True, None
             existing = await self.get_invocation(key)
             if existing is None:
@@ -197,7 +219,17 @@ class SessionStore:
                 return True, None
             if self._invocation_is_stale(existing):
                 await self.put_invocation(key, claimed_record)
+                self.observe(
+                    "stale_reclaimed",
+                    key=key,
+                    session_id=str(claimed_record.get("session_id", "")),
+                )
                 return True, None
+            self.observe(
+                "conflict",
+                key=key,
+                session_id=str(existing.get("session_id", "")),
+            )
             return False, existing
 
     async def finish_invocation(
@@ -216,8 +248,14 @@ class SessionStore:
         async with self._invocation_guard():
             existing = await self.get_invocation(key)
             if existing is None or existing.get("claim_id") != claim_id:
+                self.observe("fenced_out", key=key)
                 return False
             await self.put_invocation(key, record)
+            self.observe(
+                "completed",
+                key=key,
+                session_id=str(record.get("session_id", "")),
+            )
             return True
 
     async def delete_session(self, session_id: str) -> None:

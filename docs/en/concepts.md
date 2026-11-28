@@ -251,7 +251,8 @@ pipeline = StagedPipeline(
 
 The strategy is a `Schedule` on `RunConfig.schedule`; `PipelineRunner`, `Chat`
 and `Daemon` share it. A stage wakes on artifacts produced earlier in the same
-turn, never on last turn's artifacts.
+turn by default; `Stage(wake="context")` also seeds from long-lived context
+artifacts, and `Stage(wake="events")` relies on pending events only.
 
 ## 6. Provenance
 

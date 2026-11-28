@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from ..agent import Agent
 from ..agent.agent import AgentSource, normalize_units
@@ -30,21 +30,34 @@ class Stage:
     name: str
     agents: tuple[Agent, ...]
     reopen: bool
+    wake: WakeMode
 
     def __init__(
         self,
         name: str,
         agents: Sequence[Agent | AgentSource],
         reopen: bool = False,
+        wake: WakeMode = "turn",
     ) -> None:
         if not name:
             raise ValueError("Stage.name must be a non-empty string")
+        if wake not in ("turn", "context", "events"):
+            raise ValueError("Stage.wake must be 'turn', 'context' or 'events'")
         resolved = normalize_units(agents=list(agents))
         if not resolved:
             raise ValueError(f"Stage {name!r} needs at least one agent")
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "agents", tuple(resolved))
         object.__setattr__(self, "reopen", reopen)
+        object.__setattr__(self, "wake", wake)
+
+
+#: How a stage seeds its first generation.
+#:
+#: - ``"turn"`` — artifacts created or updated since the turn started (default);
+#: - ``"context"`` — every matching artifact in the context, once per entry;
+#: - ``"events"`` — only pending events, never a synthetic wake pass.
+WakeMode = Literal["turn", "context", "events"]
 
 
 @runtime_checkable
@@ -90,4 +103,5 @@ __all__ = [
     "Schedule",
     "Stage",
     "StagedSchedule",
+    "WakeMode",
 ]

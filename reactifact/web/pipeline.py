@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from .._extras import require_extra
+from ..invocation import Invocation
 from .common import (
     PipelineRoutes,
     _check_path,
@@ -22,6 +26,7 @@ from .common import (
 if TYPE_CHECKING:
     from fastapi import APIRouter
 
+    from ..invocation import InvocationStore
     from ..pipeline import PipelineRunner
 
 
@@ -34,6 +39,7 @@ def create_pipeline_router(
     | None = None,
     max_iterations: int = 100,
     with_health: bool = True,
+    invocations: InvocationStore | None = None,
 ) -> APIRouter:
     """A FastAPI `APIRouter` for a typed `PipelineRunner`.
 
@@ -53,7 +59,7 @@ def create_pipeline_router(
     """
     require_extra("web.create_pipeline_router", "fastapi", "web")
     from fastapi import APIRouter, Request, Response
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import JSONResponse, StreamingResponse
 
     routes = cast(
         PipelineRoutes, _routes(PipelineRoutes(), routes_override, PipelineRoutes)
@@ -92,12 +98,115 @@ def create_pipeline_router(
         async def health() -> dict[str, bool]:
             return {"ok": True}
 
+    async def _start_idempotent(
+        request: Any, seed: Any
+    ) -> tuple[str | None, Any | None]:
+        """Claim the request's idempotency key; return (store key, replay)."""
+        idem = request.headers.get("Idempotency-Key")
+        if not idem:
+            return None, None
+        if invocations is None:
+            return None, JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "idempotency_not_configured",
+                        "message": (
+                            "Idempotency-Key needs create_pipeline_router("
+                            "invocations=...)"
+                        ),
+                    }
+                },
+            )
+        store_key = f"{pipeline.name}:{idem}"
+        claim_id = uuid.uuid4().hex
+        request_hash = hashlib.sha256(
+            json.dumps(seed.model_dump(mode="json"), sort_keys=True).encode()
+        ).hexdigest()
+        record = {
+            "status": "running",
+            "claim_id": claim_id,
+            "pipeline": pipeline.name,
+            "request_hash": request_hash,
+        }
+        claimed, existing = await invocations.claim_invocation(store_key, record)
+        if not claimed:
+            status = existing.get("status") if existing is not None else None
+            if (
+                status == "done"
+                and existing is not None
+                and "body" in existing
+                and existing.get("request_hash") == request_hash
+            ):
+                headers = {"Idempotent-Replayed": "true"}
+                if existing.get("trace_id"):
+                    headers["X-Reactifact-Run-Id"] = str(existing["trace_id"])
+                return None, JSONResponse(
+                    status_code=int(existing.get("status_code", 200)),
+                    content=existing["body"],
+                    headers=headers,
+                )
+            if status == "done" and existing is not None:
+                return None, JSONResponse(
+                    status_code=422,
+                    content={
+                        "error": {
+                            "code": "idempotency_key_reused",
+                            "message": (
+                                "this Idempotency-Key was used with a different request"
+                            ),
+                        }
+                    },
+                )
+            if status == "running":
+                return None, JSONResponse(
+                    status_code=409,
+                    content={
+                        "error": {
+                            "code": "invocation_running",
+                            "message": "an invocation with this key is running",
+                        }
+                    },
+                )
+            await invocations.delete_invocation(store_key)
+            claimed, _ = await invocations.claim_invocation(store_key, record)
+            if not claimed:
+                return None, JSONResponse(
+                    status_code=409,
+                    content={
+                        "error": {
+                            "code": "invocation_running",
+                            "message": "an invocation with this key is running",
+                        }
+                    },
+                )
+        request.state.reactifact_claim_id = claim_id
+        request.state.reactifact_request_hash = request_hash
+        return store_key, None
+
     async def run(seed: Any, request: Any, response: Any) -> Any:
-        result = await pipeline.arun(
-            seed,
-            max_iterations=max_iterations,
-            request=await _turn_request(request),
+        store_key, replay = await _start_idempotent(request, seed)
+        if replay is not None:
+            return replay
+        idem = (
+            request.headers.get("Idempotency-Key") if invocations is not None else None
         )
+        invocation = Invocation.new(idempotency_key=idem) if idem else None
+        try:
+            result = await pipeline.arun(
+                seed,
+                max_iterations=max_iterations,
+                request=await _turn_request(request),
+                invocation=invocation,
+            )
+        except Exception:
+            if store_key is not None and invocations is not None:
+                await invocations.finish_invocation(
+                    store_key,
+                    {"status": "failed"},
+                    claim_id=str(request.state.reactifact_claim_id),
+                )
+            raise
         request.state.reactifact_run_id = result.trace_id
         if result.trace_id:
             response.headers["X-Reactifact-Run-Id"] = result.trace_id
@@ -117,7 +226,28 @@ def create_pipeline_router(
             headers = {"X-Request-ID": error["request_id"]}
             if error["trace_id"]:
                 headers["X-Reactifact-Run-Id"] = error["trace_id"]
+            if store_key is not None and invocations is not None:
+                await invocations.finish_invocation(
+                    store_key,
+                    {"status": "failed"},
+                    claim_id=str(request.state.reactifact_claim_id),
+                )
             return JSONResponse(status_code=500, content=payload, headers=headers)
+        if store_key is not None and invocations is not None:
+            await invocations.finish_invocation(
+                store_key,
+                {
+                    "status": "done",
+                    "claim_id": str(request.state.reactifact_claim_id),
+                    "status_code": 200,
+                    "body": artifact.data.model_dump(mode="json"),
+                    "trace_id": result.trace_id,
+                    "request_hash": str(
+                        getattr(request.state, "reactifact_request_hash", "")
+                    ),
+                },
+                claim_id=str(request.state.reactifact_claim_id),
+            )
         return artifact.data
 
     run.__annotations__ = {
@@ -137,6 +267,26 @@ def create_pipeline_router(
         )
 
     async def stream(seed: Any, request: Any) -> Any:
+        if request.headers.get("Idempotency-Key"):
+            code = (
+                "idempotency_not_supported"
+                if invocations is not None
+                else "idempotency_not_configured"
+            )
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": code,
+                        "message": (
+                            "Idempotency-Key is supported on /run, not /stream"
+                            if invocations is not None
+                            else "Idempotency-Key needs create_pipeline_router("
+                            "invocations=...)"
+                        ),
+                    }
+                },
+            )
         turn_request = await _turn_request(request)
 
         async def frames() -> AsyncIterator[str]:
@@ -201,6 +351,7 @@ def create_http_app(
     max_iterations: int = 100,
     validate: bool = True,
     gzip: bool = True,
+    invocations: InvocationStore | None = None,
     **fastapi_kwargs: Any,
 ) -> Any:
     """A ready FastAPI app around a typed `PipelineRunner`.
@@ -264,6 +415,7 @@ def create_http_app(
             routes_override=routes,
             request_factory=request_factory,
             max_iterations=max_iterations,
+            invocations=invocations,
         ),
         dependencies=deps,
     )

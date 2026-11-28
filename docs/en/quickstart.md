@@ -291,6 +291,10 @@ runner = PipelineRunner(pipeline, config=RunConfig(traces=True))
 app = runner.http()
 ```
 
+Pass `invocations=SessionStore(SQLiteKVBackend("kv.db"))` to `runner.http()`
+to honour an `Idempotency-Key` header on `/run`: a completed key replays the
+stored response, a running one gets `409`, a failed one may be retried.
+
 `reactifact dev main:app` then serves `POST /run`, `POST /stream`, `/health`,
 interactive `/docs` (OpenAPI generated from `Question`/`Answer`), `/contracts`
 and `/traces`. Every response carries `X-Request-ID`; `/run` adds

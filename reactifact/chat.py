@@ -838,6 +838,9 @@ class ChatAssistant:
                             session_id, request, record
                         )
                         if payload is not None:
+                            self.store.observe(
+                                "replayed", key=storage_key, session_id=session_id
+                            )
                             yield ChatEvent(kind="session", session_id=session_id)
                             yield ChatEvent(
                                 kind="message",
@@ -865,6 +868,9 @@ class ChatAssistant:
                             session_id, request, existing
                         )
                         if payload is not None:
+                            self.store.observe(
+                                "replayed", key=storage_key, session_id=session_id
+                            )
                             yield ChatEvent(kind="session", session_id=session_id)
                             yield ChatEvent(
                                 kind="message",

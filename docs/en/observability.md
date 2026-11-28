@@ -387,6 +387,8 @@ agent,status}`, `reactifact_agent_latency_seconds{agent}`,
 `reactifact_llm_calls_total{provider,model,agent}`,
 `reactifact_llm_tokens_total{kind,provider,model}`,
 `reactifact_llm_errors_total{provider,model}`,
+`reactifact_decisions_total{code}`, `reactifact_invocations_total{event}`
+(claimed/replayed/stale_reclaimed/conflict/completed/fenced_out),
 `reactifact_tool_calls_total{tool,status}`,
 `reactifact_tool_errors_total{tool}`,
 `reactifact_tool_latency_seconds{tool}`, and — with

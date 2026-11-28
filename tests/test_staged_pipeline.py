@@ -7,6 +7,7 @@ import asyncio
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Artifact,
     Chat,
     Consume,
     Context,
@@ -261,3 +262,66 @@ def test_second_staged_run_on_the_same_context_is_quiescent():
     assert runs == 0
     assert len(runtime.context.list_artifacts(A)) == 1
     assert len(runtime.context.list_artifacts(B)) == 1
+
+
+def test_stage_wake_context_can_see_a_long_lived_artifact():
+    class Settings(BaseModel):
+        text: str
+
+    class MakeFromSettings(Step[A]):
+        reads = (Settings,)
+
+        async def run(self, settings: Artifact[Settings]) -> A:
+            return A(text=settings.data.text)
+
+    def run_with(wake: str) -> int:
+        stage = Stage(
+            "one",
+            [Agent("a", consumes=[Consume(Settings)], steps=[MakeFromSettings()])],
+            wake=wake,
+        )
+        runtime = Runtime(
+            Context(resources=RuntimeResources()),
+            agents=list(stage.agents),
+            schedule=StagedSchedule([stage]),
+        )
+        runtime.context.create(Settings(text="config"))
+        # Simulate an artifact loaded from a persisted session: it is in the
+        # context but has no pending creation event for this turn.
+        runtime.context.consume_events(runtime.context.pending_events())
+        asyncio.run(runtime.arun())
+        return len(runtime.context.list_artifacts(A))
+
+    assert run_with("turn") == 0
+    assert run_with("context") == 1
+
+
+def test_stage_wake_events_skips_the_synthetic_pass():
+    class AlsoConsumesA(Step[C]):
+        reads = (A,)
+
+        async def run(self, a: A) -> C:
+            return C(text=f"early:{a.text}")
+
+    pipeline = _pipeline(
+        [
+            Stage(
+                "one",
+                [
+                    Agent("a", consumes=[Consume(Seed)], steps=[MakeA()]),
+                    Agent("early", consumes=[Consume(A)], steps=[AlsoConsumesA()]),
+                ],
+            ),
+            Stage(
+                "two",
+                [Agent("b", consumes=[Consume(A)], steps=[MakeB()])],
+                wake="events",
+            ),
+        ]
+    )
+    result = PipelineRunner(
+        pipeline, config=RunConfig(resources=RuntimeResources())
+    ).run(Seed(text="x"))
+
+    assert result.context.latest(C) is not None
+    assert result.context.latest(B) is None
