@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from reactifact import Budget, Context, Runtime
-from reactifact.tracing import Tracer, TraceStore
+from reactifact import Budget, Pipeline, PipelineRunner, RunConfig
 
 from app.config import Settings
 from app.models import Report, Tick
@@ -24,23 +23,35 @@ def build_budget(settings: Settings) -> Budget:
     )
 
 
-async def run_once(settings: Settings, sequence: int) -> Report | None:
-    resources = build_resources(settings)
-    context = Context(resources=resources)
-    context.create(Tick(sequence=sequence, at=datetime.now(UTC)))
-    tracer = Tracer(store=TraceStore(settings.trace_path)) if settings.tracing_enabled else None
-    runtime = Runtime(
-        context,
+def build_pipeline(settings: Settings) -> Pipeline:
+    return Pipeline(
         agents=[monitor_agent(timeout=settings.agent_timeout_seconds)],
-        budget=build_budget(settings),
-        tracer=tracer,
+        seed_type=Tick,
+        answer_type=Report,
+        name="daemon-monitor",
     )
+
+
+def build_run_config(settings: Settings) -> RunConfig:
+    return RunConfig(
+        resources=build_resources(settings),
+        budget=build_budget(settings),
+        traces=settings.trace_path if settings.tracing_enabled else None,
+    )
+
+
+async def run_once(settings: Settings, sequence: int) -> Report | None:
+    config = build_run_config(settings)
+    resources = config.resources
+    assert resources is not None
     try:
-        await runtime.arun()
+        result = await PipelineRunner(build_pipeline(settings), config=config).arun(
+            Tick(sequence=sequence, at=datetime.now(UTC))
+        )
     finally:
         await resources.aclose()
-    report = context.latest(Report)
+    report = result.latest(Report)
     return report.data if report is not None else None
 
 
-__all__ = ["build_budget", "run_once"]
+__all__ = ["build_budget", "build_pipeline", "build_run_config", "run_once"]

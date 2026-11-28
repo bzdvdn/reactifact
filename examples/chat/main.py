@@ -14,9 +14,9 @@ Run:  .venv/bin/python -m examples.chat.main
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Any
+from typing import Any
 
-from reactifact import Chat, Pipeline, When
+from reactifact import Chat, Consume, Pipeline
 from reactifact.agent import agent
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import InMemoryKVBackend
@@ -28,10 +28,8 @@ KEEP = 4  # ChatMemory keeps the last N messages
 SESSION_ID = "demo"
 
 
-@agent
-async def echo(
-    message: Annotated[ConversationMessage, When(lambda m: m.role == "user")],
-) -> ConversationMessage:
+@agent(consumes=[Consume.by_field(ConversationMessage, "role", "user")])
+async def echo(message: ConversationMessage) -> ConversationMessage:
     """A deterministic stand-in for a real assistant (no LLM)."""
     return ConversationMessage(
         role="assistant",

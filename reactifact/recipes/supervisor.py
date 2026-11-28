@@ -104,6 +104,18 @@ class Router(Generic[RequestT, TaskT], ABC):
     def produce(self) -> Step[Any]:
         return _RouteStep(self)
 
+    def agent(self, name: str = "router", **kwargs: Any) -> Any:
+        """A ready single-step `Agent` around this router."""
+        from ..agent import Agent
+
+        step = self.produce()
+        return Agent(
+            name,
+            consumes=list(step.read_specs() or ()),
+            steps=[step],
+            **kwargs,
+        )
+
 
 class ApprovalGate(Generic[ReportT, FinalT], ABC):
     """Ask a human to approve `report` before finalizing it (§60)."""
@@ -131,6 +143,19 @@ class ApprovalGate(Generic[ReportT, FinalT], ABC):
 
     def produce(self) -> Step[Any]:
         return _ApprovalStep(self)
+
+    def agent(self, name: str = "approval", **kwargs: Any) -> Any:
+        """A ready single-step `Agent` around this approval gate."""
+        from ..agent import Agent
+        from ..consume import Consume
+
+        step = self.produce()
+        return Agent(
+            name,
+            consumes=[Consume(self.report_type), Consume(PendingQuestion)],
+            steps=[step],
+            **kwargs,
+        )
 
     def _final_id(self, thread_id: str) -> str:
         return f"final:{thread_id}"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from app.bootstrap import build_budget
+from app.bootstrap import build_budget, build_run_config, build_trace_store
 from app.config import Settings
 from app.llm import build_llm
 from pydantic import SecretStr
@@ -60,6 +60,27 @@ def test_budget_comes_from_settings():
     assert budget.max_tool_calls == 2
     assert budget.max_tokens == 99
     assert budget.max_cost == 0.25
+
+
+def test_run_config_carries_budget_tracing_and_concurrency(tmp_path):
+    settings = _settings(
+        llm_provider="none",
+        budget_max_runs=5,
+        chat_max_concurrency=3,
+        trace_path=str(tmp_path / "traces.db"),
+    )
+    config = build_run_config(settings, build_trace_store(settings))
+
+    assert config.budget is not None and config.budget.max_runs == 5
+    assert config.max_concurrency == 3
+    assert config.tracer is not None
+
+    settings = _settings(
+        llm_provider="none",
+        tracing_enabled=False,
+        trace_path=str(tmp_path / "off.db"),
+    )
+    assert build_run_config(settings, build_trace_store(settings)).tracer is None
 
 
 def test_prod_rejects_in_memory_sessions_and_missing_auth():

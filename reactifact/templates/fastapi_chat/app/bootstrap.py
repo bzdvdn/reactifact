@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reactifact import Budget, Chat, Agent, SessionStore
+from reactifact import Agent, Budget, Chat, RunConfig, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import (
     FileKVBackend,
@@ -10,7 +10,7 @@ from reactifact.checkpoints import (
     PostgreSQLKVBackend,
     SQLiteKVBackend,
 )
-from reactifact.tracing import TraceStore
+from reactifact.tracing import Tracer, TraceStore
 
 from app.agent.pipeline import build_answer_agent, build_assistant
 from app.config import Settings
@@ -63,6 +63,14 @@ def build_agents(settings: Settings) -> list[Agent]:
     return [build_answer_agent(timeout=settings.agent_timeout_seconds)]
 
 
+def build_run_config(settings: Settings, trace_store: TraceStore) -> RunConfig:
+    return RunConfig(
+        budget=build_budget(settings),
+        tracer=((lambda: Tracer(store=trace_store)) if settings.tracing_enabled else None),
+        max_concurrency=settings.chat_max_concurrency,
+    )
+
+
 def build_assistant_from_settings(
     settings: Settings,
     store: SessionStore,
@@ -71,9 +79,8 @@ def build_assistant_from_settings(
     return build_assistant(
         settings=settings,
         store=store,
-        trace_store=trace_store,
         agents=build_agents(settings),
-        budget=build_budget(settings),
+        config=build_run_config(settings, trace_store),
         memory=build_chat_memory(settings),
     )
 
@@ -83,6 +90,7 @@ __all__ = [
     "build_assistant_from_settings",
     "build_budget",
     "build_chat_memory",
+    "build_run_config",
     "build_session_store",
     "build_trace_store",
 ]

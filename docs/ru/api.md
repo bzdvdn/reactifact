@@ -123,7 +123,7 @@ Freeze-тест фиксирует и top-level набор, и `__all__` кан�
 
 | Символ | Роль |
 | --- | --- |
-| `Agent` | пользовательская группа шагов: `Agent(name, steps=..., consumes=..., retry=..., timeout=..., fallback=..., priority=...)` — сама единица планирования; `Route` и `Pipeline` принимают её напрямую; это не барьер исполнения |
+| `Agent` | пользовательская единица планирования: `Agent(name, consumes=..., steps=..., retry=..., timeout=..., fallback=..., priority=...)`; `consumes` — явный wake-контракт (runtime умеет выводить его из `reads` шагов, но в коде приложения на это не полагайтесь; `REACTIFACT_DEV=1` предупреждает в dev); `Route` и `Pipeline` принимают агент напрямую; это не барьер исполнения |
 | `Read` | вход шага: `Read(Query)`, `Read.by_field(Query, "test", 123)`, `Read.on_create(Query)`, `Read.after_delete(Scratch)`; `required=False` — читать, только если есть |
 | `agent` (`@agent`) | декоратор: одна функция → один `Agent` с одним шагом; типизированные параметры — чтение, аннотация возврата — `produces` (явная форма: `@agent(consumes=..., produces=..., retry=..., timeout=...)`) |
 | `Runtime(steps=..., agents=...)` | диспетчеризует шаги и агенты вместе (сначала шаги). Каждый голый `Step` оборачивается в неявного агента из одного; `groups=` — deprecated alias для `agents=`. |

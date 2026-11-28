@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from reactifact import (
     Agent,
     ArtifactConflict,
+    Consume,
     Context,
     MergeConflict,
     Read,
@@ -51,8 +52,8 @@ async def run_conflicts() -> dict[str, Any]:
     runtime = Runtime(
         context,
         agents=[
-            Agent("writer-a", steps=[Writer("a")]),
-            Agent("writer-b", steps=[Writer("b")]),
+            Agent("writer-a", consumes=[Consume(Trigger)], steps=[Writer("a")]),
+            Agent("writer-b", consumes=[Consume(Trigger)], steps=[Writer("b")]),
         ],
         max_concurrency=2,
     )

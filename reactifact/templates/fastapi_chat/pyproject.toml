@@ -9,7 +9,7 @@ description = "FastAPI chat template for reactifact (auth, sessions, SSE, traces
 requires-python = ">=3.11"
 dependencies = [
     # FastAPI is an optional extra of reactifact — the template opts in.
-    "reactifact[web]>=0.23.0",
+    "reactifact[web]>=0.25.1",
     "pydantic-settings>=2.0",
 ]
 

@@ -77,6 +77,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   skills use `@step` functions, `Read` inputs and `Consume` wake-ups; the
   devops router, report builders, reply, memory and branch scenarios are
   typed steps rather than app-level `Step` subclasses.
+- **FastAPI chat template uses `RunConfig`.** `build_run_config(settings,
+  trace_store)` maps the template settings to budget, tracing and chat
+  concurrency; `Chat(config=...)` consumes it, and the generated project
+  requires the current reactifact release.
+- **Daemon template uses the pipeline runner.** Its monitor is a typed `@step`
+  returning `Ensure(Report)`, and `run_once` executes a `Pipeline` through
+  `PipelineRunner` + `RunConfig` instead of hand-building a `Runtime`. The
+  agent/daemon/chat templates now require reactifact 0.25.1.
+- **Repair stages tolerate a seeded project.** `CollectStage`/`PickStage`/
+  `ApprovalStage`/`AssistantStage` take an optional user message, so a project
+  seeded past the conversation (the estimate scenario) advances without a
+  spurious `MissingInputError`.
+- **Every example agent declares `consumes`.** Examples no longer rely on the
+  runtime deriving the wake set from step reads; the agent's scheduling
+  contract is visible at its definition. A hygiene test fails a new example
+  agent that omits `consumes=` (or the imperative `triggers=`).
+- **Agent-first example layout.** Public capabilities live in `agents/`
+  (`forklab`, `knowledge`, `devops`, `medic_lab`, `repair`, `code_review`,
+  `outbox`, `fintech_audit`); one-step agents are `@agent` functions, while
+  multi-step internals use private `_steps`/`_stages` modules. The `tour`
+  keeps its explicit `Step` scenes because they teach the primitives.
+- **Agent-level recipe methods.** `ApprovalFlow.agent()`, `StatusMachine.agent()`,
+  `Router.agent()` and `ApprovalGate.agent()` return a ready `Agent` with an
+  explicit wake set; the existing `.produce()`/`.steps()` forms stay available
+  for composition inside a larger agent.
+- **Dev-mode consumes warning.** With `REACTIFACT_DEV=1` (or
+  `REACTIFACT_ENV=dev`), `Agent(steps=...)` without `consumes` warns that the
+  wake set is being derived from step reads. Production stays quiet.
 
 ## [0.25.1] — 2026-11-27
 

@@ -118,7 +118,7 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 
 | Symbol | Role |
 | --- | --- |
-| `Agent` | the user-facing group of steps: `Agent(name, steps=..., consumes=..., retry=..., timeout=..., fallback=..., priority=...)` is the runtime/scheduling unit; `Route` and `Pipeline` accept it directly; it is not an execution barrier |
+| `Agent` | the user-facing scheduling unit: `Agent(name, consumes=..., steps=..., retry=..., timeout=..., fallback=..., priority=...)`; `consumes` is the explicit wake contract (the runtime can derive it from step reads, but don't rely on that in app code; `REACTIFACT_DEV=1` warns in dev); `Route` and `Pipeline` accept it directly; it is not an execution barrier |
 | `Read` | a step input: `Read(Query)`, `Read.by_field(Query, "test", 123)`, `Read.on_create(Query)`, `Read.after_delete(Scratch)`; `required=False` reads only when present |
 | `agent` (`@agent`) | decorator: one function → one `Agent` with a single step; typed parameters are reads and the return annotation is `produces` (`@agent(consumes=..., produces=..., retry=..., timeout=...)` for the explicit form) |
 | `Runtime(steps=..., agents=...)` | dispatches steps and agents together (steps first). Each raw `Step` is wrapped in an implicit agent of one; `groups=` is a deprecated alias for `agents=`. |

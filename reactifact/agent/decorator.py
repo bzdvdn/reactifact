@@ -31,6 +31,7 @@ def agent(
     capabilities: tuple[str, ...] | None = None,
     wakes: bool | Callable[[Event, Context | None], bool] = True,
     scope: Any | None = None,
+    provenance: Any | None = None,
 ) -> Callable[[Callable[..., Any]], Agent]: ...
 
 
@@ -48,6 +49,7 @@ def agent(
     capabilities: tuple[str, ...] | None = None,
     wakes: bool | Callable[[Event, Context | None], bool] = True,
     scope: Any | None = None,
+    provenance: Any | None = None,
 ) -> Agent | Callable[[Callable[..., Any]], Agent]:
     """Turn one function into an `Agent` with a single step.
 
@@ -80,6 +82,7 @@ def agent(
             consumes=consumes,
             name=name or fn.__name__,
             scope=scope,
+            provenance=provenance,
         )(fn)
         specs = function_step.read_specs() or ()
         if not specs:

@@ -717,9 +717,9 @@ def test_rejected_design_options_offer_a_fresh_set(tmp_path):
 
 
 def test_read_only_stages_do_not_wake_on_project():
-    from examples.repair.steps import AssistantStage, PickStage
+    from examples.repair.agents import assistant_stage, pick_stage
 
-    for stage in (PickStage(), AssistantStage()):
+    for stage in (pick_stage, assistant_stage):
         specs = {spec.artifact_type: spec.wakes for spec in stage.consume_specs() or ()}
         assert specs[UserMsg] is True
         assert specs[Project] is False

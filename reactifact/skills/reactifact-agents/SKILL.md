@@ -204,10 +204,31 @@ loop.
 
 Full details, ids and HITL: `references/effects.md`.
 
+## Layout: agents first
+
+Put public capabilities in `agents/`, one agent per file. A one-step agent is
+an `@agent` function — no separate `Step` class or `steps/` folder:
+
+```text
+app/
+  agents/
+    router.py      # @agent: UserMsg -> *Problem
+    answer.py      # @agent: Question -> Answer
+  models.py
+```
+
+Keep a `Step` class or a private `_steps.py` only when one agent genuinely has
+several stages, shared state, or an imperative integration. The public import
+should still be the `Agent`/`@agent`, not the step.
+
+With `REACTIFACT_DEV=1` (or `REACTIFACT_ENV=dev`), constructing
+`Agent(steps=...)` without `consumes` emits a warning: the runtime can derive
+the wake set from step reads, but the agent should state it.
+
 ## Agents and structured pipelines
 
-`Agent` is the user-facing group of steps. It owns `consumes` (wake); each step
-owns `reads` (input) and `produces`. `Read` is the input descriptor:
+`Agent` is the user-facing scheduling unit. It owns `consumes` (wake); each
+step owns `reads` (input) and `produces`. `Read` is the input descriptor:
 
 ```python
 # not-run: illustrative
@@ -225,6 +246,7 @@ For one function, prefer `@agent`:
 
 ```python
 from pydantic import BaseModel
+from reactifact import Consume
 from reactifact.agent import agent
 
 
@@ -236,7 +258,7 @@ class Answer(BaseModel):
     text: str
 
 
-@agent
+@agent(consumes=[Consume(Question)])
 async def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 ```
@@ -288,8 +310,9 @@ result = PipelineRunner(QA).run(Question(text="hello"))
 assert result.context.latest(Answer).data.text == "HELLO"
 ```
 
-- `Agent(steps=[...])` owns the steps and `consumes`/retry/timeout/fallback/
-  priority policy; it **is** the scheduling unit.
+- `Agent(consumes=[...], steps=[...])` owns the wake contract and
+  retry/timeout/fallback/priority policy; it **is** the scheduling unit.
+  Spell `consumes` out even though the runtime can derive it from the steps.
 - `Pipeline(agents=[...], routes=[...])` is declarative structure;
   `Pipeline.agents` expands agents and `Route.agents()` for `Runtime`.
 - `PipelineRunner` + `RunConfig` own resources/budget/tracing and run;
@@ -347,6 +370,7 @@ instead of copying try/except into the step:
 # not-run: illustrative
 Agent(
     "answer_builder",
+    consumes=[Consume(Answer)],
     steps=[BuildAnswer()],
     fallback=FallbackAnswer("Не удалось собрать ответ."),
     fallback_on=(ConnectionError, TimeoutError),

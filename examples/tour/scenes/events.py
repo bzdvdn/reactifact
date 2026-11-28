@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Consume,
     Context,
     Progress,
     Runtime,
@@ -86,7 +87,7 @@ async def run_events() -> dict[str, Any]:
     context.create(Question(text="hi"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[Agent("events", steps=[EchoStep()])],
+        agents=[Agent("events", consumes=[Consume(Question)], steps=[EchoStep()])],
     )
 
     events = [

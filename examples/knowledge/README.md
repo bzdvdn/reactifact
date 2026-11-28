@@ -21,14 +21,14 @@ knowledge/
 ├── eval.py            # offline retrieval metrics (no API key)
 ├── web.py            # FastAPI/SSE app + traces + /knowledge status
 ├── models.py         # artifact types (Question, Evidence, Claim, Answer, …)
-├── agents.py    # Agent containers + the shared PIPELINE
-├── steps/            # staged pipeline (each Step is its concern):
+├── agents/           # one public Agent per capability
+│   ├── __init__.py   #   AGENTS + the shared PIPELINE
 │   ├── common.py     #   routing regexes, chat memory, claim/verdict helpers
-│   ├── router.py     #   greeting / direct reply vs research
+│   ├── planner.py    #   greeting / direct reply vs research
 │   ├── search.py     #   fan-out over sources + text/table materialization
 │   ├── evidence.py   #   extraction + deterministic claim verification (§35-§36)
-│   ├── calc.py       #   CSV aggregation → Calculation (§29, §67)
-│   └── lifecycle.py  #   turn overseer + answer builder (loads matched skills)
+│   ├── calculate.py  #   CSV aggregation → Calculation (§29, §67)
+│   └── evaluate.py   #   turn overseer + answer builder (loads matched skills)
 ├── web/index.html    # UI templates
 ├── docs/             # English documentation fixtures (guide / pricing / costs)
 ├── skills/           # cost-reporting.md — a Claude-Skills-shaped instruction
@@ -85,56 +85,63 @@ map of all 9 agents in this demo
 
 ```mermaid
 flowchart LR
-    subgraph SG["knowledge blueprint"]
+    subgraph SG["reactifact blueprint"]
         direction LR
-        A0["answer_builder<br/>BuildAnswer"]
-    ART0["ResearchTurn"]
+        A0["planner<br/>planner"]
+    ART0["UserQuery"]
         ART0 -.->|Consume| A0
-    ART1["Answer"]
+    ART1["ChatReply"]
         A0 ==>|creates| ART1
-        A1["calculator<br/>CalculateAggregate"]
-    ART2["Spreadsheet"]
+    ART2["ResearchTurn"]
+        A0 ==>|creates| ART2
+        A1["search_scout<br/>search_scout"]
         ART2 -.->|Consume| A1
-    ART3["Calculation"]
+    ART3["SearchDone"]
+        ART3 -.->|Consume| A1
+    ART4["SourceRef"]
+        A1 ==>|creates| ART4
         A1 ==>|creates| ART3
-        A2["evidence_builder<br/>ExtractEvidence"]
-    ART4["TypedDoc"]
+        A2["resolver<br/>resolver"]
         ART4 -.->|Consume| A2
-    ART5["Evidence"]
+    ART5["TypedDoc"]
         A2 ==>|creates| ART5
-        A3["planner<br/>PlannerReply · PlannerTurn"]
-    ART6["UserQuery"]
-        ART6 -.->|Consume| A3
-    ART7["ChatReply"]
-        A3 ==>|creates| ART7
-        A3 ==>|creates| ART0
-        A4["progress_evaluator<br/>EvaluateTurn"]
-        ART0 -.->|Consume| A4
-    ART8["SourceRef"]
-        ART8 -.->|Consume| A4
-        ART4 -.->|Consume| A4
+        A3["table_resolver<br/>table_resolver"]
+        ART4 -.->|Consume| A3
+    ART6["Spreadsheet"]
+        A3 ==>|creates| ART6
+        A4["evidence_builder<br/>evidence_builder"]
         ART5 -.->|Consume| A4
-    ART9["Claim"]
-        ART9 -.->|Consume| A4
-        ART2 -.->|Consume| A4
-        ART3 -.->|Consume| A4
-    ART10["SearchDone"]
-        ART10 -.->|Consume| A4
-        ART1 -.->|Consume| A4
-        A4 ==>|lifecycle| ART0
-        A5["resolver<br/>ResolveRef"]
+    ART7["Evidence"]
+        A4 ==>|creates| ART7
+        A5["verifier<br/>verifier"]
+        ART7 -.->|Consume| A5
+    ART8["Claim"]
         ART8 -.->|Consume| A5
-        A5 ==>|creates| ART4
-        A6["search_scout<br/>ScoutSources · Step"]
-        ART0 -.->|Consume| A6
-        A6 ==>|creates| ART8
-        A6 ==>|creates| ART10
-        A7["table_resolver<br/>ResolveTable"]
+        A5 ==>|creates| ART8
+        A6["calculator<br/>calculator"]
+        ART6 -.->|Consume| A6
+        ART2 -.->|Consume| A6
+    ART9["Calculation"]
+        A6 ==>|creates| ART9
+        A7["progress_evaluator<br/>EvaluateTurn"]
+        ART2 -.->|Consume| A7
+        ART4 -.->|Consume| A7
+        ART5 -.->|Consume| A7
+        ART7 -.->|Consume| A7
         ART8 -.->|Consume| A7
-        A7 ==>|creates| ART2
-        A8["verifier<br/>VerifyClaims"]
-        ART5 -.->|Consume| A8
-        A8 ==>|creates| ART9
+        ART6 -.->|Consume| A7
+        ART9 -.->|Consume| A7
+        ART3 -.->|Consume| A7
+    ART10["Answer"]
+        ART10 -.->|Consume| A7
+        A7 ==>|lifecycle| ART2
+        A8["answer_builder<br/>answer_builder"]
+        ART2 -.->|Consume| A8
+        ART7 -.->|Consume| A8
+        ART8 -.->|Consume| A8
+        ART9 -.->|Consume| A8
+        ART6 -.->|Consume| A8
+        A8 ==>|creates| ART10
     end
 ```
 
@@ -201,7 +208,7 @@ add-on — `Answer.sources` and this graph come from the same state.
 `description` frontmatter plus a body of procedural instructions.
 `chat.py`'s `build_resources()` loads every file in `skills/` once
 (`reactifact.recipes.load_skills`) into `resources.get("skills")`; `BuildAnswer`
-(`steps/lifecycle.py`) only *matches* a skill against the situation when it
+(`agents/evaluate.py`) only *matches* a skill against the situation when it
 has a `Calculation` to report:
 
 ```python

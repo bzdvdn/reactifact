@@ -9,6 +9,7 @@ from reactifact import (
     Agent,
     Artifact,
     Budget,
+    Consume,
     Context,
     Edit,
     Emit,
@@ -52,7 +53,19 @@ async def run_state() -> dict[str, Any]:
     context.create(Seed(text="versioned artifacts"), id="seed:1")
     runtime = Runtime(
         context,
-        agents=[Agent("state", steps=[StartDraft(), PolishDraft()])],
+        agents=[
+            Agent(
+                "state",
+                consumes=[
+                    Consume(Seed),
+                    Consume(
+                        Draft,
+                        condition=lambda artifact: artifact.data.revision < 2,
+                    ),
+                ],
+                steps=[StartDraft(), PolishDraft()],
+            )
+        ],
         budget=Budget(max_runs=20),
     )
     await runtime.arun()

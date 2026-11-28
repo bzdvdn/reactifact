@@ -126,5 +126,27 @@ class ApprovalFlow(list[Step[Any]]):
         built.extend(steps)
         super().__init__(built)
 
+    def agent(
+        self,
+        name: str = "approval",
+        *,
+        consumes: Sequence[Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """A ready `Agent` around this approval flow.
+
+        Defaults to waking on the answered `PendingQuestion` and the resulting
+        `ApprovalDecision`; pass `consumes=` when the domain action reads more.
+        """
+        from ...agent import Agent
+        from ...consume import Consume
+
+        resolved = (
+            list(consumes)
+            if consumes is not None
+            else [Consume(PendingQuestion), Consume(ApprovalDecision)]
+        )
+        return Agent(name, consumes=resolved, steps=list(self), **kwargs)
+
 
 __all__ = ["ApprovalFlow", "ClarifyApproval", "InterpretApproval"]

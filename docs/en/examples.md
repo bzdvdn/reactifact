@@ -4,8 +4,9 @@ Thirteen runnable examples ship in `examples/` (in-repo, not packaged). Twelve
 are full applications; `tour` isolates the primitives. They are the reference
 implementations for the [recipes](recipes.md),
 [patterns](patterns.md) and the [port matrix](port-matrix.md) — canonical
-examples are split into a `steps/` package (stages) plus thin
-`web.py`/`chat.py`/`main.py` entries.
+examples expose one public `agents/` package per app (one agent per
+capability) plus thin `web.py`/`chat.py`/`main.py` entries; multi-step agents
+keep their private stages next to the agent.
 
 All demos run **with or without API keys**: configure `.env` (copy
 `.env.example`) for LLM/embedder/image providers, or let them fall back to
@@ -71,8 +72,7 @@ uv run python ./examples/knowledge/chat.py   # interactive CLI
 uv run python -m examples.knowledge.eval    # offline retrieval metrics
 ```
 
-Key files: `steps/` (common, router, search, evidence, calc, lifecycle),
-`agents.py` (the `Agent` definitions), `web.py`.
+Key files: `agents/` (planner, search, evidence, calculate, evaluate + the `PIPELINE`), `web.py`.
 
 ## `knowledge_base` — code-first ingestion and retrieval
 

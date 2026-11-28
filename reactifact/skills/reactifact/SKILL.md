@@ -121,7 +121,7 @@ For example, the same `answer` step as a one-shot pipeline:
 from reactifact import Agent, Pipeline, PipelineRunner
 
 pipeline = Pipeline(
-    agents=[Agent("answer", steps=[answer])],
+    agents=[Agent("answer", consumes=[Question], steps=[answer])],
     seed_type=Question,
     answer_type=Answer,
 )

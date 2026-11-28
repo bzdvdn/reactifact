@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Agent, Budget, Emit, Runtime, Step
+from reactifact import Agent, Budget, Consume, Emit, Runtime, Step
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.replay import replay_context
 from reactifact.session import SessionStore
@@ -47,7 +47,7 @@ async def _run_durable(path: Path) -> dict[str, Any]:
         loaded = session.loaded
         runtime = Runtime(
             session.context,
-            agents=[Agent("durable", steps=[FinishJob()])],
+            agents=[Agent("durable", consumes=[Consume(Job)], steps=[FinishJob()])],
             session=session,
             budget=Budget(max_runs=10),
         )

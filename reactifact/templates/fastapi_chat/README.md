@@ -35,23 +35,27 @@ app/
   api/
     deps.py            # get_assistant
     routes/chat.py     # POST /api/chat/stream, GET /api/chat/history, DELETE
+  models.py            # UserQuery, Answer, AnswerBody, User
   agent/
-    models.py          # UserQuery, Answer
     prompts.py         # prompts live outside steps
-    steps/answer.py     # one structured answer per turn
+    steps/answer.py    # one typed @step: query -> Ensure(Answer)
     resources.py       # per-turn RuntimeResources + principal/authz
-    pipeline.py        # Chat facade hooks + build_answer_agent
+    pipeline.py        # Chat hooks, Answer agent + RunConfig builder
 tests/
   conftest.py          # TestClient, settings, auth headers
   test_chat_sse.py     # SSE + history + 401
-  test_auth_sessions.py# one user cannot read/clear another's session
-  test_settings.py     # presets, model required, budget mapping, prod checks
+  test_auth_sessions.py # one user cannot read/clear another's session
+  test_settings.py     # presets, model required, budget/RunConfig, prod checks
 ```
 
 ## Settings first
 
 Every budget, provider and knob comes from `app/config.py`; there is no
 hardcoded `Budget(...)` or vendor model in the wiring.
+`build_run_config(settings, trace_store)` maps those settings to a `RunConfig`
+(budget, tracer, chat concurrency), which `Chat` receives as `config=`. The
+same object can be handed to `PipelineRunner` when the app grows a one-shot
+pipeline alongside the chat.
 
 Key groups:
 

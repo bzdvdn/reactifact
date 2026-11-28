@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Consume,
     Context,
     RetryPolicy,
     Runtime,
@@ -58,6 +59,7 @@ async def run_resilience() -> dict[str, Any]:
         agents=[
             Agent(
                 "flaky",
+                consumes=[Consume(Job)],
                 steps=[flaky],
                 retry=RetryPolicy(max_attempts=2, backoff=0),
             )
@@ -73,7 +75,7 @@ async def run_resilience() -> dict[str, Any]:
     try:
         await Runtime(
             slow_context,
-            agents=[Agent("slow", steps=[SlowStep()])],
+            agents=[Agent("slow", consumes=[Consume(Job)], steps=[SlowStep()])],
         ).arun()
     except TimeoutError:
         timed_out = True

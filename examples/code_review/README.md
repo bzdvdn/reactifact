@@ -23,10 +23,10 @@ ReviewRequest
                                └─ report → ReviewReport (Markdown)
 ```
 
-- `steps/parse.py` — unified-diff parsing and added-line numbers.
-- `steps/review.py` — rules for `eval`/`exec`, `shell=True`, hardcoded secrets,
+- `agents/parse.py` — unified-diff parsing and added-line numbers.
+- `agents/review.py` — rules for `eval`/`exec`, `shell=True`, hardcoded secrets,
   bare `except`, `TODO`, debug `print`; optional `StructuredLLM` review.
-- `steps/report.py` — aggregates findings and links the report to each
+- `agents/report.py` — aggregates findings and links the report to each
   `FileReview` (`reviewed` relation).
 - `prompts.py` — prompt text outside the steps.
 

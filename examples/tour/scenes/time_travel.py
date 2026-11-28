@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Agent, Runtime, SessionStore, Step
+from reactifact import Agent, Consume, Runtime, SessionStore, Step
 from reactifact.checkpoints import FileKVBackend
 
 
@@ -32,7 +32,7 @@ async def _run_time_travel(directory: Path) -> dict[str, Any]:
     session = await store.open("time-travel")
     runtime = Runtime(
         session.context,
-        agents=[Agent("finish", steps=[Finish()])],
+        agents=[Agent("finish", consumes=[Consume(Job)], steps=[Finish()])],
         session=session,
     )
 

@@ -72,7 +72,7 @@ recorded fingerprint without re-reading the code.
 fintech_audit/
 ├── data/             # transactions.csv, budget.csv, policy.md
 ├── models.py         # Question, Table, Policy, Spend, Variance, AuditAnswer
-├── steps.py          # search → materialize → compute_spend → compute_variance → answer
+├── agents.py         # search → materialize → compute_spend → compute_variance → answer
 └── main.py           # STEPS list, run, audit report, reproducibility check
 ```
 

@@ -147,6 +147,17 @@ class StatusMachine(Step[StatusT], Generic[StatusT]):
         )
         self.artifact_type = resolved
 
+    def agent(self, name: str = "status", **kwargs: Any) -> Any:
+        """A ready single-step `Agent` around this status machine."""
+        from ..agent import Agent
+
+        return Agent(
+            name,
+            consumes=list(self.read_specs() or ()),
+            steps=[self],
+            **kwargs,
+        )
+
     @classmethod
     def from_funcs(
         cls,

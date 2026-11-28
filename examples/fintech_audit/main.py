@@ -25,25 +25,51 @@ from pathlib import Path
 if __package__ in (None, ""):  # run as a script — add the repo root to sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from reactifact import Agent, Budget, Context, Pipeline, Runtime, RuntimeResources
+from reactifact import (
+    Agent,
+    Budget,
+    Consume,
+    Context,
+    Pipeline,
+    Runtime,
+    RuntimeResources,
+)
 from reactifact.audit import build_report, context_hash, report_to_markdown
 from reactifact.recipes import keyword_score
-from reactifact.sources import CSVSource, FileSystemSource
+from reactifact.sources import CSVSource, FileSystemSource, SourceRef
 
-from examples.fintech_audit.models import AuditAnswer, Question, Spend, Variance
-from examples.fintech_audit.steps import (
+from examples.fintech_audit.agents import (
     answer,
     compute_spend,
     compute_variance,
     materialize,
     search_sources,
 )
+from examples.fintech_audit.models import (
+    AuditAnswer,
+    Question,
+    Spend,
+    Table,
+    Variance,
+)
 
 STEPS = [search_sources, materialize, compute_spend, compute_variance, answer]
 
 #: The reusable definition: one deterministic agent, typed seed and answer.
 PIPELINE = Pipeline(
-    agents=[Agent("audit", steps=STEPS)],
+    agents=[
+        Agent(
+            "audit",
+            consumes=[
+                Consume(Question),
+                Consume(SourceRef),
+                Consume(Table),
+                Consume(Spend),
+                Consume(Variance),
+            ],
+            steps=STEPS,
+        )
+    ],
     seed_type=Question,
     answer_type=AuditAnswer,
     name="fintech-audit",

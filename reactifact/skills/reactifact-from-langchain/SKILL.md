@@ -14,7 +14,7 @@ and the graph grows.
 
 | LangChain / LangGraph | reactifact |
 | --- | --- |
-| `StateGraph`, `add_node`, `add_edge` | `Agent(name, steps=[...])` — edges are implicit in step `reads`/`produces` |
+| `StateGraph`, `add_node`, `add_edge` | `Agent(name, consumes=[...], steps=[...])` — `consumes` states the wake set; step `reads`/`produces` hold the data contract |
 | mutable state dict + reducers | typed `BaseModel` artifacts in a `Context` |
 | `RunnableLambda` / a chain step | a `Step` (an agent's transformation) |
 | `@tool` / `Tool` | `reactifact.tools.tool` / `Tool` / `FunctionTool` |

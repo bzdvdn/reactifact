@@ -4,8 +4,9 @@
 пайплайне сборки): двенадцать полноценных приложений и `tour`, который
 изолирует примитивы. Это эталонные реализации
 [рецептов](recipes.md), [паттернов](patterns.md) и
-[port-матрицы](port-matrix.md) — канонические примеры разбиты на пакет `steps/`
-(стадии) + тонкие `web.py`/`chat.py`/`main.py`.
+[port-матрицы](port-matrix.md) — канонические примеры выставляют публичный пакет `agents/`
+(один агент на capability) + тонкие `web.py`/`chat.py`/`main.py`; приватные стадии
+multi-step агента лежат рядом с агентом.
 
 Все демо работают **и с ключами API, и без них**: настройте `.env` (скопируйте
 `.env.example`) ради LLM/эмбеддера/изображений — или оставьте фолбэк на
@@ -71,8 +72,7 @@ uv run python ./examples/knowledge/chat.py   # интерактивный CLI
 uv run python -m examples.knowledge.eval    # метрики retrieval без API-ключа
 ```
 
-Ключевые файлы: `steps/` (common, router, search, evidence, calc, lifecycle),
-`agents.py` (определения `Agent`), `web.py`.
+Ключевые файлы: `agents/` (planner, search, evidence, calculate, evaluate + `PIPELINE`), `web.py`.
 
 ## `knowledge_base` — code-first индексация и поиск
 

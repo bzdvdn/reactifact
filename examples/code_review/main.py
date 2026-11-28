@@ -12,21 +12,11 @@ import json
 import sys
 from pathlib import Path
 
-from reactifact import Agent, Pipeline, PipelineRunner, RunConfig, RuntimeResources
+from reactifact import PipelineRunner, RunConfig, RuntimeResources
 from reactifact.providers import LLMProvider
 
+from .agents import PIPELINE
 from .models import ReviewReport, ReviewRequest
-from .steps import BuildReportStep, ParseDiffStep, ReviewFileStep
-
-STEPS = [ParseDiffStep(), ReviewFileStep(), BuildReportStep()]
-
-#: The reusable definition: one agent, typed seed and answer.
-PIPELINE = Pipeline(
-    agents=[Agent("review", steps=STEPS)],
-    seed_type=ReviewRequest,
-    answer_type=ReviewReport,
-    name="code-review",
-)
 
 DEMO_DIFF = """\
 diff --git a/app.py b/app.py

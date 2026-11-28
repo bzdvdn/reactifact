@@ -5,10 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from reactifact import Agent, Budget, Chat, SessionStore
+from reactifact import Agent, Chat, Consume, RunConfig, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.recipes.conversation import MessageSpec, Transcript
-from reactifact.tracing import Tracer, TraceStore
 
 from app.agent.resources import build_resources
 from app.agent.steps import answer
@@ -25,7 +24,12 @@ _TRANSCRIPT = Transcript(
 
 def build_answer_agent(*, timeout: float | None = None) -> Agent:
     """The assistant's one agent, with an optional per-turn deadline."""
-    return Agent("answer", steps=[answer], timeout=timeout)
+    return Agent(
+        "answer",
+        consumes=[Consume(UserQuery)],
+        steps=[answer],
+        timeout=timeout,
+    )
 
 
 #: The default agent (no deadline); `bootstrap.py` builds one with the setting.
@@ -52,9 +56,8 @@ def build_assistant(
     *,
     settings: Settings,
     store: SessionStore,
-    trace_store: TraceStore,
     agents: Sequence[Agent],
-    budget: Budget,
+    config: RunConfig,
     memory: ChatMemory | None,
 ) -> Chat:
     return Chat(
@@ -65,12 +68,10 @@ def build_assistant(
         reply=make_reply(settings.fallback_reply),
         session_state=session_state,
         resources=lambda session_id, request: build_resources(settings, request),
-        budget=budget,
-        max_concurrency=settings.chat_max_concurrency,
+        config=config,
         memory=memory,
         session_save_policy=settings.chat_session_save_policy,
         fallback_reply=settings.fallback_reply,
-        tracer=((lambda: Tracer(store=trace_store)) if settings.tracing_enabled else None),
     )
 
 

@@ -7,11 +7,13 @@ without trying to lint every stylistic choice.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
+TEMPLATES = ROOT / "reactifact" / "templates"
 
 #: name → why it should not appear in an example
 FORBIDDEN = {
@@ -31,6 +33,39 @@ FORBIDDEN = {
     "direct state mutation": re.compile(r"\bcontext\.state\b|\bartifact\.update\s*\("),
     "legacy StepCall": re.compile(r"\bStepCall\b"),
 }
+
+
+def test_examples_declare_agent_consumes() -> None:
+    """An agent owns its wake contract; examples must spell it out.
+
+    `Agent(steps=...)` can derive triggers from step reads, but that hides the
+    actual scheduling contract. Every example agent states `consumes=` (or the
+    imperative `triggers=` escape hatch) explicitly.
+    """
+    problems: list[str] = []
+    for path in sorted([*EXAMPLES.rglob("*.py"), *TEMPLATES.rglob("*.py")]):
+        if "__pycache__" in path.parts:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr
+                if isinstance(func, ast.Attribute)
+                else ""
+            )
+            if name not in {"Agent", "HITLLMAgent", "LLMAgent"}:
+                continue
+            keywords = {keyword.arg for keyword in node.keywords}
+            if "consumes" not in keywords and "triggers" not in keywords:
+                problems.append(f"{path.relative_to(ROOT)}:{node.lineno}: {name}")
+    assert not problems, "agent without explicit consumes/triggers:\n" + "\n".join(
+        problems
+    )
 
 
 def test_examples_do_not_teach_removed_or_legacy_api() -> None:

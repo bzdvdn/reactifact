@@ -112,7 +112,7 @@ policy** — case 7 wraps the dispatcher with `with_retries(...)`;
 ```text
 outbox/
 ├── models.py       # Order (input) + Receipt (committed state)
-├── steps.py        # records the intent via outbox.act — never does the I/O
+├── agents/order.py # records the intent via outbox.act — never does the I/O
 ├── agents.py  # order · mirror agents (same-generation duplicate)
 ├── dispatcher.py   # the fake external world: SentLog + idempotent dispatcher
 └── main.py         # seven cases

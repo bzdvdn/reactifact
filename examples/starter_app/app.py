@@ -51,6 +51,7 @@ from reactifact import (
     Agent,
     Artifact,
     Chat,
+    Consume,
     Context,
     LLMProvider,
     Pipeline,
@@ -94,7 +95,7 @@ async def _chat_reply(context: Context, question: Artifact[Question]) -> ChatRep
 
 #: The chat shape: one agent, typed seed and answer.
 CHAT_PIPELINE = Pipeline(
-    agents=[Agent("chat", steps=[_chat_reply])],
+    agents=[Agent("chat", consumes=[Consume(Question)], steps=[_chat_reply])],
     seed_type=Question,
     answer_type=ChatReply,
     name="starter-chat",

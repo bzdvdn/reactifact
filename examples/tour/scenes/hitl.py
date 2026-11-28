@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 from reactifact import (
     Agent,
+    Consume,
     Context,
     Human,
     PendingQuestion,
@@ -61,7 +62,16 @@ async def run_hitl() -> dict[str, Any]:
     context.create(RefundRequest(order_id="A-17", amount=4200), id="refund:1")
     runtime = Runtime(
         context,
-        agents=[Agent("refunds", steps=[AskApproval(), Publish()])],
+        agents=[
+            Agent(
+                "refunds",
+                consumes=[
+                    Consume(RefundRequest),
+                    Consume.by_field(PendingQuestion, "answered", True),
+                ],
+                steps=[AskApproval(), Publish()],
+            )
+        ],
     )
 
     await runtime.arun()

@@ -56,7 +56,7 @@ plain `pytest` run never needs a model key or a network connection:
 ```
 examples/repair/
   models.py            Project/ProjectInfo/PlanStep/Estimate/ChatReply/…
-  steps/               the staged pipeline
+  agents/              RepairFlow + private staged pipeline
     common.py          shared helpers + the reset map (change → rebuild)
     design.py          LLM design options
     stages/            one module per stage

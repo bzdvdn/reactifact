@@ -195,10 +195,14 @@ self-scheduling:
 
 ```python
 # not-run: illustrative
-from reactifact import Agent
+from reactifact import Agent, Consume
 from reactifact.verify import Verify
 
-Answerer = Agent("answerer", steps=[BuildAnswer(), Verify(Answer)])
+Answerer = Agent(
+    "answerer",
+    consumes=[Consume(Answer)],
+    steps=[BuildAnswer(), Verify(Answer)],
+)
 ```
 
 The containing group needs no dummy `Step(...)` entries: `Verify` declares its

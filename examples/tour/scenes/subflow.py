@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from reactifact import (
     Agent,
     Artifact,
+    Consume,
     Context,
     Runtime,
     Step,
@@ -47,7 +48,7 @@ class ParentStep(Step):
     async def run(self, context: Context, trigger: Artifact[Question]) -> Final:
         result = await run_subflow(
             context,
-            agents=[Agent("child", steps=[ChildStep()])],
+            agents=[Agent("child", consumes=[Consume(Question)], steps=[ChildStep()])],
             input=trigger,
             output_type=Answer,
             link="supported_by",
@@ -68,7 +69,7 @@ async def run_subflow_scene() -> dict[str, Any]:
     context.create(Question(text="hello from subflow"), id="question:1")
     runtime = Runtime(
         context,
-        agents=[Agent("parent", steps=[ParentStep()])],
+        agents=[Agent("parent", consumes=[Consume(Question)], steps=[ParentStep()])],
         tracer=Tracer(),
     )
 

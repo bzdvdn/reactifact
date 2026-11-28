@@ -9,6 +9,7 @@ from reactifact import (
     Agent,
     Artifact,
     Budget,
+    Consume,
     Context,
     Emit,
     Runtime,
@@ -59,7 +60,7 @@ async def run_model(provider: LLMProvider | None) -> dict[str, Any]:
     )
     runtime = Runtime(
         context,
-        agents=[Agent("model", steps=[write_brief])],
+        agents=[Agent("model", consumes=[Consume(TourFacts)], steps=[write_brief])],
         budget=Budget(max_runs=10),
     )
     await runtime.arun()

@@ -22,8 +22,8 @@ APP_RUN_ONCE=true uv run python -m app.main
 ```text
 app/
   main.py       # signal handling + interval loop
-  runner.py     # one tick: Context -> Runtime -> Report
-  monitor.py    # monitor_agent / MonitorStep
+  runner.py     # one tick: PipelineRunner + RunConfig -> Report
+  monitor.py    # monitor @step + monitor_agent
   models.py     # Tick, Report
   prompts.py    # prompt text outside the step
   resources.py  # per-tick RuntimeResources (LLM + service principal)
@@ -43,5 +43,5 @@ app/
 - `APP_RUN_ONCE=true` is the smoke-test/one-shot mode; no infinite loop.
 - Traces go to `APP_TRACE_PATH` when tracing is enabled.
 
-Replace `MonitorStep` with your real domain step; keep the loop, settings,
-budget and graceful shutdown.
+Replace `monitor` with your real domain step; keep the loop, settings,
+`RunConfig` and graceful shutdown.

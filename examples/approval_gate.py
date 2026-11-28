@@ -15,7 +15,7 @@ import asyncio
 from typing import Any
 
 from pydantic import BaseModel
-from reactifact import Agent, Chat, Human, PendingQuestion, Read, Step
+from reactifact import Agent, Chat, Consume, Human, PendingQuestion, Read, Step
 from reactifact.recipes import ApprovalDecision, ApprovalFlow
 
 
@@ -61,6 +61,7 @@ class DeployOnApproval(Step):
 #: Ask for approval, then let `ApprovalFlow` interpret the answer.
 APPROVAL = Agent(
     "approval",
+    consumes=[Consume(Request), Consume(PendingQuestion), Consume(ApprovalDecision)],
     steps=[
         AskApproval(),  # create the PendingQuestion
         *ApprovalFlow(

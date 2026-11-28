@@ -84,6 +84,16 @@ class MyGate(ApprovalGate[SpecialistReport, FinalReply]):
         return FinalReply(text="Rejected: please refine the request and try again.")
 
 
+def test_router_and_gate_expose_ready_agents():
+    router = MyRouter().agent("router-agent")
+    gate = MyGate().agent("gate-agent")
+
+    assert isinstance(router, Agent) and router.name == "router-agent"
+    assert [consume.artifact_type for consume in router.consumes or ()] == [Request]
+    assert isinstance(gate, Agent) and gate.name == "gate-agent"
+    assert gate.consumes
+
+
 def make_runtime(ctx: Context) -> Runtime:
     class Flow(Agent):
         consumes = [

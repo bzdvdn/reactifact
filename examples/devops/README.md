@@ -19,19 +19,18 @@ devops/
 ├── models.py         # artifact types (UserMsg, *Problem, *Report) + tool results
 ├── policy.py         # demo identities + PermissionPolicy (pure)
 ├── resources.py      # per-user RuntimeResources (principal, memory, guardrails, clients)
-├── agents.py    # Agent containers: Route, K8sAgent, GitlabAgent,
-│                      #   AnsibleAgent (HITLLMAgent), Render, Memory + PIPELINE
+├── agents/            # public agents: Route, K8s/Gitlab/Ansible, Render, Memory
+│   ├── __init__.py    #   composition + PIPELINE
+│   ├── router.py      #   UserMsg → the right *Problem
+│   ├── reports.py     #   tool loop → *Report
+│   ├── memory.py      #   *Report → PendingAction
+│   └── reply.py       #   *Report → ChatReply
 ├── branches.py       # branch/merge prototype: 3 investigations, traces, conflict
 ├── tools.py           # typed @tool + fake K8s/GitLab/Ansible clients (DI, retry)
 ├── guardrails.py      # trust & safety: custom guardrails + the ops policy
 ├── safety.py          # runnable guardrail demo (no LLM/network)
 ├── online_eval.py     # online-eval: score served runs + the ops evaluators
 ├── prompts.py         # per-specialist system prompts
-├── steps/
-│   ├── router.py      #   UserMsg → the right *Problem (structured routing)
-│   ├── reports.py      #   build_k8s/gitlab/ansible_report — tool loop → *Report
-│   ├── memory.py       #   *Report → PendingAction (memory index intent)
-│   └── reply.py        #   *Report → ChatReply (render step)
 └── web/index.html     # UI
 ```
 
@@ -144,7 +143,7 @@ This is the actual static map of all 6 agents in this demo
 flowchart LR
     subgraph SG["reactifact blueprint"]
         direction LR
-        A0["route<br/>route_problem"]
+        A0["route<br/>route"]
     ART0["UserMsg"]
         ART0 -.->|Consume| A0
     ART1["K8sProblem"]
@@ -188,12 +187,12 @@ flowchart LR
         A3 ==>|creates| ART7
     ART10["AnsibleReport"]
         A3 ==>|creates| ART10
-        A4["render<br/>render_reply"]
+        A4["render<br/>render"]
         ART8 -.->|Consume| A4
         ART9 -.->|Consume| A4
         ART10 -.->|Consume| A4
         A4 ==>|creates| ART4
-        A5["memory<br/>remember_report"]
+        A5["memory<br/>memory"]
         ART8 -.->|Consume| A5
         ART9 -.->|Consume| A5
         ART10 -.->|Consume| A5

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from examples.code_review.agents import added_lines, split_diff
 from examples.code_review.main import DEMO_DIFF, run_review
-from examples.code_review.steps import added_lines, split_diff
 from reactifact.providers import FakeLLM
 
 

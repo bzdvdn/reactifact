@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
+import warnings
 from abc import ABC
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
@@ -37,6 +39,22 @@ from .step.resolve import invoke_step
 _produce_runs: ContextVar[list[tuple[str, int, float, datetime]] | None] = ContextVar(
     "reactifact_produce_runs", default=None
 )
+
+
+def _dev_mode() -> bool:
+    """Whether the explicit-`consumes` development warning is enabled.
+
+    Opt in with `REACTIFACT_DEV=1` (or `REACTIFACT_ENV=dev`); production runs
+    stay quiet.
+    """
+    raw = os.getenv("REACTIFACT_DEV")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("REACTIFACT_ENV", "").strip().lower() in {
+        "dev",
+        "development",
+        "local",
+    }
 
 
 def begin_produce_runs() -> Token[Any]:
@@ -225,6 +243,9 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         if consumes is not None:
             self.consumes = list(consumes)
 
+        explicit_triggers = triggers is not None or bool(
+            getattr(type(self), "triggers", None)
+        )
         if triggers is not None:
             self.triggers = list(triggers)
         elif self.triggers:
@@ -235,6 +256,21 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
             self.triggers = self._generate_triggers_from_steps()
         else:
             self.triggers = []
+
+        if (
+            _dev_mode()
+            and self.consumes is None
+            and self.steps
+            and not explicit_triggers
+        ):
+            warnings.warn(
+                f"Agent {self.name!r} declares steps but no consumes; the runtime "
+                "will derive its wake set from step reads. Pass consumes=[...] "
+                "explicitly (or triggers= for the imperative form). Set "
+                "REACTIFACT_DEV=0 to silence this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         self.wakes = (
             wakes if wakes is not None else getattr(self.__class__, "wakes", True)

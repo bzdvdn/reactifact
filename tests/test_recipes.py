@@ -600,6 +600,21 @@ def test_status_machine_from_funcs_and_state_status():
     assert transitions == [("func", "pending", "done")]
 
 
+def test_status_machine_builds_an_agent_with_explicit_consumes():
+    machine = StatusMachine.from_funcs(
+        artifact_type=Job,
+        terminal={"done"},
+        next_status=lambda state: "done" if state.status == "pending" else None,
+        reads=Job,
+    )
+
+    agent = machine.agent("status-agent")
+
+    assert agent.name == "status-agent"
+    assert agent.steps == [machine]
+    assert [consume.artifact_type for consume in agent.consumes or ()] == [Job]
+
+
 def test_status_machine_advances_the_latest_target_for_a_key():
     machine = StatusMachine.from_funcs(
         artifact_type=Job,

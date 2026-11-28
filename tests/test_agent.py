@@ -40,6 +40,35 @@ class LowerStep(Step):
         return Lower(text=question.text.lower())
 
 
+def test_dev_mode_warns_when_agent_derives_consumes_from_steps(monkeypatch):
+    monkeypatch.setenv("REACTIFACT_DEV", "1")
+
+    with pytest.warns(UserWarning, match="declares steps but no consumes"):
+        Agent("derived", steps=[UpperStep()])
+
+    with pytest.warns(UserWarning, match="declares steps but no consumes"):
+        Agent("derived-class", steps=[UpperStep()], consumes=None)
+
+
+def test_dev_mode_warning_is_silent_with_explicit_consumes(monkeypatch):
+    monkeypatch.setenv("REACTIFACT_DEV", "1")
+    import warnings as warnings_module
+
+    with warnings_module.catch_warnings():
+        warnings_module.simplefilter("error")
+        Agent("explicit", consumes=[Consume(Question)], steps=[UpperStep()])
+
+
+def test_dev_mode_warning_is_opt_in(monkeypatch):
+    monkeypatch.delenv("REACTIFACT_DEV", raising=False)
+    monkeypatch.delenv("REACTIFACT_ENV", raising=False)
+    import warnings as warnings_module
+
+    with warnings_module.catch_warnings():
+        warnings_module.simplefilter("error")
+        Agent("derived", steps=[UpperStep()])
+
+
 def test_step_reads_are_the_input_contract():
     @step(produces=Upper, reads=Question)
     def upper(question: Question) -> Upper:

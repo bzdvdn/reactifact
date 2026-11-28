@@ -8,6 +8,7 @@ from reactifact import FakeLLM, PendingQuestion, Pipeline
 from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import (
     ApprovalDecision,
+    ApprovalFlow,
     ApprovalPolicy,
     ClarifyApproval,
     InterpretApproval,
@@ -36,6 +37,18 @@ def _intent(
     llm=None,
 ):
     return asyncio.run(classify_approval(llm, question, policy=policy))
+
+
+def test_approval_flow_builds_an_agent_with_an_explicit_wake_set():
+    agent = ApprovalFlow().agent("approval")
+
+    assert agent.name == "approval"
+    types = {consume.artifact_type for consume in agent.consumes or ()}
+    assert types == {PendingQuestion, ApprovalDecision}
+    assert [step.name for step in agent.steps or ()] == [
+        "InterpretApproval",
+        "ClarifyApproval",
+    ]
 
 
 def test_typed_answer_never_uses_a_model():
