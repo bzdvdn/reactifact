@@ -52,11 +52,12 @@ graph.add_edge(START, "classify")
 graph.add_edge("classify", "answer")
 ```
 
-В reactifact *рёбра исчезают* — они становятся `consumes`/`produces`:
+В reactifact *рёбра исчезают* — шаг объявляет, что читает и производит, а
+агент объявляет, что его будит:
 
 ```python
 from pydantic import BaseModel
-from reactifact import StepInvocation, step
+from reactifact import Agent, Artifact, Consume, Emit, step
 
 
 class Question(BaseModel):
@@ -72,26 +73,26 @@ class Reply(BaseModel):
     text: str
 
 
-@step(produces=Route, reads=Question)
-async def classify(inv: StepInvocation) -> None:
-    question = inv.trigger
+@step(reads=Question, produces=Route)
+def classify(question: Artifact[Question]) -> Emit:
     kind = "billing" if "invoice" in question.data.text.lower() else "general"
-    inv.effects.create(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
+    return Emit(Route(thread_id=question.id, kind=kind), id=f"route:{question.id}")
 
 
-@step(produces=Reply, reads=Route)
-async def answer(inv: StepInvocation) -> None:
-    route = inv.trigger  # этот шаг запускается, потому что создан Route
-    # ... вызов модели с входом, ограниченным ходом ...
-    inv.effects.create(Reply(text="…"), id=f"reply:{route.data.thread_id}")
+@step(reads=Route, produces=Reply)
+def answer(route: Artifact[Route]) -> Emit:
+    # этот шаг запускается, потому что создан Route
+    return Emit(Reply(text="…"), id=f"reply:{route.id}")
+
+
+classifier = Agent("classifier", steps=[classify], consumes=[Consume(Question)])
+answerer = Agent("answerer", steps=[answer], consumes=[Consume(Route)])
 ```
 
-```python
-from reactifact import Context, Runtime, Agent
-
-classifier = Agent("classifier", steps=[classify])
-answerer = Agent("answerer", steps=[answer])
-```
+`Emit` сохраняет явные id; возврат одной модели — короткая форма, когда
+автоматического id достаточно. Шагу, которому нужны сырой trigger, request или
+эффект-слот, можно передать один `inv: StepInvocation` вместо типизированных
+параметров — это низкоуровневый escape hatch, а не обычный стиль.
 
 Две вещи, на которые стоит обратить внимание — это и есть реальная работа при
 переезде:

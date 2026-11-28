@@ -51,9 +51,10 @@ await assistant.history(session_id="user-1")   # поток на данный м
 
 Готовый `quick.chat_agent(agents, store=…)` делает то же с дефолтами.
 
-Фасад повторяет `Pipeline` там, где это важно: `Chat(traces=True|path)`
-открывает `TraceStore`, `trace_sample=` применяет ту же политику сэмплинга,
-`lifespan=` + `async with chat:` владеет долгоживущими ресурсами, а
+Фасад повторяет `PipelineRunner` там, где это важно:
+`Chat(config=RunConfig(traces=True|path))` открывает `TraceStore`,
+`trace_sample=` применяет ту же политику сэмплинга, `lifespan=` +
+`async with chat:` владеет долгоживущими ресурсами, а
 `await chat.answer(...)` возвращает типизированный `answer_type`, а не
 транспортный payload.
 

@@ -50,7 +50,7 @@ await assistant.history(session_id="user-1")   # the thread so far
 
 A ready-made `quick.chat_agent(agents, store=…)` does the same with defaults.
 
-The facade mirrors `Pipeline` where it matters: `Chat(traces=True|path)`
+The facade mirrors `PipelineRunner` where it matters: `Chat(config=RunConfig(traces=True|path))`
 opens a `TraceStore`, `trace_sample=` applies the same sampling policy,
 `lifespan=` + `async with chat:` owns long-lived resources, and
 `await chat.answer(...)` returns the typed `answer_type` instead of the

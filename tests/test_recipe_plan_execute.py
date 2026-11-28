@@ -126,7 +126,6 @@ def test_from_funcs_builds_a_pipeline_without_subclassing():
     )
     agent = flow.agent()
     assert agent.name == "plan-execute"
-    assert flow.group() is not agent  # `group()` remains an alias
     pipeline = flow.pipeline(seed_type=Goal)
     result = PipelineRunner(pipeline).run(Goal(text="hello"))
 

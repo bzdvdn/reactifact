@@ -164,16 +164,9 @@ class ReflectionLoop(Generic[TopicT, DraftT, ReviewT, FinalT], ABC):
             Consume(self.review_type),
         ]
 
-    def consumes(self) -> list[Consume]:
-        """Deprecated alias for `reads()`."""
-        return self.reads()
-
     def agent(self, name: str = "reflection", **kwargs: Any) -> Agent:
         """A ready `Agent` (consumes inferred) for `Runtime(agents=...)`."""
         return Agent(name, consumes=self.reads(), steps=self.produces(), **kwargs)
-
-    #: Compatibility alias for `agent()`.
-    group = agent
 
     def pipeline(self, *, name: str = "reflection", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this loop already grouped and wired."""

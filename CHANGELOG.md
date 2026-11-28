@@ -28,9 +28,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `reactifact.commit.Read` (use `CommitRead`), `ProduceRun` (use `StepRun`),
   `RunTrace.group` (use `.agent`), the `consume=` keyword of `TurnContextStep`/
   `ScopedCleanup` (use `read=`), `MemoryStore.remember_after_commit`
-  (use `remember_later`), `RuntimeResources(trace_truncate=...)`
-  (use `Tracer(limits=TraceLimits(max_data_chars=...))`) and the legacy
-  `"detail"` key of the HTTP error envelope (use `error.message`).
+  (use `remember_later`) and `MemoryStore.remember_from` (use
+  `remember_artifact`), the `ReflectionLoop`/`PlanExecute` `.group()` and
+  `.consumes()` aliases (use `.agent()` and `.reads()`),
+  `RuntimeResources(trace_truncate=...)` (use
+  `Tracer(limits=TraceLimits(max_data_chars=...))`) and the legacy `"detail"`
+  key of the HTTP error envelope (use `error.message`).
 - **`StepCall` is `StepInvocation`.** The object a step receives is named for
   what it is — one invocation of one step — since it carries the trigger, the
   input cursor, the effect slot and the per-turn request, not a call. Fields
@@ -50,7 +53,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ### Added
 - **`Agent` is the authoring and scheduling unit.** `Agent("intake",
-  steps=[...], consumes=..., retry=..., timeout=...)` is the user-facing group
+  steps=[...], consumes=..., retry=..., timeout=...)` is the user-facing unit
   of steps. `Runtime` accepts `agents=`, `Pipeline.agents` is the expanded
   agent list, and `Pipeline(agents=[...], routes=[...])` adds `mermaid()`
   rendering. `Route` exposes `agents()` and cases accept `Agent` objects.
@@ -132,8 +135,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   keeps its explicit `Step` scenes because they teach the primitives.
 - **Agent-level recipe methods.** `ApprovalFlow.agent()`, `StatusMachine.agent()`,
   `Router.agent()` and `ApprovalGate.agent()` return a ready `Agent` with an
-  explicit wake set; the existing `.produce()`/`.steps()` forms stay available
-  for composition inside a larger agent.
+  explicit wake set; the `.produce()` form stays available for composition
+  inside a larger agent.
 - **Clean starter app.** `examples/starter_app` now has an `agents/` package
   with a one-function chat `@agent`, `tools.py`, and `app.py` that is only
   wiring; `Chat` receives `RunConfig` instead of separate runtime kwargs.

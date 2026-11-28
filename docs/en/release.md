@@ -167,6 +167,9 @@ leaving pre-1.0 and shipping **1.0.0**:
 ## The release loop
 
 ```bash
+# 0) the version being cut (pyproject.toml and CHANGELOG agree on it)
+VERSION=0.30.0
+
 # 1) sanity
 .venv/bin/python -m pytest
 .venv/bin/python -m mypy
@@ -179,23 +182,23 @@ uv lock --check
 
 # 3) build artifacts (clean stale build/ + dist/ first; setuptools reuses build/lib)
 rm -rf build dist *.egg-info
-uv build                     # dist/reactifact-0.25.0-py3-none-any.whl + sdist
+uv build                     # dist/reactifact-$VERSION-py3-none-any.whl + sdist
 
 # 4) verify the wheel in a scratch venv (not the workspace, so no PYTHONPATH)
 uv venv /tmp/reactifact-rc
-uv pip install --python /tmp/reactifact-rc/bin/python --quiet dist/reactifact-0.25.0-py3-none-any.whl
+uv pip install --python /tmp/reactifact-rc/bin/python --quiet dist/reactifact-$VERSION-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/python -m reactifact graph examples.knowledge.agents 2>/dev/null \
     || /tmp/reactifact-rc/bin/reactifact --help >/dev/null   # console script present
 # confirm the wheel contains reactifact + tracing templates and NOT examples/tests:
-unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-$VERSION-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) tag
-git tag v0.25.0
-git push origin v0.25.0
+git tag v$VERSION
+git push origin v$VERSION
 
 # 6) publish (PyPI token in env); publish only the new files, not an old dist/
-uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-$VERSION*
 ```
 
 ## What ships

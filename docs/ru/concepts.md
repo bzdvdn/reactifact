@@ -203,14 +203,16 @@ class PickStage(Step):
 связей). Добавляйте `| None` к любой форме, если вход может отсутствовать:
 `Artifact[T] | None` даёт handle или `None`, а не модель данных.
 
-Функциональная форма принимает один `StepInvocation` и пишет через
-`inv.effects`:
+Функциональная форма принимает те же типизированные параметры:
 
 ```python
 @step(produces=Answer, reads=Evidence)
-async def answer(inv: StepInvocation) -> Answer:
-    return Answer(text=inv.trigger.data.text)
+def answer(evidence: Evidence) -> Answer:
+    return Answer(text=evidence.text)
 ```
+
+Шаг, которому нужны id триггера, сырое событие, request хода или эффект-слот,
+принимает один `inv: StepInvocation` — это низкоуровневая форма.
 
 Возврат модели — create-сахар; `effects.*` — для update, link, HITL и
 дополнительных create. `produces` валидирует каждый Create-тип, включая

@@ -146,7 +146,6 @@ def test_from_funcs_builds_a_pipeline_without_subclassing():
     )
     agent = loop.agent()
     assert agent.name == "reflection"
-    assert loop.group() is not agent  # a fresh Agent per call
     pipeline = loop.pipeline(seed_type=Topic)
     result = PipelineRunner(pipeline).run(Topic(text="heal"))
 

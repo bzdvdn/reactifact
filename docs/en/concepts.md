@@ -197,13 +197,16 @@ declared input.
 for `Edit`/links). Add `| None` to either form when the input may be absent:
 `Artifact[T] | None` gives the handle or `None`, not the data model.
 
-The function form takes one `StepInvocation` and uses `inv.effects`:
+The function form takes the same typed parameters:
 
 ```python
 @step(produces=Answer, reads=Evidence)
-async def answer(inv: StepInvocation) -> Answer:
-    return Answer(text=inv.trigger.data.text)
+def answer(evidence: Evidence) -> Answer:
+    return Answer(text=evidence.text)
 ```
+
+A step that needs the trigger id, the raw event, the per-turn request or the
+effect slot takes one `inv: StepInvocation` instead — the low-level form.
 
 Returning a model is create-sugar; `effects.*` is for updates, links, HITL and
 extra creates. `produces` validates every create type, including effect-created

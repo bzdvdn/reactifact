@@ -69,6 +69,8 @@ agent.
 | `MemoryStore.remember_after_commit(effects, ...)` | return `remember_later(...)` from the step |
 | `RuntimeResources(trace_truncate=...)` | `Tracer(limits=TraceLimits(max_data_chars=...))` |
 | `"detail"` in the HTTP error body | `error.message` |
+| `MemoryStore.remember_from` | `remember_artifact` |
+| `ReflectionLoop`/`PlanExecute` `.group()` / `.consumes()` | `.agent()` / `.reads()` |
 | `reactifact.step` module | `reactifact.agent.step` (or the top-level `Step`/`step`) |
 
 `Route.groups()` is now `Route.agents()`, and routed cases accept `Agent`

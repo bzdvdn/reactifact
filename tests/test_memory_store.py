@@ -168,7 +168,7 @@ def test_namespace_is_required():
         asyncio.run(memory.put("x", {"text": "y"}))
 
 
-def test_remember_from_records_provenance_and_forget_source():
+def test_remember_artifact_records_provenance_and_forget_source():
     """A curated memory points back to its artifact; session erasure follows."""
     from pydantic import BaseModel
     from reactifact import Context
@@ -181,7 +181,7 @@ def test_remember_from_records_provenance_and_forget_source():
     report = ctx.create(Report(text="worker-2f1 OOMKilled in production"))
 
     record = asyncio.run(
-        memory.remember_from(
+        memory.remember_artifact(
             report,
             key=f"report:{report.id}",
             source_session="admin1:s1",

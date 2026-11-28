@@ -421,9 +421,6 @@ class MemoryStore:
             source_version=artifact.version,
         )
 
-    #: Compatibility alias for `remember_artifact`.
-    remember_from = remember_artifact
-
     def _action_payload(
         self,
         artifact: Artifact[Any],

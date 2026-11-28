@@ -149,16 +149,9 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
             Consume(self.result_type),
         ]
 
-    def consumes(self) -> list[Consume]:
-        """Deprecated alias for `reads()`."""
-        return self.reads()
-
     def agent(self, name: str = "plan-execute", **kwargs: Any) -> Agent:
         """A ready `Agent` (consumes inferred) for `Runtime(agents=...)`."""
         return Agent(name, consumes=self.reads(), steps=self.produces(), **kwargs)
-
-    #: Compatibility alias for `agent()`.
-    group = agent
 
     def pipeline(self, *, name: str = "plan-execute", **kwargs: Any) -> Pipeline:
         """A `Pipeline` with this flow already grouped and wired.

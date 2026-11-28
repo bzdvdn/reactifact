@@ -137,6 +137,9 @@ Changelog). При бампе версии:
 ## Цикл релиза
 
 ```bash
+# 0) версия, которую режете (pyproject.toml и CHANGELOG совпадают)
+VERSION=0.30.0
+
 # 1) проверки
 .venv/bin/python -m pytest && .venv/bin/python -m mypy \
   && .venv/bin/python -m ruff check && .venv/bin/python -m ruff format --check \
@@ -146,20 +149,20 @@ Changelog). При бампе версии:
 
 # 3) сборка (сначала очистите stale build/ + dist/: setuptools переиспользует build/lib)
 rm -rf build dist *.egg-info
-uv build                         # dist/reactifact-0.25.0-py3-none-any.whl + sdist
+uv build                         # dist/reactifact-$VERSION-py3-none-any.whl + sdist
 
 # 4) проверка wheel в чистом venv (не workspace — чтобы не цеплял PYTHONPATH)
 uv venv /tmp/reactifact-rc
-uv pip install --python /tmp/reactifact-rc/bin/python dist/reactifact-0.25.0-py3-none-any.whl
+uv pip install --python /tmp/reactifact-rc/bin/python dist/reactifact-$VERSION-py3-none-any.whl
 /tmp/reactifact-rc/bin/python -c "import reactifact; print(reactifact.__version__)"
 /tmp/reactifact-rc/bin/reactifact --help          # console-скрипт на месте
-unzip -l dist/reactifact-0.25.0-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
+unzip -l dist/reactifact-$VERSION-py3-none-any.whl | grep -E "examples/|tests/|tracing/templates"
 
 # 5) тег
-git tag v0.25.0 && git push origin v0.25.0
+git tag v$VERSION && git push origin v$VERSION
 
 # 6) публикация только новых файлов, а не старого dist/ (токен PyPI в env)
-uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-0.25.0*
+uv publish --publish-url https://upload.pypi.org/legacy/ dist/reactifact-$VERSION*
 ```
 
 ## Что входит в дистрибутив

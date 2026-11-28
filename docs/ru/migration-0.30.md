@@ -69,6 +69,8 @@ intake = Agent("intake", steps=[classify, reply], consumes=[Consume(Question)])
 | `MemoryStore.remember_after_commit(effects, ...)` | вернуть `remember_later(...)` из шага |
 | `RuntimeResources(trace_truncate=...)` | `Tracer(limits=TraceLimits(max_data_chars=...))` |
 | `"detail"` в теле HTTP-ошибки | `error.message` |
+| `MemoryStore.remember_from` | `remember_artifact` |
+| `ReflectionLoop`/`PlanExecute` `.group()` / `.consumes()` | `.agent()` / `.reads()` |
 | модуль `reactifact.step` | `reactifact.agent.step` (или верхнеуровневые `Step`/`step`) |
 
 `Route.groups()` теперь `Route.agents()`, а routed-кейсы принимают объекты
