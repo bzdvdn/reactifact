@@ -221,6 +221,44 @@ def answer(evidence: Evidence) -> Answer:
 `reads`/`When` шага, а не ручное ребро графа; LLM применяется только к
 генеративным задачам и оборачивается схемой + фолбэком.
 
+## 5.1 Условия запуска (guards)
+
+`Guard` решает, запускать ли шаг; это не валидация входов. `pre` видит
+`context`, `event` и `trigger` **до** разрешения типизированных входов, поэтому
+может пропустить шаг, который иначе дал бы `MissingInputError`
+(`Guard.idempotent`, `Guard.field`, `Guard.event`). `post` получает уже
+собранный `StepInvocation` и может смотреть на `inputs` (`Guard.ready`,
+`Guard.has`). Отказ записывает decision `skipped_guard` и шаг не выполняет.
+
+```python
+@step(reads=Question, produces=Answer, guard=Guard.idempotent(AnswerKey))
+def answer(question: Question) -> Ensure:
+    return Ensure(Answer(...), id=AnswerKey(question.query_id))
+```
+
+`ArtifactKey` даёт стабильной id имя, чтобы guard, запись и `Read.idempotent`
+целились в один артефакт, а не собирали `f"answer:{id}"` в трёх местах.
+
+## 5.2 Упорядоченные стадии
+
+`Pipeline` по умолчанию реактивный: каждый агент запускается, когда совпадают
+его `consumes`. `StagedPipeline(stages=[Stage("one", [...]), Stage("two", [...])])`
+добавляет **барьеры квиесценции**: внутри стадии агенты остаются реактивными,
+следующая стадия стартует только когда текущая успокоилась. Позднее событие
+может вернуть в предыдущую стадию через `Stage(reopen=True)` в пределах бюджета
+хода.
+
+```python
+pipeline = StagedPipeline(
+    stages=[Stage("collect", [collector]), Stage("answer", [answerer])],
+    seed_type=Question, answer_type=Answer,
+)
+```
+
+Стратегия — это `Schedule` в `RunConfig.schedule`; её делят `PipelineRunner`,
+`Chat` и `Daemon`. Стадия просыпается на артефактах, созданных ранее в этом же
+ходе, и не переобрабатывает артефакты прошлого хода.
+
 ## 6. Провенанс
 
 Каждый производный артефакт ссылается на то, что его произвело. Runtime

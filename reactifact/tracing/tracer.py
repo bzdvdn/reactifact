@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..decisions import Decision
+from ..invocation import Invocation
 from ..patches import Create, Link, Unlink, Update
 from ..providers import LLMProvider, LLMRequest, LLMResponse, LLMResponseChunk
 from ..tools import ToolRun, current_produce_name
@@ -512,6 +513,8 @@ class RunTracer:
         self.run_id = ""
         self.spans: list[AgentSpan] = []
         self.decisions: list[Decision] = []
+        #: The invocation of the current run (set by `Runtime.arun`).
+        self.invocation: Invocation | None = None
         #: Workspace/scope of this run (copied onto `RunTrace.scope`), so a
         #: self-hosted dashboard can filter traces per workspace.
         self.scope = ""
@@ -744,6 +747,16 @@ class RunTracer:
         ):
             self.truncated = True
             return
+        if self._redactor is not None:
+            decision = decision.model_copy(
+                update={
+                    "reason": _redact(decision.reason, self._redactor),
+                    "detail": {
+                        key: _redact(value, self._redactor)
+                        for key, value in decision.detail.items()
+                    },
+                }
+            )
         self.decisions.append(decision)
 
     def generation_started(self, generation: int) -> None:
@@ -907,6 +920,16 @@ class RunTracer:
             metadata=self.metadata,
             spans=self.spans,
             decisions=self.decisions,
+            invocation_id=self.invocation.id if self.invocation is not None else "",
+            invocation_scope=(
+                self.invocation.scope if self.invocation is not None else ""
+            ),
+            idempotency_key=(
+                self.invocation.idempotency_key
+                if self.invocation is not None
+                and self.invocation.idempotency_key is not None
+                else ""
+            ),
             trace_truncated=self.truncated,
         )
         try:

@@ -24,7 +24,9 @@ def _stage_events(runtime: Runtime, stage: Stage) -> list[Event]:
     ]
 
 
-def _wake_events(runtime: Runtime, stage: Stage) -> list[Event]:
+def _wake_events(
+    runtime: Runtime, stage: Stage, baseline: set[tuple[str, int]]
+) -> list[Event]:
     """Synthetic events for already-existing artifacts a stage consumes.
 
     A stage boundary is an eligibility filter, not an event reset: an artifact
@@ -56,6 +58,11 @@ def _wake_events(runtime: Runtime, stage: Stage) -> list[Event]:
                 continue
             for artifact in runtime.context.list_artifacts(artifact_type):
                 if artifact.id in pending_ids:
+                    continue
+                # Only artifacts created or updated during this turn wake a
+                # stage: a repeated run on the same context must stay quiescent
+                # instead of re-processing last turn's artifacts.
+                if (artifact.id, artifact.version) in baseline:
                     continue
                 key = (artifact.id, type(artifact.data))
                 if key in seen:
@@ -91,11 +98,13 @@ def _reopen_stage(
     return None
 
 
-async def _run_stage(runtime: Runtime, stage: Stage, limit: int) -> int:
+async def _run_stage(
+    runtime: Runtime, stage: Stage, limit: int, baseline: set[tuple[str, int]]
+) -> int:
     """Run one stage to quiescence, leaving later stages' events pending."""
     runtime._trace.decision(build_decision("stage_enter", detail={"stage": stage.name}))
     total = 0
-    startup = _wake_events(runtime, stage)
+    startup = _wake_events(runtime, stage, baseline)
     first = True
     while (
         runtime._generation < limit
@@ -127,6 +136,9 @@ async def run_stages(runtime: Runtime, stages: tuple[Stage, ...], limit: int) ->
     produced (or on its own pending events). `Stage.reopen=True` lets a later
     event re-enter an earlier stage, bounded by the turn's generation limit.
     """
+    baseline = {
+        (artifact.id, artifact.version) for artifact in runtime.context.list_artifacts()
+    }
     total = 0
     index = 0
     while index < len(stages):
@@ -135,7 +147,7 @@ async def run_stages(runtime: Runtime, stages: tuple[Stage, ...], limit: int) ->
             break
         if runtime._budget_exhausted() or runtime._generation >= limit:
             break
-        total += await _run_stage(runtime, stages[index], limit)
+        total += await _run_stage(runtime, stages[index], limit, baseline)
         if runtime._stop_requested.is_set():
             runtime.outcome = RunOutcome.STOPPED
             break

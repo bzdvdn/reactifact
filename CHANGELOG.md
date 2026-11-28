@@ -161,6 +161,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   expanded agent list; `Runtime(agents=...)`, `validate_contracts(agents=...)`
   and `Route.agents()` use the same name. `Pipeline(steps=...)` still accepts
   raw steps for the low-level/testing path.
+- **The skills and concepts guide cover the 0.30 surface.** `Guard`/`ArtifactKey`
+  (including the four idempotency tools), `StagedPipeline`/`Stage`, `Invocation`
+  and `RunTrace.decisions` are documented in `reactifact`, `reactifact-agents`
+  and `reactifact-observability`, with the same examples in `concepts.md` and
+  `quickstart.md`.
 - **Skills and the devops example teach the current model.** The bundled
   skills use `@step` functions, `Read` inputs and `Consume` wake-ups; the
   devops router, report builders, reply, memory and branch scenarios are
@@ -230,6 +235,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `Chat`/`ChatAssistant` used to silently ignore the provider in that
   combination; both now raise `TypeError` and point at the factory's
   `RuntimeResources`.
+- **Staged pipelines report each agent once.** `StagedPipeline.validate()`,
+  `describe()` and `mermaid()` deduplicate by agent identity, so the same agent
+  may sit in two stages without a false `duplicate_agent` error; the validation
+  message now says "agent name", not "group name".
+- **Decision text is redacted.** `RunTrace.decisions` goes through
+  `RuntimeResources.redactor`, and the built-in `Guard.field` no longer echoes
+  the artifact's actual value, so guard reasons cannot leak field contents into
+  traces or the dashboard.
+- **Stale claims are fenced.** `SessionStore.finish_invocation(..., claim_id=...)`
+  only writes the completion if the claim still belongs to that attempt; a
+  worker whose lease was reclaimed cannot overwrite the new attempt's record.
+- **Staged turns are quiescent on repeat.** A stage's wake pass only considers
+  artifacts created or updated since the turn started, so calling `arun()`
+  again on the same context does not re-run last turn's stage agents.
+- **`RunTrace` records its invocation.** `invocation_id`, `invocation_scope`
+  and `idempotency_key` are stored on the trace (SQLite/Postgres schema
+  migrated) and shown by `trace --why`.
 - **`ChatMemory` is validated at construction.** `keep`/`summarize` with no
   message type, `summarize` without `summary_type`, a summary model with no
   `text` field and no `build_summary`, conflicting `message_type=`/

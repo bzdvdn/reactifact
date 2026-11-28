@@ -256,7 +256,7 @@ class _Field(Guard):
         if actual == self._value:
             return GuardResult.permit()
         return GuardResult.deny(
-            f"{type(trigger.data).__name__}.{self._field}={actual!r}, expected {self._value!r}",
+            f"{type(trigger.data).__name__}.{self._field} did not match",
             code="field",
         )
 

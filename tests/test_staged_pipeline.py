@@ -240,3 +240,24 @@ def test_staged_stop_reports_stopped() -> None:
     asyncio.run(runtime.arun())
 
     assert runtime.outcome is RunOutcome.STOPPED
+
+
+def test_second_staged_run_on_the_same_context_is_quiescent():
+    one = Stage("one", [Agent("a", consumes=[Consume(Seed)], steps=[MakeA()])])
+    two = Stage("two", [Agent("b", consumes=[Consume(A)], steps=[MakeB()])])
+    runtime = Runtime(
+        Context(resources=RuntimeResources()),
+        agents=[*one.agents, *two.agents],
+        schedule=StagedSchedule([one, two]),
+    )
+    runtime.context.create(Seed(text="x"))
+
+    assert asyncio.run(runtime.arun()) > 0
+    assert len(runtime.context.list_artifacts(A)) == 1
+    assert len(runtime.context.list_artifacts(B)) == 1
+
+    runs = asyncio.run(runtime.arun())
+
+    assert runs == 0
+    assert len(runtime.context.list_artifacts(A)) == 1
+    assert len(runtime.context.list_artifacts(B)) == 1

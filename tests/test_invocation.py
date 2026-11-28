@@ -320,3 +320,99 @@ def test_set_if_absent_is_atomic_across_backends(tmp_path):
         SQLiteKVBackend(str(tmp_path / "kv.db")),
     ):
         asyncio.run(scenario(backend))
+
+
+def test_fenced_completion_does_not_overwrite_a_reclaimed_claim():
+    store = SessionStore(InMemoryKVBackend(), invocation_stale_after=0.0)
+
+    async def scenario():
+        first, _ = await store.claim_invocation(
+            "k", {"status": "running", "claim_id": "old"}
+        )
+        second, _ = await store.claim_invocation(
+            "k", {"status": "running", "claim_id": "new"}
+        )
+        written = await store.finish_invocation(
+            "k", {"status": "done", "claim_id": "old"}, claim_id="old"
+        )
+        return first, second, written, await store.get_invocation("k")
+
+    first, second, written, current = asyncio.run(scenario())
+    assert (first, second) == (True, True)
+    assert written is False
+    assert current is not None
+    assert current["claim_id"] == "new"
+    assert current["status"] == "running"
+
+
+def test_invocation_is_recorded_on_the_run_trace():
+    class Sink:
+        def __init__(self) -> None:
+            self.traces = []
+
+        async def export(self, trace) -> None:
+            self.traces.append(trace)
+
+    from reactifact.tracing import Tracer
+
+    sink = Sink()
+    pipeline = Pipeline(
+        agents=[Agent("answerer", consumes=[Consume(Q)], steps=[Answerer()])],
+        seed_type=Q,
+        answer_type=A,
+    )
+    inv = Invocation.new(
+        idempotency_key="trace-key", scope="tenant-1", metadata={"ui": "web"}
+    )
+    PipelineRunner(pipeline, config=RunConfig(tracer=Tracer(sinks=[sink]))).run(
+        Q(text="hello"), invocation=inv
+    )
+
+    trace = sink.traces[-1]
+    assert trace.invocation_id == inv.id
+    assert trace.invocation_scope == "tenant-1"
+    assert trace.idempotency_key == "trace-key"
+
+
+def test_sqlite_set_if_absent_is_atomic_across_connections(tmp_path):
+    path = str(tmp_path / "kv.db")
+
+    async def scenario():
+        left = SQLiteKVBackend(path)
+        right = SQLiteKVBackend(path)
+        results = await asyncio.gather(
+            left.set_if_absent("k", {"from": "left"}),
+            right.set_if_absent("k", {"from": "right"}),
+        )
+        value = await left.get("k")
+        await left.aclose()
+        await right.aclose()
+        return results, value
+
+    results, value = asyncio.run(scenario())
+    assert sorted(results) == [False, True]
+    assert value in ({"from": "left"}, {"from": "right"})
+
+
+def test_trace_store_roundtrips_invocation_fields(tmp_path):
+    from reactifact.tracing import Tracer, TraceStore
+
+    store = TraceStore(str(tmp_path / "traces.db"))
+    pipeline = Pipeline(
+        agents=[Agent("answerer", consumes=[Consume(Q)], steps=[Answerer()])],
+        seed_type=Q,
+        answer_type=A,
+    )
+    inv = Invocation.new(idempotency_key="persisted-key", scope="tenant-2")
+    result = PipelineRunner(
+        pipeline,
+        config=RunConfig(tracer=Tracer(store=store)),
+    ).run(Q(text="hello"), invocation=inv)
+
+    trace = asyncio.run(store.get(result.trace_id))
+    store.close()
+
+    assert trace is not None
+    assert trace.invocation_id == inv.id
+    assert trace.invocation_scope == "tenant-2"
+    assert trace.idempotency_key == "persisted-key"

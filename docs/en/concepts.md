@@ -215,6 +215,44 @@ Convention: **determinism first** (§67). Eligibility is decided by the step's
 `reads`/`When` selectors, not by a manual graph edge; LLM use is reserved for
 genuinely generative tasks and is wrapped with a schema + fallback.
 
+## 5.1 Run conditions (guards)
+
+A `Guard` decides whether a step runs; it is not input validation. `pre` sees
+`context`, `event` and `trigger` **before** typed inputs resolve, so it can skip
+a step that would otherwise raise `MissingInputError` (`Guard.idempotent`,
+`Guard.field`, `Guard.event`). `post` sees the resolved `StepInvocation`, so it
+can inspect `inputs` (`Guard.ready`, `Guard.has`). A denial records a
+`skipped_guard` decision and runs no step.
+
+```python
+@step(reads=Question, produces=Answer, guard=Guard.idempotent(AnswerKey))
+def answer(question: Question) -> Ensure:
+    return Ensure(Answer(...), id=AnswerKey(question.query_id))
+```
+
+`ArtifactKey` names a stable id so the guard, the write and `Read.idempotent`
+all target the same artifact instead of rebuilding `f"answer:{id}"` in three
+places.
+
+## 5.2 Ordered stages
+
+A `Pipeline` is reactive by default: every agent runs whenever its consumes
+match. `StagedPipeline(stages=[Stage("one", [...]), Stage("two", [...])])`
+adds **quiescence barriers**: agents inside a stage stay reactive, and the next
+stage starts only when the current one settles. A later event can re-enter an
+earlier stage with `Stage(reopen=True)`, bounded by the turn budget.
+
+```python
+pipeline = StagedPipeline(
+    stages=[Stage("collect", [collector]), Stage("answer", [answerer])],
+    seed_type=Question, answer_type=Answer,
+)
+```
+
+The strategy is a `Schedule` on `RunConfig.schedule`; `PipelineRunner`, `Chat`
+and `Daemon` share it. A stage wakes on artifacts produced earlier in the same
+turn, never on last turn's artifacts.
+
 ## 6. Provenance
 
 Every derived artifact links to what produced it. The runtime records

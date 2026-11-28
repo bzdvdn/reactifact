@@ -198,6 +198,30 @@ assert asyncio.run(client.traces.query())["total"] >= 1
 client.close()
 ```
 
+## Ordered stages
+
+A `Pipeline` is reactive: any agent whose inputs are ready runs. When the flow
+must be genuinely sequential, `StagedPipeline` puts a quiescence barrier
+between stages — agents inside a stage stay reactive, and the next stage starts
+only when the current one settles:
+
+```python
+from reactifact import Agent, Stage, StagedPipeline
+
+pipeline = StagedPipeline(
+    stages=[
+        Stage("collect", [Agent("collect", consumes=[Question], steps=[collect])]),
+        Stage("answer", [Agent("answer", consumes=[Evidence], steps=[answer])]),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+result = PipelineRunner(pipeline).run(Question(text="..."))
+```
+
+`Stage(reopen=True)` lets a later event re-enter an earlier stage; the strategy
+is `RunConfig(schedule=...)`, shared by `Chat` and `Daemon` too.
+
 ## Small agents: `@agent`
 
 For one function, the decorator is the shortest path. Typed parameters are the

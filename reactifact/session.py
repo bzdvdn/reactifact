@@ -200,6 +200,26 @@ class SessionStore:
                 return True, None
             return False, existing
 
+    async def finish_invocation(
+        self,
+        key: str,
+        record: dict[str, Any],
+        *,
+        claim_id: str,
+    ) -> bool:
+        """Complete a claim only if it still belongs to `claim_id`.
+
+        A stale claim may be reclaimed by another worker; the late worker's
+        completion must not overwrite the new attempt's record. Returns
+        whether the record was written.
+        """
+        async with self._invocation_guard():
+            existing = await self.get_invocation(key)
+            if existing is None or existing.get("claim_id") != claim_id:
+                return False
+            await self.put_invocation(key, record)
+            return True
+
     async def delete_session(self, session_id: str) -> None:
         await self.backend.delete(session_id)
 

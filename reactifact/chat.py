@@ -19,6 +19,7 @@ import asyncio
 import copy
 import inspect
 import logging
+import uuid
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -823,6 +824,7 @@ class ChatAssistant:
             inv = invocation
             invocation_id = inv.id if inv is not None else ""
             key = inv.idempotency_key if inv is not None else None
+            claim_id = uuid.uuid4().hex if key is not None else ""
             storage_key = (
                 _invocation_storage_key(session_id, key) if key is not None else None
             )
@@ -853,6 +855,7 @@ class ChatAssistant:
                         "status": "running",
                         "invocation_id": invocation_id,
                         "session_id": session_id,
+                        "claim_id": claim_id,
                     },
                 )
                 if not claimed:
@@ -884,9 +887,10 @@ class ChatAssistant:
                     with suppress(Exception):
                         await session.context.resources.aclose()
                 if storage_key is not None:
-                    await self.store.put_invocation(
+                    await self.store.finish_invocation(
                         storage_key,
                         {"status": "failed", "invocation_id": invocation_id},
+                        claim_id=claim_id,
                     )
                 raise ChatConfigError(
                     f"chat configuration for session {session_id!r}: {exc}"
@@ -902,9 +906,10 @@ class ChatAssistant:
                     with suppress(Exception):
                         await session.context.resources.aclose()
                 if storage_key is not None:
-                    await self.store.put_invocation(
+                    await self.store.finish_invocation(
                         storage_key,
                         {"status": "failed", "invocation_id": invocation_id},
+                        claim_id=claim_id,
                     )
                 yield ChatEvent(
                     kind="message",
@@ -931,16 +936,17 @@ class ChatAssistant:
                     if event.kind == "message" and storage_key is not None:
                         payload = event.payload or {}
                         if payload.get("error") is True or not message_ids:
-                            await self.store.put_invocation(
+                            await self.store.finish_invocation(
                                 storage_key,
                                 {
                                     "status": "failed",
                                     "invocation_id": invocation_id,
                                 },
+                                claim_id=claim_id,
                             )
                         else:
                             completed = True
-                            await self.store.put_invocation(
+                            await self.store.finish_invocation(
                                 storage_key,
                                 {
                                     "status": "done",
@@ -948,6 +954,7 @@ class ChatAssistant:
                                     "session_id": session_id,
                                     "message_id": message_ids[-1],
                                 },
+                                claim_id=claim_id,
                             )
                     yield event
             finally:
@@ -964,9 +971,10 @@ class ChatAssistant:
                     # A cancelled/aborted turn must be retryable.
                     record = await self.store.get_invocation(storage_key)
                     if record is None or record.get("status") != "done":
-                        await self.store.put_invocation(
+                        await self.store.finish_invocation(
                             storage_key,
                             {"status": "failed", "invocation_id": invocation_id},
+                            claim_id=claim_id,
                         )
                 if callable(self._resources):
                     # A callable `resources=` builds a fresh RuntimeResources (and

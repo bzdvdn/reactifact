@@ -31,6 +31,23 @@ outcome=…, tags=…, q=…)` reads runs back; `store.tag_runs(...)` /
 `list_tags(...)` annotate them for review. Sinks: `OTLPTracer` (OpenTelemetry)
 and `LangfuseTracer`; `TraceStore` also has a `PostgresStore` variant.
 
+## Why didn't it run?
+
+`RunTrace.decisions` explains skipped work without turning every non-match into
+a span: `skipped_guard` (code/phase), `skipped_missing_input` (parameter and
+expected types), `event_unmatched`, `stage_enter`/`stage_settled`, `fallback`
+and non-completed `outcome`. `TraceLimits(max_decisions=...)` bounds the list.
+
+```bash
+reactifact trace traces.db <run_id> --why
+reactifact trace traces.db <run_id> --why --filter evidence
+```
+
+The same list is on the trace detail page and in `RunTrace.decisions`; decision
+text goes through `RuntimeResources.redactor`. A run that carried an
+`Invocation` also stores `invocation_id`, `invocation_scope` and
+`idempotency_key`, so a trace can be matched to its idempotency record.
+
 ## Contracts page
 
 `create_contracts_router(agents)` (`reactifact.contracts.web`) serves the

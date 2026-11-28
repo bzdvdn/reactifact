@@ -16,6 +16,18 @@ if TYPE_CHECKING:
     from ..validate import ValidationReport
 
 
+def _unique_agents(agents: Sequence[Agent]) -> list[Agent]:
+    """One entry per agent identity, preserving order."""
+    seen: set[int] = set()
+    unique: list[Agent] = []
+    for agent in agents:
+        if id(agent) in seen:
+            continue
+        seen.add(id(agent))
+        unique.append(agent)
+    return unique
+
+
 class PipelineDefinition:
     """A reusable agent pipeline definition.
 
@@ -53,6 +65,10 @@ class PipelineDefinition:
         self.seed_field = seed_field
         self.answer_type = answer_type
 
+    def _reported_agents(self) -> list[Agent]:
+        """Agents as they appear in contracts/traces (one entry each)."""
+        return self.agents
+
     def validate(
         self,
         *,
@@ -74,7 +90,7 @@ class PipelineDefinition:
         if not inferred_terminal and self.answer_type is not None:
             inferred_terminal.append(self.answer_type)
         return validate_contracts(
-            agents=self.agents,
+            agents=self._reported_agents(),
             seeds=inferred_seeds,
             terminal=inferred_terminal,
         )
@@ -88,7 +104,7 @@ class PipelineDefinition:
         """
         from ..contracts.report import ContractReport, describe_contracts
 
-        base = describe_contracts(self.agents)
+        base = describe_contracts(self._reported_agents())
         return ContractReport(
             agents=base.agents,
             seed_schema=(
@@ -107,7 +123,9 @@ class PipelineDefinition:
         """Render this pipeline's declared agents as a Mermaid flowchart."""
         from ..viz import blueprint
 
-        return blueprint(self.agents, with_stages=with_stages, title=self.name)
+        return blueprint(
+            self._reported_agents(), with_stages=with_stages, title=self.name
+        )
 
     def schedule(self) -> Schedule:
         """The turn execution strategy (reactive by default)."""
@@ -145,6 +163,10 @@ class StagedPipeline(PipelineDefinition):
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type
+
+    def _reported_agents(self) -> list[Agent]:
+        # The same agent may sit in two stages; its contract is stage-independent.
+        return _unique_agents(self.agents)
 
     def schedule(self) -> Schedule:
         return StagedSchedule(self.stages)

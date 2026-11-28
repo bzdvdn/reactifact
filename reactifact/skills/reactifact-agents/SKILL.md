@@ -217,6 +217,54 @@ loop.
 
 Full details, ids and HITL: `references/effects.md`.
 
+## Guards and stable ids
+
+A `Guard` is a run condition, evaluated around input resolution:
+
+| Guard | Phase | Sees | Typical use |
+| --- | --- | --- | --- |
+| `Guard.idempotent(key)`, `Guard.field(...)`, `Guard.event(...)`, `Guard.custom(fn)` | `pre` | `context`, `event`, `trigger` | skip before a missing input is reported |
+| `Guard.ready(...)`, `Guard.has(...)`, `Guard.custom(fn, phase="post")` | `post` | the resolved `StepInvocation` | only run when the collected inputs are enough |
+
+`@step(guard=...)` / `Step(..., guard=...)` accept one guard, a sequence
+(combined with `Guard.all`) or a sync/async callable. A denial records a
+`skipped_guard` decision and never raises `MissingInputError`.
+
+`ArtifactKey` gives an id scheme a name, so a guard and the write use the same
+target:
+
+```python
+# not-run: illustrative — Document/Source are your models
+from pydantic import BaseModel
+from reactifact import ArtifactKey, Ensure, Guard, step
+
+
+class Source(BaseModel):
+    id: str
+
+
+class Document(BaseModel):
+    source_id: str
+    text: str
+
+
+DocumentKey = ArtifactKey(Document, prefix="doc", field="source_id")
+
+
+@step(reads=Source, produces=Document, guard=Guard.idempotent(DocumentKey))
+def ingest(source: Source) -> Ensure:
+    return Ensure(Document(source_id=source.id, text="…"), id=DocumentKey(source.id))
+```
+
+Do not pick by habit — each tool answers a different question:
+
+| Goal | Use |
+| --- | --- |
+| write once per key, even when the step legitimately re-wakes | `ArtifactKey` + `Ensure` (or `Emit(id=...)`) |
+| skip an expensive step before inputs are resolved | `Guard.idempotent(ArtifactKey)` |
+| do not wake the agent for an already-produced key | `IdempotentConsume(T, id_of=...)` / `Read.idempotent(...)` |
+| skip a step whose inputs are not all present yet | `Guard.ready(...)` (post) |
+
 ## Layout: agents first
 
 Put public capabilities in `agents/`, one agent per file. A one-step agent is

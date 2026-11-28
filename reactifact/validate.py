@@ -204,7 +204,7 @@ def validate_contracts(
                 ValidationIssue(
                     "error",
                     "duplicate_agent",
-                    f"group name {agent.name!r} is used more than once",
+                    f"agent name {agent.name!r} is used more than once",
                     (agent.name,),
                 )
             )

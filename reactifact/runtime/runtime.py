@@ -947,6 +947,7 @@ class Runtime:
         self.invocation = invocation
         token = set_request(request) if request is not None else None
         invocation_token = set_invocation(invocation)
+        self._trace.invocation = invocation
         try:
             return await self._arun_impl(max_iterations, budget)
         finally:

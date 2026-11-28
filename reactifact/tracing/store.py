@@ -170,7 +170,10 @@ class TraceStore:
                 prompt_tokens INTEGER NOT NULL DEFAULT 0,
                 completion_tokens INTEGER NOT NULL DEFAULT 0,
                 truncated INTEGER NOT NULL DEFAULT 0,
-                decisions TEXT NOT NULL DEFAULT '[]'
+                decisions TEXT NOT NULL DEFAULT '[]',
+                invocation_id TEXT NOT NULL DEFAULT '',
+                invocation_scope TEXT NOT NULL DEFAULT '',
+                idempotency_key TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS spans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,6 +282,11 @@ class TraceStore:
             self._conn.execute(
                 "ALTER TABLE runs ADD COLUMN decisions TEXT NOT NULL DEFAULT '[]'"
             )
+        for column in ("invocation_id", "invocation_scope", "idempotency_key"):
+            if column not in run_cols:
+                self._conn.execute(
+                    f"ALTER TABLE runs ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
+                )
         self._conn.commit()
 
     # ---- async public API (bridged to the sync core) ----------------------- #
@@ -403,8 +411,9 @@ class TraceStore:
             self._conn.execute(
                 "INSERT INTO runs (id, session_id, scope, parent_run_id, branch, "
                 "metadata, started_at, duration_ms, outcome, prompt_tokens, "
-                "completion_tokens, truncated, decisions) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "completion_tokens, truncated, decisions, invocation_id, "
+                "invocation_scope, idempotency_key) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 run_insert_values(trace, timestamp=lambda moment: moment.timestamp()),
             )
             for span in trace.spans:
@@ -774,7 +783,8 @@ class TraceStore:
     ) -> RunTrace | None:
         row = self._conn.execute(
             "SELECT id, session_id, scope, parent_run_id, branch, metadata, "
-            "started_at, duration_ms, outcome, truncated, decisions "
+            "started_at, duration_ms, outcome, truncated, decisions, "
+            "invocation_id, invocation_scope, idempotency_key "
             "FROM runs WHERE id = ?",
             (trace_id,),
         ).fetchone()
@@ -819,6 +829,9 @@ class TraceStore:
             trace_truncated=bool(row[9]),
             annotations=annotations,
             decisions=decisions_from_value(row[10]),
+            invocation_id=str(row[11] or ""),
+            invocation_scope=str(row[12] or ""),
+            idempotency_key=str(row[13] or ""),
         )
 
     def _sessions_sync(

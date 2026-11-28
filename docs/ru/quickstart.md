@@ -196,6 +196,30 @@ assert asyncio.run(client.traces.query())["total"] >= 1
 client.close()
 ```
 
+## Упорядоченные стадии
+
+`Pipeline` реактивный: запускается любой агент, чьи входы готовы. Когда поток
+действительно последовательный, `StagedPipeline` ставит барьер квиесценции
+между стадиями — внутри стадии агенты остаются реактивными, а следующая
+стартует только когда текущая успокоилась:
+
+```python
+from reactifact import Agent, Stage, StagedPipeline
+
+pipeline = StagedPipeline(
+    stages=[
+        Stage("collect", [Agent("collect", consumes=[Question], steps=[collect])]),
+        Stage("answer", [Agent("answer", consumes=[Evidence], steps=[answer])]),
+    ],
+    seed_type=Question,
+    answer_type=Answer,
+)
+result = PipelineRunner(pipeline).run(Question(text="..."))
+```
+
+`Stage(reopen=True)` позволяет позднему событию вернуться в предыдущую
+стадию; стратегия — `RunConfig(schedule=...)`, её делят `Chat` и `Daemon`.
+
 ## Маленькие агенты: `@agent`
 
 Для одной функции декоратор — короткий путь. Типизированные параметры — это

@@ -48,6 +48,7 @@ do.
 1. **`@step` / `Step` with typed inputs.** Declare `reads`/`produces`; return
    a model or `Emit`/`Ensure`/`Edit`/`Drop`/`Relate`, or write `effects`.
    `scope=` and `Unscoped()` cover correlation and cross-turn history;
+   `guard=` adds a pre/post run condition; `ArtifactKey` names a stable id;
    `CurrentRequest`, `Progress`, `Human` and `Outbox` are injected by type.
    Use `@agent` for a one-function agent, or `Agent(consumes=[...],
    steps=[...])` for several.
@@ -116,7 +117,8 @@ single-pass variants.
 | Need | Use | Why |
 | --- | --- | --- |
 | one run of a pipeline (script, job, service) | `Pipeline(agents=[...])` + `PipelineRunner` | `Pipeline` owns structure; the runner plus `RunConfig` owns resources/budget/tracing and `run/arun`/`answer()` |
-| a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` with `config=RunConfig(...)`, or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()`, shared run config |
+| a persisted multi-turn chat | `Chat(agents=[...], seed_type=..., answer_type=...)` with `config=RunConfig(...)`, or `Chat(pipeline=...)` | sessions, `invoke/stream/history/answer`, `router()`, `test_client()`, shared run config; pass `Invocation` for retry-safe turns |
+| ordered stages with barriers | `StagedPipeline(stages=[Stage(...)])` | agents stay reactive inside a stage; the next stage starts at quiescence; `Stage(reopen=True)` allows re-entry |
 | a custom `Context`/`Session`/scheduler | `Runtime(ctx, steps=... \| agents=...)` | full control; `RunResult.trace()` plus `trace_id`/`trace_store` stay available |
 
 For example, the same `answer` step as a one-shot pipeline:

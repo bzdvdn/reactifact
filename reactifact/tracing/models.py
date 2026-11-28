@@ -186,6 +186,12 @@ class RunTrace(BaseModel):
     #: Free-form, app-provided run metadata (e.g. user, agent version). Kept
     #: small and string-valued so it serializes identically in SQLite/Postgres.
     metadata: dict[str, str] = Field(default_factory=dict)
+    #: Invocation that produced this run (empty when none was supplied).
+    invocation_id: str = ""
+    #: The invocation's workspace/tenant/session scope.
+    invocation_scope: str = ""
+    #: Client idempotency key, when the run carried one.
+    idempotency_key: str = ""
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     duration_ms: float = 0.0
     outcome: str = ""
@@ -274,7 +280,8 @@ class RunTrace(BaseModel):
         if not decisions:
             suffix = f" matching {query!r}" if query else ""
             return f"no decisions recorded for trace {self.id}{suffix}"
-        lines = [f"trace {self.id}: {len(decisions)} decision(s)"]
+        invocation = f" invocation={self.invocation_id}" if self.invocation_id else ""
+        lines = [f"trace {self.id}{invocation}: {len(decisions)} decision(s)"]
         for decision in decisions:
             event = "/".join(
                 part

@@ -82,6 +82,9 @@ def run_insert_values(
         completion_tokens,
         1 if trace.trace_truncated else 0,
         jsonify([decision.model_dump(mode="json") for decision in trace.decisions]),
+        trace.invocation_id,
+        trace.invocation_scope,
+        trace.idempotency_key,
     )
 
 

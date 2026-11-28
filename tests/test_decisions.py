@@ -10,12 +10,14 @@ from reactifact import (
     Consume,
     Context,
     Guard,
+    GuardResult,
     Runtime,
     RuntimeResources,
     Stage,
     Step,
 )
 from reactifact.pipeline.schedule import StagedSchedule
+from reactifact.redaction import RegexRedactor
 from reactifact.tracing import Decision, RunTrace, Tracer, TraceStore
 
 
@@ -173,3 +175,32 @@ def test_decisions_round_trip_through_trace_store(tmp_path):
     assert loaded.decisions[0].code == "skipped_guard"
     assert "target answer:1" in loaded.why_text()
     assert "skipped_guard" in loaded.to_markdown()
+
+
+def test_decision_text_goes_through_the_redactor():
+    class DenyWithContact(Guard):
+        async def pre(self, context, event, trigger):
+            return GuardResult.deny("contact bob@example.com")
+
+    class Guarded(Step[Answer]):
+        reads = (Turn,)
+        guard = DenyWithContact()
+
+        async def run(self, turn: Turn) -> Answer:
+            return Answer(text="never")
+
+    tracer, sink = _tracer()
+    context = Context(resources=RuntimeResources(redactor=RegexRedactor()))
+    context.create(Turn(query_id="q1"))
+    runtime = Runtime(
+        context,
+        agents=[Agent("answer", consumes=[Consume(Turn)], steps=[Guarded()])],
+        tracer=tracer,
+    )
+
+    asyncio.run(runtime.arun())
+
+    skipped = [d for d in sink.traces[-1].decisions if d.code == "skipped_guard"]
+    assert skipped
+    assert "bob@example.com" not in skipped[0].reason
+    assert "[REDACTED:email]" in skipped[0].reason
