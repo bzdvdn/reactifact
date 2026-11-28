@@ -24,7 +24,7 @@ class ApprovalGate(Agent):
     """Requests budget approval and waits for a human answer."""
 
     consumes = [Consume(Project)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         project = context.get(event.artifact_id)
@@ -46,7 +46,7 @@ class Estimator(Agent):
         Consume.by_field(PendingQuestion, "answered", True),
         Consume(Project),
     ]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         projects = context.list_artifacts(Project)

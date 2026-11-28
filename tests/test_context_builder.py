@@ -22,7 +22,7 @@ class RecordSeen(Step[Seen]):
 
 class Collector(Agent):
     consumes = [Consume(Item)]
-    produces = [RecordSeen()]
+    steps = [RecordSeen()]
 
 
 class Marker(BaseModel):
@@ -41,7 +41,7 @@ class RecordItemsOnly(Step[Seen]):
 
 class MarkerAwareCollector(Agent):
     consumes = [Consume(Item), Consume(Marker)]
-    produces = [RecordItemsOnly()]
+    steps = [RecordItemsOnly()]
 
 
 def test_heuristic_counter_overestimates_and_is_never_zero_for_nonempty_text():
@@ -155,7 +155,7 @@ class Pinned(BaseModel):
 
 class MinKeepCollector(Agent):
     consumes = [Consume(Item), Consume(Pinned)]
-    produces = [RecordSeen()]
+    steps = [RecordSeen()]
 
 
 def test_min_keep_reserves_a_slot_for_a_low_volume_type():

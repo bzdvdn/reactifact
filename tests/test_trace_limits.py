@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import warnings
 
 import pytest
 from pydantic import BaseModel
@@ -118,17 +117,6 @@ def test_trace_api_deletes_and_bounds_the_diagram(tmp_path):
 
     assert client.delete("/api/traces/r1").json() == {"deleted": 1}
     assert client.get("/api/traces/r1").status_code == 404
-
-
-def test_trace_truncate_is_deprecated():
-    with pytest.warns(DeprecationWarning, match="TraceLimits"):
-        resources = RuntimeResources(trace_truncate=100)
-    assert resources.trace_truncate == 100
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        default = RuntimeResources()
-    assert default.trace_truncate == 1500
 
 
 def test_sqlite_export_rolls_back_when_prune_fails(tmp_path, monkeypatch):

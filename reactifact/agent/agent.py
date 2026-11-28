@@ -124,11 +124,8 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
 
     name: str = ""
     consumes: Sequence[Consume] | None = None
-    #: The steps this agent runs. Canonical spelling; `produces` is a
-    #: deprecated alias kept for 0.1.x code.
+    #: The steps this agent runs.
     steps: Sequence[Step[Any]] | None = None
-    #: Deprecated alias for `steps` (class-level and instance-level).
-    produces: Sequence[Step[Any]] | None = None
     #: Declarative capability labels (§25), consumed by the adaptive policy.
     capabilities: tuple[str, ...] = ()
     #: Explicit trigger override — for the *imperative* style (`Agent`
@@ -169,12 +166,6 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         GuardrailViolation,
         ArtifactConflict,
     )
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        legacy = cls.__dict__.get("produces")
-        if legacy is not None and "steps" not in cls.__dict__:
-            cls.steps = legacy
 
     def __init__(
         self,
@@ -220,25 +211,18 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
                     declared_steps.append(bound)
 
         existing_steps = self.__dict__.get("steps")
-        existing_produces = self.__dict__.get("produces")
         resolved: Sequence[Step[Any]] | None
         if steps is not None:
             resolved = steps
         elif existing_steps is not None:
             resolved = existing_steps
-        elif existing_produces is not None:
-            resolved = existing_produces
         else:
             resolved = getattr(self.__class__, "steps", None)
-            if resolved is None:
-                resolved = getattr(self.__class__, "produces", None)
         self.steps = list(resolved) if resolved is not None else None
         if declared_steps:
             self.steps = [*declared_steps, *(self.steps or [])]
         if self.steps is not None and not self.steps and type(self).run is Agent.run:
             raise ValueError("Agent requires at least one step")
-        # Deprecated instance-level alias: keep it in sync with `steps`.
-        self.produces = self.steps
 
         if consumes is not None:
             self.consumes = list(consumes)

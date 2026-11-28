@@ -37,7 +37,7 @@ class ApprovalGate(Agent):
             part_conditions={PendingQuestion: lambda d: d.answered},
         )
     ]
-    produces = [RecordApproval()]
+    steps = [RecordApproval()]
 
 
 def test_neither_part_alone_fires_the_join():

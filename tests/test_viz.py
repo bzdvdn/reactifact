@@ -58,7 +58,7 @@ class AdvanceTurn(StatusMachine[Turn]):
 class DiagramAgent(Agent):
     name = "diagram"
     consumes = [Consume(Question)]
-    produces = [Echo(), AdvanceTurn()]
+    steps = [Echo(), AdvanceTurn()]
 
 
 class FanOutStep(Step):

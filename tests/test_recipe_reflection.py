@@ -61,7 +61,7 @@ class MyLoop(ReflectionLoop[Topic, Draft, Review, Final]):
 def make_runtime(ctx: Context) -> Runtime:
     class Flow(Agent):
         consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
-        produces = MyLoop().produces()
+        steps = MyLoop().produces()
 
     return Runtime(ctx, agents=[Flow()])
 

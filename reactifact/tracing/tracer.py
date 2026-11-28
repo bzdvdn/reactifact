@@ -41,7 +41,7 @@ from .store import TraceSink, TraceStore
 
 if TYPE_CHECKING:
     from ..agent import Agent
-    from ..commit import Commit, Read, Write
+    from ..commit import Commit, CommitRead, Write
     from ..context import Context
     from ..events import Event
     from ..patches import Patch
@@ -177,7 +177,9 @@ class Tracer:
         """Whether this tracer needs `on_llm_delta` (opt-in; default `False`)."""
         return False
 
-    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def on_agent_start(
+        self, agent: Agent, event: Event, reads: list[CommitRead]
+    ) -> None:
         """Called before an agent's `run()` (after authorization)."""
         pass
 
@@ -427,7 +429,9 @@ class CompositeTracer:
             getattr(tracer, "wants_llm_deltas", False) for tracer in self.tracers
         )
 
-    def on_agent_start(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def on_agent_start(
+        self, agent: Agent, event: Event, reads: list[CommitRead]
+    ) -> None:
         for tracer in self.tracers:
             try:
                 tracer.on_agent_start(agent, event, reads)
@@ -503,7 +507,7 @@ class RunTracer:
         self._pending_llm: dict[str, list[LLMCall]] = {}
         self._trace_data_cache: dict[tuple[str, int], str] = {}
         self._redactor = getattr(context.resources, "redactor", None)
-        self._truncate = getattr(context.resources, "trace_truncate", TRACE_TRUNCATE)
+        self._truncate: int | None = TRACE_TRUNCATE
         self.run_id = ""
         self.spans: list[AgentSpan] = []
         #: Workspace/scope of this run (copied onto `RunTrace.scope`), so a
@@ -524,8 +528,7 @@ class RunTracer:
         self._max_spans = limits.max_spans
         self._max_refs = limits.max_refs_per_span
         self._max_llm = limits.max_llm_calls_per_span
-        if limits.max_data_chars is not None:
-            self._truncate = limits.max_data_chars
+        self._truncate = limits.max_data_chars
         self.truncated = False
 
     @property
@@ -534,8 +537,7 @@ class RunTracer:
 
     @property
     def data_char_limit(self) -> int | None:
-        """The resolved per-text trace cap (`TraceLimits.max_data_chars` or the
-        legacy `RuntimeResources.trace_truncate` fallback)."""
+        """The resolved per-text trace cap (`TraceLimits.max_data_chars`)."""
         return self._truncate
 
     # ---- task -> agent attribution, for RecordingLLM.agent_of ----
@@ -615,7 +617,7 @@ class RunTracer:
         data = artifact.data if artifact is not None else None
         return type(data).__name__ if data is not None else ""
 
-    def read_refs(self, reads: list[Read]) -> list[ArtifactRef]:
+    def read_refs(self, reads: list[CommitRead]) -> list[ArtifactRef]:
         return [
             self.artifact_ref(
                 read.artifact_id,
@@ -736,7 +738,9 @@ class RunTracer:
         except Exception as exc:  # noqa: BLE001 — best-effort observability
             _swallow_tracing_error("on_generation_start", exc)
 
-    def agent_started(self, agent: Agent, event: Event, reads: list[Read]) -> None:
+    def agent_started(
+        self, agent: Agent, event: Event, reads: list[CommitRead]
+    ) -> None:
         if self.tracer is None:
             return
         try:
@@ -780,7 +784,7 @@ class RunTracer:
         self,
         agent: Agent,
         event: Event,
-        reads: list[Read],
+        reads: list[CommitRead],
         latency_ms: float,
         *,
         error: BaseException | None = None,

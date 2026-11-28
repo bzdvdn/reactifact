@@ -264,7 +264,7 @@ async def kubectl(resource: str) -> str:
 class K8sAgent(Agent):
     name = "k8s"
     consumes = [Consume(Problem), Consume(ToolAnswer)]
-    produces = [ToolUse(name="k8s", system="Use the kubectl tool.", tools=[kubectl])]
+    steps = [ToolUse(name="k8s", system="Use the kubectl tool.", tools=[kubectl])]
 
 
 class ScriptedLLM(LLMProvider):
@@ -369,7 +369,7 @@ async def use_catalog(call):
 class CatalogAgent(Agent):
     name = "catalog"
     consumes = [Consume(Problem)]
-    produces = [use_catalog]
+    steps = [use_catalog]
 
 
 def test_fail_resource_by_typed_key_end_to_end():

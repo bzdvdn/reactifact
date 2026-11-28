@@ -30,7 +30,7 @@ class TicketGate(Agent):
     consumes = [
         AbsentConsume(Report, absent_type=HelpdeskTicket, key=lambda d: d.thread_id)
     ]
-    produces = [FileTicket()]
+    steps = [FileTicket()]
 
 
 def test_fires_when_no_blocking_ticket_exists():
@@ -81,7 +81,7 @@ def test_absent_condition_narrows_what_counts_as_blocking():
                 absent_condition=lambda d: d.sent,
             )
         ]
-        produces = [FileTicket()]
+        steps = [FileTicket()]
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[SentOnlyGate()])

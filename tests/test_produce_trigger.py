@@ -75,7 +75,7 @@ class BestEffortReactor(Step[DraftAnswer]):
 
 class FinalAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
-    produces = [FinalizeWithDocuments()]
+    steps = [FinalizeWithDocuments()]
 
 
 def test_reacts_to_with_trigger_needs_no_guard():
@@ -93,7 +93,7 @@ def test_reacts_to_with_trigger_needs_no_guard():
 
 class TwoTypeAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
-    produces = [TwoTypeReactor()]
+    steps = [TwoTypeReactor()]
 
 
 def test_reacts_to_with_several_types_resolves_whichever_fired():
@@ -111,7 +111,7 @@ def test_reacts_to_with_several_types_resolves_whichever_fired():
 
 class BestEffortAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
-    produces = [BestEffortReactor()]
+    steps = [BestEffortReactor()]
 
 
 def test_trigger_without_reacts_to_is_best_effort_not_gating():
@@ -197,7 +197,7 @@ def decorated_with_trigger(call):
 
 class DecoratedAgent(Agent):
     consumes = [Consume(ResolvedDocuments)]
-    produces = [decorated_with_trigger]
+    steps = [decorated_with_trigger]
 
 
 def test_produce_decorator_accepts_trigger():

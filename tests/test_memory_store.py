@@ -8,8 +8,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from reactifact import (
     Context,
-    Create,
-    Effects,
     Ensure,
     PendingAction,
     RuntimeResources,
@@ -225,38 +223,6 @@ def test_forget_source_rejects_an_empty_session():
         asyncio.run(memory.forget_source(""))
     with pytest.raises(ValueError, match="non-empty source_session"):
         asyncio.run(memory.forget_source("   "))
-
-
-def test_remember_after_commit_records_an_outbox_intent():
-    """The step-side helper only plans a PendingAction; no record is written."""
-    from pydantic import BaseModel
-
-    class Report(BaseModel):
-        text: str
-
-    memory = MemoryStore(InMemoryKVBackend(), namespace="user:1")
-    ctx = Context(resources=RuntimeResources())
-    report = ctx.create(Report(text="worker-2f1 OOMKilled"))
-    effects = Effects(ctx)
-
-    handle = memory.remember_after_commit(
-        effects,
-        report,
-        key=f"report:{report.id}",
-        source_session="admin1:s1",
-        text="worker-2f1 OOMKilled",
-    )
-
-    assert handle is not None
-    assert asyncio.run(memory.list()) == []
-    operation = effects.operations[0]
-    assert isinstance(operation, Create)
-    action = operation.data
-    assert isinstance(action, PendingAction)
-    assert action.kind == "memory.remember"
-    assert action.idempotency_key == f"memory:report:{report.id}"
-    assert action.payload["source_artifact"] == report.id
-    assert action.payload["source_session"] == "admin1:s1"
 
 
 def test_remember_later_is_a_return_style_step_instruction():

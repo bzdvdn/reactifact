@@ -12,7 +12,7 @@ explicit index is given, so `sources.title` means `sources[0].title`.
                 field="sources.title")
 
 Extraction runs over the artifact JSON persisted with each span. That JSON is
-clipped by `RuntimeResources.trace_truncate` (default 1500 chars); a value cut
+clipped by `TraceLimits(max_data_chars=...)` (default 1500 chars); a value cut
 off mid-JSON cannot be parsed and falls back to the column's `default`.
 """
 

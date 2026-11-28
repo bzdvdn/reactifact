@@ -24,6 +24,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   now `ContractReport.agents`; `GroupContract` is `AgentContract`; the CLI
   config key is `[tool.reactifact] agents`.
 - **`ValidationIssue.groups` is `ValidationIssue.agents`.**
+- **The remaining 0.x aliases are gone.** `Agent.produces` (use `steps`),
+  `reactifact.commit.Read` (use `CommitRead`), `ProduceRun` (use `StepRun`),
+  `RunTrace.group` (use `.agent`), the `consume=` keyword of `TurnContextStep`/
+  `ScopedCleanup` (use `read=`), `MemoryStore.remember_after_commit`
+  (use `remember_later`), `RuntimeResources(trace_truncate=...)`
+  (use `Tracer(limits=TraceLimits(max_data_chars=...))`) and the legacy
+  `"detail"` key of the HTTP error envelope (use `error.message`).
 - **`StepCall` is `StepInvocation`.** The object a step receives is named for
   what it is — one invocation of one step — since it carries the trigger, the
   input cursor, the effect slot and the per-turn request, not a call. Fields
@@ -61,8 +68,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 - **Class-style agents.** `Agent` subclasses can declare `@step` methods; the
   agent binds each method to its instance (state in `self` works), while the
   declarative `Agent(steps=[...])` and `@agent` forms stay canonical.
-- **`CommitRead`.** `reactifact.commit.Read` is now `CommitRead` (old name is
-  a compatibility alias); `reactifact.Read` is the step input descriptor.
+- **`CommitRead`.** The commit read is `CommitRead`; `reactifact.Read` is the
+  step input descriptor.
 - **`PipelineRunner` + `RunConfig`.** `Pipeline` is the declarative
   definition; `PipelineRunner(pipeline, config=RunConfig(...))` owns resources,
   budget, tracing, lifespan and execution (`run/arun/astream/answer/aanswer`,
@@ -76,8 +83,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `remember_artifact(artifact, ...)` indexes a curated artifact with its
   provenance. Step code records a post-commit write by returning
   `remember_later(artifact, ...)` — an `Ensure(PendingAction)` — instead of
-  touching `Effects`/`Outbox`; `remember_after_commit` remains a compatibility
-  wrapper.
+  touching `Effects`/`Outbox`.
 - **`Chat(pipeline=..., config=...)`.** A `Chat` can reuse a `Pipeline`
   definition and infer its seed/answer types and agents, and `Chat(config=RunConfig(...))`
   shares the same run settings as `PipelineRunner`. `Chat`/`ChatAssistant`/

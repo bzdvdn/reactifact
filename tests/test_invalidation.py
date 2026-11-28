@@ -22,7 +22,7 @@ class Summarizer(Agent):
     """Deterministic derived artifact: dependencies are visible through reads."""
 
     consumes = [Consume(Document)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         doc = context.get(event.artifact_id)
@@ -46,7 +46,7 @@ class StaleWatcher(Agent):
     not just a `stale_artifacts()` poll."""
 
     consumes = [Consume(DerivedSummary, event_types=[EventType.ARTIFACT_STALE])]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         return Patch().create(

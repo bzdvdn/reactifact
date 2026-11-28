@@ -22,10 +22,6 @@ Traces, spans and stores. The narrative guide is [Observability](../en/observabi
 
 ::: reactifact.tracing.LLMCall
 
-### `ProduceRun`
-
-::: reactifact.tracing.ProduceRun
-
 ### `RelationRef`
 
 ::: reactifact.tracing.RelationRef

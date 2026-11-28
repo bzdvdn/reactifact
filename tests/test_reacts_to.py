@@ -49,7 +49,7 @@ class FinalAgent(Agent):
         Consume(ResolvedDocuments),
         Consume.by_field(DecisionReply, "route_action", "final"),
     ]
-    produces = [FinalizeWithDocuments(), DirectFinalize()]
+    steps = [FinalizeWithDocuments(), DirectFinalize()]
 
 
 def test_each_produce_only_runs_for_its_own_reacts_to_type():
@@ -88,7 +88,7 @@ class UnrestrictedRecorder(Step[DraftAnswer]):
 
 class UnrestrictedAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
-    produces = [UnrestrictedRecorder()]
+    steps = [UnrestrictedRecorder()]
 
 
 def test_reacts_to_none_is_unrestricted_by_default():
@@ -117,7 +117,7 @@ class SingleTypeReactor(Step[DraftAnswer]):
 
 class SingleTypeAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
-    produces = [SingleTypeReactor()]
+    steps = [SingleTypeReactor()]
 
 
 def test_consumes_accepts_a_bare_single_type_at_the_constructor():
@@ -140,7 +140,7 @@ def decorated_reactor(call):
 
 class DecoratedAgent(Agent):
     consumes = [Consume(ResolvedDocuments), Consume(DecisionReply)]
-    produces = [decorated_reactor]
+    steps = [decorated_reactor]
 
 
 def test_produce_decorator_accepts_reacts_to():

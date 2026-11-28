@@ -125,10 +125,6 @@ class StepRun(BaseModel):
     started_at: datetime | None = None
 
 
-#: 0.1.x compatibility alias; use `StepRun` in new code.
-ProduceRun = StepRun
-
-
 class TraceLimits(BaseModel):
     """Write-time limits for one recorded run.
 
@@ -141,9 +137,8 @@ class TraceLimits(BaseModel):
     max_spans: int | None = 5000
     max_refs_per_span: int | None = 50
     max_llm_calls_per_span: int | None = 20
-    #: Per-artifact/response text cap. `None` = use
-    #: `RuntimeResources.trace_truncate` (the legacy setting).
-    max_data_chars: int | None = None
+    #: Per-artifact/response text cap. `None` disables the clip.
+    max_data_chars: int | None = 1500
 
 
 class AgentSpan(BaseModel):
@@ -170,11 +165,6 @@ class AgentSpan(BaseModel):
     latency_ms: float = 0.0
     error: str | None = None
     started_at: datetime | None = None
-
-    @property
-    def group(self) -> str:
-        """The agent name (alias for `agent`, kept for compatibility)."""
-        return self.agent
 
 
 class RunTrace(BaseModel):

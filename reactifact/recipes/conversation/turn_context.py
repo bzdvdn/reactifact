@@ -109,7 +109,7 @@ class TurnContextStep(Step[TurnContext]):
     (`looks_like_follow_up`) and never calls an LLM. `build` receives
     `TurnFacts` and returns the artifact payload (default: `TurnContext`), so a
     domain context can add prior-domain/routing fields without carrying
-    `Context`. `read=` defaults to `Consume(user_type)` (legacy `consume=` alias); pass
+    `Context`. `read=` defaults to `Consume(user_type)`; pass
     `Consume.on_create(user_type)` for one artifact per turn, and `ensure=True` to use
     `Ensure` instead of `Emit` (idempotent create).
     """
@@ -129,7 +129,6 @@ class TurnContextStep(Step[TurnContext]):
         resolve: Callable[[str, str | None, bool], str] | None = None,
         build: Callable[[TurnFacts], BaseModel] | None = None,
         read: Read | Consume | None = None,
-        consume: Consume | None = None,
         ensure: bool = False,
         name: str = "turn_context",
     ) -> None:
@@ -137,11 +136,9 @@ class TurnContextStep(Step[TurnContext]):
             raise ValueError("window must be >= 0 or None")
         if not digest_id:
             raise ValueError("digest_id must be a non-empty string")
-        if read is not None and consume is not None:
-            raise TypeError("Pass only one of read= or consume=")
         super().__init__(
             artifact_type,
-            reads=read or consume or Read(user_type),
+            reads=read or Read(user_type),
             name=name,
         )
         self.ensure = ensure

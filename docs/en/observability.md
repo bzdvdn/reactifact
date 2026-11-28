@@ -262,9 +262,8 @@ and, on the run page, as a **Fields** card — so the question/answer (and a HIT
 clarify, e.g. a `PendingQuestion` column) are visible on the run too, not just
 the list. Values
 come from the JSON persisted with each span, clipped by
-`TraceLimits(max_data_chars=…)` on the tracer (preferred) or the legacy
-`RuntimeResources(trace_truncate=…)` (default 1500 chars; `None` disables the
-clip) — raise it if a deep/large field must resolve.
+`TraceLimits(max_data_chars=…)` on the tracer (default 1500 chars; `None`
+disables the clip) — raise it if a deep/large field must resolve.
 
 The `devops` and `repair` examples wire this up (`Question` + `Answer`, and the
 latter also `Stage` + a pending HITL `Pending`).
@@ -447,7 +446,7 @@ run.
 `RecordingLLM` records `complete()` and `stream()` calls. A streamed call is
 recorded **once**, after the stream ends (or is closed), with the concatenated
 text, terminal token usage and any error; the stored response is clipped to
-`trace_truncate` (default 1500). The per-chunk overhead is one async-generator
+`TraceLimits.max_data_chars` (default 1500). The per-chunk overhead is one async-generator
 frame, no per-token recording.
 
 ### Typed run events (`astream_events`)

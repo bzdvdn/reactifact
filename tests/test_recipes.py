@@ -66,7 +66,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
 
     class Engine(Agent):
         consumes = (Consume(Job),)
-        produces = [Scout(), Step(Job)]
+        steps = [Scout(), Step(Job)]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
     runtime = Runtime(ctx, agents=[Engine()])
@@ -116,7 +116,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
 
     class Engine(Agent):
         consumes = [Consume(Job), Consume(SourceRef)]
-        produces = [Scout(), Resolver()]
+        steps = [Scout(), Resolver()]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
     runtime = Runtime(ctx, agents=[Engine()])
@@ -151,7 +151,7 @@ class Survey(StatusMachine[Job]):
 
 class Engine(Agent):
     consumes = [Consume(Job)]
-    produces = [Fill(), Survey()]
+    steps = [Fill(), Survey()]
 
 
 def test_status_machine_advances_lifecycle():
@@ -220,7 +220,7 @@ class Cleanup(PrefixedEphemeralCleanup[Final]):
 
 class CleanupEngine(Agent):
     consumes = [Consume(Question), Consume(Scratch), Consume(Final)]
-    produces = [MakeScratch(), MakeFinal(), Cleanup()]
+    steps = [MakeScratch(), MakeFinal(), Cleanup()]
 
 
 def test_ephemeral_cleanup_deletes_scratch_once_terminal_exists():
@@ -273,7 +273,7 @@ def test_seed_identity_writes_the_contextvar_value_as_an_artifact():
 
     class IdentityAgent(Agent):
         consumes = [Consume(Question)]
-        produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
+        steps = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[IdentityAgent()])
@@ -300,7 +300,7 @@ def test_seed_identity_extracts_from_a_richer_envelope():
 
     class IdentityAgent(Agent):
         consumes = [Consume(Question)]
-        produces = [
+        steps = [
             SeedIdentity(
                 UserContext,
                 identity_var,
@@ -332,7 +332,7 @@ def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
 
     class IdentityAgent(Agent):
         consumes = [Consume(Question)]
-        produces = [
+        steps = [
             SeedIdentity(
                 UserContext,
                 identity_var,
@@ -359,7 +359,7 @@ def test_seed_identity_skips_the_write_when_unset_and_no_fallback():
 
     class IdentityAgent(Agent):
         consumes = [Consume(Question)]
-        produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
+        steps = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[IdentityAgent()])

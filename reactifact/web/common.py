@@ -75,8 +75,6 @@ def error_payload(
             "request_id": request_id,
             "trace_id": run_id,
         },
-        # Kept for clients written against the pre-0.24 shape.
-        "detail": message,
     }
 
 
@@ -104,9 +102,8 @@ def install_error_handlers(
     `QuotaExceeded` → 429, `MergeConflict` → 409. `extra` adds or overrides
     mappings (`{MyError: 418}`).
 
-    The body is `{"error": {"code", "message", "request_id", "trace_id"},
-    "detail"}`; `detail` is the legacy alias. Install `install_request_id(app)`
-    as well for correlation headers.
+    The body is `{"error": {"code", "message", "request_id", "trace_id"}}`.
+    Install `install_request_id(app)` as well for correlation headers.
 
     FastAPI is imported lazily, like the rest of this module.
     """

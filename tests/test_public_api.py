@@ -411,7 +411,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "LangfuseTracer",
             "OTLPTracer",
             "PostgresStore",
-            "ProduceRun",
             "RetentionPolicy",
             "SamplingPolicy",
             "StepRun",

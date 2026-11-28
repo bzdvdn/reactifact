@@ -95,7 +95,7 @@ class ScopedCleanup(Step):
     `Answer`.
 
     `scope` is required (pass `None` explicitly for a deliberate global
-    cleanup); `read=` defaults to `Read.on_create(terminal_type)` (legacy `consume=` alias).
+    cleanup); `read=` defaults to `Read.on_create(terminal_type)`.
     """
 
     def __init__(
@@ -105,19 +105,16 @@ class ScopedCleanup(Step):
         scratch_types: Sequence[type[BaseModel]],
         scope: Scope | str | None,
         read: Read | Consume | None = None,
-        consume: Consume | None = None,
         name: str = "cleanup",
     ) -> None:
         self.terminal_type = terminal_type
         self.scratch_types = tuple(scratch_types)
         if not self.scratch_types:
             raise ValueError("ScopedCleanup needs at least one scratch type")
-        if read is not None and consume is not None:
-            raise TypeError("Pass only one of read= or consume=")
         super().__init__(
             produces=(),
             deletes=self.scratch_types,
-            reads=read or consume or Read.on_create(terminal_type),
+            reads=read or Read.on_create(terminal_type),
             scope=scope,
             name=name,
         )

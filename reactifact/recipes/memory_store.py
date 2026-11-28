@@ -29,9 +29,6 @@ after the generation commits:
     @step(produces=PendingAction, reads=Report)
     async def remember(report: Artifact[Report]) -> Ensure:
         return memory.remember_later(report, key=f"report:{report.id}", ...)
-
-`remember_after_commit(effects, ...)` is the 0.x effects-slot spelling kept for
-compatibility.
 """
 
 from __future__ import annotations
@@ -50,16 +47,14 @@ from pydantic import BaseModel, Field
 
 from ..agent import Ensure
 from ..checkpoints import KVBackend
-from ..interaction import Outbox
 from ..interrupt import PendingAction
 from .text import keyword_score
 
 if TYPE_CHECKING:
     from ..artifacts import Artifact
     from ..context import Context
-    from ..effects import Effects, Handle
 
-#: Outbox action kind for `remember_after_commit` / `MemoryStore.dispatch`.
+#: Outbox action kind for `remember_later` / `MemoryStore.dispatch`.
 MEMORY_ACTION = "memory.remember"
 
 Searcher = Callable[["MemoryRecord", str], float]
@@ -495,34 +490,6 @@ class MemoryStore:
             payload=payload,
         )
         return Ensure(action, id=f"action:memory:{key}")
-
-    def remember_after_commit(
-        self,
-        effects: Effects,
-        artifact: Artifact[Any],
-        *,
-        key: str,
-        source_session: str,
-        text: str | None = None,
-        tags: Mapping[str, str] | None = None,
-        ttl_seconds: float | None = None,
-        kind: str = "summary",
-    ) -> Handle | None:
-        """Compatibility wrapper for `remember_later` in an effects slot.
-
-        New step code returns `remember_later(...)`; this spelling stays for
-        callers that already pass `effects` explicitly.
-        """
-        payload = self._action_payload(
-            artifact,
-            key=key,
-            source_session=source_session,
-            text=text,
-            tags=tags,
-            ttl_seconds=ttl_seconds,
-            kind=kind,
-        )
-        return Outbox(effects).act(MEMORY_ACTION, key=f"memory:{key}", payload=payload)
 
     @classmethod
     async def dispatch(cls, context: Context, action: Artifact[PendingAction]) -> None:

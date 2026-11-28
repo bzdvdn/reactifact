@@ -64,7 +64,7 @@ class Chatty(Step[Number]):
 class ChattyAgent(Agent):
     name = "chatty"
     consumes = [Consume(Number)]
-    produces = [Chatty()]
+    steps = [Chatty()]
 
 
 class StreamUsageLLM(LLMProvider):
@@ -101,7 +101,7 @@ class Streaming(Step[Number]):
 class StreamingAgent(Agent):
     name = "streaming"
     consumes = [Consume(Number)]
-    produces = [Streaming()]
+    steps = [Streaming()]
 
 
 def _price(model: str, prompt: int, completion: int) -> float:

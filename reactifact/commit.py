@@ -175,7 +175,3 @@ class ContextCheckpoint:
             "message": self.message,
             "writes": [write.to_dict() for write in self.writes],
         }
-
-
-#: Deprecated compatibility alias; use `CommitRead`.
-Read = CommitRead

@@ -61,6 +61,14 @@ intake = Agent("intake", steps=[classify, reply], consumes=[Consume(Question)])
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` в `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (те же поля и каналы) |
+| `Agent.produces` | `Agent(steps=...)` / `steps = [...]` |
+| `reactifact.commit.Read` | `CommitRead` |
+| `ProduceRun` | `StepRun` |
+| `RunTrace.group` | `RunTrace.agent` |
+| `consume=` у `TurnContextStep` / `ScopedCleanup` | `read=` |
+| `MemoryStore.remember_after_commit(effects, ...)` | вернуть `remember_later(...)` из шага |
+| `RuntimeResources(trace_truncate=...)` | `Tracer(limits=TraceLimits(max_data_chars=...))` |
+| `"detail"` в теле HTTP-ошибки | `error.message` |
 | модуль `reactifact.step` | `reactifact.agent.step` (или верхнеуровневые `Step`/`step`) |
 
 `Route.groups()` теперь `Route.agents()`, а routed-кейсы принимают объекты

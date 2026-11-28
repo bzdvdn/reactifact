@@ -31,7 +31,7 @@ class Evidence(BaseModel):
 def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
     class VerifierGroup(Agent):
         consumes = [Consume(Answer)]
-        produces = [Verify(**verify_kwargs)]
+        steps = [Verify(**verify_kwargs)]
 
     return Runtime(ctx, agents=[VerifierGroup()])
 

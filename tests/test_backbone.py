@@ -2,7 +2,7 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, EventType, Patch, Runtime, Trigger
-from reactifact.commit import Read, Write
+from reactifact.commit import CommitRead, Write
 
 
 class Question(BaseModel):
@@ -19,7 +19,7 @@ class Answer(BaseModel):
 
 class Researcher(Agent):
     consumes = [Consume(Question)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         q = context.get(event.artifact_id)
@@ -30,7 +30,7 @@ class Researcher(Agent):
 
 class Answerer(Agent):
     consumes = [Consume(Evidence)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         ev = context.get(event.artifact_id)
@@ -65,8 +65,8 @@ def test_reads_writes_recorded_from_consumes():
     ctx, _runtime, question = build_runtime()
     first, second = ctx.history()
 
-    assert first.reads == [Read(question.id, 0)]
-    assert second.reads == [Read(ctx.list_artifacts(Evidence)[0].id, 0)]
+    assert first.reads == [CommitRead(question.id, 0)]
+    assert second.reads == [CommitRead(ctx.list_artifacts(Evidence)[0].id, 0)]
 
     assert first.writes == [Write(ctx.list_artifacts(Evidence)[0].id, 0, "create")]
     assert second.writes == [Write(ctx.list_artifacts(Answer)[0].id, 0, "create")]
@@ -155,6 +155,6 @@ def test_reactive_doubling_provenance():
     commit = ctx.history()[0]
     assert commit.context_version == 1
     # reads record the trigger artifact even without declared consumes
-    assert commit.reads == [Read(number.id, 0)]
+    assert commit.reads == [CommitRead(number.id, 0)]
     # writes record the update of the same revision
     assert commit.writes == [Write(number.id, 1, "update")]

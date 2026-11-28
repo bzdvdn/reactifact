@@ -37,7 +37,7 @@ def test_domain_errors_become_json(error, status, code):
     assert body["error"]["message"]
     assert body["error"]["request_id"] == "req-1"
     assert isinstance(body["error"]["trace_id"], str)
-    assert body["detail"] == body["error"]["message"]
+    assert "detail" not in body
     assert response.headers["X-Request-ID"] == "req-1"
 
 

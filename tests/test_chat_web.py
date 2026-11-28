@@ -328,7 +328,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     class SlowAgent(Agent):
         name = "slow"
         consumes = [Consume(Q)]
-        produces = [Slow()]
+        steps = [Slow()]
 
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
@@ -408,7 +408,7 @@ def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     class BoomAgent(Agent):
         name = "boom"
         consumes = [Consume(Q)]
-        produces = [Boom()]
+        steps = [Boom()]
 
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(

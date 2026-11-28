@@ -50,7 +50,7 @@ class Flow(PlanExecute[Goal, PlanStep, StepResult, FinalAnswer]):
 def make_runtime(ctx: Context) -> Runtime:
     class FlowAgent(Agent):
         consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
-        produces = Flow().produces()
+        steps = Flow().produces()
 
     return Runtime(ctx, agents=[FlowAgent()])
 

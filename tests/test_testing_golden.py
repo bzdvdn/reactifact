@@ -101,7 +101,7 @@ class Doubler(Step[Out]):
 class DoublerAgent(Agent):
     name = "doubler"
     consumes = [Consume(Seed)]
-    produces = [Doubler()]
+    steps = [Doubler()]
 
 
 def test_scenario_result_golden_seeds_then_matches(tmp_path):

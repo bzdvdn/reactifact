@@ -97,14 +97,14 @@ class ToolCallRecorder:
 
 
 def _iter_tool_dicts(agents: Sequence[Agent]) -> Iterator[dict[str, Tool]]:
-    """Yields every `dict[str, Tool]`-shaped mapping found on any agent produce.
+    """Yields every `dict[str, Tool]`-shaped mapping found on any agent step.
 
     Duck-typed (checks `.execute` on the values) rather than importing the
     private `_ToolLoopBase` class, so it keeps working if that internal is
     renamed or restructured.
     """
     for agent in agents:
-        for produce_obj in getattr(agent, "produces", None) or []:
+        for produce_obj in agent.steps or []:
             tools = getattr(produce_obj, "tools", None)
             if (
                 isinstance(tools, dict)

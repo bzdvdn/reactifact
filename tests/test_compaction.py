@@ -38,7 +38,7 @@ class Increment(Step[Number]):
 class IncrementAgent(Agent):
     name = "increment"
     consumes = [Consume(Number)]
-    produces = [Increment()]
+    steps = [Increment()]
 
 
 def _built(max_runs: int = 6) -> Context:

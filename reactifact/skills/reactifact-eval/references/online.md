@@ -27,7 +27,7 @@ await evaluator.run_forever(interval_seconds=300)   # or a background task
 ## The truncation problem, and the two sources
 
 A trace is a summary: artifact `data` and LLM messages are truncated for
-storage (`RuntimeResources.trace_truncate`). So a **source** decides what is
+storage (`TraceLimits(max_data_chars=...)`). So a **source** decides what is
 scoreable:
 
 | Source | Scores | Use |

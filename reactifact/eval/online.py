@@ -7,7 +7,7 @@ runs out of a `TraceReader`, score them with the same `Evaluator`s (including
 annotation channel the dashboard already reads — plus metrics.
 
 The catch is that a trace is a *summary*: artifact data and LLM messages are
-truncated for storage (`RuntimeResources.trace_truncate`), so not every metric
+truncated for storage (`TraceLimits(max_data_chars=...)`), so not every metric
 can be computed from a `RunTrace` alone. Two sources cover the range:
 
 - `trace_source()` (default, cheap): scores structure — the run's typed path

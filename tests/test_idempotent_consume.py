@@ -28,7 +28,7 @@ class MakeDraft(Step[Draft]):
 
 class Flow(Agent):
     consumes = [Consume(Topic)]
-    produces = [MakeDraft()]
+    steps = [MakeDraft()]
 
 
 def test_fires_while_the_target_is_absent():
@@ -74,7 +74,7 @@ def test_id_of_none_never_fires():
 
     class SkipFlow(Agent):
         consumes = [Consume(Topic)]
-        produces = [Skip()]
+        steps = [Skip()]
 
     ctx = Context()
     ctx.create(Topic(text="x"), id="topic:1")
@@ -111,7 +111,7 @@ def test_condition_narrows_the_trigger():
 
     class ConditionalFlow(Agent):
         consumes = [Consume(Topic)]
-        produces = [Conditional()]
+        steps = [Conditional()]
 
     ctx = Context()
     ctx.create(Topic(text="no"), id="topic:no")

@@ -45,7 +45,7 @@ class ApprovalGate(Agent):
             forbid=[HelpdeskTicket],
         )
     ]
-    produces = [RecordApproval()]
+    steps = [RecordApproval()]
 
 
 def test_fires_when_required_present_and_forbidden_absent():

@@ -32,12 +32,12 @@ class RecordCollected(Step[Collected]):
 
 class DebouncedCollector(Agent):
     consumes = [Consume(Evidence, debounce=True)]
-    produces = [RecordCollected()]
+    steps = [RecordCollected()]
 
 
 class NonDebouncedCollector(Agent):
     consumes = [Consume(Evidence)]
-    produces = [RecordCollected()]
+    steps = [RecordCollected()]
 
 
 class MixedAgent(Agent):
@@ -45,7 +45,7 @@ class MixedAgent(Agent):
     the `Consume` it's set on, not the whole agent."""
 
     consumes = [Consume(Evidence, debounce=True), Consume(Marker)]
-    produces = [RecordCollected()]
+    steps = [RecordCollected()]
 
 
 def test_debounce_collapses_multiple_events_into_one_run():

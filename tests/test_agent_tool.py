@@ -75,7 +75,7 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
         system = "Делегируй специалисту при необходимости."
         tools = [delegate]
         consumes = [Consume(Question)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
 
     runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="сколько будет?"))
@@ -93,7 +93,7 @@ def test_agent_as_tool_isolated_from_parent_history():
     def sub_factory():
         class RecordingSubAgent(Agent):
             consumes = [Consume(SubTask)]
-            produces = []
+            steps = []
 
             async def run(self, event, context):
                 from reactifact import Patch
@@ -136,7 +136,7 @@ def test_agent_as_tool_isolated_from_parent_history():
         system = "агент"
         tools = [delegate]
         consumes = [Consume(Question)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
 
     runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="parent question"))
@@ -187,7 +187,7 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
         system = "агент"
         tools = [delegate]
         consumes = [Consume(Question)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
 
     runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="почисти под"))

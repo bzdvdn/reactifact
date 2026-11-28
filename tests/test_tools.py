@@ -116,7 +116,7 @@ def test_single_agent_loop_and_report():
 
     class K8sAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [
+        steps = [
             ToolUse(
                 name="k8s",
                 system="Ты эксперт по k8s. Используй tool kubectl.",
@@ -181,7 +181,7 @@ def test_deferred_tool_group_loads_on_demand_once():
 
     class DeferredAgent(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [
+        steps = [
             ToolUse(
                 name="deferred",
                 system="Use load_tools to discover extra tools before using them.",
@@ -242,7 +242,7 @@ def test_two_agents_do_not_crossfire():
             Consume(K8sProblems),
             Consume.by_field(ToolAnswer, "agent", "k8s"),  # only its own answers
         ]
-        produces = [
+        steps = [
             ToolUse(
                 name="k8s",
                 system="Ты эксперт по k8s. Используй tool kubectl.",
@@ -258,7 +258,7 @@ def test_two_agents_do_not_crossfire():
             Consume(AnsibleProblems),
             Consume.by_field(ToolAnswer, "agent", "gitlab"),
         ]
-        produces = [
+        steps = [
             ToolUse(
                 name="gitlab",
                 system="Ты эксперт по GitLab. Используй tool gitlab_search.",
@@ -310,7 +310,7 @@ def test_tool_failure_is_returned_to_llm():
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [ToolUse("У тебя есть тул flaky.", [flaky]), BuildReport()]
+        steps = [ToolUse("У тебя есть тул flaky.", [flaky]), BuildReport()]
 
     runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="проверь"))
@@ -341,7 +341,7 @@ def test_budget_max_tool_calls_stops_loop():
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [ToolUse("агент", [kubectl]), BuildReport()]
+        steps = [ToolUse("агент", [kubectl]), BuildReport()]
 
     runtime = Runtime(ctx, agents=[Agent1()], budget=Budget(max_tool_calls=2))
     ctx.create(K8sProblems(text="много"))
@@ -371,7 +371,7 @@ def test_unknown_tool_reported_to_llm():
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [ToolUse("агент", [kubectl]), BuildReport()]
+        steps = [ToolUse("агент", [kubectl]), BuildReport()]
 
     runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="х"))
@@ -445,7 +445,7 @@ def test_llm_agent_tools_only_no_produces():
 
     class BaseChat(Agent):
         consumes = [Consume.by_field(ToolAnswer, "agent", "helperagent")]
-        produces = [RenderFromBaseChat()]
+        steps = [RenderFromBaseChat()]
 
     runtime = Runtime(ctx, agents=[HelperAgent(), BaseChat()])
     ctx.create(K8sProblems(text="проверь pods"))
@@ -479,7 +479,7 @@ def test_forced_answer_when_loop_hits_step_limit():
 
     class Agent1(Agent):
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
-        produces = [ToolUse("агент", [kubectl], max_steps=2), BuildReport()]
+        steps = [ToolUse("агент", [kubectl], max_steps=2), BuildReport()]
 
     runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="диагностируй"))
@@ -512,7 +512,7 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
         system = "Ты эксперт по k8s. Используй tool kubectl."
         tools = [kubectl]
         consumes = [Consume(K8sProblems)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
         resume_announce = staticmethod(lambda a: f"Принято: «{a}». Проверяю…")
 
     runtime = Runtime(ctx, agents=[K8sAgent()])
@@ -568,7 +568,7 @@ def test_max_asks_caps_rephrased_clarifications():
         system = "агент"
         tools = [kubectl]
         consumes = [Consume(K8sProblems)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
         max_asks = 1
 
     runtime = Runtime(ctx, agents=[K8sAgent()])
@@ -610,7 +610,7 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
         system = "агент"
         tools = [delete_pod]
         consumes = [Consume(K8sProblems)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
 
     runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почисти под web-1"))
@@ -654,7 +654,7 @@ def test_hitl_destructive_tool_denied_is_not_executed():
         system = "агент"
         tools = [delete_pod]
         consumes = [Consume(K8sProblems)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
 
     runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почисти под web-1"))
@@ -695,7 +695,7 @@ def test_max_approvals_caps_repeated_destructive_calls():
         system = "агент"
         tools = [delete_pod]
         consumes = [Consume(K8sProblems)]
-        produces = [BuildReport()]
+        steps = [BuildReport()]
         max_approvals = 1
 
     runtime = Runtime(ctx, agents=[K8sAgent()])

@@ -8,8 +8,6 @@ import pytest
 from pydantic import BaseModel
 from reactifact import Agent, Consume, Context, EventType, Read, Runtime, Step, step
 from reactifact.agent import agent
-from reactifact.commit import CommitRead
-from reactifact.commit import Read as CommitReadAlias
 
 
 class Question(BaseModel):
@@ -121,10 +119,6 @@ def test_read_after_delete_is_event_only():
     assert read.event_types == [EventType.ARTIFACT_DELETED]
     assert read.required is True
     assert read.collect(Context()) == []
-
-
-def test_commit_read_was_renamed():
-    assert CommitReadAlias is CommitRead
 
 
 def test_big_agent_runs_its_steps_together():

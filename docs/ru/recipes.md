@@ -137,7 +137,6 @@ async def remember(report: Artifact[Report]) -> Ensure:
 вызова. `MemoryStore.dispatch` находит зарегистрированный store в
 `context.resources` и выполняет запись после коммита. Неизвестные kinds
 игнорируются, поэтому его можно комбинировать с другими dispatcher'ами.
-`remember_after_commit(effects, …)` остаётся compatibility-формой.
 
 ## `map_reduce` — fan-out типизированных задач и reduce (§24)
 

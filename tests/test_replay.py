@@ -45,7 +45,7 @@ class Pass(Step[Note]):
 class PassAgent(Agent):
     name = "pass"
     consumes = [Consume(Seed)]
-    produces = [Pass()]
+    steps = [Pass()]
 
 
 async def _aran_session(tmp_path: str) -> tuple[SessionStore, str]:

@@ -15,7 +15,7 @@ class Answer(BaseModel):
 
 class SimpleAnswerer(Agent):
     consumes = [Consume(Question)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         q = context.get(event.artifact_id)
@@ -162,7 +162,7 @@ class Echo(Agent):
     turn, so per_commit vs. per_turn save counts actually differ."""
 
     consumes = [Consume(Answer)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         a = context.get(event.artifact_id)

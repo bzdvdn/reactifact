@@ -61,6 +61,14 @@ agent.
 | `ContractReport.groups`, `GroupContract` | `ContractReport.agents`, `AgentContract` |
 | `[tool.reactifact] groups` in `pyproject.toml` | `[tool.reactifact] agents` |
 | `StepCall` | `StepInvocation` (same fields and channels) |
+| `Agent.produces` | `Agent(steps=...)` / `steps = [...]` |
+| `reactifact.commit.Read` | `CommitRead` |
+| `ProduceRun` | `StepRun` |
+| `RunTrace.group` | `RunTrace.agent` |
+| `consume=` on `TurnContextStep` / `ScopedCleanup` | `read=` |
+| `MemoryStore.remember_after_commit(effects, ...)` | return `remember_later(...)` from the step |
+| `RuntimeResources(trace_truncate=...)` | `Tracer(limits=TraceLimits(max_data_chars=...))` |
+| `"detail"` in the HTTP error body | `error.message` |
 | `reactifact.step` module | `reactifact.agent.step` (or the top-level `Step`/`step`) |
 
 `Route.groups()` is now `Route.agents()`, and routed cases accept `Agent`

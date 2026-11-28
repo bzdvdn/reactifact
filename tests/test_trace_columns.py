@@ -321,7 +321,7 @@ class BigProducer(Agent):
         return Patch().create(BigAnswer(text="x" * 400, deep={"k": "found"}))
 
 
-def test_trace_truncate_is_configurable(tmp_path):
+def test_trace_data_char_limit_is_configurable(tmp_path):
     cols = [TraceColumn(label="deep", field="deep.k")]
 
     def seed_with(truncate, name):

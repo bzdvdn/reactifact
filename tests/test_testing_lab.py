@@ -93,7 +93,7 @@ class BuildReport(Step[Report]):
 class K8sAgent(Agent):
     name = "k8s"
     consumes = [Consume(Problem), Consume(ToolAnswer)]
-    produces = [
+    steps = [
         ToolUse(name="k8s", system="Use the kubectl tool.", tools=[kubectl]),
         BuildReport(),
     ]
@@ -186,7 +186,7 @@ def test_fail_injects_a_tool_error_then_recovers_on_retry():
 
 def test_fault_is_one_shot_and_tools_are_restored_after_run():
     lab = ScenarioLab([K8sAgent()], resources=_resources)
-    tool_use = next(p for p in K8sAgent.produces if isinstance(p, ToolUse))
+    tool_use = next(p for p in K8sAgent.steps if isinstance(p, ToolUse))
     original = tool_use.tools["kubectl"]
 
     lab.fail("kubectl", RuntimeError("boom"))
@@ -326,7 +326,7 @@ async def run_dynamic_tools(call: StepInvocation) -> None:
 class DynamicToolsAgent(Agent):
     name = "dynamic"
     consumes = [Consume(Problem)]
-    produces = [run_dynamic_tools]
+    steps = [run_dynamic_tools]
 
 
 def test_fail_covers_tools_registered_as_typed_resources():

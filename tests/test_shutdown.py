@@ -40,7 +40,7 @@ def test_hard_deadline_cancels_a_hung_agent_and_keeps_the_batch():
 
     class Hang(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             started.set()
@@ -66,7 +66,7 @@ def test_request_stop_ends_at_the_next_boundary():
 
     class First(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             holder["runtime"].request_stop()  # stop after this generation
@@ -74,7 +74,7 @@ def test_request_stop_ends_at_the_next_boundary():
 
     class Second(Agent):
         consumes = [Consume(Step1)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             return Patch().create(Step2(text="two"))
@@ -98,7 +98,7 @@ def test_registry_tracks_and_clears_in_flight_runs():
 
     class Slow(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             started.set()
@@ -125,7 +125,7 @@ def test_cancel_run_cancels_a_specific_turn():
 
     class Hang(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             started.set()
@@ -152,7 +152,7 @@ def test_ashutdown_waits_for_the_turn_to_finish():
 
     class Slow(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             started.set()
@@ -180,7 +180,7 @@ def test_ashutdown_timeout_force_cancels():
 
     class Hang(Agent):
         consumes = [Consume(Question)]
-        produces = []
+        steps = []
 
         async def run(self, event, context):
             started.set()

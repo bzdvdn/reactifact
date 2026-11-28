@@ -102,7 +102,7 @@ def make_runtime(ctx: Context) -> Runtime:
             Consume(SpecialistReport),
             Consume(PendingQuestion),
         ]
-        produces = [
+        steps = [
             MyRouter().produce(),
             Specialist(),
             MyGate().produce(),

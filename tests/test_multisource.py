@@ -28,7 +28,7 @@ class SearchScout(Agent):
     """Fan-out across sources: each source searches in its own way (§8)."""
 
     consumes = [Consume(Question)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         question = context.get(event.artifact_id)
@@ -46,7 +46,7 @@ class TypedResolver(Agent):
     """Materializes a lazy reference into a typed artifact."""
 
     consumes = [Consume(SourceRef)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         ref_artifact = context.get(event.artifact_id)

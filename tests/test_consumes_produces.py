@@ -16,7 +16,7 @@ class Output(BaseModel):
 # --- Imperative agent (as before, run is overridden) ---
 class SimpleAgent(Agent):
     consumes = [Consume(Input)]
-    produces = [Step(Output)]
+    steps = [Step(Output)]
 
     async def run(self, event, context):
         data = context.get(event.artifact_id)
@@ -86,7 +86,7 @@ class UndeclaredMultiCreateProduce(Step[Output]):
 def test_also_creates_widens_the_agents_allowed_create_types():
     class MultiAgent(Agent):
         consumes = [Consume(Input)]
-        produces = [MultiCreateProduce()]
+        steps = [MultiCreateProduce()]
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[MultiAgent()])
@@ -100,7 +100,7 @@ def test_also_creates_widens_the_agents_allowed_create_types():
 def test_create_of_an_undeclared_type_is_rejected_even_without_also_creates():
     class UndeclaredMultiAgent(Agent):
         consumes = [Consume(Input)]
-        produces = [UndeclaredMultiCreateProduce()]
+        steps = [UndeclaredMultiCreateProduce()]
 
     ctx = Context()
     runtime = Runtime(ctx, agents=[UndeclaredMultiAgent()])
@@ -127,7 +127,7 @@ class RecordMixed(Step[Output]):
 
 class MixedAgent(Agent):
     consumes = [Consume(Input), Consume(Passive, wakes=False)]
-    produces = [RecordMixed()]
+    steps = [RecordMixed()]
 
 
 def test_consume_wakes_false_feeds_inputs_without_triggering():
@@ -178,7 +178,7 @@ class MarkerChildB(MarkerBase):
 
 class BaseRecorder(Agent):
     consumes = [Consume.by_base(MarkerBase)]
-    produces = [Step(Output)]
+    steps = [Step(Output)]
 
     async def run(self, event, context):
         artifact = context.get(event.artifact_id)
@@ -214,7 +214,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
 def test_consume_by_base_reads_all_subclass_artifacts():
     class Collector(Agent):
         consumes = [Consume.by_base(MarkerBase)]
-        produces = [Step(Output)]
+        steps = [Step(Output)]
 
         async def run(self, event, context):
             texts = ",".join(a.data.text for a in context.list_artifacts(MarkerBase))

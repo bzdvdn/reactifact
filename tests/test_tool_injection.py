@@ -198,7 +198,7 @@ def test_tool_use_passes_resources_to_injected_tools():
 
     class Agent_(Agent):
         consumes = [Consume(Ask), Consume(ToolAnswer)]
-        produces = [
+        steps = [
             ToolUse(
                 name="ops",
                 system="Use the tools.",

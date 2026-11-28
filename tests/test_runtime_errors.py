@@ -20,7 +20,7 @@ class Explode(Step[Trigger]):
 class ExplodeAgent(Agent):
     name = "explode"
     consumes = [Consume(Trigger)]
-    produces = [Explode()]
+    steps = [Explode()]
 
 
 def test_astream_propagates_agent_error():
@@ -68,7 +68,7 @@ class Survive(Step[Ok]):
 class SurviveAgent(Agent):
     name = "survive"
     consumes = [Consume(Trigger)]
-    produces = [Survive()]
+    steps = [Survive()]
 
 
 def test_isolate_errors_lets_other_agents_finish():
@@ -128,7 +128,7 @@ class Flaky(Step[Done]):
 class FlakyAgent(Agent):
     name = "flaky"
     consumes = [Consume(Trigger)]
-    produces = [Flaky()]
+    steps = [Flaky()]
 
 
 def test_failed_generation_keeps_its_trigger_for_retry():

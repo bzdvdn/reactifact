@@ -19,7 +19,7 @@ from ..agent.agent import (
 )
 from ..agent.step.resolve import MissingInputError
 from ..budget import Budget, BudgetTracker, RunOutcome, RunStats
-from ..commit import Commit, Read
+from ..commit import Commit, CommitRead
 from ..context import Context
 from ..effects import Effects, current_effects, reset_effects, set_effects
 from ..events import Event
@@ -68,7 +68,7 @@ def _producer_index(groups: list[Agent]) -> dict[str, set[str]]:
 
 
 #: A scheduled patch with its trigger reads and (optional) trace span.
-PatchWork = tuple[Patch, Agent, list[Read], AgentSpan | None]
+PatchWork = tuple[Patch, Agent, list[CommitRead], AgentSpan | None]
 #: One agent execution result: patch (if any), the agent/event/reads that
 #: produced it, latency, the exception if the produce raised and
 #: `isolate_errors` was set, and the produces that ran (name/ops/latency).
@@ -76,7 +76,7 @@ AgentResult = tuple[
     Patch | None,
     Agent,
     Event,
-    list[Read],
+    list[CommitRead],
     float,
     BaseException | None,
     list[tuple[str, int, float, datetime]],
@@ -412,7 +412,7 @@ class Runtime:
 
         # Collect work (event, agent), accounting for priority: agents with lower
         # values run earlier, "finishers" last.
-        work: list[tuple[Agent, Event, list[Read]]] = []
+        work: list[tuple[Agent, Event, list[CommitRead]]] = []
         # An agent whose *every* matching trigger for a given event asks for
         # `debounce` gets collapsed to at most one run per generation here —
         # the last matching event in this batch wins, replacing any earlier
@@ -423,7 +423,7 @@ class Runtime:
         # mix of debounced and non-debounced matching triggers for the same
         # event is treated as non-debounced for that event — debouncing only
         # kicks in when nothing about the match demands immediacy.
-        debounced: dict[Agent, tuple[Event, list[Read]]] = {}
+        debounced: dict[Agent, tuple[Event, list[CommitRead]]] = {}
         ordered_agents = sorted(self.agents, key=lambda a: a.priority)
         for event in events:
             if self._budget_exhausted():
@@ -502,7 +502,7 @@ class Runtime:
         return runs
 
     async def _dispatch(
-        self, work: list[tuple[Agent, Event, list[Read]]]
+        self, work: list[tuple[Agent, Event, list[CommitRead]]]
     ) -> list[AgentResult]:
         """Runs the generation's workers.
 
@@ -530,7 +530,7 @@ class Runtime:
         )
         limit_semaphores = {limit: asyncio.Semaphore(limit) for limit in limiters}
 
-        async def _worker(item: tuple[Agent, Event, list[Read]]) -> AgentResult:
+        async def _worker(item: tuple[Agent, Event, list[CommitRead]]) -> AgentResult:
             agent = item[0]
             acquired: list[asyncio.Semaphore] = []
             tier = agent.concurrency_limit
@@ -665,27 +665,27 @@ class Runtime:
         finally:
             self._exit_turn()
 
-    def _collect_reads(self, agent: Agent, event: Event) -> list[Read]:
+    def _collect_reads(self, agent: Agent, event: Event) -> list[CommitRead]:
         """Records consumed artifacts: the trigger event + inputs per consumes.
 
         This is the actual link of an agent to its ancestors (git-like provenance),
         built by the runtime rather than by the graph author.
         """
-        reads: list[Read] = []
+        reads: list[CommitRead] = []
         seen: set[str] = set()
         trigger_artifact = self.context.get(event.artifact_id)
         if trigger_artifact is not None:
-            reads.append(Read(trigger_artifact.id, trigger_artifact.version))
+            reads.append(CommitRead(trigger_artifact.id, trigger_artifact.version))
             seen.add(trigger_artifact.id)
         for artifact in agent.collect_inputs(self.context):
             if artifact.id not in seen:
-                reads.append(Read(artifact.id, artifact.version))
+                reads.append(CommitRead(artifact.id, artifact.version))
                 seen.add(artifact.id)
         return reads
 
     async def _execute(
         self,
-        item: tuple[Agent, Event, list[Read]],
+        item: tuple[Agent, Event, list[CommitRead]],
         semaphore: asyncio.Semaphore | None = None,
     ) -> AgentResult:
         """Runs a single agent (parallel section of a generation).

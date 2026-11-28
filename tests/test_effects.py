@@ -115,7 +115,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
 
     class Refresher(Agent):
         consumes = [Consume(Doc)]
-        produces = [Refresh()]
+        steps = [Refresh()]
 
     ctx = Context(resources=RuntimeResources())
     ctx.create(Note(text="v1"), id="note:1")
@@ -220,7 +220,7 @@ class Greeting(Step[Note]):
 
 class Greeter(Agent):
     consumes = [Consume(Doc)]
-    produces = [Greeting()]
+    steps = [Greeting()]
 
 
 def test_runtime_compiles_effects_into_one_commit():

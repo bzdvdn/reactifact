@@ -139,7 +139,6 @@ any other return-style step result, with no `Effects`/`Outbox` at the call
 site. `MemoryStore.dispatch` resolves the registered store from
 `context.resources` and performs the write after the commit. Unknown action
 kinds are ignored, so it can be composed with other dispatchers.
-`remember_after_commit(effects, …)` remains the compatibility spelling.
 
 ## `map_reduce` — fan out typed tasks, then reduce (§24)
 

@@ -127,7 +127,7 @@ class _Answer(BaseModel):
 
 class _Echo(Agent):
     consumes = [Consume(_Question)]
-    produces = []
+    steps = []
 
     async def run(self, event, context):
         return Patch().create(_Answer(text="x"))

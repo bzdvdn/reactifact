@@ -22,7 +22,7 @@ rather than an unbounded process-lifetime dict.
 
     class UserAgent(Agent):
         consumes = [Consume(Question)]
-        produces = [
+        steps = [
             SeedIdentity(UserContext, identity_var, identity_id="user_context",
                          extract=lambda ri: ri.user, fallback=lambda: UserContext(uid="unknown")),
         ]
