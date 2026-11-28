@@ -80,7 +80,7 @@ def test_parallel_writers_conflict_before_any_commit():
     context.create(Trigger(text="go"), id="trigger:1")
     runtime = Runtime(
         context,
-        groups=[Writer("a"), Writer("b")],
+        agents=[Writer("a"), Writer("b")],
         max_concurrency=2,
     )
 

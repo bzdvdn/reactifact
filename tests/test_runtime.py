@@ -82,7 +82,7 @@ class AsyncDoubler(Agent):
 
 def test_reactive_doubling():
     ws = Context()
-    runtime = Runtime(ws, groups=[Doubler(), Logger()])
+    runtime = Runtime(ws, agents=[Doubler(), Logger()])
     ws.create(Number(value=5))
     total_runs = runtime.run()  # synchronous wrapper
     assert total_runs == 2
@@ -93,7 +93,7 @@ def test_reactive_doubling():
 
 def test_trigger_condition():
     ws = Context()
-    runtime = Runtime(ws, groups=[ThresholdAgent()])
+    runtime = Runtime(ws, agents=[ThresholdAgent()])
 
     ws.create(Number(value=5))
     total_runs = runtime.run()
@@ -108,7 +108,7 @@ def test_trigger_condition():
 
 def test_async_group():
     ws = Context()
-    runtime = Runtime(ws, groups=[AsyncDoubler()])
+    runtime = Runtime(ws, agents=[AsyncDoubler()])
     ws.create(Number(value=7))
     total_runs = asyncio.run(runtime.arun())  # async run
     assert total_runs == 1
@@ -118,7 +118,7 @@ def test_async_group():
 
 def test_produces_validation_rejects_unknown_type():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[])
+    runtime = Runtime(ctx, agents=[])
 
     class WrongOutput(BaseModel):
         text: str

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from reactifact import FakeLLM, PendingQuestion, Pipeline
+from reactifact import FakeLLM, PendingQuestion, Pipeline, PipelineRunner
 from reactifact.provenance import DERIVED_FROM
 from reactifact.recipes import (
     ApprovalDecision,
@@ -100,7 +100,7 @@ def test_policy_prompt_and_hash_are_visible():
 
 def test_interpret_step_records_the_policy_hash():
     policy = ApprovalPolicy(instructions="custom")
-    result = Pipeline(steps=[InterpretApproval(policy=policy)]).run(
+    result = PipelineRunner(Pipeline(steps=[InterpretApproval(policy=policy)])).run(
         _question(resolution="yes")
     )
     decision = result.context.latest(ApprovalDecision)
@@ -137,7 +137,9 @@ def test_low_llm_confidence_is_never_approval():
 
 
 def test_interpret_step_creates_a_linked_decision():
-    result = Pipeline(steps=[InterpretApproval()]).run(_question(resolution="yes"))
+    result = PipelineRunner(Pipeline(steps=[InterpretApproval()])).run(
+        _question(resolution="yes")
+    )
     decision = result.context.latest(ApprovalDecision)
 
     assert decision is not None
@@ -152,7 +154,7 @@ def test_clarify_step_asks_a_typed_follow_up_once():
         decision="ambiguous",
         confidence=0.2,
     )
-    result = Pipeline(steps=[ClarifyApproval()]).run(ambiguous)
+    result = PipelineRunner(Pipeline(steps=[ClarifyApproval()])).run(ambiguous)
     pending = result.context.pending_questions()
 
     assert len(pending) == 1
@@ -169,7 +171,7 @@ def test_approve_does_not_trigger_clarification():
         decision="approve",
         confidence=0.95,
     )
-    result = Pipeline(steps=[ClarifyApproval()]).run(approved)
+    result = PipelineRunner(Pipeline(steps=[ClarifyApproval()])).run(approved)
 
     assert result.context.pending_questions() == []
 

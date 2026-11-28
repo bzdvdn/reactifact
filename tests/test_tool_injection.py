@@ -68,7 +68,7 @@ def test_injection_works_inside_a_step_without_explicit_resources():
 
     class ToolStep(Step[Answer]):
         artifact_type = Answer
-        consumes = [Consume(Question)]
+        reads = [Consume(Question)]
 
         async def run(self, call: StepCall):
             output = await execute_tool(get_pod, {"name": call.trigger.data.text})
@@ -210,7 +210,7 @@ def test_tool_use_passes_resources_to_injected_tools():
     client = resources.register(PodClient, PodClient())
     ctx = Context(resources=resources)
     ctx.create(Ask(text="check web"))
-    asyncio.run(Runtime(ctx, groups=[Agent_()]).arun())
+    asyncio.run(Runtime(ctx, agents=[Agent_()]).arun())
 
     answer = ctx.list_artifacts(ToolAnswer)[0].data.text
     assert answer == "web is up"

@@ -41,7 +41,7 @@ class TextProcessor(Agent):
 
 def test_agent_uses_embedder():
     ws = Context(resources=RuntimeResources(embedder=FakeEmbedder(dim=4)))
-    runtime = Runtime(ws, groups=[TextProcessor()])
+    runtime = Runtime(ws, agents=[TextProcessor()])
 
     ws.create(TextData(text="hello"))
     asyncio.run(runtime.arun())

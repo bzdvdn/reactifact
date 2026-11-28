@@ -48,7 +48,7 @@ async def collect_events(runtime):
 
 def test_astream_yields_status_and_run_end():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Announcer()])
+    runtime = Runtime(ctx, agents=[Announcer()])
     ctx.create(UserMsg(text="привет"))
 
     events = asyncio.run(collect_events(runtime))
@@ -78,7 +78,7 @@ def test_astream_leaves_no_pending_tasks_after_consuming():
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, groups=[Announcer()])
+        runtime = Runtime(ctx, agents=[Announcer()])
         ctx.create(UserMsg(text="привет"))
         async for _ in runtime.astream():
             pass
@@ -94,7 +94,7 @@ def test_astream_close_while_waiting_leaves_no_pending_tasks():
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, groups=[Slow()])
+        runtime = Runtime(ctx, agents=[Slow()])
         ctx.create(UserMsg(text="привет"))
         agen = runtime.astream()
         assert (await agen.__anext__()).kind == "run_start"
@@ -145,7 +145,7 @@ def test_astream_close_is_bounded_when_runner_ignores_cancel(monkeypatch):
 
     async def run():
         ctx = Context()
-        runtime = Runtime(ctx, groups=[Stubborn()])
+        runtime = Runtime(ctx, agents=[Stubborn()])
         ctx.create(UserMsg(text="привет"))
         agen = runtime.astream()
         assert (await agen.__anext__()).kind == "run_start"

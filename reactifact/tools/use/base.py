@@ -19,9 +19,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from ...agent import Step
 from ...context import Context
 from ...provenance import DERIVED_FROM
-from ...step import Step
 from ..base import Tool
 from ..runlog import execute_tool
 

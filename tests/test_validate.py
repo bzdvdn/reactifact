@@ -26,7 +26,7 @@ class Final(BaseModel):
 
 
 class ProducerStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Middle,)
 
     async def run(self, item: Question) -> Middle:
@@ -34,7 +34,7 @@ class ProducerStep(Step):
 
 
 class ConsumerStep(Step):
-    consumes = (Middle,)
+    reads = (Middle,)
     produces = (Final,)
 
     async def run(self, item: Middle) -> Final:
@@ -51,7 +51,7 @@ def _consumer() -> Agent:
 
 def test_valid_contracts_are_clean():
     report = validate_contracts(
-        groups=[_producer(), _consumer()],
+        agents=[_producer(), _consumer()],
         seeds=[Question],
         terminal=[Final],
     )
@@ -64,7 +64,7 @@ def test_valid_contracts_are_clean():
 
 def test_unknown_input_is_an_error():
     report = validate_contracts(
-        groups=[_consumer()], seeds=[Question], terminal=[Final]
+        agents=[_consumer()], seeds=[Question], terminal=[Final]
     )
 
     assert report.ok is False
@@ -75,20 +75,20 @@ def test_unknown_input_is_an_error():
 
 
 def test_dead_output_is_a_warning_unless_terminal():
-    report = validate_contracts(groups=[_producer()], seeds=[Question], terminal=[])
+    report = validate_contracts(agents=[_producer()], seeds=[Question], terminal=[])
 
     assert report.ok is True
     assert any(issue.code == "dead_output" for issue in report.warnings)
 
     clean = validate_contracts(
-        groups=[_producer()], seeds=[Question], terminal=[Middle]
+        agents=[_producer()], seeds=[Question], terminal=[Middle]
     )
     assert clean.warnings == []
 
 
 def test_duplicate_agent_names_are_errors():
     report = validate_contracts(
-        groups=[_producer(), _producer()],
+        agents=[_producer(), _producer()],
         seeds=[Question],
         terminal=[Middle],
     )
@@ -99,7 +99,7 @@ def test_duplicate_agent_names_are_errors():
 
 def test_cycle_without_budget_is_a_warning():
     class CycleStep(Step):
-        consumes = (Middle,)
+        reads = (Middle,)
         produces = (Question,)
 
         async def run(self, item: Middle) -> Question:
@@ -107,7 +107,7 @@ def test_cycle_without_budget_is_a_warning():
 
     cycle = Agent("cycle", steps=[CycleStep()])
     report = validate_contracts(
-        groups=[_producer(), cycle],
+        agents=[_producer(), cycle],
         seeds=[Question],
         terminal=[Middle],
     )
@@ -117,7 +117,7 @@ def test_cycle_without_budget_is_a_warning():
 
 def test_correlated_consume_requires_all_parts():
     class Join(Step):
-        consumes = (JoinConsume(Question, Middle, key=lambda item: item.text),)
+        reads = (JoinConsume(Question, Middle, key=lambda item: item.text),)
         produces = (Final,)
 
         async def run(self, item: Question) -> Final:
@@ -125,7 +125,7 @@ def test_correlated_consume_requires_all_parts():
 
     agent = Agent("join", steps=[Join()])
     report = validate_contracts(
-        groups=[agent],
+        agents=[agent],
         seeds=[Question, Middle],
         terminal=[Final],
     )
@@ -146,7 +146,7 @@ def test_validate_contracts_accepts_raw_steps():
 def test_validate_contracts_merges_steps_and_groups_in_order():
     report = validate_contracts(
         steps=[ProducerStep()],
-        groups=[_consumer()],
+        agents=[_consumer()],
         seeds=[Question],
         terminal=[Final],
     )
@@ -157,4 +157,4 @@ def test_validate_contracts_rejects_wrong_types():
     with pytest.raises(TypeError, match="steps= accepts Step"):
         validate_contracts(steps=[_producer()])
     with pytest.raises(TypeError, match="agents= accepts Agent"):
-        validate_contracts(groups=[ProducerStep()])
+        validate_contracts(agents=[ProducerStep()])

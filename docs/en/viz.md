@@ -33,7 +33,7 @@ reactifact demo --web
 ```
 
 - `validate`, `graph --check` and `check` read `[tool.reactifact]` from
-  `pyproject.toml` (`groups`, `seeds`, `terminal`, `budget`, `scenarios`,
+  `pyproject.toml` (`agents`, `seeds`, `terminal`, `budget`, `scenarios`,
   `evals`, `overall`, `gates`) when the matching flags are absent; flags win.
 - `check` is the quality gate: static contracts, any number of `@scenario`
   modules and an optional `Dataset` eval against a `Pipeline` (`--gate

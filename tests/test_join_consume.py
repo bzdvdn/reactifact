@@ -42,7 +42,7 @@ class ApprovalGate(Agent):
 
 def test_neither_part_alone_fires_the_join():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t1", summary="s"))
     asyncio.run(runtime.arun())
@@ -58,7 +58,7 @@ def test_join_fires_when_report_arrives_after_the_answered_question():
     that happened to complete the pair in the other order (see the test
     below for report-first)."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(PendingQuestion(thread_id="t1", answered=True))
     asyncio.run(runtime.arun())
@@ -74,7 +74,7 @@ def test_join_fires_when_report_arrives_after_the_answered_question():
 
 def test_join_fires_when_the_answer_arrives_after_the_report():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t1", summary="s"))
     asyncio.run(runtime.arun())
@@ -94,7 +94,7 @@ def test_join_fires_when_the_answer_arrives_after_the_report():
 
 def test_mismatched_key_never_joins():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t1", summary="s"))
     asyncio.run(runtime.arun())
@@ -108,7 +108,7 @@ def test_collect_returns_only_the_complete_groups_parts():
     """A second, incomplete group (t2) must not leak into the inputs of the
     run triggered by the completed one (t1)."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t2", summary="incomplete"))  # never gets a question
     ctx.create(Report(thread_id="t1", summary="s"))

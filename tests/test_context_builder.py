@@ -54,7 +54,7 @@ def test_heuristic_counter_overestimates_and_is_never_zero_for_nonempty_text():
 
 def test_no_builder_keeps_every_matching_artifact():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
     ctx.create(Item(text="a"))
     asyncio.run(runtime.arun())
     ctx.create(Item(text="b"))
@@ -67,7 +67,7 @@ def test_no_builder_keeps_every_matching_artifact():
 def test_token_budget_keeps_prefix_by_recency():
     builder = TokenBudgetContextBuilder(max_tokens=5)
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
 
     ctx.create(Item(text="x" * 50))
     asyncio.run(runtime.arun())
@@ -83,7 +83,7 @@ def test_token_budget_keeps_prefix_by_recency():
 def test_token_budget_never_drops_to_zero_inputs():
     builder = TokenBudgetContextBuilder(max_tokens=1)
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
 
     ctx.create(Item(text="a single item way over budget on its own"))
     asyncio.run(runtime.arun())
@@ -98,7 +98,7 @@ def test_provenance_reads_match_the_truncated_inputs():
     not the pre-truncation candidate set."""
     builder = TokenBudgetContextBuilder(max_tokens=5)
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
 
     ctx.create(Item(text="x" * 50))
     asyncio.run(runtime.arun())
@@ -120,7 +120,7 @@ def test_custom_rank_key_overrides_recency():
         rank_key=lambda a: -len(a.data.text),
     )
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
 
     ctx.create(Item(text="short"))
     asyncio.run(runtime.arun())
@@ -134,7 +134,7 @@ def test_custom_rank_key_overrides_recency():
 def test_exempt_types_never_cost_budget():
     builder = TokenBudgetContextBuilder(max_tokens=5, exempt_types=(Marker,))
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[MarkerAwareCollector()])
+    runtime = Runtime(ctx, agents=[MarkerAwareCollector()])
 
     ctx.create(Item(text="x" * 50))
     asyncio.run(runtime.arun())
@@ -165,7 +165,7 @@ def test_min_keep_reserves_a_slot_for_a_low_volume_type():
     just guaranteed a reserved slot before the shared greedy fill runs."""
     builder = TokenBudgetContextBuilder(max_tokens=15, min_keep={Pinned: 1})
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[MinKeepCollector()])
+    runtime = Runtime(ctx, agents=[MinKeepCollector()])
 
     ctx.create(Pinned(text="pin"))
     asyncio.run(runtime.arun())
@@ -181,7 +181,7 @@ def test_without_min_keep_the_same_scenario_starves_the_low_volume_type():
     the reservation is what saved `Pinned`, not just budget headroom."""
     builder = TokenBudgetContextBuilder(max_tokens=15)
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[MinKeepCollector()])
+    runtime = Runtime(ctx, agents=[MinKeepCollector()])
 
     ctx.create(Pinned(text="pin"))
     asyncio.run(runtime.arun())
@@ -201,7 +201,7 @@ def test_exempt_marker_does_not_consume_the_at_least_one_guarantee():
     to the first non-exempt (real) candidate specifically."""
     builder = TokenBudgetContextBuilder(max_tokens=1, exempt_types=(Marker,))
     ctx = Context(resources=RuntimeResources(context_builder=builder))
-    runtime = Runtime(ctx, groups=[MarkerAwareCollector()])
+    runtime = Runtime(ctx, agents=[MarkerAwareCollector()])
 
     ctx.create(Item(text="a single item way over budget on its own"))
     asyncio.run(runtime.arun())

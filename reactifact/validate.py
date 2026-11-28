@@ -6,7 +6,7 @@ either consumed or declared terminal, and that agents are reachable. It catches
 the common "I wired two agents but nothing wakes the second" bug without
 executing anything.
 
-    report = validate_contracts(groups=AGENTS, seeds=[Question], terminal=[Answer])
+    report = validate_contracts(agents=AGENTS, seeds=[Question], terminal=[Answer])
     report.raise_for_errors()
 """
 
@@ -37,13 +37,8 @@ class ValidationIssue:
     severity: Severity
     code: str
     message: str
-    groups: tuple[str, ...] = ()
+    agents: tuple[str, ...] = ()
     artifact: str = ""
-
-    @property
-    def agents(self) -> tuple[str, ...]:
-        """Deprecated 0.x alias for `groups`."""
-        return self.groups
 
 
 @dataclass
@@ -75,7 +70,7 @@ class ValidationReport:
             f"{len(self.warnings)} warning(s)"
         ]
         for issue in self.issues:
-            who = f" [{', '.join(issue.groups)}]" if issue.groups else ""
+            who = f" [{', '.join(issue.agents)}]" if issue.agents else ""
             lines.append(
                 f"{issue.severity.upper():<7} {issue.code}: {issue.message}{who}"
             )
@@ -94,7 +89,7 @@ def _consume_types(agent: Agent) -> set[str]:
         specs = [
             consume
             for step in agent.steps or ()
-            for consume in (step.consume_specs() or ())
+            for consume in (step.read_specs() or ())
         ]
     names: set[str] = set()
     for spec in specs:
@@ -112,7 +107,7 @@ def _produced_types(agent: Agent) -> set[str]:
             names.add(_name(part))
         if step.artifact_type is not None:
             names.add(_name(step.artifact_type))
-        names.update(_name(extra) for extra in step.also_creates)
+        names.update(_name(extra) for extra in (step.produces or ())[1:])
     return names
 
 
@@ -150,7 +145,6 @@ def validate_contracts(
     *,
     steps: Iterable[Any] | None = None,
     agents: Iterable[Any] | None = None,
-    groups: Iterable[Any] | None = None,
     seeds: Iterable[type | str] = (),
     terminal: Iterable[type | str] = (),
     budget: Budget | None = None,
@@ -158,9 +152,8 @@ def validate_contracts(
     """Checks artifact-contract reachability without running anything.
 
     Mirrors `Runtime`: `steps=` accepts raw `Step`s (each is wrapped in an
-    implicit agent of one) and `agents=` accepts `Agent`s; `groups=` is the
-    deprecated alias for `agents=`. Both steps and agents can be passed
-    together, steps first.
+    implicit agent of one) and `agents=` accepts `Agent`s. Both steps and
+    agents can be passed together, steps first.
 
     - consumed type with no producer and not in `seeds` → **error**
       `unknown_input`;
@@ -170,15 +163,13 @@ def validate_contracts(
     - group whose inputs are never available from seeds/producers → **warning**
       `unreachable`;
     - artifact-type cycle with no bounding Budget → **warning** `cycle`;
-    - one artifact type with several producing groups → **warning**
+    - one artifact type with several producing agents → **warning**
       `ambiguous_producer` (suppressed when they are distinct cases of one
       `Route`).
     """
-    if agents is not None and groups is not None:
-        raise TypeError("validate_contracts takes either agents= or groups=, not both")
     agent_list = normalize_units(
         steps=list(steps) if steps is not None else None,
-        agents=list(agents if agents is not None else groups or ()),
+        agents=list(agents or ()),
     )
     seed_names = {_name(type_) for type_ in seeds}
     terminal_names = {_name(type_) for type_ in terminal}
@@ -232,7 +223,7 @@ def validate_contracts(
             ValidationIssue(
                 "warning",
                 "ambiguous_producer",
-                f"artifact type {artifact!r} is produced by {len(names)} groups: "
+                f"artifact type {artifact!r} is produced by {len(names)} agents: "
                 f"{', '.join(sorted(names))}; check exclusivity or declare a Route",
                 tuple(sorted(names)),
                 artifact,

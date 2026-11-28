@@ -69,7 +69,7 @@ def test_fan_out_sources_builds_owner_tagged_refs(tmp_path):
         produces = [Scout(), Step(Job)]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
-    runtime = Runtime(ctx, groups=[Engine()])
+    runtime = Runtime(ctx, agents=[Engine()])
     ctx.create(Job(query_id="job1", status="pending"))
     asyncio.run(runtime.arun())
 
@@ -119,7 +119,7 @@ def test_materialize_doc_builds_doc_with_provenance(tmp_path):
         produces = [Scout(), Resolver()]
 
     ctx = Context(resources=RuntimeResources(sources={"papers": build_pages(tmp_path)}))
-    runtime = Runtime(ctx, groups=[Engine()])
+    runtime = Runtime(ctx, agents=[Engine()])
     ctx.create(Job(query_id="q1", status="pending"))
     asyncio.run(runtime.arun())
 
@@ -156,7 +156,7 @@ class Engine(Agent):
 
 def test_status_machine_advances_lifecycle():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Engine()])
+    runtime = Runtime(ctx, agents=[Engine()])
     ctx.create(Job(query_id="q1", status="pending"))
     asyncio.run(runtime.arun())
     job = ctx.list_artifacts(Job)[0]
@@ -225,7 +225,7 @@ class CleanupEngine(Agent):
 
 def test_ephemeral_cleanup_deletes_scratch_once_terminal_exists():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[CleanupEngine()])
+    runtime = Runtime(ctx, agents=[CleanupEngine()])
     question = ctx.create(Question(text="hello"))
     asyncio.run(runtime.arun())
 
@@ -240,7 +240,7 @@ def test_ephemeral_cleanup_is_idempotent_when_scratch_already_gone():
     artifact created directly (skipping the scratch stage) is the simplest
     way to exercise that path."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[CleanupEngine()])
+    runtime = Runtime(ctx, agents=[CleanupEngine()])
     ctx.create(Final(text="DIRECT"), id="final:missing")
     asyncio.run(runtime.arun())
 
@@ -276,7 +276,7 @@ def test_seed_identity_writes_the_contextvar_value_as_an_artifact():
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[IdentityAgent()])
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
     token = identity_var.set(UserContext(uid="alice"))
     try:
         ctx.create(Question(text="hi"))
@@ -310,7 +310,7 @@ def test_seed_identity_extracts_from_a_richer_envelope():
         ]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[IdentityAgent()])
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
     token = identity_var.set(
         RequestIdentity(session_id="s1", user=UserContext(uid="bob"))
     )
@@ -342,7 +342,7 @@ def test_seed_identity_uses_the_fallback_when_the_contextvar_is_unset():
         ]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[IdentityAgent()])
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
     # No identity_var.set(...) — the contextvar keeps its default (None).
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
@@ -362,7 +362,7 @@ def test_seed_identity_skips_the_write_when_unset_and_no_fallback():
         produces = [SeedIdentity(UserContext, identity_var, identity_id="user_context")]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[IdentityAgent()])
+    runtime = Runtime(ctx, agents=[IdentityAgent()])
     ctx.create(Question(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -473,7 +473,7 @@ def test_fan_out_sources_as_artifacts_then_materialize_doc(tmp_path):
 
     class ScoutResolve(Step[SourceRef]):
         produces = (SourceRef, Doc)
-        consumes = (Consume(Job),)
+        reads = (Consume(Job),)
 
         async def run(self, call: StepCall) -> None:
             handles = await fan_out_sources(
@@ -520,7 +520,7 @@ def test_materialize_doc_reuses_an_existing_document():
 
     class First(Step[Doc]):
         produces = (SourceRef, Doc)
-        consumes = (Consume(Job),)
+        reads = (Consume(Job),)
 
         async def run(self, call: StepCall) -> None:
             await materialize_doc(
@@ -535,7 +535,7 @@ def test_materialize_doc_reuses_an_existing_document():
 
     class Again(Step[Doc]):
         produces = (SourceRef, Doc)
-        consumes = (Consume(Doc),)
+        reads = (Consume(Doc),)
 
         async def run(self, call: StepCall) -> None:
             await materialize_doc(
@@ -561,7 +561,7 @@ def test_materialize_doc_reports_a_missing_source():
 
     class Missing(Step[Doc]):
         produces = (Doc,)
-        consumes = (Consume(Job),)
+        reads = (Consume(Job),)
 
         async def run(self, call: StepCall) -> None:
             result = await materialize_doc(
@@ -594,7 +594,7 @@ def test_status_machine_from_funcs_and_state_status():
     group = Agent("status", consumes=[Consume(Job)], steps=[machine])
     ctx = Context()
     ctx.create(Job(query_id="func", status="pending"))
-    asyncio.run(Runtime(ctx, groups=[group]).arun())
+    asyncio.run(Runtime(ctx, agents=[group]).arun())
 
     assert ctx.list_artifacts(Job)[0].data.status == "done"
     assert transitions == [("func", "pending", "done")]
@@ -626,7 +626,7 @@ def test_status_machine_advances_the_latest_target_for_a_key():
     ctx = Context()
     first = ctx.create(Job(query_id="same", status="pending", text="old"))
     second = ctx.create(Job(query_id="same", status="pending", text="newest"))
-    asyncio.run(Runtime(ctx, groups=[group]).arun())
+    asyncio.run(Runtime(ctx, agents=[group]).arun())
 
     assert ctx.get(first.id).data.status == "pending"
     assert ctx.get(second.id).data.status == "done"
@@ -655,7 +655,7 @@ def test_status_machine_scopes_inputs_through_owner_key():
     ctx = Context()
     ctx.create(KeyedJob(key="k1"))
     ctx.create(Marker(key="k1"))
-    asyncio.run(Runtime(ctx, groups=[group]).arun())
+    asyncio.run(Runtime(ctx, agents=[group]).arun())
 
     assert ctx.latest(KeyedJob).data.status == "done"
 

@@ -156,4 +156,4 @@ def test_contracts_page_is_mounted(tmp_path):
     assert "knowledge-ai contracts" in page.text
 
     payload = client.get("/api/contracts").json()
-    assert payload["groups"]
+    assert payload["agents"]

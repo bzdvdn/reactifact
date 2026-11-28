@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime
+from reactifact import Agent, Consume, Context, PipelineRunner, Runtime
 from reactifact.recipes import ReflectionLoop
 
 
@@ -63,7 +63,7 @@ def make_runtime(ctx: Context) -> Runtime:
         consumes = [Consume(Topic), Consume(Draft), Consume(Review)]
         produces = MyLoop().produces()
 
-    return Runtime(ctx, groups=[Flow()])
+    return Runtime(ctx, agents=[Flow()])
 
 
 def test_reflection_accepts_after_one_rewrite_round():
@@ -148,7 +148,7 @@ def test_from_funcs_builds_a_pipeline_without_subclassing():
     assert agent.name == "reflection"
     assert loop.group() is not agent  # a fresh Agent per call
     pipeline = loop.pipeline(seed_type=Topic)
-    result = pipeline.run(Topic(text="heal"))
+    result = PipelineRunner(pipeline).run(Topic(text="heal"))
 
     final = result.context.latest(Final)
     assert final is not None

@@ -61,7 +61,7 @@ class StreamLLM(LLMProvider):
 
 
 class StreamStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, context: Context, question: Question) -> Answer:
@@ -73,7 +73,7 @@ class StreamStep(Step):
 
 
 class AnnounceStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, context: Context, question: Question) -> Answer:
@@ -88,7 +88,7 @@ async def echo(text: str) -> str:
 
 
 class ToolStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, context: Context, question: Question) -> Answer:
@@ -99,7 +99,7 @@ class ToolStep(Step):
 def _runtime(step: Step, *, llm: LLMProvider | None = None) -> Runtime:
     context = Context(resources=RuntimeResources(llm=llm))
     context.create(Question(text="hi"))
-    return Runtime(context, groups=[Agent("agent", steps=[step])])
+    return Runtime(context, agents=[Agent("agent", steps=[step])])
 
 
 async def _collect(runtime: Runtime, **kwargs):
@@ -171,7 +171,7 @@ def test_run_failure_emits_terminal_event_and_reraises():
             raise RuntimeError("boom")
 
     runtime = _runtime(AnnounceStep())
-    runtime.groups = [Boom()]
+    runtime.agents = [Boom()]
 
     events = []
 

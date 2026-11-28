@@ -61,7 +61,7 @@ class Estimator(Agent):
 
 def make_runtime(session):
     return Runtime(
-        session.context, groups=[ApprovalGate(), Estimator()], session=session
+        session.context, agents=[ApprovalGate(), Estimator()], session=session
     )
 
 

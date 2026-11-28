@@ -54,7 +54,7 @@ class StepContract:
 
 
 @dataclass(frozen=True)
-class GroupContract:
+class AgentContract:
     name: str
     kind: str
     consumes: tuple[ConsumeContract, ...] = ()
@@ -72,13 +72,13 @@ class ContractReport:
     `None`, so existing callers and pages are unchanged.
     """
 
-    groups: tuple[GroupContract, ...] = ()
+    agents: tuple[AgentContract, ...] = ()
     seed_schema: dict[str, Any] | None = None
     answer_schema: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            "groups": [_group_dict(group) for group in self.groups]
+            "agents": [_group_dict(group) for group in self.agents]
         }
         if self.seed_schema is not None:
             payload["seed"] = self.seed_schema
@@ -107,7 +107,7 @@ class ContractReport:
             )
 
         groups_seen = 0
-        for index, group in enumerate(self.groups):
+        for index, group in enumerate(self.agents):
             if at_node_limit():
                 truncated = True
                 break
@@ -151,18 +151,18 @@ class ContractReport:
 
     def to_html(self, *, title: str = "reactifact contracts") -> str:
         """A self-contained HTML page (no external CSS/JS, dark-mode aware)."""
-        groups = "".join(_group_html(group) for group in self.groups)
+        groups = "".join(_group_html(group) for group in self.agents)
         if not groups:
-            groups = '<p class="empty">No groups.</p>'
+            groups = '<p class="empty">No agents.</p>'
         template_dir = Path(__file__).resolve().parent / "templates"
         template = (template_dir / "contracts.html").read_text(encoding="utf-8")
         favicon = base64.b64encode((template_dir / "favicon.svg").read_bytes()).decode(
             "ascii"
         )
-        steps = sum(len(group.steps) for group in self.groups)
-        tools = sum(len(step.tools) for group in self.groups for step in group.steps)
+        steps = sum(len(group.steps) for group in self.agents)
+        tools = sum(len(step.tools) for group in self.agents for step in group.steps)
         summary = (
-            f"<span><b>{len(self.groups)}</b> groups</span>"
+            f"<span><b>{len(self.agents)}</b> agents</span>"
             f"<span><b>{steps}</b> steps</span>"
             f"<span><b>{tools}</b> tools</span>"
         )
@@ -179,10 +179,10 @@ class ContractReport:
 
     def to_markdown(self) -> str:
         lines = ["# reactifact contracts", ""]
-        if not self.groups:
-            lines.append("_No groups._")
+        if not self.agents:
+            lines.append("_No agents._")
             return "\n".join(lines) + "\n"
-        for group in self.groups:
+        for group in self.agents:
             lines.extend(
                 [
                     f"## `{group.name}` ({group.kind})",
@@ -278,7 +278,7 @@ def _step_contract(step: Step[Any]) -> StepContract:
     return StepContract(
         name=getattr(step, "name", "") or type(step).__name__,
         kind=type(step).__name__,
-        consumes=_consumes(getattr(step, "consumes", None)),
+        consumes=_consumes(step.read_specs()),
         produces=tuple(_type_name(item) for item in produces),
         deletes=tuple(
             _type_name(item) for item in (getattr(step, "deletes", None) or ())
@@ -290,13 +290,13 @@ def _step_contract(step: Step[Any]) -> StepContract:
     )
 
 
-def _group_contract(group: Agent) -> GroupContract:
+def _group_contract(group: Agent) -> AgentContract:
     steps = tuple(
         _step_contract(step) for step in (getattr(group, "steps", None) or ())
     )
     produces = tuple(dict.fromkeys(name for step in steps for name in step.produces))
     deletes = tuple(dict.fromkeys(name for step in steps for name in step.deletes))
-    return GroupContract(
+    return AgentContract(
         name=getattr(group, "name", "") or type(group).__name__,
         kind=type(group).__name__,
         consumes=_consumes(getattr(group, "consumes", None)),
@@ -306,19 +306,11 @@ def _group_contract(group: Agent) -> GroupContract:
     )
 
 
-def describe_contracts(
-    agents: Sequence[Agent] | None = None,
-    *,
-    groups: Sequence[Agent] | None = None,
-) -> ContractReport:
-    """Describe the declared surface of `agents` (no run, no LLM).
-
-    `groups=` is a compatibility alias for `agents=`.
-    """
-    if agents is not None and groups is not None:
-        raise TypeError("Pass only one of agents= or groups=")
-    resolved = agents if agents is not None else groups or ()
-    return ContractReport(groups=tuple(_group_contract(group) for group in resolved))
+def describe_contracts(agents: Sequence[Agent] | None = None) -> ContractReport:
+    """Describe the declared surface of `agents` (no run, no LLM)."""
+    return ContractReport(
+        agents=tuple(_group_contract(group) for group in agents or ())
+    )
 
 
 def _mermaid_escape(value: Any) -> str:
@@ -358,7 +350,7 @@ def _io_block(label: str, values: Sequence[str]) -> str:
     )
 
 
-def _group_html(group: GroupContract) -> str:
+def _group_html(group: AgentContract) -> str:
     group_id = f"group-{_slug(group.name)}"
     steps = "".join(_step_html(step, group_id) for step in group.steps)
     if not steps:
@@ -500,7 +492,7 @@ def _join_consumes(consumes: Sequence[ConsumeContract]) -> str:
     return ", ".join(parts)
 
 
-def _group_dict(group: GroupContract) -> dict[str, Any]:
+def _group_dict(group: AgentContract) -> dict[str, Any]:
     return {
         "name": group.name,
         "kind": group.kind,
@@ -548,7 +540,7 @@ def _consume_dict(consume: ConsumeContract) -> dict[str, Any]:
 __all__ = [
     "ConsumeContract",
     "ContractReport",
-    "GroupContract",
+    "AgentContract",
     "StepContract",
     "ToolContract",
     "describe_contracts",

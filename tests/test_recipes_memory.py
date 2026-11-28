@@ -95,7 +95,7 @@ def _prune_flow(*, keep: int = 4) -> Agent:
 def _run(messages: list[str], *, every: int = 2) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, groups=[_flow(every=every)])
+        runtime = Runtime(ctx, agents=[_flow(every=every)])
         for i, text in enumerate(messages):
             ctx.create(Msg(role="user" if i % 2 == 0 else "assistant", text=text))
             await runtime.arun()
@@ -107,7 +107,7 @@ def _run(messages: list[str], *, every: int = 2) -> Context:
 def _run_prune(messages: list[str], *, keep: int = 4) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, groups=[_prune_flow(keep=keep)])
+        runtime = Runtime(ctx, agents=[_prune_flow(keep=keep)])
         for text in messages:
             ctx.create(Msg(role="user", text=text))
             await runtime.arun()
@@ -133,7 +133,7 @@ def test_summarizer_keeps_producing_rounds_without_a_pruner():
 def test_summarizer_handles_a_batch_of_new_messages():
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, groups=[_flow(every=4)])
+        runtime = Runtime(ctx, agents=[_flow(every=4)])
         for i in range(5):
             ctx.create(Msg(role="user", text=f"m{i}"))
         await runtime.arun()
@@ -165,7 +165,7 @@ def test_pruner_alone_bounds_messages_without_a_summarizer():
         agent = Agent(
             "prune-only", consumes=[Consume(Msg)], steps=[WindowPruner(Msg, keep=2)]
         )
-        runtime = Runtime(ctx, groups=[agent])
+        runtime = Runtime(ctx, agents=[agent])
         for i in range(5):
             ctx.create(Msg(role="user", text=f"m{i}"))
             await runtime.arun()
@@ -184,7 +184,7 @@ def test_no_summary_before_the_first_round_completes():
 
 def test_memory_contracts_show_deletes_not_false_producers():
     report = describe_contracts([_flow(), _prune_flow(), _digest_flow()])
-    by_name = {group.name: group for group in report.groups}
+    by_name = {group.name: group for group in report.agents}
 
     assert "Msg" not in by_name["memory"].produces
     assert "Msg" not in by_name["prune"].produces
@@ -251,7 +251,7 @@ def _digest_flow(*, window: int = 4, trigger: int = 6) -> Agent:
 def _run_digest(messages: list[str], *, window: int = 4, trigger: int = 6) -> Context:
     async def _arun() -> Context:
         ctx = Context()
-        runtime = Runtime(ctx, groups=[_digest_flow(window=window, trigger=trigger)])
+        runtime = Runtime(ctx, agents=[_digest_flow(window=window, trigger=trigger)])
         for i, text in enumerate(messages):
             ctx.create(Msg(role="user" if i % 2 == 0 else "assistant", text=text))
             await runtime.arun()
@@ -305,7 +305,7 @@ def test_digest_merges_multiple_message_types_and_calls_own_render():
                 ),
             ],
         )
-        runtime = Runtime(ctx, groups=[agent])
+        runtime = Runtime(ctx, agents=[agent])
         for i in range(10):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))
@@ -332,7 +332,7 @@ def test_pruner_bounds_multiple_message_types():
             consumes=[Consume(Question), Consume(FinalResponse)],
             steps=[WindowPruner([Question, FinalResponse], keep=4)],
         )
-        runtime = Runtime(ctx, groups=[agent])
+        runtime = Runtime(ctx, agents=[agent])
         for i in range(10):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))
@@ -363,7 +363,7 @@ def test_summarizer_merges_multiple_message_types():
                 )
             ],
         )
-        runtime = Runtime(ctx, groups=[agent])
+        runtime = Runtime(ctx, agents=[agent])
         for i in range(4):
             if i % 2 == 0:
                 ctx.create(Question(text=f"q{i}"))

@@ -15,7 +15,7 @@ class Out(BaseModel):
 
 
 class Make(Step):
-    consumes = (In,)
+    reads = (In,)
     produces = (Out,)
 
     async def run(self, item: In) -> Out:

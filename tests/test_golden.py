@@ -36,7 +36,7 @@ def _run() -> Context:
     context = Context()
     runtime = Runtime(
         context,
-        groups=[Agent("a", consumes=[Consume(Question)], steps=[answer])],
+        agents=[Agent("a", consumes=[Consume(Question)], steps=[answer])],
     )
     context.create(Question(text="q"), id="q")
     asyncio.run(runtime.arun())

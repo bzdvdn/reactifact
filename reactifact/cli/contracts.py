@@ -10,8 +10,8 @@ from .common import load_agents
 
 
 def cmd_contracts(args: argparse.Namespace) -> int:
-    groups = load_agents(args.module)
-    report = describe_contracts(groups)
+    agents = load_agents(args.module)
+    report = describe_contracts(agents)
     text = report.to_json() if args.format == "json" else report.to_markdown()
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")

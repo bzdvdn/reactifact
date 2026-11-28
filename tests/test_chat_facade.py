@@ -26,7 +26,7 @@ class TaggedQuestion(BaseModel):
     category: str = ""
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper(), sources=["doc.md"])
 
@@ -42,7 +42,7 @@ def test_chat_derives_seed_and_reply_from_types():
 def test_chat_seed_factory_reads_request_and_per_turn_wraps_the_run():
     seen: list[tuple[str, str, str]] = []
 
-    @step(consumes=TaggedQuestion)
+    @step(reads=TaggedQuestion)
     def tagged(question: TaggedQuestion) -> Answer:
         return Answer(text=f"{question.category}:{question.text}")
 
@@ -103,7 +103,7 @@ class Svc:
         self.prefix = prefix
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def via_service(question: Question, svc: Svc) -> Answer:
     return Answer(text=f"{svc.prefix}:{question.text}")
 
@@ -159,7 +159,7 @@ def test_chat_traces_shortcut_records_runs():
         steps=[answer],
         seed_type=Question,
         answer_type=Answer,
-        traces=True,
+        config=RunConfig(traces=True),
     )
     try:
         asyncio.run(chat.invoke("hello", session_id="traced"))
@@ -180,7 +180,7 @@ def test_chat_lifespan_supplies_resources_once():
         steps=[via_service],
         seed_type=Question,
         answer_type=Answer,
-        lifespan=lifespan,
+        config=RunConfig(lifespan=lifespan),
     )
     with pytest.raises(RuntimeError, match="lifespan"):
         asyncio.run(chat.invoke("outside", session_id="no-enter"))
@@ -209,7 +209,7 @@ class TurnAnswer(BaseModel):
     text: str
 
 
-@step(consumes=Question, produces=TurnAnswer)
+@step(reads=Question, produces=TurnAnswer)
 def turn_answer(question: Question, call) -> TurnAnswer:
     return TurnAnswer(query_id=call.trigger.id, text=question.text.upper())
 

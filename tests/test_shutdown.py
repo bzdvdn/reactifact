@@ -49,7 +49,7 @@ def test_hard_deadline_cancels_a_hung_agent_and_keeps_the_batch():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[Hang()], budget=Budget(max_seconds=0.1))
+        runtime = Runtime(context, agents=[Hang()], budget=Budget(max_seconds=0.1))
         runs = await runtime.arun()
         return context, runtime, runs
 
@@ -81,7 +81,7 @@ def test_request_stop_ends_at_the_next_boundary():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[First(), Second()])
+        runtime = Runtime(context, agents=[First(), Second()])
         holder["runtime"] = runtime
         await runtime.arun()
         return context, runtime
@@ -107,7 +107,7 @@ def test_registry_tracks_and_clears_in_flight_runs():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[Slow()])
+        runtime = Runtime(context, agents=[Slow()])
         task = asyncio.create_task(runtime.arun())
         await started.wait()
         during = active_runs()
@@ -134,7 +134,7 @@ def test_cancel_run_cancels_a_specific_turn():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[Hang()])
+        runtime = Runtime(context, agents=[Hang()])
         task = asyncio.create_task(runtime.arun())
         await started.wait()
         run_id = active_runs()[0].run_id
@@ -161,7 +161,7 @@ def test_ashutdown_waits_for_the_turn_to_finish():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[Slow()])
+        runtime = Runtime(context, agents=[Slow()])
         task = asyncio.create_task(runtime.arun())
         await started.wait()
         await runtime.ashutdown()
@@ -189,7 +189,7 @@ def test_ashutdown_timeout_force_cancels():
 
     async def scenario():
         context = _ctx_with_question()
-        runtime = Runtime(context, groups=[Hang()])
+        runtime = Runtime(context, agents=[Hang()])
         task = asyncio.create_task(runtime.arun())
         await started.wait()
         await runtime.ashutdown(timeout=0.05)

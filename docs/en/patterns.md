@@ -53,10 +53,7 @@ result = runner.run(Question(text="hello"))
   unit. `Route` and `Pipeline` accept it directly.
 - `Pipeline.agents=[...]` and `Pipeline.routes=[...]` are declarative structure;
   `Pipeline.agents` flattens them for `Runtime`.
-- `PipelineRunner` + `RunConfig` own resources/budget/tracing and execution.
-- `StepGroup` and `create_step_group` remain importable for 0.x app code, but
-  are not part of the authoring surface: new code uses `Agent(...)`.
-- An agent is **not** an execution barrier: it is a named group, not an ordering
+- `PipelineRunner` + `RunConfig` own resources/budget/tracing and execution.- An agent is **not** an execution barrier: it is a named group, not an ordering
   constraint. The runtime still schedules by artifact availability.
 
 ## HITL: humans as first-class participants
@@ -235,7 +232,7 @@ github_group = DeferredToolGroup(
 ToolUse(
     system="...",
     tools=[...],                       # always-visible tools
-    deferred_tool_groups=[github_group],  # hidden until requested
+    deferred_tool_agents=[github_group],  # hidden until requested
 )
 ```
 

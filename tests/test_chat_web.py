@@ -38,7 +38,7 @@ def make_assistant(tmp_path: str) -> ChatAssistant:
 
     return ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=reply,
         max_concurrency=1,
@@ -78,7 +78,7 @@ def test_history_keeps_every_user_message_with_append_backend(tmp_path):
 
     assistant = ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=reply,
         max_concurrency=1,
@@ -207,7 +207,7 @@ def test_web_router_request_factory_forwards_per_turn_context(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[agent],
+        agents=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -247,7 +247,7 @@ def test_web_router_async_request_factory_is_awaited(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[agent],
+        agents=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -285,7 +285,7 @@ def test_web_router_without_request_factory_has_no_request(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(tmp_path, "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[agent],
+        agents=[agent],
         user_message=Q,
         reply=lambda ctx, msg_id: {"reply": "ok", "waiting": False},
         max_concurrency=1,
@@ -333,7 +333,7 @@ def test_disconnect_cancels_the_running_turn(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[SlowAgent()],
+        agents=[SlowAgent()],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "done", "waiting": False},
         max_concurrency=1,
@@ -389,7 +389,7 @@ def test_web_extra_error_is_readable(tmp_path, monkeypatch):
         create_chat_router(
             ChatAssistant(
                 store=None,
-                groups=[agent],
+                agents=[agent],
                 user_message=_Q,
                 reply=lambda ctx, mid: {},
             )
@@ -413,7 +413,7 @@ def test_runtime_crash_degrades_to_fallback_message(tmp_path, caplog):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[BoomAgent()],
+        agents=[BoomAgent()],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "should not reach", "waiting": False},
         max_concurrency=1,
@@ -438,7 +438,7 @@ def test_reply_hook_crash_degrades_to_fallback(tmp_path, caplog):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=boom_reply,
         max_concurrency=1,
@@ -502,7 +502,7 @@ def test_callable_resources_closed_after_each_turn(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=fresh_resources,
@@ -538,7 +538,7 @@ def test_callable_resources_closed_when_session_open_fails(tmp_path):
 
     assistant = ChatAssistant(
         store=BoomStore(),
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "never", "waiting": False},
         resources=fresh_resources,
@@ -564,7 +564,7 @@ def test_shared_resources_instance_not_closed(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=shared,
@@ -589,7 +589,7 @@ def test_history_does_not_build_per_turn_resources(tmp_path):
     store = SessionStore(FileKVBackend(os.path.join(str(tmp_path), "sess")))
     assistant = ChatAssistant(
         store=store,
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "ok", "waiting": False},
         resources=fresh_resources,
@@ -619,7 +619,7 @@ def test_session_open_crash_degrades_to_fallback(tmp_path, caplog):
 
     assistant = ChatAssistant(
         store=BoomStore(),
-        groups=[ANSWER_AGENT],
+        agents=[ANSWER_AGENT],
         user_message=Q,
         reply=lambda ctx, mid: {"reply": "never", "waiting": False},
         max_concurrency=1,
@@ -648,7 +648,7 @@ def test_typed_transcript_keeps_dialog_order_after_append_reload(tmp_path):
 
         return ChatAssistant(
             store=SessionStore(SQLiteKVBackend(str(db))),
-            groups=[ANSWER_AGENT],
+            agents=[ANSWER_AGENT],
             user_message=Q,
             reply=reply,
             session_state=lambda ctx: transcript.state(ctx),

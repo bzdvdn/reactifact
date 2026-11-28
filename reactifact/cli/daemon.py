@@ -9,26 +9,19 @@ import sys
 from typing import Any
 
 from ..daemon import Daemon
+from ..pipeline import Pipeline, PipelineRunner, RunConfig
 from .common import DEFAULT_TRACE_PATH, load_attr, load_pipeline
 
 
 def _configure_trace(
-    pipeline: Any, args: argparse.Namespace
-) -> tuple[str | None, Any | None]:
+    pipeline: Pipeline, args: argparse.Namespace
+) -> tuple[PipelineRunner, str | None, Any | None]:
     if args.no_trace:
-        pipeline.tracer = None
-        pipeline.trace_store = None
-        return None, None
-    if pipeline.trace_store is not None:
-        return None, None
-
-    from ..tracing import Tracer, TraceStore
+        return PipelineRunner(pipeline), None, None
 
     path = args.trace or DEFAULT_TRACE_PATH
-    store = TraceStore(path)
-    pipeline.trace_store = store
-    pipeline.tracer = Tracer(store=store)
-    return path, store
+    runner = PipelineRunner(pipeline, config=RunConfig(traces=path))
+    return runner, path, runner.trace_store
 
 
 def cmd_daemon(args: argparse.Namespace) -> int:
@@ -41,9 +34,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         level=args.log_level.upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    trace_path, created_store = _configure_trace(pipeline, args)
+    runner, trace_path, created_store = _configure_trace(pipeline, args)
     daemon = Daemon(
-        pipeline,
+        runner,
         seed_source=seed_source,
         interval=args.interval,
         run_once=args.run_once,

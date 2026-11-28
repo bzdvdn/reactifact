@@ -6,8 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-### Added
+### Breaking
 
+- **`Step.consumes` is gone.** Steps own `reads` only; `Step.read_specs()` is
+  the runtime view. `@step(consumes=...)` was removed in favour of
+  `@step(reads=...)`. `Agent.consumes` is now the only wake contract.
+- **Lifecycle classes removed.** Use `Consume.on_create` / `on_update` /
+  `on_stale` / `on_delete` and `Read.on_create` / `on_update` / `on_stale` /
+  `after_delete`; `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale` are no longer
+  exported.
+- **`StepGroup` is gone.** `create_step_group`, `StepGroupSpan` and the
+  `reactifact.step` compatibility module were removed; use `Agent`,
+  `AgentSpan` and `reactifact.agent` / `reactifact.agent.step`.
+- **`groups=` is gone.** `Runtime`, `Pipeline`, `Chat`, `ChatAssistant`,
+  `subflow`, `swarm`, `validate_contracts`, `describe_contracts` and
+  `create_contracts_router` take `agents=` only. `ContractReport.groups` is
+  now `ContractReport.agents`; `GroupContract` is `AgentContract`; the CLI
+  config key is `[tool.reactifact] agents`.
+- **`ValidationIssue.groups` is `ValidationIssue.agents`.**
+- **`Pipeline` is definition-only.** Runtime construction and execution moved
+  to `PipelineRunner(pipeline, config=RunConfig(...))`; the legacy runtime
+  keyword arguments, execution shortcuts (`run/arun/answer/aanswer/astream/
+  http/as_tool/test_client/close`) and `Pipeline` lifespan/overrides were
+  removed.
+- **`PipelineRunner` takes only `config=`.** Resources, LLM, budget, tracer,
+  concurrency, lifespan and tracing are all `RunConfig` fields.
+- **`Chat` takes only `config=` for runtime settings.** The direct `llm=`,
+  `budget=`, `max_concurrency=`, `tracer=`, `traces=`, `trace_sample=`,
+  `lifespan=`, `isolate_errors=` and `on_agent_error=` parameters were removed;
+  per-turn `resources=` remains.
+
+### Added
 - **`Agent` is the authoring and scheduling unit.** `Agent("intake",
   steps=[...], consumes=..., retry=..., timeout=...)` is the user-facing group
   of steps. `Runtime` accepts
@@ -102,6 +131,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
   `Router.agent()` and `ApprovalGate.agent()` return a ready `Agent` with an
   explicit wake set; the existing `.produce()`/`.steps()` forms stay available
   for composition inside a larger agent.
+- **Clean starter app.** `examples/starter_app` now has an `agents/` package
+  with a one-function chat `@agent`, `tools.py`, and `app.py` that is only
+  wiring; `Chat` receives `RunConfig` instead of separate runtime kwargs.
 - **Dev-mode consumes warning.** With `REACTIFACT_DEV=1` (or
   `REACTIFACT_ENV=dev`), `Agent(steps=...)` without `consumes` warns that the
   wake set is being derived from step reads. Production stays quiet.

@@ -1,4 +1,4 @@
-"""`reactifact validate` — static contract check for a module's groups."""
+"""`reactifact validate` — static contract check for a module's agents."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from .config import budget_from_config, load_config
 
 def cmd_validate(args: argparse.Namespace) -> int:
     config = load_config()
-    spec = args.module or config.groups
+    spec = args.module or config.agents
     if spec is None:
         raise SystemExit(
-            "reactifact validate: pass a module or set [tool.reactifact] groups"
+            "reactifact validate: pass a module or set [tool.reactifact] agents"
         )
     groups = load_agents(spec)
     budget = budget_from_config(config)
     report = validate_contracts(
-        groups=groups,
+        agents=groups,
         seeds=args.seed or config.seeds,
         terminal=args.terminal or config.terminal,
         budget=budget,
@@ -31,14 +31,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
 def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     p_validate = sub.add_parser(
         "validate",
-        help="check consumes/produces contracts of a module's groups",
+        help="check consumes/produces contracts of a module's agents",
     )
     p_validate.add_argument(
         "module",
         nargs="?",
         default=None,
         help='module path, e.g. "examples.knowledge.agents" '
-        "(default: [tool.reactifact] groups)",
+        "(default: [tool.reactifact] agents)",
     )
     p_validate.add_argument(
         "--seed",

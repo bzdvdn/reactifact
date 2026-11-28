@@ -582,7 +582,7 @@ async def _execute_turn(
     tracer = _CapturingTracer()
     runtime = Runtime(
         context,
-        groups=list(agents),
+        agents=list(agents),
         budget=budget,
         max_concurrency=max_concurrency,
         tracer=tracer,

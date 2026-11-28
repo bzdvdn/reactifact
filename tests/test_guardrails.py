@@ -46,7 +46,7 @@ def _group():
 def _run(resources, text: str):
     ctx = Context(resources=resources)
     ctx.create(Question(text=text))
-    asyncio.run(Runtime(ctx, groups=[_group()]).arun())
+    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
     return ctx
 
 

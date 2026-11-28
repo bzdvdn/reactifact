@@ -15,6 +15,7 @@ from reactifact import (
     PendingAction,
     PendingQuestion,
     Pipeline,
+    PipelineRunner,
     Progress,
     Runtime,
     RuntimeResources,
@@ -37,50 +38,54 @@ class Answer(BaseModel):
     text: str
 
 
-@step(produces=PendingQuestion, consumes=Ticket)
+@step(produces=PendingQuestion, reads=Ticket)
 def approve(ticket: Ticket, human: Human) -> None:
     human.ask("Approve?", schema=Approval, id=f"approve:{ticket.id}")
 
 
-@step(produces=PendingAction, consumes=Ticket)
+@step(produces=PendingAction, reads=Ticket)
 def notify(ticket: Ticket, outbox: Outbox) -> None:
     outbox.act("notify", key=f"notify:{ticket.id}", payload={"id": ticket.id})
 
 
-@step(produces=PendingQuestion, consumes=Ticket)
+@step(produces=PendingQuestion, reads=Ticket)
 async def approve_call(call) -> None:
     call.human.ask("Approve?", schema=Approval, id=f"call:{call.trigger.id}")
 
 
-@step(produces=Answer, consumes=Ticket)
+@step(produces=Answer, reads=Ticket)
 def answer(ticket: Ticket, progress: Progress) -> Answer:
     progress("Считаю…", source="test")
     progress("Нашёл 2", count=2)
     return Answer(text=ticket.text)
 
 
-@step(produces=Answer, consumes=Ticket)
+@step(produces=Answer, reads=Ticket)
 async def answer_call(call) -> Answer:
     call.progress("call progress", tool="lookup")
     return Answer(text=call.trigger.data.text)
 
 
 def test_human_creates_a_pending_question():
-    result = Pipeline(steps=[approve]).run(Ticket(id="42", text="refund"))
+    result = PipelineRunner(Pipeline(steps=[approve])).run(
+        Ticket(id="42", text="refund")
+    )
     questions = result.context.pending_questions()
     assert len(questions) == 1
     assert questions[0].data.resolution_schema
 
 
 def test_outbox_records_a_pending_action():
-    result = Pipeline(steps=[notify]).run(Ticket(id="7", text="x"))
+    result = PipelineRunner(Pipeline(steps=[notify])).run(Ticket(id="7", text="x"))
     actions = result.context.pending_actions()
     assert len(actions) == 1
     assert actions[0].data.idempotency_key == "notify:7"
 
 
 def test_stepcall_exposes_human():
-    result = Pipeline(steps=[approve_call]).run(Ticket(id="9", text="x"))
+    result = PipelineRunner(Pipeline(steps=[approve_call])).run(
+        Ticket(id="9", text="x")
+    )
     assert len(result.context.pending_questions()) == 1
 
 
@@ -89,8 +94,8 @@ def _statuses(events: Iterable[ProgressEvent]) -> list[ProgressEvent]:
 
 
 def test_progress_publishes_announcements_with_payload() -> None:
-    pipeline = Pipeline(steps=[answer])
-    events = asyncio.run(_collect(pipeline.astream(Ticket(id="1", text="x"))))
+    runner = PipelineRunner(Pipeline(steps=[answer]))
+    events = asyncio.run(_collect(runner.astream(Ticket(id="1", text="x"))))
 
     statuses = _statuses(events)
     assert [event.message for event in statuses] == ["Считаю…", "Нашёл 2"]
@@ -99,8 +104,8 @@ def test_progress_publishes_announcements_with_payload() -> None:
 
 
 def test_stepcall_exposes_progress() -> None:
-    pipeline = Pipeline(steps=[answer_call])
-    events = asyncio.run(_collect(pipeline.astream(Ticket(id="2", text="x"))))
+    runner = PipelineRunner(Pipeline(steps=[answer_call]))
+    events = asyncio.run(_collect(runner.astream(Ticket(id="2", text="x"))))
 
     statuses = _statuses(events)
     assert [event.message for event in statuses] == ["call progress"]
@@ -112,7 +117,7 @@ async def _collect(events: AsyncIterator[ProgressEvent]) -> list[ProgressEvent]:
 
 
 class UsesLLM(Step):
-    consumes = (Ticket,)
+    reads = (Ticket,)
     produces = (Answer,)
 
     async def run(self, ticket: Ticket, llm: LLMProvider | None) -> Answer:
@@ -134,7 +139,7 @@ class Prefs(BaseModel):
 
 
 class UsesPrefs(Step):
-    consumes = (Ticket,)
+    reads = (Ticket,)
     produces = (Answer,)
 
     async def run(self, ticket: Ticket, prefs: Prefs) -> Answer:
@@ -142,7 +147,7 @@ class UsesPrefs(Step):
 
 
 class UsesOptionalPrefs(Step):
-    consumes = (Ticket,)
+    reads = (Ticket,)
     produces = (Answer,)
 
     async def run(self, ticket: Ticket, prefs: Prefs | None) -> Answer:
@@ -151,7 +156,7 @@ class UsesOptionalPrefs(Step):
 
 
 class ConsumesPrefsArtifact(Step):
-    consumes = (Prefs,)
+    reads = (Prefs,)
     produces = (Answer,)
 
     async def run(self, prefs: Prefs) -> Answer:

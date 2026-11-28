@@ -31,7 +31,7 @@ class _StructuredStep(Step[Any]):
         temperature: float | None,
         max_tokens: int | None,
     ) -> None:
-        super().__init__(produces=schema, consumes=[question_type])
+        super().__init__(produces=schema, reads=[question_type])
         self.schema = schema
         self.system = system
         self.question_type = question_type

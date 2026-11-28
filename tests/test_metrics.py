@@ -203,7 +203,7 @@ def test_metrics_tracer_runs_inside_a_runtime():
     ctx = Context(resources=RuntimeResources(metrics=metrics))
     ctx.create(Number(value=0))
 
-    asyncio.run(Runtime(ctx, groups=[agent], tracer=MetricsTracer(metrics)).arun())
+    asyncio.run(Runtime(ctx, agents=[agent], tracer=MetricsTracer(metrics)).arun())
 
     text = metrics.render()
     assert 'reactifact_runs_total{outcome="completed"} 1' in text

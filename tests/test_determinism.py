@@ -47,7 +47,7 @@ def _agent(produce_obj) -> object:
 async def _build(agent, resources):
     context = Context(resources=resources)
     context.create(Q(text="q"))  # also auto-id
-    await Runtime(context, groups=[agent]).arun()
+    await Runtime(context, agents=[agent]).arun()
     return context
 
 

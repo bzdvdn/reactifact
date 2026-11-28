@@ -4,12 +4,9 @@ import asyncio
 
 from pydantic import BaseModel
 from reactifact import (
+    Consume,
     Context,
     EventType,
-    OnCreate,
-    OnDelete,
-    OnStale,
-    OnUpdate,
     Runtime,
     Step,
 )
@@ -32,31 +29,31 @@ class Deleted(BaseModel):
 
 
 class OnCreateStep(Step[Created]):
-    consumes = (OnCreate(Item),)
+    reads = (Consume.on_create(Item),)
 
     async def run(self, item: Item) -> Created:
         return Created(text=item.text)
 
 
 class OnUpdateStep(Step[Updated]):
-    consumes = (OnUpdate(Item),)
+    reads = (Consume.on_update(Item),)
 
     async def run(self, item: Item) -> Updated:
         return Updated(text=item.text)
 
 
 class OnDeleteStep(Step[Deleted]):
-    consumes = (OnDelete(Item),)
+    reads = (Consume.on_delete(Item),)
 
     async def run(self, event) -> Deleted:
         return Deleted(text=event.artifact_id)
 
 
 def test_lifecycle_consume_event_types() -> None:
-    assert list(OnCreate(Item).event_types) == [EventType.ARTIFACT_CREATED]
-    assert list(OnUpdate(Item).event_types) == [EventType.ARTIFACT_UPDATED]
-    assert list(OnDelete(Item).event_types) == [EventType.ARTIFACT_DELETED]
-    assert list(OnStale(Item).event_types) == [EventType.ARTIFACT_STALE]
+    assert list(Consume.on_create(Item).event_types) == [EventType.ARTIFACT_CREATED]
+    assert list(Consume.on_update(Item).event_types) == [EventType.ARTIFACT_UPDATED]
+    assert list(Consume.on_delete(Item).event_types) == [EventType.ARTIFACT_DELETED]
+    assert list(Consume.on_stale(Item).event_types) == [EventType.ARTIFACT_STALE]
 
 
 def test_on_create_and_on_update_are_scoped_to_their_event() -> None:

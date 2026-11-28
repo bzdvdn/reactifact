@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Pipeline, PipelineRunner, RunConfig, step
 from reactifact.tracing import RunTrace, SamplingPolicy, Tracer, TraceStore
 
 
@@ -17,7 +17,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text)
 
@@ -54,13 +54,12 @@ def test_rate_is_deterministic_per_run_id():
 
 
 def test_pipeline_trace_sample_zero_drops_successful_runs():
-    pipeline = Pipeline(
-        steps=[answer],
-        traces=True,
-        trace_sample=SamplingPolicy(rate=0.0),
+    runner = PipelineRunner(
+        Pipeline(steps=[answer]),
+        config=RunConfig(traces=True, trace_sample=SamplingPolicy(rate=0.0)),
     )
-    result = pipeline.run(Question(text="hi"))
+    result = runner.run(Question(text="hi"))
     assert result.trace_id
     assert asyncio.run(result.trace()) is None
-    assert asyncio.run(pipeline.trace_store.query())["total"] == 0
-    pipeline.close()
+    assert asyncio.run(runner.trace_store.query())["total"] == 0
+    runner.close()

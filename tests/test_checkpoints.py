@@ -33,7 +33,7 @@ class Answerer(Agent):
 async def _seeded(tmp_path, session_id: str = "s1"):
     store = SessionStore(FileKVBackend(str(tmp_path / "sessions")))
     session = await store.open(session_id)
-    runtime = Runtime(session.context, groups=[Answerer()], session=session)
+    runtime = Runtime(session.context, agents=[Answerer()], session=session)
     session.context.create(Question(text="hello"))
     await runtime.arun()
     return session, runtime, store

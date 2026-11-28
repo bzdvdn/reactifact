@@ -1,9 +1,9 @@
 """Static agent contracts: the OpenAPI-shaped view of a reactifact graph."""
 
 from .report import (
+    AgentContract,
     ConsumeContract,
     ContractReport,
-    GroupContract,
     StepContract,
     ToolContract,
     describe_contracts,
@@ -12,7 +12,7 @@ from .report import (
 __all__ = [
     "ConsumeContract",
     "ContractReport",
-    "GroupContract",
+    "AgentContract",
     "StepContract",
     "ToolContract",
     "describe_contracts",

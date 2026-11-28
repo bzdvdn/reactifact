@@ -25,7 +25,7 @@ async def search(query: str) -> str:
 
 
 class Answerer(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
     tools = (search,)
     timeout = 5.0
@@ -40,7 +40,7 @@ GROUPS = [Agent("answer", steps=[Answerer()])]
 
 def test_contract_report_has_steps_consumes_and_tools():
     report = describe_contracts(GROUPS)
-    group = report.groups[0]
+    group = report.agents[0]
     assert group.name == "answer"
     assert group.steps[0].consumes[0].artifact == "Question"
     assert group.steps[0].produces == ("Answer",)
@@ -64,8 +64,8 @@ def test_contract_markdown_and_json_render():
     assert "timeout: 5s" in markdown
 
     payload = json.loads(report.to_json())
-    assert payload["groups"][0]["steps"][0]["produces"] == ["Answer"]
-    assert payload["groups"][0]["produces"] == ["Answer"]
+    assert payload["agents"][0]["steps"][0]["produces"] == ["Answer"]
+    assert payload["agents"][0]["produces"] == ["Answer"]
 
     graph = report.to_mermaid()
     assert graph.startswith("flowchart LR")

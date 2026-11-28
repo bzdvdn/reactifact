@@ -39,7 +39,7 @@ def _run(resources):
     ctx = Context(resources=resources)
     ctx.create(Question(text="hi"))
     agent = Agent("rewrite", consumes=[Consume(Question)], steps=[Rewrite()])
-    asyncio.run(Runtime(ctx, groups=[agent]).arun())
+    asyncio.run(Runtime(ctx, agents=[agent]).arun())
     return ctx
 
 
@@ -145,7 +145,7 @@ def test_access_can_and_require_reflect_the_policy():
 
 def test_access_is_injectable_into_a_step():
     class Probe(Step):
-        consumes = (Question,)
+        reads = (Question,)
         produces = (Note,)
 
         async def run(self, access: Access) -> Note:
@@ -158,5 +158,5 @@ def test_access_is_injectable_into_a_step():
     context = Context(resources=resources)
     context.create(Question(text="hi"))
     agent = Agent("rewrite", steps=[Probe()])
-    asyncio.run(Runtime(context, groups=[agent]).arun())
+    asyncio.run(Runtime(context, agents=[agent]).arun())
     assert context.latest(Note).data.text == "yes"

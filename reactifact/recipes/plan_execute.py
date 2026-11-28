@@ -165,7 +165,7 @@ class PlanExecute(Generic[GoalT, StepT, ResultT, FinalT], ABC):
 
         ```python
         pipeline = PlanExecute.from_funcs(...).pipeline(seed_type=Goal)
-        result = pipeline.run(Goal(text="..."))
+        result = PipelineRunner(pipeline).run(Goal(text="..."))
         ```
         """
         from ..pipeline import Pipeline

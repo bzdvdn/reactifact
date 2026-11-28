@@ -19,10 +19,6 @@ def create_contracts_router(
     )
     | None = None,
     *,
-    groups: (
-        Sequence[Any] | ContractReport | Callable[[], Sequence[Any] | ContractReport]
-    )
-    | None = None,
     prefix: str = "",
     title: str = "reactifact contracts",
     username: str | None = None,
@@ -38,12 +34,9 @@ def create_contracts_router(
 
     This is opt-in and not mounted by default — tool descriptions and schemas
     can be sensitive. Pass `username`/`password` for HTTP Basic auth, the same
-    way as the trace dashboard. `groups=` is a compatibility alias for
-    `agents=`.
+    way as the trace dashboard.
     """
-    if agents is not None and groups is not None:
-        raise TypeError("Pass only one of agents= or groups=")
-    source = agents if agents is not None else groups
+    source = agents
     if source is None:
         raise TypeError("create_contracts_router requires agents=")
     require_extra("contracts.web.create_contracts_router", "fastapi", "web")

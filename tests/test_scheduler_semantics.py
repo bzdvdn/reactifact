@@ -46,7 +46,7 @@ def test_commit_order_is_work_order_under_parallel_dispatch():
             return Patch().create(Other(text="fast"))
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Fast(), Slow()], max_concurrency=2)
+    runtime = Runtime(ctx, agents=[Fast(), Slow()], max_concurrency=2)
     ctx.create(Item(value=1))
     asyncio.run(runtime.arun())
 
@@ -97,7 +97,7 @@ def test_no_matching_agent_is_quiescence_zero_runs_and_completed():
 
     ctx = Context()
     ctx.create(Item(value=1))  # nothing consumes Item
-    runtime = Runtime(ctx, groups=[ConsumesOther()])
+    runtime = Runtime(ctx, agents=[ConsumesOther()])
 
     assert asyncio.run(runtime.arun()) == 0
     assert runtime.outcome == RunOutcome.COMPLETED

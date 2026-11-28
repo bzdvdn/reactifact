@@ -57,7 +57,7 @@ def _build() -> Context:
     ctx = Context()
     runtime = Runtime(
         ctx,
-        groups=[
+        agents=[
             Agent("g", consumes=[Consume(Question)], steps=[gather]),
             Agent("a", consumes=[Consume(Evidence)], steps=[answer]),
         ],

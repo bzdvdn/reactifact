@@ -113,7 +113,7 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     Steps are the model; an `Agent` is the operational unit that answers
     "wake these together, retry them together, trace them under one name".
     `Runtime` accepts a list of agents, `Agent(...)` builds one without
-    subclassing, and `Agent`/`StepGroup` remain compatibility aliases.
+    subclassing.
 
     If `run` is not overridden, the group collects inputs according to
     `consumes` and calls every step, merging the patches into one commit.
@@ -312,10 +312,6 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
     def agents(self) -> list[Agent]:
         """The agent itself, for `Route`/`Pipeline` expansion."""
         return [self]
-
-    def groups(self) -> list[Agent]:
-        """Deprecated alias for `agents()`."""
-        return self.agents()
 
     def should_fallback(self, error: BaseException) -> bool:
         """Whether `error` may be degraded through `fallback`."""
@@ -589,79 +585,10 @@ class Agent(ABC):  # noqa: B024 — interface without abstract methods, run() ha
         return True, trigger
 
 
-def create_step_group(
-    name: str,
-    *,
-    consumes: Sequence[Consume] | None = None,
-    steps: Sequence[Step[Any]] | None = None,
-    produces: Sequence[Step[Any]] | None = None,
-    capabilities: tuple[str, ...] = (),
-    priority: int = 0,
-    concurrency_limit: int | None = None,
-    triggers: list[Trigger] | None = None,
-    wakes: bool | Callable[[Event, Context | None], bool] = True,
-    retry: RetryPolicy | None = None,
-    timeout: float | None = None,
-    fallback: Step[Any] | None = None,
-    fallback_on: Sequence[type[BaseException]] | None = None,
-    fallback_skip: Sequence[type[BaseException]] | None = None,
-) -> Agent:
-    """Builds an `Agent` without subclassing (compatibility constructor).
-
-    A group is only needed when steps should share a trigger, retry policy,
-    timeout, priority or concurrency limit; a single step can be passed to the
-    runtime on its own. This constructor-style builder covers the declarative
-    knobs:
-
-    ```
-    analysis = Agent(
-        "analysis",
-        consumes=[Consume(Question)],
-        retry=RetryPolicy(max_attempts=3),
-        steps=[compute_spend, compute_variance],
-        fallback=FallbackAnswer("Could not compute"),
-    )
-    ```
-
-    `fallback=` is one `Step` run after the group's retries are exhausted,
-    in a fresh effects slot (the failed attempt is discarded). `fallback_on=`
-    selects exception types; `fallback_skip=` protects authz/guardrail/conflict
-    errors from being degraded.
-
-    Pass `triggers` only for the rare imperative style with no `consumes` at
-    all (see
-    `Agent.triggers`'s own docstring) — the ordinary declarative case
-    should leave it unset and use `Consume(..., wakes=False)` instead.
-    """
-    if steps is not None and produces is not None:
-        raise TypeError(
-            "Pass either steps= or produces=, not both: produces is the deprecated alias for steps."
-        )
-    resolved_steps = steps if steps is not None else produces
-    group = Agent(
-        name=name,
-        triggers=triggers,
-        priority=priority,
-        steps=resolved_steps,
-        consumes=consumes,
-        wakes=wakes,
-        retry=retry,
-        timeout=timeout,
-        fallback=fallback,
-        fallback_on=fallback_on,
-        fallback_skip=fallback_skip,
-    )
-    group.capabilities = capabilities
-    group.concurrency_limit = concurrency_limit
-    group._validate_contracts()
-    return group
-
-
 def normalize_units(
     *,
     steps: list[Any] | None = None,
     agents: list[Any] | None = None,
-    groups: list[Any] | None = None,
 ) -> list[Agent]:
     """Normalizes the constructor keywords into dispatch units.
 
@@ -669,9 +596,7 @@ def normalize_units(
     `priority`/`concurrency_limit`; `agents=` accepts only `Agent`.
     Result order is steps, then agents, preserving each list.
     """
-    if agents is not None and groups is not None:
-        raise TypeError("Pass only one of agents= or groups=")
-    declared_agents = agents if agents is not None else groups
+    declared_agents = agents
 
     def check_agents(items: list[Any], keyword: str) -> list[Agent]:
         checked: list[Agent] = []
@@ -707,7 +632,3 @@ def normalize_units(
     if declared_agents is not None:
         merged.extend(check_agents(declared_agents, "agents"))
     return merged
-
-
-#: Deprecated compatibility alias; new code uses `Agent`.
-StepGroup = Agent

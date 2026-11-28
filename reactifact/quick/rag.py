@@ -145,7 +145,7 @@ def _default_answer_builder(
 
 class _SearchStep(Step[Any]):
     def __init__(self, limit: int, question_type: type[BaseModel]) -> None:
-        super().__init__(produces=SourceRef, consumes=[question_type])
+        super().__init__(produces=SourceRef, reads=[question_type])
         self.limit = limit
         self.question_type = question_type
 
@@ -172,7 +172,7 @@ def _search_produce(limit: int, question_type: type[BaseModel]) -> Step[Any]:
 
 class _ResolveStep(Step[Any]):
     def __init__(self, doc_type: type[BaseModel], doc_builder: DocBuilder) -> None:
-        super().__init__(produces=doc_type, consumes=[SourceRef])
+        super().__init__(produces=doc_type, reads=[SourceRef])
         self.doc_builder = doc_builder
 
     async def run(self, context: Context, trigger: Artifact[SourceRef]) -> None:
@@ -197,7 +197,7 @@ class _AnswerStep(Step[Any]):
     ) -> None:
         super().__init__(
             produces=answer_type,
-            consumes=[Consume(doc_type), Consume(question_type, wakes=False)],
+            reads=[Consume(doc_type), Consume(question_type, wakes=False)],
         )
         self.system = system
         self.question_type = question_type
@@ -339,8 +339,6 @@ class QuickRAG(Generic[TAnswer]):
                 ],
             ),
         ]
-        #: Compatibility alias for `.agents`.
-        self.agents = self.agents
 
     async def ask(self, text: str, *, context: Context | None = None) -> TAnswer | None:
         """Runs the retrieval pipeline for `text`; returns the answer model or None."""

@@ -24,7 +24,7 @@ class Linker(Agent):
 
 def test_link_via_patch_applies_and_records_commit():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Linker()])
+    runtime = Runtime(ctx, agents=[Linker()])
     claim = ctx.create(Claim(statement="GPU costs rose"))
     asyncio.run(runtime.arun())
 
@@ -124,7 +124,7 @@ def test_relations_survive_snapshot_roundtrip():
 
 def test_checkout_rolls_back_committed_links_keeps_working_tree():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Linker()])
+    runtime = Runtime(ctx, agents=[Linker()])
     claim = ctx.create(Claim(statement="c"))
     asyncio.run(runtime.arun())
     assert len(ctx.relations(claim.id)) == 1  # via commit

@@ -338,4 +338,4 @@ def test_contracts_page_is_mounted(tmp_path):
     page = client.get("/contracts")
     assert page.status_code == 200
     assert "devops-ai contracts" in page.text
-    assert client.get("/api/contracts").json()["groups"]
+    assert client.get("/api/contracts").json()["agents"]

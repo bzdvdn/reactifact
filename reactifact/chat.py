@@ -485,7 +485,6 @@ class ChatAssistant:
         *,
         store: SessionStore,
         agents: Sequence[Agent] | Callable[[], Sequence[Agent]] | None = None,
-        groups: Sequence[Agent] | Callable[[], Sequence[Agent]] | None = None,
         steps: Sequence[Step] | None = None,
         user_message: type[BaseModel],
         reply: Callable[[Context, str], dict[str, Any]] | ChatReply,
@@ -504,21 +503,19 @@ class ChatAssistant:
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
-        provided = [value for value in (agents, groups, steps) if value is not None]
+        provided = [value for value in (agents, steps) if value is not None]
         if len(provided) > 1:
-            raise ValueError("Pass only one of steps=, agents= or groups=")
+            raise ValueError("Pass only one of steps= or agents=")
         if steps is not None:
             resolved: Sequence[Agent] | Callable[[], Sequence[Agent]] = normalize_units(
                 steps=list(steps)
             )
         elif agents is not None:
             resolved = agents
-        elif groups is not None:
-            resolved = groups
         else:
             raise TypeError("ChatAssistant requires steps= or agents=")
         self.store = store
-        self._groups = resolved
+        self._agents = resolved
         self._user_message = user_message
         self._reply = reply
         self._session_state = session_state
@@ -639,7 +636,7 @@ class ChatAssistant:
     def _build_runtime(self, session: Session) -> Runtime:
         return Runtime(
             session.context,
-            agents=[*_resolve(self._groups), *self._memory_agents()],
+            agents=[*_resolve(self._agents), *self._memory_agents()],
             session=session,
             budget=self._budget,
             max_concurrency=self._max_concurrency,
@@ -784,10 +781,8 @@ class Chat:
     reuses a whole `Pipeline` definition, and `seed_factory`/`per_turn` cover
     app-specific hooks (a request category, a secret vault).
     `config=RunConfig(...)` supplies the same run settings as `PipelineRunner`
-    (resources, tracing, budget, concurrency, lifespan); explicit keywords win
-    over the config, and `traces=`/`trace_sample=`/`lifespan=` still mirror
-    `Pipeline`. `answer()` returns the typed `answer_type` instead of the
-    transport payload.
+    (resources, tracing, budget, concurrency, lifespan). `answer()` returns the
+    typed `answer_type` instead of the transport payload.
     """
 
     def __init__(
@@ -795,7 +790,6 @@ class Chat:
         steps: Sequence[Step[Any]] | None = None,
         *,
         agents: Sequence[Agent] | None = None,
-        groups: Sequence[Agent] | None = None,
         pipeline: Any | None = None,
         config: RunConfig | None = None,
         store: SessionStore | str | Path | None = None,
@@ -806,14 +800,6 @@ class Chat:
         reply: Callable[[Context, str], dict[str, Any]] | ChatReply | None = None,
         session_state: Callable[[Context], dict[str, Any]] | None = None,
         resources: RuntimeResources | Callable[..., RuntimeResources] | None = None,
-        llm: Any = None,
-        budget: Budget | None = None,
-        max_concurrency: int | None = None,
-        tracer: Any = None,
-        traces: bool | str | Path | Any | None = None,
-        trace_sample: Any = None,
-        lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]]
-        | None = None,
         memory: ChatMemory | None = None,
         session_save_policy: Literal["per_commit", "per_turn"] = "per_commit",
         status_kinds: Sequence[str] = ("status",),
@@ -822,65 +808,35 @@ class Chat:
             [str, str, Mapping[str, Any]], AbstractAsyncContextManager[Any]
         ]
         | None = None,
-        isolate_errors: bool | None = None,
-        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         create_message: Callable[..., str] | None = None,
         resume_pending: bool = False,
         dispatcher: Dispatcher | None = None,
         on_dispatch_error: DispatchErrorHandler | None = None,
     ):
-        if agents is not None and groups is not None:
-            raise ValueError("Pass only one of agents= or groups=")
-        if agents is not None:
-            groups = agents
         base = config or RunConfig()
         if pipeline is not None:
-            if steps is not None or groups is not None:
-                raise ValueError(
-                    "Pass either pipeline= or steps=/agents=/groups=, not both"
-                )
-            groups = pipeline.agents
+            if steps is not None or agents is not None:
+                raise ValueError("Pass either pipeline= or steps=/agents=, not both")
+            agents = pipeline.agents
             if seed_type is None:
                 seed_type = pipeline.seed_type
             if answer_type is None:
                 answer_type = pipeline.answer_type
-            if resources is None and base.resources is None:
-                resources = pipeline.resources
-            if llm is None and base.llm is None:
-                llm = pipeline.llm
-            if budget is None and base.budget is None:
-                budget = pipeline.budget
-            if max_concurrency is None and base.max_concurrency is None:
-                max_concurrency = pipeline.max_concurrency
-            if tracer is None and base.tracer is None:
-                tracer = pipeline.tracer
-            if lifespan is None and base.lifespan is None:
-                lifespan = pipeline.lifespan
-            if on_agent_error is None and base.on_agent_error is None:
-                on_agent_error = pipeline.on_agent_error
-        # Precedence: an explicit keyword beats the run config, which beats
-        # the pipeline's compatibility defaults.
+            # A pipeline contributes structure and seed/answer models; its
+            # runtime settings live in PipelineRunner/RunConfig.
+        # Runtime settings come from RunConfig; only the per-turn resources
+        # hook stays a direct constructor argument.
         resources = resources if resources is not None else base.resources
-        llm = llm if llm is not None else base.llm
-        budget = budget if budget is not None else base.budget
-        max_concurrency = (
-            max_concurrency if max_concurrency is not None else base.max_concurrency
-        )
-        tracer = tracer if tracer is not None else base.tracer
-        trace_sample = trace_sample if trace_sample is not None else base.trace_sample
-        lifespan = lifespan if lifespan is not None else base.lifespan
-        on_agent_error = (
-            on_agent_error if on_agent_error is not None else base.on_agent_error
-        )
-        selected_traces = traces if traces is not None else base.traces
-        isolate_errors = (
-            isolate_errors
-            if isolate_errors is not None
-            else base.isolate_errors
-            if base.isolate_errors is not None
-            else False
-        )
-        if steps is None and groups is None:
+        llm = base.llm
+        budget = base.budget
+        max_concurrency = base.max_concurrency
+        tracer = base.tracer
+        trace_sample = base.trace_sample
+        lifespan = base.lifespan
+        on_agent_error = base.on_agent_error
+        selected_traces = base.traces
+        isolate_errors = base.isolate_errors or False
+        if steps is None and agents is None:
             raise TypeError("Chat requires steps=, agents= or a pipeline=")
         if seed_type is None:
             raise TypeError("Chat requires seed_type= or a pipeline with seed_type")
@@ -894,9 +850,7 @@ class Chat:
         elif resources is None:
             resources = RuntimeResources(llm=llm)
         self.steps = list(steps) if steps is not None else None
-        #: Canonical name; `groups` is kept as a compatibility alias.
-        self.agents = list(groups) if groups is not None else None
-        self.groups = self.agents
+        self.agents = list(agents) if agents is not None else None
         self.pipeline = pipeline
         self.config = config
         self.seed_type = seed_type
@@ -930,7 +884,7 @@ class Chat:
         )
         self.assistant = ChatAssistant(
             steps=steps,
-            agents=groups,
+            agents=agents,
             store=_as_store(store),
             user_message=seed_type,
             reply=reply or self._default_reply,
@@ -1040,7 +994,7 @@ class Chat:
             )
 
     def close(self) -> None:
-        """Close the trace store opened by `traces=` (no-op otherwise)."""
+        """Close the trace store opened by `RunConfig(traces=...)` (no-op otherwise)."""
         if self.trace_store is not None and hasattr(self.trace_store, "close"):
             self.trace_store.close()
 
@@ -1125,7 +1079,7 @@ class Chat:
             inferred_terminal.append(self.answer_type)
         return validate_contracts(
             steps=self.steps,
-            agents=self.groups,
+            agents=self.agents,
             seeds=inferred_seeds,
             terminal=inferred_terminal,
         )
@@ -1134,10 +1088,10 @@ class Chat:
         """The static contract plus seed/answer JSON Schemas."""
         from .contracts.report import ContractReport, describe_contracts
 
-        groups = normalize_units(steps=self.steps, agents=self.groups)
-        base = describe_contracts(groups)
+        agents = normalize_units(steps=self.steps, agents=self.agents)
+        base = describe_contracts(agents)
         return ContractReport(
-            groups=base.groups,
+            agents=base.agents,
             seed_schema=(
                 self.seed_type.model_json_schema()
                 if self.seed_type is not None

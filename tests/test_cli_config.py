@@ -6,11 +6,11 @@ import pytest
 from reactifact.cli.config import load_config
 
 
-def test_config_reads_groups_seeds_terminal_budget(tmp_path):
+def test_config_reads_agents_seeds_terminal_budget(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         """
 [tool.reactifact]
-groups = "app.pipeline:GROUPS"
+agents = "app.pipeline:AGENTS"
 seeds = ["Question"]
 terminal = ["Answer"]
 scenarios = ["app.scenarios"]
@@ -26,7 +26,7 @@ max_seconds = 120
 """.strip()
     )
     config = load_config(tmp_path)
-    assert config.groups == "app.pipeline:GROUPS"
+    assert config.agents == "app.pipeline:AGENTS"
     assert config.seeds == ["Question"]
     assert config.terminal == ["Answer"]
     assert config.scenarios == ["app.scenarios"]
@@ -39,7 +39,7 @@ max_seconds = 120
 def test_config_is_empty_without_the_section(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n")
     config = load_config(tmp_path)
-    assert config.groups is None
+    assert config.agents is None
     assert config.seeds == []
 
 

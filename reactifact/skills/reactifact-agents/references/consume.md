@@ -80,8 +80,7 @@ for the full set rather than relying on `trigger` for "what changed".
 ## Lifecycle forms
 
 `Consume(T)` covers create + update. Narrow it with the lifecycle classmethods;
-the old `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale` classes remain importable
-compatibility aliases, not the canonical spelling.
+the old `OnCreate`/`OnUpdate`/`OnDelete`/`OnStale` classes are removed.
 
 ```python
 # not-run: illustrative

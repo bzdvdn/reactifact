@@ -69,7 +69,7 @@ def test_act_records_a_pending_action_and_is_idempotent():
 def test_dispatcher_runs_once_and_marks_dispatched():
     calls: list[str] = []
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, groups=[Notifier()], dispatcher=_recording_dispatcher(calls))
+    runtime = Runtime(ctx, agents=[Notifier()], dispatcher=_recording_dispatcher(calls))
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -87,7 +87,7 @@ def test_same_generation_duplicates_dispatch_once():
     ctx = Context(resources=RuntimeResources())
     runtime = Runtime(
         ctx,
-        groups=[Notifier(), TwinNotifier()],
+        agents=[Notifier(), TwinNotifier()],
         dispatcher=_recording_dispatcher(calls),
     )
     ctx.create(Doc(text="trigger"), id="doc:1")
@@ -100,7 +100,7 @@ def test_same_generation_duplicates_dispatch_once():
 def test_retry_does_not_resend():
     calls: list[str] = []
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, groups=[Notifier()], dispatcher=_recording_dispatcher(calls))
+    runtime = Runtime(ctx, agents=[Notifier()], dispatcher=_recording_dispatcher(calls))
     ctx.create(Doc(text="one"), id="doc:1")
     asyncio.run(runtime.arun())
     assert calls == ["order:1"]
@@ -122,7 +122,7 @@ def test_dispatcher_failure_is_recorded_and_raises():
 
     ctx = Context(resources=RuntimeResources())
     runtime = Runtime(
-        ctx, groups=[Notifier()], dispatcher=failing, on_dispatch_error=on_error
+        ctx, agents=[Notifier()], dispatcher=failing, on_dispatch_error=on_error
     )
     ctx.create(Doc(text="trigger"), id="doc:1")
     with pytest.raises(RuntimeError, match="smtp down"):
@@ -237,7 +237,7 @@ def test_merge_prefers_a_dispatched_side_regardless_of_direction():
 
 def test_pending_action_without_dispatcher_warns(capsys):
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, groups=[Notifier()])  # no dispatcher configured
+    runtime = Runtime(ctx, agents=[Notifier()])  # no dispatcher configured
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -248,7 +248,7 @@ def test_pending_action_without_dispatcher_warns(capsys):
 def test_replay_summary_reports_action_states():
     calls: list[str] = []
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, groups=[Notifier()], dispatcher=_recording_dispatcher(calls))
+    runtime = Runtime(ctx, agents=[Notifier()], dispatcher=_recording_dispatcher(calls))
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 

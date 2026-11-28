@@ -5,7 +5,7 @@ project can put its wiring in `pyproject.toml` once instead of repeating
 `--seed`, `--terminal` and budget flags on every invocation:
 
     [tool.reactifact]
-    groups = "app.pipeline:GROUPS"
+    agents = "app.pipeline:AGENTS"
     seeds = ["Question"]
     terminal = ["Answer"]
     scenarios = ["app.scenarios"]
@@ -38,7 +38,7 @@ _BUDGET_KEYS = {
 
 @dataclass(frozen=True)
 class ProjectConfig:
-    groups: str | None = None
+    agents: str | None = None
     seeds: list[str] = field(default_factory=list)
     terminal: list[str] = field(default_factory=list)
     scenarios: list[str] = field(default_factory=list)
@@ -81,9 +81,9 @@ def load_config(start: Path | None = None) -> ProjectConfig:
         raise SystemExit(
             "[tool.reactifact] unknown budget keys: " + ", ".join(sorted(unknown))
         )
-    groups = raw.get("groups")
-    if groups is not None and not isinstance(groups, str):
-        raise SystemExit("[tool.reactifact] groups must be a module:attr string")
+    agents = raw.get("agents")
+    if agents is not None and not isinstance(agents, str):
+        raise SystemExit("[tool.reactifact] agents must be a module:attr string")
     evals = raw.get("evals")
     if evals is not None and not isinstance(evals, str):
         raise SystemExit("[tool.reactifact] evals must be a path string")
@@ -97,7 +97,7 @@ def load_config(start: Path | None = None) -> ProjectConfig:
     ):
         raise SystemExit("[tool.reactifact] gates must be a table of numbers")
     return ProjectConfig(
-        groups=groups,
+        agents=agents,
         seeds=_string_list(raw.get("seeds"), "seeds"),
         terminal=_string_list(raw.get("terminal"), "terminal"),
         scenarios=_string_list(raw.get("scenarios"), "scenarios"),

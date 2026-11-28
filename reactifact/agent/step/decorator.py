@@ -81,11 +81,6 @@ def step(
     | ArtifactType
     | Sequence[Read | Consume | ArtifactType]
     | None = None,
-    consumes: Read
-    | Consume
-    | ArtifactType
-    | Sequence[Read | Consume | ArtifactType]
-    | None = None,
     timeout: float | None = None,
     provenance: RelationName | str | bool | None = None,
     scope: Scope | str | None = None,
@@ -103,11 +98,6 @@ def step(
     produces: ArtifactType | Sequence[ArtifactType] | None = None,
     deletes: ArtifactType | Sequence[ArtifactType] | None = None,
     reads: Read
-    | Consume
-    | ArtifactType
-    | Sequence[Read | Consume | ArtifactType]
-    | None = None,
-    consumes: Read
     | Consume
     | ArtifactType
     | Sequence[Read | Consume | ArtifactType]
@@ -132,7 +122,7 @@ def step(
         def answer(call): return Answer(...)
 
     `artifact_type` is the 0.1.x spelling kept for compatibility (the same as a
-    one-element `produces`); `also_creates=`/`reacts_to=` are not accepted here
+    one-element `produces`).
     — put extra creates in `produces` and inputs in `reads`.
 
     The function may take one `call: StepCall` (the 0.1.x shape) or a typed
@@ -186,7 +176,6 @@ def step(
             produces=final_produces,
             deletes=deletes,
             reads=reads,
-            consumes=consumes,
             timeout=timeout,
             provenance=chosen_provenance,
             scope=scope,
@@ -198,22 +187,16 @@ def step(
         )
         # Keep the function for `Step.name` (a readable trace/log label).
         instance._func = func
-        if instance.consumes is None:
+        existing = instance.read_specs()
+        if existing is None:
             resolved_consumes = Step._derive_consumes(func)
         else:
-            resolved_consumes = Step._merge_read_only_consumes(instance.consumes, func)
-        instance.consumes = resolved_consumes
+            resolved_consumes = Step._merge_read_only_consumes(existing, func)
         instance.reads = (
             tuple(Read.from_consume(consume) for consume in resolved_consumes)
             if resolved_consumes is not None
             else None
         )
-        if resolved_consumes is not None:
-            instance.reacts_to = tuple(
-                consume.artifact_type
-                for consume in resolved_consumes
-                if consume.artifact_type is not None
-            )
         return instance
 
     return decorator

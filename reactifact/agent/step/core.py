@@ -212,8 +212,6 @@ class Step(Generic[TOut]):
     #: Input contract: the artifacts this step reads. The runtime gates the
     #: step on their availability and collects them into `StepCall.inputs`.
     reads: tuple[Any, ...] | None = None
-    #: Deprecated alias for `reads` (0.x spelling); normalized to `Consume`.
-    consumes: tuple[Any, ...] | None = None
     #: Correlation scope for same-run lookups, e.g. `scope = "query_id"` or
     #: `scope = Scope("question_id", owner=Question)`. When set, typed inputs
     #: and `related()` are restricted to artifacts in the trigger's scope.
@@ -386,13 +384,6 @@ class Step(Generic[TOut]):
             | Sequence[Read | Consume | ArtifactType]
             | None
         ) = None,
-        consumes: (
-            Read
-            | Consume
-            | ArtifactType
-            | Sequence[Read | Consume | ArtifactType]
-            | None
-        ) = None,
         timeout: float | None = None,
         provenance: RelationName | str | bool | None = None,
         scope: Scope | str | None = None,
@@ -417,7 +408,6 @@ class Step(Generic[TOut]):
             )
         self.produces = resolved_produces
         self.artifact_type = resolved_produces[0] if resolved_produces else None
-        self.also_creates = tuple(resolved_produces[1:])
         resolved_deletes = self._normalize_types(deletes)
         if resolved_deletes is None:
             resolved_deletes = self._normalize_types(
@@ -425,18 +415,10 @@ class Step(Generic[TOut]):
             )
         self.deletes = resolved_deletes or ()
 
-        if reads is not None and consumes is not None:
-            raise TypeError("Pass only one of reads= or consumes=")
-        resolved_consumes = self._normalize_reads(
-            reads if reads is not None else consumes
-        )
+        resolved_consumes = self._normalize_reads(reads)
         if resolved_consumes is None:
             resolved_consumes = self._normalize_reads(
                 getattr(self.__class__, "reads", None)
-            )
-        if resolved_consumes is None:
-            resolved_consumes = self._normalize_reads(
-                getattr(self.__class__, "consumes", None)
             )
         if resolved_consumes is None:
             if type(self).run is not Step.run:
@@ -447,19 +429,8 @@ class Step(Generic[TOut]):
             resolved_consumes = self._merge_read_only_consumes(
                 resolved_consumes, type(self).run
             )
-        self.consumes = resolved_consumes
         self.reads = (
             tuple(Read.from_consume(consume) for consume in resolved_consumes)
-            if resolved_consumes is not None
-            else None
-        )
-        # Deprecated aliases: 0.1.x code reads `.reacts_to` (types, not specs).
-        self.reacts_to = (
-            tuple(
-                consume.artifact_type
-                for consume in resolved_consumes
-                if consume.artifact_type is not None
-            )
             if resolved_consumes is not None
             else None
         )
@@ -503,11 +474,11 @@ class Step(Generic[TOut]):
 
     def read_specs(self) -> tuple[Consume, ...] | None:
         """The runtime `Consume` view of `reads`."""
-        if "consumes" in self.__dict__:
-            return self.consumes
-        raw = getattr(self.__class__, "reads", None)
-        if raw is None:
-            raw = getattr(self.__class__, "consumes", None)
+        raw = (
+            self.reads
+            if self.reads is not None
+            else getattr(self.__class__, "reads", None)
+        )
         return self._normalize_reads(raw)
 
     def bind(self, owner: Any) -> Step[Any]:
@@ -521,10 +492,6 @@ class Step(Generic[TOut]):
         if getattr(self, "_func", None) is not None:
             clone._owner = owner
         return cast("Step[Any]", clone)
-
-    def consume_specs(self) -> tuple[Consume, ...] | None:
-        """Deprecated alias for `read_specs()`."""
-        return self.read_specs()
 
     def collect_inputs(self, context: Context) -> list[Artifact[Any]]:
         """Artifacts this step reads, in declaration order."""

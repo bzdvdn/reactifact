@@ -14,7 +14,7 @@ class Out(BaseModel):
 
 
 class Make(Step):
-    consumes = (A,)
+    reads = (A,)
     produces = (Out,)
 
     async def run(self, a: A, effects: Effects) -> None:
@@ -28,7 +28,7 @@ class Flow(Agent):
 def test_artifact_and_context_immutable_version_reads():
     context = Context()
     a = context.create(A(text="one"))
-    runtime = Runtime(context, groups=[Flow()])
+    runtime = Runtime(context, agents=[Flow()])
     asyncio.run(runtime.arun())
     first_version = context.version
 
@@ -54,7 +54,7 @@ def test_artifact_and_context_immutable_version_reads():
 def test_content_addressed_artifact_versions():
     context = Context()
     a = context.create(A(text="one"))
-    runtime = Runtime(context, groups=[Flow()])
+    runtime = Runtime(context, agents=[Flow()])
     asyncio.run(runtime.arun())
     context.update(a.id, A(text="two"))
     asyncio.run(runtime.arun())

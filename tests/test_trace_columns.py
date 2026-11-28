@@ -140,7 +140,7 @@ class Producer(Agent):
 def _seed(tmp_path, **resources_kw):
     store = TraceStore(str(tmp_path / "traces.db"), max_runs=None)
     ctx = Context(resources=RuntimeResources(**resources_kw))
-    runtime = Runtime(ctx, groups=[Producer()], tracer=Tracer(store=store))
+    runtime = Runtime(ctx, agents=[Producer()], tracer=Tracer(store=store))
     ctx.create(Question(text="hello"))
     run(runtime.arun())
     return store
@@ -331,7 +331,7 @@ def test_trace_truncate_is_configurable(tmp_path):
         ctx = Context(resources=RuntimeResources())
         runtime = Runtime(
             ctx,
-            groups=[BigProducer()],
+            agents=[BigProducer()],
             tracer=Tracer(store=store, limits=TraceLimits(max_data_chars=truncate)),
         )
         ctx.create(Question(text="hello"))

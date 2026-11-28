@@ -352,7 +352,7 @@ def create_chat_app(
             store = traces
         if traces is True and store is None:
             raise ValueError(
-                "create_chat_app(traces=True) needs Chat(traces=True) "
+                "create_chat_app(traces=True) needs Chat(config=RunConfig(traces=True)) "
                 "or an explicit TraceStore/path"
             )
         if isinstance(store, (str, Path)):

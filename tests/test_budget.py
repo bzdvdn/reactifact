@@ -35,7 +35,7 @@ class Ripper(Agent):
 
 def test_budget_max_runs_exceeded():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Ripper()], budget=Budget(max_runs=3))
+    runtime = Runtime(ctx, agents=[Ripper()], budget=Budget(max_runs=3))
     ctx.create(Number(value=1))
 
     total = asyncio.run(runtime.arun())
@@ -49,7 +49,7 @@ def test_budget_max_runs_exceeded():
 
 def test_budget_max_iterations_exhausted():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Ripper()])
+    runtime = Runtime(ctx, agents=[Ripper()])
     ctx.create(Number(value=1))
 
     # the diverging chain hits the generation limit and honestly reports it
@@ -60,7 +60,7 @@ def test_budget_max_iterations_exhausted():
 
 def test_budget_per_turn_reset():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Ripper()], budget=Budget(max_runs=2))
+    runtime = Runtime(ctx, agents=[Ripper()], budget=Budget(max_runs=2))
 
     ctx.create(Number(value=1))
     asyncio.run(runtime.arun())
@@ -86,7 +86,7 @@ def test_budget_time_exceeded():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Slow()], budget=Budget(max_seconds=0.005))
+    runtime = Runtime(ctx, agents=[Slow()], budget=Budget(max_seconds=0.005))
     ctx.create(Number(value=1))
 
     asyncio.run(runtime.arun())
@@ -108,7 +108,7 @@ def test_run_stats_completed():
             return Patch().update(art.id, Number(value=art.data.value * 2))
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Doubler()])
+    runtime = Runtime(ctx, agents=[Doubler()])
     number = ctx.create(Number(value=5))
 
     assert asyncio.run(runtime.arun()) == 1

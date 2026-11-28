@@ -34,7 +34,7 @@ class SearchDone(BaseModel):
 
 
 class _ProduceTurn(Step[ResearchTurn]):
-    consumes = (Consume(UserQuery),)
+    reads = (Consume(UserQuery),)
 
     async def run(self, query: UserQuery) -> ResearchTurn:
         return ResearchTurn(query_id="q1", domain="pipeline")
@@ -48,14 +48,14 @@ class _SearchStep(Step[SearchDone]):
 
 
 class _ConsumeSearch(Step[Answer]):
-    consumes = (Consume(SearchDone),)
+    reads = (Consume(SearchDone),)
 
     async def run(self, done: SearchDone) -> Answer:
         return Answer(text=done.text)
 
 
 class _FailStep(Step[Answer]):
-    consumes = (Consume(ResearchTurn),)
+    reads = (Consume(ResearchTurn),)
 
     async def run(self, turn: ResearchTurn) -> Answer:
         raise ValueError("boom")
@@ -69,7 +69,7 @@ class _FallbackAnswer(Step[Answer]):
 
 
 class _Case(Step[Answer]):
-    consumes = (Consume(ResearchTurn),)
+    reads = (Consume(ResearchTurn),)
 
     def __init__(self, prefix: str) -> None:
         self.prefix = prefix
@@ -111,7 +111,7 @@ def test_route_default_covers_unknown_values():
 
 
 def test_validate_warns_about_multiple_answer_producers():
-    report = validate_contracts(groups=[_group("one"), _group("two")])
+    report = validate_contracts(agents=[_group("one"), _group("two")])
     assert any(issue.code == "ambiguous_producer" for issue in report.warnings)
 
 
@@ -201,7 +201,7 @@ def test_validate_route_preserves_group_level_consumes():
     ]
 
     report = validate_contracts(
-        groups=groups,
+        agents=groups,
         seeds=[UserQuery],
         terminal=[Answer],
     )

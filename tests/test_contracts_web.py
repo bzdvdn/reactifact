@@ -28,7 +28,7 @@ def test_contracts_router_serves_html_json_and_markdown():
     assert "copy-json" in page.text and "collapse-all" in page.text
 
     payload = client.get("/api/contracts").json()
-    assert payload["groups"][0]["name"] == "answer"
+    assert payload["agents"][0]["name"] == "answer"
 
     markdown = client.get("/contracts.md")
     assert markdown.status_code == 200
@@ -47,5 +47,5 @@ def test_contracts_router_honours_prefix_and_basic_auth():
 
     auth = ("obs", "pw")
     assert client.get("/ai/contracts", auth=auth).status_code == 200
-    assert client.get("/ai/api/contracts", auth=auth).json()["groups"]
+    assert client.get("/ai/api/contracts", auth=auth).json()["agents"]
     assert client.get("/ai/contracts.md", auth=auth).text.startswith("# reactifact")

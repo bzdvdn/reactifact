@@ -247,7 +247,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 - **`Event` / `EventType`** — формат «что-то изменилось»; агентов будят события
   создания/обновления артефактов, а announce порождает `status`-события на пути
   к UI. `ARTIFACT_STALE` возникает автоматически, когда учтённая зависимость
-  артефакта (§43-44) получает новую версию — подписка через `OnStale(Type)`
+  артефакта (§43-44) получает новую версию — подписка через `Consume.on_stale(Type)`
   (или явный `Consume(Type, event_types=[...])`).
 - **`Trigger`** — вторичное условие входа для produce (периодический или таймерый
   запуск), независимое от потребляемых артефактов. `context_condition` —
@@ -275,7 +275,7 @@ Answer ──supported_by──► Claim ──derived_from──► Evidence �
 | Что нужно | Что использовать |
 | --- | --- |
 | Реакция на тип | `Consume(Type)` |
-| Только одно lifecycle-событие | `OnCreate(Type)`, `OnUpdate(Type)`, `OnDelete(Type)`, `OnStale(Type)` |
+| Только одно lifecycle-событие | `Consume.on_create(Type)`, `Consume.on_update(Type)`, `Consume.on_delete(Type)`, `Consume.on_stale(Type)` |
 | Условный переход | `Consume.by_status(...)` / `Consume.by_field(...)`, `Annotated[T, When(...)]` |
 | Читать без пробуждения / latest / scoped lookup | типизированный параметр, которого нет в явном `reads` (автоматически), `Annotated[T, Wakes(False)]`, когда `reads` выводится, `Read(..., required=False)`, `Latest[T]`, `Scope(...)`, `scope=` у `Step`/`@step` |
 | История между ходами | `Annotated[list[Artifact[T]], Unscoped()]` / `Annotated[Latest[T], Unscoped()]` (добавьте `Wakes(False)` для чтения) |

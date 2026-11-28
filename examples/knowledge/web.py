@@ -42,7 +42,7 @@ from examples.knowledge.models import (
 )
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, Chat, SessionStore
+from reactifact import Budget, Chat, RunConfig, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import FileKVBackend
 from reactifact.contracts.web import create_contracts_router
@@ -137,9 +137,11 @@ def _build_assistant(
         reply=terminal_reply,
         session_state=session_state,
         resources=lambda: build_resources(llm=llm, backend=backend),
-        budget=Budget(max_runs=200),
-        max_concurrency=4,
-        tracer=lambda: Tracer(store=trace_store),
+        config=RunConfig(
+            budget=Budget(max_runs=200),
+            max_concurrency=4,
+            tracer=lambda: Tracer(store=trace_store),
+        ),
         # Bound a long-lived session's commit history (artifacts untouched).
         memory=ChatMemory(compact_commits=500),
     )

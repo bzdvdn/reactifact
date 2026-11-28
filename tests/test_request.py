@@ -33,7 +33,7 @@ def test_call_request_is_available_inside_produces():
 
     agent = Agent("a", consumes=[Consume(In)], steps=[p])
     ctx = Context()
-    runtime = Runtime(ctx, groups=[agent])
+    runtime = Runtime(ctx, agents=[agent])
     ctx.create(In(text="hi"))
     asyncio.run(runtime.arun(request={"user": "bob", "tenant": "acme"}))
 
@@ -52,7 +52,7 @@ def test_request_is_empty_when_not_passed_and_reset_after():
 
     agent = Agent("a", consumes=[Consume(In)], steps=[p])
     ctx = Context()
-    runtime = Runtime(ctx, groups=[agent])
+    runtime = Runtime(ctx, agents=[agent])
     ctx.create(In(text="hi"))
     asyncio.run(runtime.arun())
 
@@ -77,7 +77,7 @@ def test_chat_invoke_passes_request_to_produces(tmp_path):
     agent = Agent("a", consumes=[Consume(In)], steps=[p])
     assistant = ChatAssistant(
         store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
-        groups=[agent],
+        agents=[agent],
         user_message=In,
         reply=lambda ctx, mid: {"reply": "ok"},
     )
@@ -109,7 +109,7 @@ def test_resources_factory_receives_session_and_request(tmp_path):
 
     assistant = ChatAssistant(
         store=SessionStore(FileKVBackend(str(tmp_path / "sessions"))),
-        groups=[],
+        agents=[],
         user_message=Query,
         reply=lambda ctx, mid: {"reply": "ok"},
         resources=make_resources,
@@ -127,7 +127,7 @@ def _query_assistant(tmp_path, create_message):
     store = SessionStore(FileKVBackend(str(tmp_path / "sessions")))
     assistant = ChatAssistant(
         store=store,
-        groups=[],
+        agents=[],
         user_message=Query,
         reply=lambda ctx, mid: {"reply": "ok"},
         create_message=create_message,

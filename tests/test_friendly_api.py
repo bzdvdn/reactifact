@@ -41,7 +41,7 @@ def test_Agent_reacts():
     ctx = Context()
     runtime = Runtime(
         ctx,
-        groups=[Agent("echo", consumes=[Consume(Input)], steps=[echo])],
+        agents=[Agent("echo", consumes=[Consume(Input)], steps=[echo])],
     )
     ctx.create(Input(text="hello"))
     asyncio.run(runtime.arun())
@@ -71,7 +71,7 @@ def test_warn_no_runs_once(capsys):
     ctx.create(Input(text="quiet"))
     runtime = Runtime(
         ctx,
-        groups=[Agent("echo", consumes=[Consume(Output)], steps=[echo])],
+        agents=[Agent("echo", consumes=[Consume(Output)], steps=[echo])],
     )
     asyncio.run(runtime.arun())
 

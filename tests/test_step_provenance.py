@@ -25,22 +25,22 @@ class Output(BaseModel):
     value: int
 
 
-@step(produces=Output, consumes=Input, provenance=True)
+@step(produces=Output, reads=Input, provenance=True)
 def auto(input: Input) -> Output:
     return Output(value=input.value + 1)
 
 
-@step(produces=Output, consumes=Input)
+@step(produces=Output, reads=Input)
 def manual(input: Input) -> Output:
     return Output(value=input.value + 1)
 
 
-@step(produces=Output, consumes=Input, provenance=SUPPORTED_BY)
+@step(produces=Output, reads=Input, provenance=SUPPORTED_BY)
 def named_relation(input: Input) -> Output:
     return Output(value=input.value + 1)
 
 
-@step(produces=Output, consumes=Input, provenance=True)
+@step(produces=Output, reads=Input, provenance=True)
 def explicit(input: Artifact[Input], effects: Effects) -> None:
     handle = effects.create(Output(value=input.data.value))
     assert handle is not None
@@ -50,7 +50,7 @@ def explicit(input: Artifact[Input], effects: Effects) -> None:
 
 def run(agents, seed: list[tuple[str, int]]) -> Context:
     context = Context()
-    runtime = Runtime(context, groups=agents, budget=Budget(max_runs=10))
+    runtime = Runtime(context, agents=agents, budget=Budget(max_runs=10))
     for artifact_id, value in seed:
         context.create(Input(value=value), id=artifact_id)
     asyncio.run(runtime.arun())

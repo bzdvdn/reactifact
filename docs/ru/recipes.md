@@ -326,7 +326,7 @@ turn_context = TurnContextStep(
     digest_type=Digest,         # опционально; читает digest_id="digest"
     artifact_type=DialogueContext,  # цель custom build
     window=12,
-    read=OnCreate(UserQuery),    # или обычный Consume
+    read=Consume.on_create(UserQuery),    # или обычный Consume
     ensure=True,                    # идемпотентно на ход
     follow_up=my_follow_up,         # опционально; детерминированный дефолт
     build=build_dialogue,           # TurnFacts -> ваш артефакт
@@ -340,7 +340,7 @@ turn_context = TurnContextStep(
 сохраняет поля `turn`/`session_id`. `TurnFacts` содержит trigger,
 текущий/предыдущий запрос, предыдущие artifact/answer, историю, digest и
 follow-up — поэтому доменный контекст может нести
-`prior_domain`/`routing_text` без чтения `Context`. `read=OnCreate` — один
+`prior_domain`/`routing_text` без чтения `Context`. `read=Consume.on_create` — один
 артефакт на ход; `ensure=True` делает повторный запуск no-op. Комбинируйте с
 `Annotated[..., Unscoped()]`, когда другому шагу тоже нужна полная история.
 
@@ -545,19 +545,19 @@ warning.
 
 `EphemeralCleanup` удаляет артефакты, id которых выводятся из ключа
 терминального артефакта. В чате id произвольные, но есть общий scope
-(`query_id`): `ScopedCleanup` реагирует на `OnCreate(Answer)` и удаляет все
+(`query_id`): `ScopedCleanup` реагирует на `Consume.on_create(Answer)` и удаляет все
 scratch-артефакты этого scope, не трогая другие ходы. В примере `Answer` —
 терминальный тип приложения.
 
 ```python
-from reactifact import OnCreate
+from reactifact import Consume
 from reactifact.recipes.cleanup import ScopedCleanup
 
 cleanup = ScopedCleanup(
     Answer,
     scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
     scope="query_id",          # или Scope(...)
-    read=OnCreate(Answer),  # дефолт
+    read=Consume.on_create(Answer),  # дефолт
 )
 
 # agents=[Agent("cleanup", steps=[cleanup])]

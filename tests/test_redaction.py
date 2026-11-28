@@ -69,7 +69,7 @@ def _run_with(redactor) -> tuple[Context, CapturingTracer]:
     )
     ctx = Context(resources=resources)
     tracer = CapturingTracer()
-    runtime = Runtime(ctx, groups=[agent], tracer=tracer)
+    runtime = Runtime(ctx, agents=[agent], tracer=tracer)
     ctx.create(Question(text="ask a@secret.com"))
     asyncio.run(runtime.arun())
     return ctx, tracer

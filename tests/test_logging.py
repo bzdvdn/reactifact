@@ -137,7 +137,7 @@ def test_runtime_emits_correlated_run_logs():
     with capture("reactifact.runtime") as records:
         context = Context(resources=RuntimeResources())
         context.create(_Question(text="hi"))
-        asyncio.run(Runtime(context, groups=[_Echo()]).arun())
+        asyncio.run(Runtime(context, agents=[_Echo()]).arun())
 
     finished = [r for r in records if r.getMessage() == "run finished"]
     assert finished, [r.getMessage() for r in records]

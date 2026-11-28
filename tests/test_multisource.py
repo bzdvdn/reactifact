@@ -81,7 +81,7 @@ def build_multisource(tmp_path):
         "cost-docs": FileSystemSource(str(docs_b), source_id="cost-docs"),
     }
     ctx = Context(resources=RuntimeResources(sources=sources))
-    runtime = Runtime(ctx, groups=[SearchScout(), TypedResolver()])
+    runtime = Runtime(ctx, agents=[SearchScout(), TypedResolver()])
     return ctx, runtime
 
 
@@ -160,7 +160,7 @@ def test_patch_create_idempotent_by_id():
             return Patch().create(Number(value=42), id="the-number")
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Counter()])
+    runtime = Runtime(ctx, agents=[Counter()])
 
     ctx.create(Question(text="a"))
     asyncio.run(runtime.arun())

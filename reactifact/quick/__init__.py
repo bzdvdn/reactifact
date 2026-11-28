@@ -2,10 +2,10 @@
 
 `reactifact.quick` is *sugar*, not a second framework. Every object it returns
 is built from the same primitives the rest of reactifact uses
-(`Context`/`Artifact`/`Effects`/`Patch`/`Produce`/`Consume`), and exposes the
+(`Context`/`Artifact`/`Effects`/`Patch`/`Step`/`Consume`), and exposes the
 real `Agent` (`.agent`/`.agents`) plus the `Context` a run produced
 (`.context`) — so the moment you need more than the facade offers, you graduate
-to hand-written produces without rewriting anything (see `docs/en/quickstart.md`
+to hand-written steps without rewriting anything (see `docs/en/quickstart.md`
 for the ladder).
 
 Four entry points cover the recurring first tasks:
@@ -30,9 +30,9 @@ Four entry points cover the recurring first tasks:
 Every entry point takes `llm=<LLMProvider>` (default `from_env()`).
 
 Nothing here hides the artifact model: `agent(...)` produces artifacts with
-provenance like any other produce; `rag(...)` links every answer `supported_by`
+provenance like any other step; `rag(...)` links every answer `supported_by`
 the documents it used. The facade only removes the boilerplate of assembling
-those produces for the common case. For anything beyond it, write produces by
+those steps for the common case. For anything beyond it, write steps by
 hand — see `docs/en/patterns.md`.
 
 Layout: each entry point is its own module (`agent`, `rag`, `tools_agent`,

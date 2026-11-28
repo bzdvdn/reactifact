@@ -11,17 +11,17 @@ from .config import budget_from_config, load_config
 
 def cmd_graph(args: argparse.Namespace) -> int:
     config = load_config()
-    spec = args.agents or config.groups
+    spec = args.agents or config.agents
     if spec is None:
         raise SystemExit(
-            "reactifact graph: pass a module or set [tool.reactifact] groups"
+            "reactifact graph: pass a module or set [tool.reactifact] agents"
         )
     agents = load_agents(spec)
     if args.check:
         from ..validate import validate_contracts
 
         report = validate_contracts(
-            groups=agents,
+            agents=agents,
             seeds=args.seed or config.seeds,
             terminal=args.terminal or config.terminal,
             budget=budget_from_config(config),
@@ -39,7 +39,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         nargs="?",
         default=None,
         help='module path, e.g. "examples.knowledge.agents" '
-        "(default: [tool.reactifact] groups)",
+        "(default: [tool.reactifact] agents)",
     )
     p_graph.add_argument("--title", default="reactifact blueprint")
     p_graph.add_argument(

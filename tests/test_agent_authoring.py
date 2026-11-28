@@ -29,7 +29,7 @@ class Answer(BaseModel):
 
 
 class Answerer(Step[Answer]):
-    consumes = (Consume(Question),)
+    reads = (Consume(Question),)
 
     async def run(self, question: Question) -> Answer:
         return Answer(text=question.text.upper())
@@ -117,7 +117,13 @@ def test_pipeline_runner_does_not_change_pipeline_running():
     runner = PipelineRunner(pipeline)
 
     assert runner.run(Question(text="x")).context.latest(Answer).data.text == "X"
-    assert pipeline.run(Question(text="y")).context.latest(Answer).data.text == "Y"
+    assert (
+        PipelineRunner(pipeline)
+        .run(Question(text="y"))
+        .context.latest(Answer)
+        .data.text
+        == "Y"
+    )
 
 
 def test_runtime_accepts_agents():
@@ -136,7 +142,7 @@ def test_chat_accepts_agents():
     assert asyncio.run(chat.invoke("hello", session_id="s1"))["reply"] == "HELLO"
     assert chat.agents is not None
     assert chat.agents[0].name == "main"
-    assert chat.groups == chat.agents
+    assert chat.agents == chat.agents
 
 
 def test_tool_agent_constructor_takes_keywords():

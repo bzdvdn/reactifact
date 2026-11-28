@@ -79,7 +79,7 @@ def agent(
     def decorate(fn: Callable[..., Any]) -> Agent:
         function_step = step(
             produces=produces,
-            consumes=consumes,
+            reads=consumes,
             name=name or fn.__name__,
             scope=scope,
             provenance=provenance,

@@ -30,7 +30,7 @@ def test_priority_orders_sequential_runs():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Omega(), Alpha()])  # registered out of order
+    runtime = Runtime(ctx, agents=[Omega(), Alpha()])  # registered out of order
     ctx.create(Number(value=1))
     asyncio.run(runtime.arun())
 
@@ -53,7 +53,7 @@ def test_parallel_fanout_runs_concurrently():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Sleepy(), Sleepy(), Sleepy()], max_concurrency=3)
+    runtime = Runtime(ctx, agents=[Sleepy(), Sleepy(), Sleepy()], max_concurrency=3)
     ctx.create(Number(value=1))
 
     start = time.monotonic()
@@ -80,7 +80,7 @@ def test_parallel_respects_semaphore_cap():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Blocked()] * 5, max_concurrency=2)
+    runtime = Runtime(ctx, agents=[Blocked()] * 5, max_concurrency=2)
     ctx.create(Number(value=1))
 
     asyncio.run(runtime.arun())
@@ -108,7 +108,7 @@ def test_parallel_snapshot_and_provenance():
 
     ctx = Context()
     runtime = Runtime(
-        ctx, groups=[Double(), Triple()], max_concurrency=2, budget=Budget(max_runs=2)
+        ctx, agents=[Double(), Triple()], max_concurrency=2, budget=Budget(max_runs=2)
     )
     source = ctx.create(Number(value=5))
     asyncio.run(runtime.arun())
@@ -133,7 +133,7 @@ def test_concurrent_arun_on_same_runtime_raises():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Slow()])
+    runtime = Runtime(ctx, agents=[Slow()])
     ctx.create(Number(value=1))
 
     async def go() -> None:
@@ -167,7 +167,7 @@ def test_dispatch_waits_for_slow_siblings_before_raising_on_error():
             return None
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Failing(), Slow(), Slow()], max_concurrency=3)
+    runtime = Runtime(ctx, agents=[Failing(), Slow(), Slow()], max_concurrency=3)
     ctx.create(Number(value=1))
 
     with pytest.raises(ValueError, match="boom"):
@@ -196,7 +196,7 @@ def test_agent_concurrency_limit_capped():
 
     ctx = Context()
     runtime = Runtime(
-        ctx, groups=[Tiered()] * 6
+        ctx, agents=[Tiered()] * 6
     )  # global cap None — only the tier applies
     for _ in range(6):
         ctx.create(Number(value=_))

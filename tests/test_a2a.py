@@ -363,7 +363,7 @@ def test_remote_agent_runs_as_a_local_node():
         try:
             ctx = Context(resources=RuntimeResources())
             ctx.create(Question(text="hello"))
-            await Runtime(ctx, groups=[node]).arun()
+            await Runtime(ctx, agents=[node]).arun()
             answer = ctx.latest(Answer)
             assert answer is not None
             assert answer.data.text == "HELLO"
@@ -387,7 +387,7 @@ def test_remote_agent_maps_input_required_to_hitl():
         try:
             ctx = Context(resources=RuntimeResources())
             ctx.create(Question(text="please help"))
-            runtime = Runtime(ctx, groups=[node])
+            runtime = Runtime(ctx, agents=[node])
             await runtime.arun()
 
             questions = list(ctx.pending_questions())
@@ -409,4 +409,4 @@ def test_remote_agent_maps_input_required_to_hitl():
 def test_remote_produce_is_exported_with_pending_question_widening():
     produce = A2ARemoteProduce("http://example.test/", output_type=Answer, name="x")
     assert produce.artifact_type is Answer
-    assert PendingQuestion in produce.also_creates
+    assert PendingQuestion in produce.produces

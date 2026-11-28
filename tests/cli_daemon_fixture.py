@@ -14,7 +14,7 @@ class Report(BaseModel):
     text: str
 
 
-@step(consumes=Tick)
+@step(reads=Tick)
 def report(tick: Tick) -> Report:
     return Report(text=tick.text.upper())
 

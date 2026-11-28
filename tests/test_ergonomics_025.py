@@ -52,7 +52,7 @@ def test_function_step_accepts_scope_and_unscoped_history():
     seen: list[list[str]] = []
 
     @step(
-        consumes=Question,
+        reads=Question,
         produces=Answer,
         scope="query_id",
     )
@@ -85,7 +85,7 @@ def test_function_step_accepts_scope_and_unscoped_history():
 
 def test_step_constructor_accepts_scope():
     class Compose(Step[Answer]):
-        consumes = (Question, Doc)
+        reads = (Question, Doc)
         deletes = ()
 
         async def run(
@@ -112,7 +112,7 @@ def test_step_constructor_accepts_scope():
 
 
 def test_current_request_is_injected_by_type():
-    @step(consumes=Question, produces=Answer)
+    @step(reads=Question, produces=Answer)
     def answer(question: Question, request: CurrentRequest) -> Answer:
         return Answer(text=f"{request['tenant']}:{question.text}")
 
@@ -126,7 +126,7 @@ def test_side_effect_only_step_allows_empty_produces_and_reports_deletes():
     class Cleanup(Step):
         produces = ()
         deletes = (Answer,)
-        consumes = (Question,)
+        reads = (Question,)
 
         async def run(self, context: Context, effects: Effects) -> None:
             for artifact in context.list_artifacts(Answer):
@@ -141,13 +141,13 @@ def test_side_effect_only_step_allows_empty_produces_and_reports_deletes():
     from reactifact.contracts import describe_contracts
 
     report = describe_contracts([Agent(steps=[Cleanup()])]).to_dict()
-    step_contract = report["groups"][0]["steps"][0]
+    step_contract = report["agents"][0]["steps"][0]
     assert step_contract["produces"] == []
     assert step_contract["deletes"] == ["Answer"]
 
 
 def test_decorated_side_effect_step_can_declare_empty_produces():
-    @step(consumes=Question, produces=())
+    @step(reads=Question, produces=())
     async def cleanup(call: StepCall) -> None:
         for artifact in call.context.list_artifacts(Answer):
             call.effects.delete(artifact)
@@ -161,7 +161,7 @@ def test_decorated_side_effect_step_can_declare_empty_produces():
 
 def test_step_progress_property_publishes_events():
     class ProgressStep(Step[Answer]):
-        consumes = (Question,)
+        reads = (Question,)
 
         async def run(self, question: Question) -> Answer:
             self.progress("working", count=1)
@@ -241,7 +241,7 @@ def test_turn_context_ignores_messages_after_its_trigger():
 
 
 def test_latest_unscoped_reads_across_turns():
-    @step(consumes=Question, produces=Answer, scope="query_id")
+    @step(reads=Question, produces=Answer, scope="query_id")
     def read_latest(
         question: Question,
         digest: Annotated[Latest[Digest], Unscoped()],
@@ -325,7 +325,6 @@ def test_transcript_state_supports_content_and_artifact_metadata():
 
 
 def test_turn_context_build_receives_prior_artifacts_and_can_ensure():
-    from reactifact import OnCreate
 
     class CustomContext(BaseModel):
         query: str
@@ -350,7 +349,7 @@ def test_turn_context_build_receives_prior_artifacts_and_can_ensure():
         Question,
         assistant_type=Answer,
         artifact_type=CustomContext,
-        read=OnCreate(Question),
+        read=Consume.on_create(Question),
         ensure=True,
         build=build,
     )

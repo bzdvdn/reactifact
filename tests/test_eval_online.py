@@ -53,7 +53,7 @@ def _group():
 def _run_once() -> Context:
     ctx = Context(resources=RuntimeResources())
     ctx.create(Question(text="hello"))
-    asyncio.run(Runtime(ctx, groups=[_group()]).arun())
+    asyncio.run(Runtime(ctx, agents=[_group()]).arun())
     return ctx
 
 
@@ -63,7 +63,7 @@ def _store_with_runs(tmp_path, count=3) -> TraceStore:
     for _ in range(count):
         ctx = Context(resources=RuntimeResources())
         ctx.create(Question(text="hello"))
-        asyncio.run(Runtime(ctx, groups=[_group()], tracer=Tracer(store=store)).arun())
+        asyncio.run(Runtime(ctx, agents=[_group()], tracer=Tracer(store=store)).arun())
     return store
 
 

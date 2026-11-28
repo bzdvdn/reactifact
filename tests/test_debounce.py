@@ -54,7 +54,7 @@ def test_debounce_collapses_multiple_events_into_one_run():
     times — and the single run sees all three via `inputs`, not just the
     last one via `event`."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[DebouncedCollector()])
+    runtime = Runtime(ctx, agents=[DebouncedCollector()])
 
     ctx.create(Evidence(text="a"))
     ctx.create(Evidence(text="b"))
@@ -71,7 +71,7 @@ def test_without_debounce_each_event_runs_separately():
     """Baseline: same setup, no `debounce=True` — proves the collapsing
     above is what `debounce` does, not some other effect of the batch."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[NonDebouncedCollector()])
+    runtime = Runtime(ctx, agents=[NonDebouncedCollector()])
 
     ctx.create(Evidence(text="a"))
     ctx.create(Evidence(text="b"))
@@ -83,7 +83,7 @@ def test_without_debounce_each_event_runs_separately():
 
 def test_debounce_is_scoped_to_its_own_consume_not_the_whole_group():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[MixedAgent()])
+    runtime = Runtime(ctx, agents=[MixedAgent()])
 
     ctx.create(Evidence(text="a"))
     ctx.create(Evidence(text="b"))
@@ -100,7 +100,7 @@ def test_debounced_run_counts_as_one_against_max_runs_budget():
     """The whole point of debouncing: three events must cost one run
     against `max_runs`, not three."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[DebouncedCollector()])
+    runtime = Runtime(ctx, agents=[DebouncedCollector()])
 
     ctx.create(Evidence(text="a"))
     ctx.create(Evidence(text="b"))

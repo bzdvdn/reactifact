@@ -48,7 +48,7 @@ def test_chat_assistant_runs_the_outbox_dispatcher():
     store = SessionStore(InMemoryKVBackend())
     assistant = ChatAssistant(
         store=store,
-        groups=[Agent("notify", consumes=[Consume(_Msg)], steps=[_Notifier()])],
+        agents=[Agent("notify", consumes=[Consume(_Msg)], steps=[_Notifier()])],
         user_message=_Msg,
         reply=_reply,
         dispatcher=dispatcher,

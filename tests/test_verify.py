@@ -33,7 +33,7 @@ def make_runtime(ctx: Context, **verify_kwargs) -> Runtime:
         consumes = [Consume(Answer)]
         produces = [Verify(**verify_kwargs)]
 
-    return Runtime(ctx, groups=[VerifierGroup()])
+    return Runtime(ctx, agents=[VerifierGroup()])
 
 
 def test_grounded_well_evidenced_answer_passes():

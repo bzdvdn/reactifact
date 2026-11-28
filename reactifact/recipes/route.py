@@ -170,9 +170,5 @@ class Route:
                 )
         return generated
 
-    def groups(self) -> list[Agent]:
-        """Deprecated alias for `agents()`."""
-        return self.agents()
-
 
 __all__ = ["Route", "RouteCase"]

@@ -125,7 +125,7 @@ def test_single_agent_loop_and_report():
             BuildReport(),
         ]
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="проверь pods"))
     asyncio.run(runtime.arun())
 
@@ -192,7 +192,7 @@ def test_deferred_tool_group_loads_on_demand_once():
             BuildReport(),
         ]
 
-    runtime = Runtime(ctx, groups=[DeferredAgent()])
+    runtime = Runtime(ctx, agents=[DeferredAgent()])
     ctx.create(K8sProblems(text="go"))
     asyncio.run(runtime.arun())
 
@@ -267,7 +267,7 @@ def test_two_agents_do_not_crossfire():
             BuildGitlabReport(),
         ]
 
-    runtime = Runtime(ctx, groups=[K8sAgent(), GitlabAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent(), GitlabAgent()])
     ctx.create(K8sProblems(text="проверь pods"))
     asyncio.run(runtime.arun())
     # ToolAnswer(k8s) did NOT wake GitlabAgent: its report-builder was never called
@@ -312,7 +312,7 @@ def test_tool_failure_is_returned_to_llm():
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("У тебя есть тул flaky.", [flaky]), BuildReport()]
 
-    runtime = Runtime(ctx, groups=[Agent1()])
+    runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="проверь"))
     asyncio.run(runtime.arun())
     assert ctx.list_artifacts(K8sReport)[0].data.text == "Источник недоступен."
@@ -343,7 +343,7 @@ def test_budget_max_tool_calls_stops_loop():
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl]), BuildReport()]
 
-    runtime = Runtime(ctx, groups=[Agent1()], budget=Budget(max_tool_calls=2))
+    runtime = Runtime(ctx, agents=[Agent1()], budget=Budget(max_tool_calls=2))
     ctx.create(K8sProblems(text="много"))
     asyncio.run(runtime.arun())
 
@@ -373,7 +373,7 @@ def test_unknown_tool_reported_to_llm():
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl]), BuildReport()]
 
-    runtime = Runtime(ctx, groups=[Agent1()])
+    runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="х"))
     asyncio.run(runtime.arun())
     assert ctx.list_artifacts(K8sReport)[0].data.text == "такого тула нет"
@@ -447,7 +447,7 @@ def test_llm_agent_tools_only_no_produces():
         consumes = [Consume.by_field(ToolAnswer, "agent", "helperagent")]
         produces = [RenderFromBaseChat()]
 
-    runtime = Runtime(ctx, groups=[HelperAgent(), BaseChat()])
+    runtime = Runtime(ctx, agents=[HelperAgent(), BaseChat()])
     ctx.create(K8sProblems(text="проверь pods"))
     asyncio.run(runtime.arun())
 
@@ -481,7 +481,7 @@ def test_forced_answer_when_loop_hits_step_limit():
         consumes = [Consume(K8sProblems), Consume(ToolAnswer)]
         produces = [ToolUse("агент", [kubectl], max_steps=2), BuildReport()]
 
-    runtime = Runtime(ctx, groups=[Agent1()])
+    runtime = Runtime(ctx, agents=[Agent1()])
     ctx.create(K8sProblems(text="диагностируй"))
     asyncio.run(runtime.arun())
     assert ctx.list_artifacts(K8sReport)[0].data.text == "Вынужденный ответ по данным."
@@ -515,7 +515,7 @@ def test_hitl_agent_asks_clarifying_question_and_resumes():
         produces = [BuildReport()]
         resume_announce = staticmethod(lambda a: f"Принято: «{a}». Проверяю…")
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почему падает под?"))
     asyncio.run(runtime.arun())
 
@@ -571,7 +571,7 @@ def test_max_asks_caps_rephrased_clarifications():
         produces = [BuildReport()]
         max_asks = 1
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="диагностируй"))
     asyncio.run(runtime.arun())
 
@@ -612,7 +612,7 @@ def test_hitl_destructive_tool_requires_approval_then_runs():
         consumes = [Consume(K8sProblems)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почисти под web-1"))
     asyncio.run(runtime.arun())
 
@@ -656,7 +656,7 @@ def test_hitl_destructive_tool_denied_is_not_executed():
         consumes = [Consume(K8sProblems)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почисти под web-1"))
     asyncio.run(runtime.arun())
 
@@ -698,7 +698,7 @@ def test_max_approvals_caps_repeated_destructive_calls():
         produces = [BuildReport()]
         max_approvals = 1
 
-    runtime = Runtime(ctx, groups=[K8sAgent()])
+    runtime = Runtime(ctx, agents=[K8sAgent()])
     ctx.create(K8sProblems(text="почисти поды"))
     asyncio.run(runtime.arun())
 

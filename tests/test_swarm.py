@@ -29,7 +29,7 @@ class Note(BaseModel):
 
 
 class TriageStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Handoff,)
 
     async def run(self, question: Question, effects: Effects) -> None:
@@ -40,7 +40,7 @@ class TriageStep(Step):
 
 
 class BillingStep(Step):
-    consumes = (Handoff,)
+    reads = (Handoff,)
     produces = (Answer,)
 
     async def run(self, handoff: Handoff) -> Answer:
@@ -55,7 +55,7 @@ def test_swarm_hands_off_and_records_provenance():
     async def go():
         return await swarm(
             Context(),
-            groups={
+            agents={
                 "triage": _agent("triage", TriageStep()),
                 "billing": _agent("billing", BillingStep()),
             },
@@ -79,7 +79,7 @@ def test_swarm_hands_off_and_records_provenance():
 
 
 class LoopAStep(Step):
-    consumes = (Question, Handoff)
+    reads = (Question, Handoff)
     produces = (Handoff,)
 
     async def run(self, effects: Effects) -> None:
@@ -87,7 +87,7 @@ class LoopAStep(Step):
 
 
 class LoopBStep(Step):
-    consumes = (Handoff,)
+    reads = (Handoff,)
     produces = (Handoff,)
 
     async def run(self, effects: Effects) -> None:
@@ -98,7 +98,7 @@ def test_swarm_rejects_a_cycle_by_default():
     async def go():
         await swarm(
             Context(),
-            groups={
+            agents={
                 "a": _agent("a", LoopAStep()),
                 "b": _agent("b", LoopBStep()),
             },
@@ -115,7 +115,7 @@ def test_swarm_honours_max_hops_when_repeats_allowed():
     async def go():
         await swarm(
             Context(),
-            groups={
+            agents={
                 "a": _agent("a", LoopAStep()),
                 "b": _agent("b", LoopBStep()),
             },
@@ -131,7 +131,7 @@ def test_swarm_honours_max_hops_when_repeats_allowed():
 
 def test_swarm_rejects_unknown_target():
     class MissingStep(Step):
-        consumes = (Question,)
+        reads = (Question,)
         produces = (Handoff,)
 
         async def run(self, effects: Effects) -> None:
@@ -140,7 +140,7 @@ def test_swarm_rejects_unknown_target():
     async def go():
         await swarm(
             Context(),
-            groups={"a": _agent("a", MissingStep())},
+            agents={"a": _agent("a", MissingStep())},
             start="a",
             input=Question(text="x"),
         )
@@ -151,7 +151,7 @@ def test_swarm_rejects_unknown_target():
 
 def test_swarm_requires_a_final_output():
     class NoteStep(Step):
-        consumes = (Question,)
+        reads = (Question,)
         produces = (Note,)
 
         async def run(self) -> Note:
@@ -160,7 +160,7 @@ def test_swarm_requires_a_final_output():
     async def go():
         await swarm(
             Context(),
-            groups={"a": _agent("a", NoteStep())},
+            agents={"a": _agent("a", NoteStep())},
             start="a",
             input=Question(text="x"),
             final_type=Answer,

@@ -69,7 +69,7 @@ def blueprint(
 
         consumes: list[Consume] = list(agent.consumes or ())
         for step in steps:
-            consumes.extend(step.consume_specs() or ())
+            consumes.extend(step.read_specs() or ())
         seen_types: set[str] = set()
         for consume in consumes:
             tname = getattr(consume, "artifact_type", None)

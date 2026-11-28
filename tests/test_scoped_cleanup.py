@@ -43,7 +43,7 @@ def test_scoped_cleanup_deletes_only_the_terminal_turn():
 def test_scoped_cleanup_contract_is_honest():
     cleanup = ScopedCleanup(Final, scratch_types=(Scratch,), scope="query_id")
     report = describe_contracts([Agent(steps=[cleanup])]).to_dict()
-    step = report["groups"][0]["steps"][0]
+    step = report["agents"][0]["steps"][0]
     assert step["produces"] == []
     assert step["deletes"] == ["Scratch"]
 

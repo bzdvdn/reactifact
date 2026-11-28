@@ -27,9 +27,9 @@ class SimpleAgent(Agent):
 
 def test_auto_triggers_from_consumes():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[SimpleAgent()])
+    runtime = Runtime(ctx, agents=[SimpleAgent()])
 
-    agent = runtime.groups[0]
+    agent = runtime.agents[0]
     assert len(agent.triggers) == 2  # created and updated
 
     ctx.create(Input(text="hello"))
@@ -89,7 +89,7 @@ def test_also_creates_widens_the_agents_allowed_create_types():
         produces = [MultiCreateProduce()]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[MultiAgent()])
+    runtime = Runtime(ctx, agents=[MultiAgent()])
     ctx.create(Input(text="hello"))
     asyncio.run(runtime.arun())
 
@@ -103,9 +103,9 @@ def test_create_of_an_undeclared_type_is_rejected_even_without_also_creates():
         produces = [UndeclaredMultiCreateProduce()]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[UndeclaredMultiAgent()])
+    runtime = Runtime(ctx, agents=[UndeclaredMultiAgent()])
     ctx.create(Input(text="hello"))
-    with pytest.raises(ValueError, match="not declared in produces.*also_creates"):
+    with pytest.raises(ValueError, match="not declared in produces"):
         asyncio.run(runtime.arun())
 
 
@@ -136,8 +136,8 @@ def test_consume_wakes_false_feeds_inputs_without_triggering():
     `Agent`'s separate `triggers=` override (still there, but meant for the
     imperative `run()`-override style with no `consumes` at all)."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[MixedAgent()])
-    agent = runtime.groups[0]
+    runtime = Runtime(ctx, agents=[MixedAgent()])
+    agent = runtime.agents[0]
 
     assert len(agent.triggers) == 2  # created+updated, from Input only
     assert all(t.artifact_type is Input for t in agent.triggers)
@@ -189,7 +189,7 @@ class BaseRecorder(Agent):
 
 def test_consume_by_base_wakes_on_subclasses():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[BaseRecorder()])
+    runtime = Runtime(ctx, agents=[BaseRecorder()])
 
     ctx.create(MarkerChildA(text="a"))
     asyncio.run(runtime.arun())
@@ -203,7 +203,7 @@ def test_exact_consume_does_not_wake_on_subclasses():
         consumes = [Consume(MarkerBase)]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ExactRecorder()])
+    runtime = Runtime(ctx, agents=[ExactRecorder()])
 
     ctx.create(MarkerChildA(text="a"))
     asyncio.run(runtime.arun())
@@ -221,7 +221,7 @@ def test_consume_by_base_reads_all_subclass_artifacts():
             return Patch().create(Output(text=texts))
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Collector()])
+    runtime = Runtime(ctx, agents=[Collector()])
     ctx.create(MarkerChildA(text="a"))
     ctx.create(MarkerChildB(text="b"))
     asyncio.run(runtime.arun())

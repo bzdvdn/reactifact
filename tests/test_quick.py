@@ -315,7 +315,7 @@ def test_quick_agent_composes_in_a_plain_runtime():
 
     ctx = Context(resources=RuntimeResources(llm=llm))
     ctx.create(Question(text="hello"))
-    asyncio.run(Runtime(ctx, groups=[qa.agent]).arun())
+    asyncio.run(Runtime(ctx, agents=[qa.agent]).arun())
     assert ctx.latest(AnswerBody) is not None
 
 

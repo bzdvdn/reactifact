@@ -17,7 +17,7 @@ class Report(BaseModel):
     text: str
 
 
-@step(consumes=Tick)
+@step(reads=Tick)
 def report(tick: Tick) -> Report:
     return Report(text=tick.text.upper())
 
@@ -44,7 +44,6 @@ def test_pipeline_ticks_until_max_ticks():
 
     assert asyncio.run(daemon.serve()) == 3
     assert seen == [0, 1, 2]
-    assert pipeline.last_result is not None
 
 
 def test_none_seed_skips_a_tick():
@@ -65,7 +64,6 @@ def test_none_seed_skips_a_tick():
 
     assert asyncio.run(daemon.serve()) == 2
     assert seen == [0, 1]
-    assert pipeline.last_result is not None
 
 
 def test_custom_tick_and_run_once():

@@ -37,69 +37,26 @@ if __package__ in (None, ""):  # run as a script — add the repo root to sys.pa
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
+from examples.starter_app.agents import CHAT_PIPELINE, OFFLINE_REPLY
 from examples.starter_app.models import (
     AnswerBody,
     AskRequest,
     AskResponse,
-    ChatReply,
     ChatRequest,
     ChatResponse,
 )
+from examples.starter_app.tools import add
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from reactifact import (
-    Agent,
-    Artifact,
-    Chat,
-    Consume,
-    Context,
-    LLMProvider,
-    Pipeline,
-    configure_logging,
-    step,
-)
-from reactifact.quick import Doc, Question, agent, rag, tools_agent
+from reactifact import Chat, LLMProvider, RunConfig, configure_logging
+from reactifact.quick import Doc, agent, rag, tools_agent
 from reactifact.runtime import active_runs
-from reactifact.structured import llm_reply
-from reactifact.tools import tool
 from reactifact.tracing import Tracer, TraceStore
 from reactifact.tracing.web import create_trace_router
 from reactifact.web import create_chat_router
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
-
-#: Shown when no provider is configured or a call fails — never a fake answer.
-OFFLINE_REPLY = (
-    "No model configured. Set OPENROUTER_API_KEY, or OPENAI_BASE_URL + "
-    "OPENAI_API_KEY, in examples/starter_app/.env — or use the offline "
-    "'rag' mode, which still cites your documents."
-)
-
-
-@tool
-async def add(a: float, b: float) -> str:
-    """Add two numbers and return the sum."""
-    return str(a + b)
-
-
-@step(produces=ChatReply, reads=Question)
-async def _chat_reply(context: Context, question: Artifact[Question]) -> ChatReply:
-    text = await llm_reply(
-        context.resources.llm,
-        system="You are a concise, friendly assistant.",
-        user=question.data.text,
-    )
-    return ChatReply(text=text or OFFLINE_REPLY)
-
-
-#: The chat shape: one agent, typed seed and answer.
-CHAT_PIPELINE = Pipeline(
-    agents=[Agent("chat", consumes=[Consume(Question)], steps=[_chat_reply])],
-    seed_type=Question,
-    answer_type=ChatReply,
-    name="starter-chat",
-)
 
 
 def _from_env() -> LLMProvider | None:
@@ -136,8 +93,7 @@ def create_app(
     chat_agent_instance = Chat(
         pipeline=CHAT_PIPELINE,
         store=str(directory / "sessions"),
-        llm=provider,
-        tracer=tracer,
+        config=RunConfig(llm=provider, tracer=tracer),
     )
 
     @asynccontextmanager

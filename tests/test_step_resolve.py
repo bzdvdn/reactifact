@@ -30,7 +30,7 @@ class ProgressLike(BaseModel):
 
 
 class TypedProgressStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(self, question: Question, progress: ProgressLike) -> Out:
@@ -50,7 +50,7 @@ def test_typed_name_does_not_get_a_collaborator() -> None:
 
 
 class AnnotatedHandleStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(
@@ -73,7 +73,7 @@ def test_annotated_artifact_returns_a_handle() -> None:
 
 
 class AnnotatedLatestStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(
@@ -95,7 +95,7 @@ def test_annotated_latest_is_still_latest() -> None:
 
 
 class LatestUnionStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(
@@ -118,7 +118,7 @@ def test_latest_considers_every_union_member() -> None:
 
 
 class LatestHandleStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(
@@ -141,7 +141,7 @@ def test_latest_of_an_artifact_returns_a_handle() -> None:
 
 
 class LatestMissingStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(self, question: Question, latest: Latest[Doc]) -> Out:
@@ -158,7 +158,7 @@ def test_latest_without_a_value_is_none() -> None:
 
 
 class OptionalContextStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(self, question: Question, context: Context | None) -> Out:
@@ -177,7 +177,7 @@ def test_optional_collaborator_is_injected() -> None:
 
 
 class NeedsAnyHandleStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(self, question: Question, doc: Artifact[Any]) -> Out:
@@ -193,7 +193,7 @@ def test_missing_any_handle_message_is_readable() -> None:
 
 
 class NeedsDocStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(self, question: Question, doc: Doc) -> Out:
@@ -214,7 +214,7 @@ def test_missing_input_lists_available_types_and_producers() -> None:
 
 
 class OptionalAnnotatedContextStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Out,)
 
     async def run(

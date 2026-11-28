@@ -139,7 +139,7 @@ def _contracts(
             inferred_terminal.append(obj.answer_type)
     report = validate_contracts(
         steps=steps or None,
-        groups=groups or None,
+        agents=groups or None,
         seeds=inferred_seeds,
         terminal=inferred_terminal,
         budget=budget,
@@ -183,7 +183,9 @@ def _evals(
     }
 
     def target(inputs: Mapping[str, Any]) -> Any:
-        return pipeline.run(_seed(pipeline, inputs))
+        from ..pipeline import PipelineRunner
+
+        return PipelineRunner(pipeline).run(_seed(pipeline, inputs))
 
     report = evaluate(dataset, target, evaluators)
     passed = report.passed(gates, overall=overall)
@@ -210,7 +212,7 @@ def _evals(
 def cmd_check(args: argparse.Namespace) -> int:
     config = load_config()
     target_spec = args.target
-    contracts_spec = args.contracts or target_spec or config.groups
+    contracts_spec = args.contracts or target_spec or config.agents
     scenarios_specs = args.scenarios or config.scenarios
     evals_path = args.evals if args.evals is not None else config.evals
     overall = args.overall if args.overall is not None else config.overall

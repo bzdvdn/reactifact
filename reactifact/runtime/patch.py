@@ -32,7 +32,7 @@ class PatchApplicator:
             else:
                 if step.artifact_type is not None:
                     allowed_types.add(step.artifact_type)
-                allowed_types.update(step.also_creates)
+                allowed_types.update((step.produces or ())[1:])
         if not allowed_types:
             return
         for op in patch.operations:
@@ -41,7 +41,7 @@ class PatchApplicator:
                     f"Agent '{group.name}' created artifact of type "
                     f"{type(op.data).__name__}, which is not declared in "
                     f"produces: {[t.__name__ for t in allowed_types]}. Declare "
-                    "it via the step's `produces=(...)` (or `also_creates`)."
+                    "it via the step's `produces=(...)` (or by `produces` itself)."
                 )
 
     def enforce_authorization(self, patch: Patch) -> None:

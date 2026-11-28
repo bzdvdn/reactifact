@@ -109,7 +109,7 @@ def make_runtime(ctx: Context) -> Runtime:
             Step(PendingQuestion),
         ]
 
-    return Runtime(ctx, groups=[Flow()])
+    return Runtime(ctx, agents=[Flow()])
 
 
 def test_routes_via_llm_hook_then_waits_for_approval():

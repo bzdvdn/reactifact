@@ -720,6 +720,6 @@ def test_read_only_stages_do_not_wake_on_project():
     from examples.repair.agents import assistant_stage, pick_stage
 
     for stage in (pick_stage, assistant_stage):
-        specs = {spec.artifact_type: spec.wakes for spec in stage.consume_specs() or ()}
+        specs = {spec.artifact_type: spec.wakes for spec in stage.read_specs() or ()}
         assert specs[UserMsg] is True
         assert specs[Project] is False

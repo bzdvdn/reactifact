@@ -18,17 +18,17 @@ class Note(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def inferred(question: Question) -> Answer:
     return Answer(text=question.text)
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def pair(question: Question) -> tuple[Answer, Note]:
     return Answer(text=question.text), Note(text=question.text.upper())
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def many(question: Question) -> list[Note]:
     return [Note(text="a"), Note(text="b")]
 

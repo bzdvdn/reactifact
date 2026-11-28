@@ -17,13 +17,13 @@ class Reply(BaseModel):
     text: str
 
 
-@step(consumes=Query, produces=PendingQuestion)
+@step(reads=Query, produces=PendingQuestion)
 def ask(query: Query, human: Human) -> None:
     human.ask("Deploy to production?", kind="approval")
 
 
 @step(
-    consumes=Consume.by_field(PendingQuestion, "answered", True),
+    reads=Consume.by_field(PendingQuestion, "answered", True),
     produces=Reply,
 )
 def finish(question: PendingQuestion) -> Reply:

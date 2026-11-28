@@ -72,7 +72,7 @@ def _run(tool_step: ToolUse, bodies: list[dict], question: Question) -> Context:
     context = Context(resources=RuntimeResources(llm=ScriptedNativeLLM(bodies)))
     context.create(question)
     group = Agent("tool", consumes=[Consume(Question)], steps=[tool_step])
-    asyncio.run(Runtime(context, groups=[group]).arun())
+    asyncio.run(Runtime(context, agents=[group]).arun())
     return context
 
 
@@ -111,7 +111,7 @@ def test_native_tool_progress_template_is_announced():
         consumes=[Consume(Question)],
         steps=[ToolUse("use search", [search], mode="native")],
     )
-    asyncio.run(Runtime(context, groups=[group]).arun())
+    asyncio.run(Runtime(context, agents=[group]).arun())
     events = []
     while not queue.empty():
         events.append(queue.get_nowait())

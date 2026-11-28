@@ -30,7 +30,7 @@ class Answer(BaseModel):
 
 
 class FailingStep(Step[Answer]):
-    consumes = (Consume(Question),)
+    reads = (Consume(Question),)
     produces = (Answer,)
 
     def __init__(self) -> None:
@@ -53,7 +53,7 @@ class FallbackAnswer(Step[Answer]):
 def _run(group, *, isolate_errors: bool = False) -> Context:
     context = Context()
     context.create(Question(text="go"))
-    asyncio.run(Runtime(context, groups=[group], isolate_errors=isolate_errors).arun())
+    asyncio.run(Runtime(context, agents=[group], isolate_errors=isolate_errors).arun())
     return context
 
 
@@ -88,7 +88,7 @@ def test_fallback_does_not_swallow_authorization_errors():
     from reactifact.authz import AuthorizationError
 
     class Denied(Step[Answer]):
-        consumes = (Consume(Question),)
+        reads = (Consume(Question),)
 
         async def run(self) -> None:
             raise AuthorizationError("run", "answer")
@@ -105,7 +105,7 @@ def test_fallback_does_not_swallow_authorization_errors():
     asyncio.run(
         Runtime(
             context,
-            groups=[group],
+            agents=[group],
             isolate_errors=True,
             on_agent_error=lambda _g, _e, exc: errors.append(exc),
         ).arun()

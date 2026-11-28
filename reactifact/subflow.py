@@ -32,7 +32,6 @@ async def run_subflow(
     parent: Context,
     *,
     agents: Agent | Sequence[Agent] | None = None,
-    groups: Agent | Sequence[Agent] | None = None,
     input: BaseModel | Artifact[Any],
     output_type: type[BaseModel] | None = None,
     isolate: bool = True,
@@ -46,7 +45,7 @@ async def run_subflow(
 ) -> SubflowResult:
     """Runs `agents` on a child Context and returns its state and outputs.
 
-    `agents=` is one `Agent` or a sequence; `groups=` is a compatibility alias.
+    `agents=` is one `Agent` or a sequence.
 
     `isolate=True` starts from an empty Context (just the seeded input);
     `isolate=False` starts from a `parent.branch()` so the child sees the
@@ -59,9 +58,7 @@ async def run_subflow(
     the parent's `BudgetLLM` wrapper still counts the child's usage — do not
     add it twice).
     """
-    if agents is not None and groups is not None:
-        raise TypeError("Pass only one of agents= or groups=")
-    resolved = agents if agents is not None else groups
+    resolved = agents
     if resolved is None:
         raise TypeError("run_subflow requires agents=")
     group_list = [resolved] if isinstance(resolved, Agent) else list(resolved)
@@ -101,7 +98,7 @@ async def run_subflow(
     parent_tracer = parent.resources.tracer if inherit_trace else None
     child_runtime = Runtime(
         child,
-        groups=group_list,
+        agents=group_list,
         budget=child_budget,
         tracer=parent_tracer,
         trace_scope=parent.resources.trace_scope,

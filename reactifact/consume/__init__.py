@@ -2,7 +2,6 @@
 
 from .base import Consume
 from .correlated import AbsentConsume, CorrelatedConsume, IdempotentConsume, JoinConsume
-from .lifecycle import OnCreate, OnDelete, OnStale, OnUpdate
 
 __all__ = [
     "AbsentConsume",
@@ -10,8 +9,4 @@ __all__ = [
     "CorrelatedConsume",
     "IdempotentConsume",
     "JoinConsume",
-    "OnCreate",
-    "OnDelete",
-    "OnStale",
-    "OnUpdate",
 ]

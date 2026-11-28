@@ -41,7 +41,7 @@ class Answerer(Agent):
 
 def build_runtime():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Researcher(), Answerer()])
+    runtime = Runtime(ctx, agents=[Researcher(), Answerer()])
     question = ctx.create(Question(text="why"))
     asyncio.run(runtime.arun())
     return ctx, runtime, question
@@ -148,7 +148,7 @@ def test_reactive_doubling_provenance():
             return Patch().update(art.id, Number(value=art.data.value * 2))
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[Doubler()])
+    runtime = Runtime(ctx, agents=[Doubler()])
     number = ctx.create(Number(value=5))
     assert asyncio.run(runtime.arun()) == 1
 

@@ -94,12 +94,9 @@ def test_authoring_package_layout():
 
     agent_pkg = importlib.import_module("reactifact.agent")
     step_pkg = importlib.import_module("reactifact.agent.step")
-    legacy = importlib.import_module("reactifact.step")
 
     assert agent_pkg.Agent is Agent
     assert step_pkg.Step is Step
-    assert legacy.Step is Step
-    assert legacy.Agent is Agent
 
 
 def test_read_and_consume_share_selector_behavior():

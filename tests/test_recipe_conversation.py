@@ -145,7 +145,7 @@ def test_memory_recipes_bound_a_conversation():
         consumes=[Consume(ConversationMessage)],
         steps=[WindowPruner(ConversationMessage, keep=2)],
     )
-    runtime = Runtime(ctx, groups=[memory])
+    runtime = Runtime(ctx, agents=[memory])
 
     async def build():
         for i in range(5):
@@ -202,7 +202,7 @@ def test_window_zero_is_empty_and_negative_is_rejected():
 
 def test_conversation_add_effect_inside_a_step():
     class AddMessage(Step):
-        consumes = (Q,)
+        reads = (Q,)
         produces = (ConversationMessage,)
 
         async def run(self, effects: Effects) -> None:

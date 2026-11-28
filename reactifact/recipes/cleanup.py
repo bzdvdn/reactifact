@@ -49,7 +49,7 @@ class EphemeralCleanup(Step[TerminalT], Generic[TerminalT]):
     Never itself creates an artifact — `artifact_type` only satisfies
     `Step`'s constructor and names what triggers this. `Runtime` only
     validates declared types against `Create` operations, never `Delete`, so
-    this produce needs no `also_creates` and never widens anything.
+    this step needs no extra-create declaration and never widens anything.
     """
 
     artifact_type: ArtifactType | None = None
@@ -89,13 +89,13 @@ class ScopedCleanup(Step):
     The common chat shape: a terminal `Answer` carries `query_id`, every
     intermediate artifact carries the same `query_id`, and their ids are
     arbitrary. `ScopedCleanup(Answer, scratch_types=(...,), scope=TURN_SCOPE)`
-    reacts to `OnCreate(Answer)` and drops every scratch artifact in that
+    reacts to `Consume.on_create(Answer)` and drops every scratch artifact in that
     turn, leaving other turns untouched. It declares `produces=()` and the
     real `deletes` types, so contracts do not claim the cleanup creates an
     `Answer`.
 
     `scope` is required (pass `None` explicitly for a deliberate global
-    cleanup); `read=` defaults to `OnCreate(terminal_type)` (legacy `consume=` alias).
+    cleanup); `read=` defaults to `Read.on_create(terminal_type)` (legacy `consume=` alias).
     """
 
     def __init__(

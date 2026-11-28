@@ -43,7 +43,7 @@ class CurrentRequest(Mapping[str, Any]):
     `call.request` / `current_request()` when a signature should show the
     dependency:
 
-        @step(consumes=Question, produces=Answer)
+        @step(reads=Question, produces=Answer)
         async def answer(question: Question, request: CurrentRequest) -> Answer:
             tenant = request.get("tenant")
             ...

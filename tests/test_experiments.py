@@ -19,7 +19,7 @@ class Answer(BaseModel):
 
 
 class UpperStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:
@@ -27,7 +27,7 @@ class UpperStep(Step):
 
 
 class LowerStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
 
     async def run(self, question: Question) -> Answer:

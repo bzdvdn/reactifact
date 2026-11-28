@@ -50,7 +50,7 @@ class ApprovalGate(Agent):
 
 def test_fires_when_required_present_and_forbidden_absent():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t1"))
     asyncio.run(runtime.arun())
@@ -66,7 +66,7 @@ def test_fires_when_required_present_and_forbidden_absent():
 
 def test_does_not_fire_when_an_existing_ticket_forbids_it():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(HelpdeskTicket(thread_id="t1"))
     ctx.create(Report(thread_id="t1"))
@@ -78,7 +78,7 @@ def test_does_not_fire_when_an_existing_ticket_forbids_it():
 
 def test_unanswered_question_does_not_complete_the_group_even_without_a_ticket():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[ApprovalGate()])
+    runtime = Runtime(ctx, agents=[ApprovalGate()])
 
     ctx.create(Report(thread_id="t1"))
     ctx.create(PendingQuestion(thread_id="t1", answered=False))

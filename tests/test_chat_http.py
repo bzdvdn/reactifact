@@ -18,7 +18,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 

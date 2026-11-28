@@ -10,7 +10,7 @@ Subcommands:
     doctor   check app settings and common boundaries
     graph    static group blueprint from a module path ("pkg.mod:Attr")
     contracts static consumes/produces/tools contracts (Markdown or JSON)
-    validate static contract check of a module's groups
+    validate static contract check of a module's agents
     context  live provenance graph from a saved session (KV backend)
     trace    run diagram from a trace store (SQLite)
     replay   deterministic state replay of a saved session

@@ -35,7 +35,7 @@ class TicketGate(Agent):
 
 def test_fires_when_no_blocking_ticket_exists():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[TicketGate()])
+    runtime = Runtime(ctx, agents=[TicketGate()])
 
     ctx.create(Report(thread_id="t1"))
     asyncio.run(runtime.arun())
@@ -47,7 +47,7 @@ def test_fires_when_no_blocking_ticket_exists():
 
 def test_does_not_fire_when_a_ticket_already_exists_for_the_same_key():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[TicketGate()])
+    runtime = Runtime(ctx, agents=[TicketGate()])
 
     ctx.create(HelpdeskTicket(thread_id="t1"))
     ctx.create(Report(thread_id="t1"))
@@ -58,7 +58,7 @@ def test_does_not_fire_when_a_ticket_already_exists_for_the_same_key():
 
 def test_unrelated_ticket_key_does_not_block():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[TicketGate()])
+    runtime = Runtime(ctx, agents=[TicketGate()])
 
     ctx.create(HelpdeskTicket(thread_id="other-thread"))
     ctx.create(Report(thread_id="t1"))
@@ -84,7 +84,7 @@ def test_absent_condition_narrows_what_counts_as_blocking():
         produces = [FileTicket()]
 
     ctx = Context()
-    runtime = Runtime(ctx, groups=[SentOnlyGate()])
+    runtime = Runtime(ctx, agents=[SentOnlyGate()])
 
     ctx.create(HelpdeskTicket(thread_id="t1", sent=False))
     ctx.create(Report(thread_id="t1"))
@@ -101,7 +101,7 @@ def test_collect_excludes_blocked_reports_even_when_the_agent_also_fires_for_oth
     """One Report in the batch is blocked, another isn't — only the unblocked
     one should ever reach `produce()` as an input."""
     ctx = Context()
-    runtime = Runtime(ctx, groups=[TicketGate()])
+    runtime = Runtime(ctx, agents=[TicketGate()])
 
     ctx.create(HelpdeskTicket(thread_id="blocked"))
     ctx.create(Report(thread_id="blocked"))

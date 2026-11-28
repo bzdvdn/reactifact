@@ -54,6 +54,8 @@ drain before shutdown.
 - `app.py` — the wiring: provider → `Tracer(TraceStore(...))` → the quick
   objects → the FastAPI routes. Replace the domain (prompts, `knowledge/`,
   tools), keep the edges.
+- `agents/` — the chat capability (`@agent`) and its `CHAT_PIPELINE`.
+- `tools.py` — the `add` tool used by the tools case.
 - `models.py` — your wire/artifact models.
 - `.env` handling and the `/traces` mount are the two things people forget.
 
@@ -73,6 +75,10 @@ curl -s localhost:8000/api/chat -H 'content-type: application/json' \
 starter_app/
 ├── knowledge/         # your docs (RAG corpus)
 ├── web/index.html     # tiny no-build UI
+├── agents/
+│   ├── __init__.py    # CHAT_PIPELINE
+│   └── chat.py        # @agent: Question -> ChatReply
+├── tools.py           # add() for the tools case
 ├── models.py          # AskRequest/AskResponse/Chat… + AnswerBody/ChatReply
 ├── app.py             # create_app(...) + the 4 endpoints + traces
 ├── .env.example
@@ -85,4 +91,4 @@ starter_app/
 - `examples/devops`, `examples/knowledge` — fuller apps on the same chat/trace
   contract, with HITL and richer agents.
 - `reactifact.quick` — `.agent`/`.context` on every object is the graduation
-  path from this app to hand-written typed `Step`s.
+  path from this app to hand-written typed `Agent`/`@agent` code.

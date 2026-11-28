@@ -60,7 +60,7 @@ def _assistant(**memory_kwargs) -> tuple[ChatAssistant, SessionStore]:
     )
     assistant = ChatAssistant(
         store=store,
-        groups=[_echo_group()],
+        agents=[_echo_group()],
         user_message=ConversationMessage,
         reply=_reply,
         create_message=create_turn,
@@ -100,7 +100,7 @@ def test_chat_memory_compaction_only_adds_no_message_group():
 def test_chat_memory_keep_requires_a_message_type():
     assistant = ChatAssistant(
         store=SessionStore(InMemoryKVBackend()),
-        groups=[],
+        agents=[],
         user_message=ConversationMessage,
         reply=_reply,
         memory=ChatMemory(keep=5),  # no message_type
@@ -169,7 +169,7 @@ def _hetero_assistant(keep: int) -> tuple[ChatAssistant, SessionStore]:
     store = SessionStore(InMemoryKVBackend())
     assistant = ChatAssistant(
         store=store,
-        groups=[
+        agents=[
             Agent(
                 "bot",
                 consumes=[Consume(_UserMsg)],

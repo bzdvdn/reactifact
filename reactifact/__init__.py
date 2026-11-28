@@ -25,10 +25,6 @@ of the names you see by default even though they were always cheap to import
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 
-# Load the legacy `reactifact.step` shim once, then rebind the decorator: the
-# import machinery would otherwise overwrite `reactifact.step` with the module
-# on the first explicit import.
-from . import step as _step_compat  # noqa: F401
 from .agent import (
     Agent,
     Drop,
@@ -44,25 +40,13 @@ from .agent import (
     Wakes,
     When,
 )
-
-# `StepGroup` and `create_step_group` stay importable for 0.x compatibility,
-# but are intentionally not in `__all__`: new code uses `Agent`.
-from .agent import StepGroup as StepGroup
-from .agent import create_step_group as create_step_group
 from .agent.step import step
 from .artifacts import Artifact, ArtifactConflict
 from .branching import MergeConflict
 from .budget import Budget, BudgetTracker, RunOutcome, RunStats
 from .chat import Chat
 from .commit import ContextCheckpoint
-from .consume import (
-    Consume,
-    IdempotentConsume,
-    OnCreate,
-    OnDelete,
-    OnStale,
-    OnUpdate,
-)
+from .consume import Consume, IdempotentConsume
 from .context import Context, ProvenanceLink, View
 from .daemon import Daemon
 from .di import Depends, Inject
@@ -126,10 +110,6 @@ __all__ = [
     "Consume",
     "Context",
     "IdempotentConsume",
-    "OnCreate",
-    "OnDelete",
-    "OnStale",
-    "OnUpdate",
     "ProvenanceLink",
     "ContextCheckpoint",
     "Create",

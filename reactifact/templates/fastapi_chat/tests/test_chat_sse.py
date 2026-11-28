@@ -58,4 +58,4 @@ def test_contracts_page_requires_auth(client, auth_headers):
     assert response.status_code == 200
     assert "reactifact contracts" in response.text
     assert client.get("/api/contracts").status_code == 401
-    assert client.get("/api/contracts", headers=auth_headers).json()["groups"]
+    assert client.get("/api/contracts", headers=auth_headers).json()["agents"]

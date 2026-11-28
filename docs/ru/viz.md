@@ -33,7 +33,7 @@ reactifact demo --web
 ```
 
 - `validate`, `graph --check` и `check` читают `[tool.reactifact]` из
-  `pyproject.toml` (`groups`, `seeds`, `terminal`, `budget`, `scenarios`,
+  `pyproject.toml` (`agents`, `seeds`, `terminal`, `budget`, `scenarios`,
   `evals`, `overall`, `gates`), если соответствующие флаги не заданы; флаги
   приоритетнее.
 - `check` — единый quality-gate: статические контракты, любое число

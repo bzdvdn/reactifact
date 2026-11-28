@@ -13,6 +13,7 @@ from ..budget import Budget
 from ..chat import Chat
 from ..checkpoints import FileKVBackend, InMemoryKVBackend
 from ..context import Context
+from ..pipeline import RunConfig
 from ..providers import LLMProvider, from_env
 from ..resources import RuntimeResources
 from ..runtime import Dispatcher, DispatchErrorHandler
@@ -48,7 +49,6 @@ def _default_reply(
 def chat_agent(
     agents: Sequence[Agent] | None = None,
     *,
-    groups: Sequence[Agent] | None = None,
     steps: Sequence[Step] | None = None,
     store: SessionStore | str | Path | None = None,
     user_message: type[BaseModel] = Question,
@@ -62,7 +62,7 @@ def chat_agent(
 ) -> Chat:
     """A configured `Chat` — sessions, turns, history, out of the box.
 
-    `agents=` is the agent sequence; `groups=` is a compatibility alias.
+    `agents=` is the agent sequence.
 
     `store` may be a `SessionStore`, a directory path (`FileKVBackend`), or
     `None` for a process-local in-memory store (handy for tests/notebooks; use a
@@ -76,10 +76,10 @@ def chat_agent(
     a per-turn callable, …). The provider instance is shared across turns, not
     closed by the assistant.
     """
-    provided = [value for value in (agents, groups, steps) if value is not None]
+    provided = [value for value in (agents, steps) if value is not None]
     if len(provided) > 1:
-        raise ValueError("Pass only one of steps=, agents= or groups=")
-    resolved = agents if agents is not None else groups
+        raise ValueError("Pass only one of steps= or agents=")
+    resolved = agents
     if resolved is None and steps is None:
         raise TypeError("chat_agent requires steps= or agents=")
     if resources is None:
@@ -91,8 +91,7 @@ def chat_agent(
         seed_type=user_message,
         reply=reply if reply is not None else _default_reply(user_message),
         resources=resources,
-        budget=budget,
-        tracer=tracer,
+        config=RunConfig(budget=budget, tracer=tracer),
         dispatcher=dispatcher,
         on_dispatch_error=on_dispatch_error,
     )

@@ -213,7 +213,7 @@ type = "forbidden"
 allow_indirect_imports = true
 source_modules = [
     "reactifact.artifacts",
-    "reactifact.step",
+    "reactifact.agent",
     "reactifact.consume",
     "reactifact.effects",
     "reactifact.patches",
@@ -275,7 +275,7 @@ type = "forbidden"
 allow_indirect_imports = true
 source_modules = [
     "reactifact.artifacts",
-    "reactifact.step",
+    "reactifact.agent",
     "reactifact.consume",
     "reactifact.effects",
     "reactifact.patches",

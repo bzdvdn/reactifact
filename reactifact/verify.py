@@ -119,7 +119,7 @@ class Verify(Step):
         self.answer_type = answer_type
         self.question = question
         consumes = (answer_type,) if isinstance(answer_type, type) else None
-        super().__init__(consumes=consumes)
+        super().__init__(reads=consumes)
 
     def _matches(self, data: BaseModel) -> bool:
         if isinstance(self.answer_type, str):

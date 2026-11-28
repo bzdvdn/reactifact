@@ -56,10 +56,7 @@ result = runner.run(Question(text="hello"))
   `Read.after_delete` — event-only и не даёт данных артефакта.
 - `Pipeline.agents=[...]` и `Pipeline.routes=[...]` — декларативная структура;
   `Pipeline.agents` разворачивает её для `Runtime`.
-- `PipelineRunner` + `RunConfig` владеют ресурсами/бюджетом/tracing и выполняют прогон.
-- `StepGroup` и `create_step_group` остаются импортируемыми для кода 0.x, но
-  не входят в authoring-surface: новый код использует `Agent(...)`.
-- Агент **не** является барьером исполнения: это именованная группа, а не
+- `PipelineRunner` + `RunConfig` владеют ресурсами/бюджетом/tracing и выполняют прогон.- Агент **не** является барьером исполнения: это именованная группа, а не
   ограничение порядка. Runtime по-прежнему планирует по доступности артефактов.
 
 Для stateful-кода в class-style `Agent` можно наследовать, а `@step` вешать на
@@ -261,7 +258,7 @@ github_group = DeferredToolGroup(
 ToolUse(
     system="...",
     tools=[...],                          # всегда видимые инструменты
-    deferred_tool_groups=[github_group],  # скрыты до запроса
+    deferred_tool_agents=[github_group],  # скрыты до запроса
 )
 ```
 

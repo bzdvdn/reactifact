@@ -22,9 +22,11 @@ from .common import (
 if TYPE_CHECKING:
     from fastapi import APIRouter
 
+    from ..pipeline import PipelineRunner
+
 
 def create_pipeline_router(
-    pipeline: Any,
+    pipeline: PipelineRunner,
     *,
     prefix: str = "",
     routes_override: PipelineRoutes | Mapping[str, str | None] | None = None,
@@ -33,7 +35,7 @@ def create_pipeline_router(
     max_iterations: int = 100,
     with_health: bool = True,
 ) -> APIRouter:
-    """A FastAPI `APIRouter` for a typed `Pipeline`.
+    """A FastAPI `APIRouter` for a typed `PipelineRunner`.
 
     Routes (relative to `prefix`):
       POST /run      — one run; body is `seed_type`, response is `answer_type`
@@ -184,7 +186,7 @@ def create_pipeline_router(
 
 
 def create_http_app(
-    pipeline: Any,
+    pipeline: PipelineRunner,
     *,
     prefix: str = "",
     routes: PipelineRoutes | Mapping[str, str | None] | None = None,
@@ -201,7 +203,7 @@ def create_http_app(
     gzip: bool = True,
     **fastapi_kwargs: Any,
 ) -> Any:
-    """A ready FastAPI app around a typed `Pipeline`.
+    """A ready FastAPI app around a typed `PipelineRunner`.
 
     Mounts the pipeline router, the contracts page (unless `contracts=False`)
     and the trace dashboard when the pipeline has a trace store. `validate=True`
@@ -283,7 +285,7 @@ def create_http_app(
             store = traces
         if traces is True and store is None:
             raise ValueError(
-                "create_http_app(traces=True) needs Pipeline(traces=True) "
+                "create_http_app(traces=True) needs RunConfig(traces=True) "
                 "or an explicit TraceStore/path"
             )
         if isinstance(store, (str, Path)):

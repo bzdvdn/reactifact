@@ -22,9 +22,6 @@ from .models import (
     TagAssignment,
     TraceLimits,
 )
-from .models import (
-    StepGroupSpan as StepGroupSpan,
-)
 from .otlp import OTLPTracer
 from .postgres import PostgresStore
 from .retention import RetentionPolicy
@@ -37,8 +34,6 @@ from .store import (
     TraceStoreProtocol,
 )
 from .tracer import CompositeTracer, RecordingLLM, RunTracer, Tracer
-
-# `StepGroupSpan` stays importable for 0.x code but is not advertised in `__all__`.
 
 __all__ = [
     "AgentContract",

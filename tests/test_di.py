@@ -7,6 +7,8 @@ from reactifact import (
     FakeLLM,
     LLMProvider,
     Pipeline,
+    PipelineRunner,
+    RunConfig,
     RuntimeResources,
     step,
 )
@@ -25,12 +27,12 @@ class Service:
         self.name = name
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def with_service(question: Question, service: Service) -> Answer:
     return Answer(text=f"{service.name}:{question.text}")
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def with_llm(question: Question, llm: LLMProvider) -> Answer:
     return Answer(text=f"{type(llm).__name__}:{question.text}")
 
@@ -38,32 +40,38 @@ def with_llm(question: Question, llm: LLMProvider) -> Answer:
 def test_registered_typed_resource_is_injected():
     resources = RuntimeResources()
     resources.register(Service, Service("base"))
-    result = Pipeline(steps=[with_service], resources=resources).run(Question(text="q"))
+    result = PipelineRunner(
+        Pipeline(steps=[with_service]), config=RunConfig(resources=resources)
+    ).run(Question(text="q"))
     assert result.latest(Answer).data.text == "base:q"
 
 
 def test_pipeline_override_replaces_a_resource():
     resources = RuntimeResources()
     resources.register(Service, Service("base"))
-    pipeline = Pipeline(steps=[with_service], resources=resources).override(
-        Service, Service("override")
-    )
-    result = pipeline.run(Question(text="q"))
+    runner = PipelineRunner(
+        Pipeline(steps=[with_service]), config=RunConfig(resources=resources)
+    ).override(Service, Service("override"))
+    result = runner.run(Question(text="q"))
     assert result.latest(Answer).data.text == "override:q"
 
-    pipeline.clear_overrides()
-    result = pipeline.run(Question(text="q"))
+    runner.clear_overrides()
+    result = runner.run(Question(text="q"))
     assert result.latest(Answer).data.text == "base:q"
 
 
 def test_builtin_llm_is_resolved_by_protocol():
     resources = RuntimeResources(llm=FakeLLM())
-    result = Pipeline(steps=[with_llm], resources=resources).run(Question(text="q"))
+    result = PipelineRunner(
+        Pipeline(steps=[with_llm]), config=RunConfig(resources=resources)
+    ).run(Question(text="q"))
     assert result.latest(Answer).data.text.startswith("FakeLLM:")
 
 
 def test_pipeline_llm_shortcut():
-    result = Pipeline(steps=[with_llm], llm=FakeLLM()).run(Question(text="q"))
+    result = PipelineRunner(
+        Pipeline(steps=[with_llm]), config=RunConfig(llm=FakeLLM())
+    ).run(Question(text="q"))
     assert result.latest(Answer).data.text.startswith("FakeLLM:")
 
 
@@ -72,8 +80,8 @@ class OverrideLLM(FakeLLM):
 
 
 def test_override_wins_over_the_pipeline_llm():
-    pipeline = Pipeline(steps=[with_llm], llm=FakeLLM()).override(
-        LLMProvider, OverrideLLM()
-    )
-    result = pipeline.run(Question(text="q"))
+    runner = PipelineRunner(
+        Pipeline(steps=[with_llm]), config=RunConfig(llm=FakeLLM())
+    ).override(LLMProvider, OverrideLLM())
+    result = runner.run(Question(text="q"))
     assert result.latest(Answer).data.text.startswith("OverrideLLM:")

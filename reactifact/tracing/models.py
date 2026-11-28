@@ -177,11 +177,6 @@ class AgentSpan(BaseModel):
         return self.agent
 
 
-#: `StepGroup`-era name for `AgentSpan`. The `agent` field keeps its name so
-#: existing trace stores, dashboards and OTLP consumers keep working.
-StepGroupSpan = AgentSpan
-
-
 class RunTrace(BaseModel):
     """Trace of a single run (turn): agent executions + outcome."""
 

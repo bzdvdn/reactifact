@@ -15,6 +15,7 @@ from reactifact import (
     Emit,
     Ensure,
     Pipeline,
+    PipelineRunner,
     Relate,
     Runtime,
     step,
@@ -29,30 +30,30 @@ class Tag(BaseModel):
     name: str
 
 
-@step(produces=Item, consumes=Item)
+@step(produces=Item, reads=Item)
 def rename(item: Artifact[Item]) -> Edit:
     return Edit(item, text=item.data.text.upper())
 
 
-@step(produces=Item, consumes=Item)
+@step(produces=Item, reads=Item)
 def remove(item: Artifact[Item]) -> Drop:
     return Drop(item)
 
 
-@step(produces=Tag, consumes=(Item, Consume(Tag, wakes=False)))
+@step(produces=Tag, reads=(Item, Consume(Tag, wakes=False)))
 def tag(item: Artifact[Item], tag: Artifact[Tag]) -> Relate:
     return Relate(item, "tagged_with", tag)
 
 
 def test_edit_updates_fields():
-    result = Pipeline(steps=[rename]).run(Item(text="hello"))
+    result = PipelineRunner(Pipeline(steps=[rename])).run(Item(text="hello"))
     item = result.context.latest(Item)
     assert item is not None
     assert item.data.text == "HELLO"
 
 
 def test_drop_deletes_the_artifact():
-    result = Pipeline(steps=[remove]).run(Item(text="bye"))
+    result = PipelineRunner(Pipeline(steps=[remove])).run(Item(text="bye"))
     assert result.context.latest(Item) is None
 
 
@@ -68,7 +69,7 @@ class Seed(BaseModel):
     text: str
 
 
-@step(produces=Item, consumes=Seed)
+@step(produces=Item, reads=Seed)
 def ensure_item(seed: Seed) -> Ensure:
     return Ensure(Item(text="ensured"), id="item:1")
 
@@ -92,7 +93,7 @@ def test_ensure_creates_only_once():
     assert items[0].version == version  # no refresh, unlike Emit
 
 
-@step(produces=Item, consumes=Seed)
+@step(produces=Item, reads=Seed)
 def ensure_from(seed: Artifact[Seed]) -> Ensure:
     return Ensure(Item(text=seed.data.text), source=seed)
 
@@ -108,7 +109,7 @@ def test_ensure_derives_the_id_from_source():
     assert item.data.text == "hello"
 
 
-@step(produces=Tag, consumes=Seed)
+@step(produces=Tag, reads=Seed)
 def ensure_tag(seed: Artifact[Seed]) -> Ensure:
     return Ensure(
         Tag(name="prod"),
@@ -133,7 +134,7 @@ def test_ensure_requires_exactly_one_id_or_source():
 
 
 def test_emit_with_an_existing_id_refreshes():
-    @step(produces=Item, consumes=Seed)
+    @step(produces=Item, reads=Seed)
     def emit_item(seed: Seed) -> Emit:
         return Emit(Item(text=seed.text), id="item:1")
 

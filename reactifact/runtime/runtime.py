@@ -144,19 +144,12 @@ class Runtime:
         on_dispatch_error: DispatchErrorHandler | None = None,
         trace_scope: str = "",
         agents: list[Any] | None = None,
-        groups: list[Any] | None = None,
         steps: list[Any] | None = None,
     ):
-        if agents is not None and groups is not None:
-            raise TypeError("Runtime takes either agents= or groups=, not both")
         self.context = context
         #: The merged dispatch units. `steps=` wraps each step in an implicit
-        #: agent of one; `agents=` adds explicit agents (`groups=` is the
-        #: deprecated alias kept for compatibility).
-        self.agents = normalize_units(
-            steps=steps,
-            agents=agents if agents is not None else groups,
-        )
+        #: agent of one; `agents=` adds explicit agents.
+        self.agents = normalize_units(steps=steps, agents=agents)
         self.max_concurrency = max_concurrency
         self.session = session
         self.budget = budget
@@ -242,15 +235,6 @@ class Runtime:
         self._turn_task: asyncio.Task[Any] | None = None
         #: Set by `request_stop()`; checked between generations (§59/§69).
         self._stop_requested = asyncio.Event()
-
-    @property
-    def groups(self) -> list[Agent]:
-        """Legacy alias for `agents`."""
-        return self.agents
-
-    @groups.setter
-    def groups(self, value: list[Agent]) -> None:
-        self.agents = value
 
     def _enter_turn(self) -> None:
         if self._in_turn:

@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Pipeline, PipelineRunner, step
 
 
 class Question(BaseModel):
@@ -17,7 +17,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 
@@ -27,7 +27,9 @@ def _pipeline() -> Pipeline:
 
 
 def test_as_tool_exposes_the_seed_schema_and_returns_the_answer():
-    tool = _pipeline().as_tool(name="ask", description="Ask the pipeline")
+    tool = PipelineRunner(_pipeline()).as_tool(
+        name="ask", description="Ask the pipeline"
+    )
 
     assert tool.name == "ask"
     assert tool.description == "Ask the pipeline"
@@ -42,7 +44,7 @@ def test_as_tool_exposes_the_seed_schema_and_returns_the_answer():
 
 
 def test_as_tool_defaults_name_and_description():
-    tool = _pipeline().as_tool()
+    tool = PipelineRunner(_pipeline()).as_tool()
 
     assert tool.name == "pipeline"
     assert "Question" in tool.description
@@ -53,13 +55,13 @@ def test_as_tool_requires_typed_models():
     pipeline = Pipeline(steps=[answer])
 
     with pytest.raises(TypeError):
-        pipeline.as_tool()
+        PipelineRunner(pipeline).as_tool()
 
 
 def test_as_tool_mounts_in_an_mcp_server():
     pytest.importorskip("mcp")
     from reactifact.mcp import create_mcp_server
 
-    server = create_mcp_server([_pipeline().as_tool(name="ask")])
+    server = create_mcp_server([PipelineRunner(_pipeline()).as_tool(name="ask")])
 
     assert server is not None

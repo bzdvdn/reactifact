@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Pipeline, PipelineRunner, RunConfig, step
 from reactifact.tracing import (
     AgentSpan,
     ArtifactRef,
@@ -25,7 +25,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text)
 
@@ -79,13 +79,13 @@ def test_trace_diff_reports_outcome_and_changes():
 
 
 def test_pipeline_traces_are_readable_from_the_result():
-    pipeline = Pipeline(steps=[answer], traces=True)
-    result = pipeline.run(Question(text="hi"))
+    runner = PipelineRunner(Pipeline(steps=[answer]), config=RunConfig(traces=True))
+    result = runner.run(Question(text="hi"))
     assert result.trace_id
     trace = asyncio.run(result.trace())
     assert trace is not None
     assert trace.outcome == "completed"
-    pipeline.close()
+    runner.close()
 
 
 def test_cli_renders_text_and_diff(tmp_path):

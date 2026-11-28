@@ -23,7 +23,7 @@ from examples.repair.models import ChatReply, Project, UserMsg
 from examples.repair.services import Catalog, ImageRenderSettings
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
-from reactifact import Budget, Chat, Context, RuntimeResources, SessionStore
+from reactifact import Budget, Chat, Context, RunConfig, RuntimeResources, SessionStore
 from reactifact.chat import ChatMemory
 from reactifact.checkpoints import SQLiteKVBackend
 from reactifact.contracts.web import create_contracts_router
@@ -147,9 +147,11 @@ def create_app(db=None, llm=None, store_dir: str | None = None) -> FastAPI:
         reply=terminal_reply,
         session_state=session_state,
         resources=lambda: _resources(active_llm),
-        budget=Budget(max_runs=200),
-        max_concurrency=2,
-        tracer=lambda: Tracer(store=trace_store),
+        config=RunConfig(
+            budget=Budget(max_runs=200),
+            max_concurrency=2,
+            tracer=lambda: Tracer(store=trace_store),
+        ),
         # Bound a long-lived session's commit history (artifacts untouched, so
         # the UserMsg/ChatReply `query_id` correlation stays intact).
         memory=ChatMemory(compact_commits=500),

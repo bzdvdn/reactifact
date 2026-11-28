@@ -22,7 +22,7 @@ runs: dict[str, int] = {"step": 0}
 
 
 class StepAB(Step):
-    consumes = (A, B)
+    reads = (A, B)
     produces = (Out,)
 
     async def run(self, a: A, b: B) -> Out:

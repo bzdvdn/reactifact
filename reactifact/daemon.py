@@ -107,9 +107,6 @@ class Daemon:
             if seed is None:
                 return None
             result = await self.runner.arun(seed)
-            if self.pipeline is not None:
-                self.pipeline.last_result = self.runner.last_result
-                self.pipeline.last_context = self.runner.last_context
         if inspect.isawaitable(result):
             result = await result
         return result

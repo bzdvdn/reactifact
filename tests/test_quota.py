@@ -112,7 +112,7 @@ def test_runtime_counts_then_stops_on_quota():
     tracker = QuotaTracker(Quota(max_calls=1))
     ctx = Context(resources=_resources(tracker))
     ctx.create(Question(text="first"))
-    runtime = Runtime(ctx, groups=[_group()])
+    runtime = Runtime(ctx, agents=[_group()])
     asyncio.run(runtime.arun())
 
     assert tracker.usage("acme").calls == 1
@@ -127,7 +127,7 @@ def test_runtime_counts_then_stops_on_quota():
 def test_runtime_without_quota_is_unaffected():
     ctx = Context(resources=RuntimeResources(llm=FakeLLM('{"label": "ok"}')))
     ctx.create(Question(text="hi"))
-    runtime = Runtime(ctx, groups=[_group()])
+    runtime = Runtime(ctx, agents=[_group()])
     asyncio.run(runtime.arun())
     assert runtime.outcome == RunOutcome.COMPLETED
     assert len(ctx.list_artifacts(Sentiment)) == 1

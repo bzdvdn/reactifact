@@ -326,7 +326,7 @@ turn_context = TurnContextStep(
     digest_type=Digest,         # optional; reads digest_id="digest"
     artifact_type=DialogueContext,  # custom build target
     window=12,
-    read=OnCreate(UserQuery),    # or a plain Consume
+    read=Consume.on_create(UserQuery),    # or a plain Consume
     ensure=True,                    # idempotent per turn
     follow_up=my_follow_up,         # optional; deterministic default
     build=build_dialogue,           # turns TurnFacts into your artifact
@@ -340,7 +340,7 @@ The step emits `TurnContext` (or `artifact_type=`) with id `turn:{trigger.id}`;
 keeps the `turn`/`session_id` fields. `TurnFacts` includes the trigger,
 current/previous query, previous artifact/answer, history, digest and follow-up
 flag — so a domain context can carry `prior_domain`/`routing_text` without
-reading `Context`. `read=OnCreate` makes it one artifact per turn;
+reading `Context`. `read=Consume.on_create` makes it one artifact per turn;
 `ensure=True` makes a re-run a no-op. Combine with
 `Annotated[..., Unscoped()]` when another step also needs full history.
 
@@ -543,19 +543,19 @@ distinct cases of one route; producers outside the route still warn.
 
 `EphemeralCleanup` removes artifacts whose ids are derived from a terminal
 artifact's key. The chat variant has arbitrary ids but a shared scope
-(`query_id`): `ScopedCleanup` reacts to `OnCreate(Answer)` and drops every
+(`query_id`): `ScopedCleanup` reacts to `Consume.on_create(Answer)` and drops every
 scratch artifact in that scope, leaving other turns untouched. In the example,
 `Answer` is the app's terminal artifact type.
 
 ```python
-from reactifact import OnCreate
+from reactifact import Consume
 from reactifact.recipes.cleanup import ScopedCleanup
 
 cleanup = ScopedCleanup(
     Answer,
     scratch_types=(DialogueContext, TurnIntent, ResearchTurn, Evidence),
     scope="query_id",          # or a Scope(...)
-    read=OnCreate(Answer),  # default
+    read=Consume.on_create(Answer),  # default
 )
 
 # agents=[Agent("cleanup", steps=[cleanup])]

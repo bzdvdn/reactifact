@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import sys
 from pathlib import Path
@@ -11,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..pipeline import Pipeline
+from ..pipeline import Pipeline, PipelineRunner, RunConfig
 from .common import DEFAULT_TRACE_PATH, load_attr, load_pipeline
 
 
@@ -24,23 +23,14 @@ def _load_model(spec: str) -> type[BaseModel]:
 
 def _configure_trace(
     pipeline: Pipeline, args: argparse.Namespace
-) -> tuple[Pipeline, str | None, Any | None]:
-    """Returns a CLI copy of the pipeline, the trace path and a store to close."""
-    pipeline = copy.copy(pipeline)
+) -> tuple[PipelineRunner, str | None, Any | None]:
+    """Returns the runner, the trace path and a store to close."""
     if args.no_trace:
-        pipeline.tracer = None
-        pipeline.trace_store = None
-        return pipeline, None, None
-    if pipeline.trace_store is not None:
-        return pipeline, None, None
-
-    from ..tracing import Tracer, TraceStore
+        return PipelineRunner(pipeline), None, None
 
     path = args.trace or DEFAULT_TRACE_PATH
-    store = TraceStore(path)
-    pipeline.trace_store = store
-    pipeline.tracer = Tracer(store=store)
-    return pipeline, path, store
+    runner = PipelineRunner(pipeline, config=RunConfig(traces=path))
+    return runner, path, runner.trace_store
 
 
 def _announce_trace(path: str | None, run_id: str) -> None:
@@ -61,8 +51,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     pipeline, trace_path, created_store = _configure_trace(
         load_pipeline(args.pipeline), args
     )
+    runner = pipeline
 
-    seed_type = _load_model(args.seed) if args.seed else pipeline.seed_type
+    seed_type = _load_model(args.seed) if args.seed else runner.seed_type
     if seed_type is None:
         raise SystemExit(
             "pass --seed module:Model (or set seed_type= on the Pipeline) "
@@ -79,12 +70,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     elif args.text is None:
         raise SystemExit("pass a seed text argument, --json or --json-file")
     else:
-        seed = seed_type(**{pipeline.seed_field: args.text})
+        seed = seed_type(**{runner.pipeline.seed_field: args.text})
 
     try:
-        result = pipeline.run(seed)
+        result = runner.run(seed)
         _announce_trace(trace_path, result.trace_id)
-        show = _load_model(args.show) if args.show else pipeline.answer_type
+        show = _load_model(args.show) if args.show else runner.answer_type
         if show is not None:
             artifact = result.latest(show)
             if artifact is None:

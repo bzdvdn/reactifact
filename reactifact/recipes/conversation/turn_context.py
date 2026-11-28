@@ -8,11 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ...agent import Emit, Ensure, Step
 from ...artifacts import Artifact
 from ...consume import Consume
 from ...context import Context
 from ...read import Read
-from ...step import Emit, Ensure, Step
 from ._common import _windowed
 from .models import ConversationMessage
 from .views import MessageSpec, Transcript
@@ -110,7 +110,7 @@ class TurnContextStep(Step[TurnContext]):
     `TurnFacts` and returns the artifact payload (default: `TurnContext`), so a
     domain context can add prior-domain/routing fields without carrying
     `Context`. `read=` defaults to `Consume(user_type)` (legacy `consume=` alias); pass
-    `OnCreate(user_type)` for one artifact per turn, and `ensure=True` to use
+    `Consume.on_create(user_type)` for one artifact per turn, and `ensure=True` to use
     `Ensure` instead of `Emit` (idempotent create).
     """
 

@@ -102,7 +102,7 @@ def _is_budget_table(table: Artifact[Table]) -> bool:
     return table.data.locator.endswith("budget.csv")
 
 
-@step(produces=Spend, consumes=(Table, Consume(Question, wakes=False)))
+@step(produces=Spend, reads=(Table, Consume(Question, wakes=False)))
 def compute_spend(
     table: Artifact[Table],
     question: Artifact[Question],
@@ -135,7 +135,7 @@ def compute_spend(
 
 @step(
     produces=Variance,
-    consumes=(
+    reads=(
         Spend,
         Consume(Question, wakes=False),
         Consume(Table, condition=_is_budget_table, wakes=False),
@@ -185,7 +185,7 @@ def _citations(context: Context, variance: Artifact[Variance]) -> list[str]:
     return locators
 
 
-@step(produces=Answer, consumes=(Variance, Consume(Question, wakes=False)))
+@step(produces=Answer, reads=(Variance, Consume(Question, wakes=False)))
 def answer(
     context: Context,
     variance: Artifact[Variance],

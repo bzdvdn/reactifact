@@ -119,7 +119,7 @@ def test_upsert_refreshes_existing_artifact_via_runtime():
 
     ctx = Context(resources=RuntimeResources())
     ctx.create(Note(text="v1"), id="note:1")
-    runtime = Runtime(ctx, groups=[Refresher()])
+    runtime = Runtime(ctx, agents=[Refresher()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -147,7 +147,7 @@ def test_effects_resume_answers_pending_question():
 
     ctx = Context(resources=RuntimeResources())
     question = ctx.create(PendingQuestion(question="Approve?", kind="approval"))
-    runtime = Runtime(ctx, groups=[Resumer()])
+    runtime = Runtime(ctx, agents=[Resumer()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -197,7 +197,7 @@ def test_effects_resume_accepts_typed_answer():
             resolution_schema=Approval.model_json_schema(),
         )
     )
-    runtime = Runtime(ctx, groups=[TypedResumer()])
+    runtime = Runtime(ctx, agents=[TypedResumer()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 
@@ -225,7 +225,7 @@ class Greeter(Agent):
 
 def test_runtime_compiles_effects_into_one_commit():
     ctx = Context(resources=RuntimeResources())
-    runtime = Runtime(ctx, groups=[Greeter()])
+    runtime = Runtime(ctx, agents=[Greeter()])
     ctx.create(Doc(text="trigger"), id="doc:1")
     asyncio.run(runtime.arun())
 

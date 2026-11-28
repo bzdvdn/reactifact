@@ -59,7 +59,7 @@ from there when you want the full surface:
 | What | Canonical import |
 | --- | --- |
 | steps, agents, return-style instructions, input annotations | `from reactifact.agent import Agent, Read, Step, agent`; `from reactifact.agent.step import step, Emit, Scope, Unscoped, Wakes` |
-| consume declarations and lifecycle variants | `from reactifact.consume import Consume, OnCreate, IdempotentConsume, JoinConsume` |
+| consume declarations and lifecycle variants | `from reactifact.consume import Consume, IdempotentConsume, JoinConsume` |
 | chat hooks and memory | `from reactifact.chat import Chat, ChatAssistant, ChatReply, ChatMemory` |
 | tool loops | `from reactifact.tools.use import ToolUse, NativeToolUse, ToolUseHITL` |
 | an agent/subflow as a tool | `from reactifact.tools.agent import AgentAsTool` |
@@ -121,10 +121,10 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `Agent` | the user-facing scheduling unit: `Agent(name, consumes=..., steps=..., retry=..., timeout=..., fallback=..., priority=...)`; `consumes` is the explicit wake contract (the runtime can derive it from step reads, but don't rely on that in app code; `REACTIFACT_DEV=1` warns in dev); `Route` and `Pipeline` accept it directly; it is not an execution barrier |
 | `Read` | a step input: `Read(Query)`, `Read.by_field(Query, "test", 123)`, `Read.on_create(Query)`, `Read.after_delete(Scratch)`; `required=False` reads only when present |
 | `agent` (`@agent`) | decorator: one function → one `Agent` with a single step; typed parameters are reads and the return annotation is `produces` (`@agent(consumes=..., produces=..., retry=..., timeout=...)` for the explicit form) |
-| `Runtime(steps=..., agents=...)` | dispatches steps and agents together (steps first). Each raw `Step` is wrapped in an implicit agent of one; `groups=` is a deprecated alias for `agents=`. |
-| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `traces=`/`lifespan=`, `store=`. Pass `pipeline=` to reuse a `Pipeline` definition (seed/answer and agents are inferred) and `config=` for run resources/tracing; explicit keywords override the config. `groups=` is a deprecated alias for `agents=`. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
-| `Pipeline(steps=..., agents=..., routes=..., seed_type=..., answer_type=...)` | reusable pipeline definition: `Pipeline.agents` is the expanded agent list (`routes` expand through `route.agents()`); `.validate()` / `.describe()` / `.mermaid()` are static. The legacy `.run`/`.answer`/`.astream`/`.test_client` methods remain as compatibility shortcuts; new execution code uses `PipelineRunner` |
-| `PipelineRunner(pipeline, config=RunConfig(...), *, resources=..., llm=..., budget=..., tracer=..., max_concurrency=..., isolate_errors=..., lifespan=..., traces=...)` | executes a `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.override`, `.test_client`, `.validate`, `.describe`, `.mermaid`; owns resources, budget, tracing, concurrency and the `last_result`/`last_context` of the most recent run |
+| `Runtime(steps=..., agents=...)` | dispatches steps and agents together (steps first). Each raw `Step` is wrapped in an implicit agent of one. |
+| `Chat(steps=..., agents=..., pipeline=..., config=RunConfig(...), seed_type=..., answer_type=...)` | typed chat facade: `invoke/stream/history/answer`, `seed_factory`, `per_turn`, `resume_pending=`, `router()`, `http()`, `test_client()`, `store=`. Pass `pipeline=` to reuse a `Pipeline` definition (seed/answer and agents are inferred) and `config=` for run resources/tracing; only the per-turn resources hook is explicit. A pending `PendingQuestion` makes the default reply `waiting: true` with a structured `question`; `resume_pending=True` makes the next turn its answer. `.validate()` / `.describe()` mirror Pipeline; `.http()` is the session-persisted FastAPI app |
+| `Pipeline(steps=..., agents=..., routes=..., seed_type=..., answer_type=...)` | reusable pipeline definition: `Pipeline.agents` is the expanded agent list (`routes` expand through `route.agents()`); `.validate()` / `.describe()` / `.mermaid()` are static. Execution is always `PipelineRunner(pipeline, config=RunConfig(...))` |
+| `PipelineRunner(pipeline, config=RunConfig(...))` | executes a `Pipeline`: `.run`/`.arun`/`.astream`, `.answer`/`.aanswer`, `.override`, `.test_client`, `.validate`, `.describe`, `.mermaid`; owns resources, budget, tracing, concurrency and the `last_result`/`last_context` of the most recent run |
 | `RunConfig` | runtime settings for `PipelineRunner`: `resources`, `llm`, `budget`, `tracer`, `max_concurrency`, `isolate_errors`, `on_agent_error`, `lifespan`, `traces`, `trace_sample`; use `PipelineRunner(pipeline, config=RunConfig(...))` |
 | `Daemon(pipeline, *, seed_source=, interval=, run_once=, max_ticks=)` | interval loop over a Pipeline: `seed_source(tick)` may be sync/async and return `None` to skip; graceful SIGINT/SIGTERM, per-tick error isolation. `Daemon(tick=fn)` is the custom-tick form (the bundled daemon template) |
 | `RunResult` | `.context`, `.runs`, `.outcome`, `.latest(Type)`, `.sources(artifact)`, `.hash`, `.trace_id`, `.trace()` |
@@ -132,9 +132,9 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `run_subflow(parent, *, agents, input, output_type=, isolate=True, link=, source=, inherit_trace=True, inherit_budget=True, …)` | runs child agents on an isolated Context (or a parent branch), optionally links outputs to the seed, passes the parent tracer and stamps `trace_metadata.parent_run_id`; returns `SubflowResult` |
 | `SubflowResult` | `context`, `seed`, `outputs`, `output`, `run_id`, `parent_run_id`, `stats` |
 | `describe_contracts(agents)` / `ContractReport` | static consumes/produces/tools contract (Markdown or JSON); CLI `reactifact contracts <module> [--format md\|json]` |
-| `validate_contracts(*, steps=, agents=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or agents (steps first, like `Runtime`; `groups=` is a deprecated alias for `agents=`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle/ambiguous_producer warnings (the last is suppressed for distinct `Route` cases); `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
+| `validate_contracts(*, steps=, agents=, seeds=, terminal=, budget=)` / `ValidationReport` | static contract check over raw steps and/or agents (steps first, like `Runtime`): unknown inputs (errors), dead outputs/never-scheduled/unreachable/cycle/ambiguous_producer warnings (the last is suppressed for distinct `Route` cases); `raise_for_errors()`; CLI `reactifact validate <module>` (or `graph --check`) |
 | `Wakes(False)` / `Scope` / `Unscoped` / `Consume` / `IdempotentConsume` | declarative (or decorator) reaction declaration; `Consume.by_field` for scoped events; `Consume.by_base` / `include_subclasses=True` wakes on a marker base's subclasses; `IdempotentConsume(T, id_of=...)` wakes only while the derived id is absent; `wakes=False` reads as input without waking the agent (needed only when `reads` is derived from the signature); `debounce=True` collapses several same-generation events into one run; `Annotated[T, Unscoped()]` reads T across every turn instead of only the step's `scope` (combine with `Wakes(False)` for history) |
-| `OnCreate` / `OnUpdate` / `OnDelete` / `OnStale` | lifecycle-specific `Consume` subclasses: wake only on create, update, delete or stale; `OnDelete` needs `event`/`Trigger` because the data is gone |
+| `Consume.on_create` / `Consume.on_update` / `Consume.on_delete` / `Consume.on_stale` | lifecycle-specific `Consume` subclasses: wake only on create, update, delete or stale; `Consume.on_delete` needs `event`/`Trigger` because the data is gone |
 | `reactifact.consume.CorrelatedConsume` | fires (and feeds inputs) only for a correlation key where every `require` type is present and every `forbid` type is absent — the mechanism behind `JoinConsume`/`AbsentConsume` |
 | `reactifact.consume.JoinConsume(*parts, key=…)` | `CorrelatedConsume` factory: fires once every listed type exists for the same key |
 | `reactifact.consume.AbsentConsume(type, absent_type=…, key=…)` | `CorrelatedConsume` factory: fires for `type` only where no matching `absent_type` exists yet for the same key |
@@ -155,11 +155,8 @@ graduates to `Consume`/`Step`/`Effects` with nothing to rewrite. See
 | `Effects.update(artifact, *, expected_version=…, **fields)` | field-bump of an existing artifact; `expected_version=` opts into optimistic concurrency (`ArtifactConflict` instead of last-write-wins) |
 | `PendingAction` | the recorded outbound side effect (`kind`, `idempotency_key`, `payload`, `status`, `attempts`); performed once by `Runtime(dispatcher=...)`, then `dispatched` / `failed` (`retry_action` re-arms) |
 
-`StepGroup` and `create_step_group` stay importable for 0.x code, but are
-deliberately absent from `__all__` and the docs tables above: new code uses
-`Agent`. The canonical authoring package is `reactifact.agent` (with
-`reactifact.agent.step` for steps); `reactifact.step` remains a compatibility
-import path.
+The canonical authoring package is `reactifact.agent` (with
+`reactifact.agent.step` for steps).
 
 ## Runtime
 
@@ -194,7 +191,7 @@ import path.
 | `ChatEvent` | one transport-neutral frame; `kind` is a closed `Literal["session","status","message"]`, so the schema is introspectable |
 | `run_message(runtime, text, *, user_message, reply)` | the turn building block: create input → stream statuses → terminal reply |
 | `default_session_state(ctx, user_message)` | generic history reader (any artifact with `.text`), plus the latest pending question as a `waiting: true` assistant message |
-| `reactifact.contracts.web.create_contracts_router(agents, *, prefix=, title=, username=, password=)` | opt-in FastAPI router: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `agents` may be a zero-arg factory; `groups=` is a compatibility alias |
+| `reactifact.contracts.web.create_contracts_router(agents, *, prefix=, title=, username=, password=)` | opt-in FastAPI router: `/contracts` HTML, `/api/contracts` JSON, `/contracts.md` Markdown; `agents` may be a zero-arg factory |
 | `install_error_handlers(app, *, extra=…)` | maps `AuthorizationError`/`GuardrailViolation`/`QuotaExceeded`/`MergeConflict` to JSON HTTP responses (403/422/429/409) with `{"error": {"code", "message", "request_id", "trace_id"}, "detail"}`; `extra` overrides/adds mappings. `create_*_app` installs it together with `install_request_id`. |
 | `install_request_id(app)` | middleware assigning `X-Request-ID` (and `request.state.request_id`) to every response; error envelopes reuse it and `X-Reactifact-Run-Id` when available |
 | `create_chat_router(assistant, *, event_names=…, forward_kinds=…, payload_shaper=…, done_event=…, request_factory=…)` | FastAPI `APIRouter` for the SSE contract (`/api/chat/stream`, `/api/runs/{id}`, `/api/health`) — needs the `web` extra. The wire **vocabulary is configurable** (rename kinds, filter, reshape payloads, emit a terminal frame); `request_factory(request)` builds the per-turn `request=` mapping from the FastAPI `Request` (identity/ACL-aware turns); the event schema is published in the route's OpenAPI `responses` |

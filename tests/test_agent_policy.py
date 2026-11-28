@@ -56,7 +56,7 @@ class SlowAgent(Agent):
 def _runtime(agent: Agent, **kwargs) -> Runtime:
     context = Context()
     context.create(Question(text="q"))
-    return Runtime(context, groups=[agent], **kwargs)
+    return Runtime(context, agents=[agent], **kwargs)
 
 
 def test_retry_succeeds_and_discards_failed_effects():
@@ -222,7 +222,7 @@ class Draft(BaseModel):
 
 
 class FirstStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Draft,)
 
     async def run(self, context: Context, question: Question) -> Draft:
@@ -230,7 +230,7 @@ class FirstStep(Step):
 
 
 class SlowStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
     timeout = 0.01
 
@@ -243,7 +243,7 @@ def test_step_timeout_fails_agent_and_discards_prior_steps():
     context = Context()
     context.create(Question(text="q"))
     agent = Agent("a", steps=[FirstStep(), SlowStep()])
-    runtime = Runtime(context, groups=[agent])
+    runtime = Runtime(context, agents=[agent])
 
     with pytest.raises(TimeoutError):
         asyncio.run(runtime.arun())
@@ -253,14 +253,14 @@ def test_step_timeout_fails_agent_and_discards_prior_steps():
 
 
 def test_decorator_step_timeout():
-    @step(produces=Answer, consumes=Question, timeout=0.01)
+    @step(produces=Answer, reads=Question, timeout=0.01)
     async def slow(call):
         await asyncio.sleep(0.2)
         return Answer(text="late")
 
     context = Context()
     context.create(Question(text="q"))
-    runtime = Runtime(context, groups=[Agent("a", steps=[slow])])
+    runtime = Runtime(context, agents=[Agent("a", steps=[slow])])
 
     with pytest.raises(TimeoutError):
         asyncio.run(runtime.arun())
@@ -269,7 +269,7 @@ def test_decorator_step_timeout():
 
 
 class SlowOnceStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer,)
     timeout = 0.01
 
@@ -293,7 +293,7 @@ def test_agent_retry_reruns_the_whole_agent_after_step_timeout():
     )
     context = Context()
     context.create(Question(text="q"))
-    runtime = Runtime(context, groups=[agent])
+    runtime = Runtime(context, agents=[agent])
 
     assert asyncio.run(runtime.arun()) == 1
     assert step_instance.calls == 2

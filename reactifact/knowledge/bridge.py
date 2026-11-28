@@ -225,10 +225,8 @@ class IngestReportArtifact(BaseModel):
 class IngestStep(Step[IngestReportArtifact]):
     """Runs a `KnowledgePipeline` as a reactifact step."""
 
-    consumes = (IngestRequest,)
-
     def __init__(self, pipeline: KnowledgePipeline) -> None:
-        super().__init__(produces=IngestReportArtifact, consumes=(IngestRequest,))
+        super().__init__(produces=IngestReportArtifact, reads=(IngestRequest,))
         self.pipeline = pipeline
 
     async def run(

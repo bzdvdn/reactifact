@@ -5,8 +5,7 @@
     result = runner.run(Question(text="..."))
 
 `Pipeline` owns structure and seed/answer models. `PipelineRunner` owns
-resources, budget, tracing and execution; its compatibility shortcuts on
-`Pipeline` delegate to a runner. The low-level objects stay public for
+resources, budget, tracing and execution. The low-level objects stay public for
 branch/merge, replay and tests.
 """
 
@@ -42,16 +41,14 @@ class _RouteLike(Protocol):
     """Structural type for `Route`-like objects without a core→recipes import."""
 
     def agents(self) -> list[Agent]: ...
-    def groups(self) -> list[Agent]: ...
 
 
 @dataclass
 class RunConfig:
-    """Runtime settings for `PipelineRunner` (and the compatibility wrappers).
+    """Runtime settings for `PipelineRunner`.
 
     `Pipeline` owns the definition; this object owns resources and execution
-    policy. All fields are optional: unset values fall back to the pipeline's
-    legacy defaults (for compatibility) or to `Runtime` defaults.
+    policy. All fields are optional and fall back to `Runtime` defaults.
     """
 
     resources: RuntimeResources | None = None
@@ -70,47 +67,32 @@ class Pipeline:
     """A reusable agent pipeline definition: agents + routes.
 
     The canonical form is ``Pipeline(agents=[...], routes=[...])``: agents and
-    route cases are `Agent` objects. ``steps=``/``groups=`` remain the low-level
+    route cases are `Agent` objects. ``steps=`` remains the low-level
     shorthand; both normalize into ``pipeline.agents``.
 
     `Pipeline` owns the definition and seed/answer models. Runtime settings
-    belong to `PipelineRunner`/`RunConfig`; the legacy resources/llm/budget/
-    tracing arguments and `run()` shortcuts remain for compatibility.
+    belong to `PipelineRunner`/`RunConfig`.
     """
 
     def __init__(
         self,
         steps: Sequence[Step[Any]] | None = None,
         *,
-        groups: Sequence[Agent] | None = None,
         name: str | None = None,
         agents: Sequence[Agent] | None = None,
         routes: Sequence[_RouteLike] | None = None,
-        resources: RuntimeResources | None = None,
-        llm: LLMProvider | None = None,
-        budget: Budget | None = None,
-        tracer: Any = None,
-        max_concurrency: int | None = None,
-        isolate_errors: bool = False,
-        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
         seed_type: type[BaseModel] | None = None,
         seed_field: str = "text",
         answer_type: type[BaseModel] | None = None,
-        lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]]
-        | None = None,
-        traces: bool | str | Path | Any | None = None,
-        trace_sample: Any = None,
     ):
         declared_agents = list(agents) if agents is not None else []
         declared_routes = list(routes) if routes is not None else []
         has_structured = bool(declared_agents or declared_routes)
-        has_raw = steps is not None or groups is not None
+        has_raw = steps is not None
         if has_raw and has_structured:
-            raise TypeError(
-                "Pipeline takes either steps=/groups= or agents=/routes=, not both"
-            )
+            raise TypeError("Pipeline takes either steps= or agents=/routes=, not both")
         if not has_raw and not has_structured:
-            raise TypeError("Pipeline requires steps=/groups= or agents=/routes=")
+            raise TypeError("Pipeline requires steps= or agents=/routes=")
         self.name = name or "pipeline"
         self.routes = declared_routes or None
         self.steps: list[Step[Any]] | None
@@ -127,75 +109,11 @@ class Pipeline:
             self.steps = list(steps) if steps is not None else None
             self.agents = normalize_units(
                 steps=list(steps) if steps is not None else None,
-                agents=list(groups) if groups is not None else None,
+                agents=None,
             )
-        self.resources = resources if resources is not None else RuntimeResources()
-        #: The pipeline's one default provider. `llm=` is a shortcut for
-        #: `RuntimeResources(llm=...)`; pass a router/fallback object here if a
-        #: domain needs several providers behind one interface.
-        self.llm = llm
-        self.budget = budget
-        self.trace_store: Any = None
-        self.trace_sample = trace_sample
-        if traces:
-            from .tracing import TraceStore
-
-            self.trace_store = (
-                TraceStore(str(traces))
-                if isinstance(traces, (str, Path))
-                else traces
-                if not isinstance(traces, bool)
-                else TraceStore(":memory:")
-            )
-            if tracer is None:
-                from .tracing import Tracer
-
-                tracer = Tracer(store=self.trace_store, sample=trace_sample)
-        self.tracer = tracer
-        self.max_concurrency = max_concurrency
-        self.isolate_errors = isolate_errors
-        self.on_agent_error = on_agent_error
-        self._overrides: dict[type[Any], Any] = {}
-        #: Optional request/response models for `reactifact run` and tooling:
-        #: `seed_type` builds the seed from `--text`, `answer_type` is the
-        #: artifact to print by default.
         self.seed_type = seed_type
         self.seed_field = seed_field
         self.answer_type = answer_type
-        #: Optional async context manager yielding `RuntimeResources`; enter
-        #: the pipeline with `async with pipeline:` so clients/indexes are
-        #: created once and closed deterministically.
-        self.lifespan = lifespan
-        self._lifespan_cm: AbstractAsyncContextManager[RuntimeResources] | None = None
-        #: Context of the most recent run (also carried by its `RunResult`).
-        self.last_context: Context | None = None
-        #: `RunResult` of the most recent `run`/`arun`/`astream`.
-        self.last_result: RunResult | None = None
-
-    async def __aenter__(self) -> Pipeline:
-        if self.lifespan is not None:
-            self._lifespan_cm = self.lifespan()
-            self.resources = await self._lifespan_cm.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        if self._lifespan_cm is not None:
-            await self._lifespan_cm.__aexit__(exc_type, exc, tb)
-            self._lifespan_cm = None
-
-    def override(self, kind: type[Any], instance: Any) -> Pipeline:
-        """Replace a typed resource for this pipeline (tests, local fakes).
-
-        Same role as FastAPI's `dependency_overrides`: a step annotated
-        `llm: LLMProvider` receives `instance` without rebuilding resources.
-        """
-        self._overrides[kind] = instance
-        return self
-
-    def clear_overrides(self) -> Pipeline:
-        """Drop every `override` and fall back to the configured resources."""
-        self._overrides.clear()
-        return self
 
     def validate(
         self,
@@ -234,7 +152,7 @@ class Pipeline:
 
         base = describe_contracts(self.agents)
         return ContractReport(
-            groups=base.groups,
+            agents=base.agents,
             seed_schema=(
                 self.seed_type.model_json_schema()
                 if self.seed_type is not None
@@ -248,166 +166,10 @@ class Pipeline:
         )
 
     def mermaid(self, *, with_stages: bool = True) -> str:
-        """Render this pipeline's declared groups as a Mermaid flowchart."""
+        """Render this pipeline's declared agents as a Mermaid flowchart."""
         from .viz import blueprint
 
         return blueprint(self.agents, with_stages=with_stages, title=self.name)
-
-    def router(self, **kwargs: Any) -> Any:
-        """A FastAPI `APIRouter` with `/run`, `/stream` and `/health`.
-
-        Needs `seed_type=` and `answer_type=`. FastAPI is imported lazily, so
-        the core package does not depend on it; install `reactifact[web]`.
-        """
-        return PipelineRunner(self).router(**kwargs)
-
-    def http(self, **kwargs: Any) -> Any:
-        """A ready FastAPI app: run/stream routes, `/docs`, `/contracts`, traces.
-
-        The web adapter, not the core: `Pipeline` stays usable from a CLI,
-        daemon, queue or MCP without FastAPI installed.
-        """
-        return PipelineRunner(self).http(**kwargs)
-
-    def as_tool(
-        self,
-        *,
-        name: str | None = None,
-        description: str | None = None,
-        destructive: bool = False,
-        retry: RetryPolicy | None = None,
-        timeout: float | None = None,
-    ) -> Tool:
-        """Expose this pipeline as a `Tool` (MCP, tool loops, agent-as-tool).
-
-        The tool schema is `seed_type`'s JSON Schema and the result is the
-        latest `answer_type`; `create_mcp_server([pipeline.as_tool()])` is the
-        MCP adapter. Requires `seed_type=` and `answer_type=`.
-        """
-        return PipelineRunner(self).as_tool(
-            name=name,
-            description=description,
-            destructive=destructive,
-            retry=retry,
-            timeout=timeout,
-        )
-
-    def _compat_runner(self) -> PipelineRunner:
-        runner = PipelineRunner(self)
-        # `async with pipeline:` already entered the lifespan; the runner must
-        # reuse those resources instead of trying to enter it again.
-        if self._lifespan_cm is not None:
-            runner.resources = self.resources
-            runner.lifespan = None
-        return runner
-
-    def run(
-        self,
-        seed: Artifact[Any] | Any,
-        *,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        request: Mapping[str, Any] | None = None,
-    ) -> RunResult:
-        """Compatibility shortcut for `PipelineRunner(self).run(...)`."""
-        runner = self._compat_runner()
-        result = runner.run(
-            seed,
-            max_iterations=max_iterations,
-            budget=budget,
-            request=request,
-        )
-        self.last_context = result.context
-        self.last_result = result
-        return result
-
-    async def arun(
-        self,
-        seed: Artifact[Any] | Any,
-        *,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        request: Mapping[str, Any] | None = None,
-    ) -> RunResult:
-        """Compatibility shortcut for `PipelineRunner(self).arun(...)`."""
-        runner = self._compat_runner()
-        result = await runner.arun(
-            seed,
-            max_iterations=max_iterations,
-            budget=budget,
-            request=request,
-        )
-        self.last_context = result.context
-        self.last_result = result
-        return result
-
-    def answer(
-        self,
-        seed: Artifact[Any] | Any,
-        *,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        request: Mapping[str, Any] | None = None,
-    ) -> BaseModel:
-        """Compatibility shortcut for `PipelineRunner(self).answer(...)`."""
-        runner = self._compat_runner()
-        result = runner.answer(
-            seed,
-            max_iterations=max_iterations,
-            budget=budget,
-            request=request,
-        )
-        self.last_context = runner.last_context
-        self.last_result = runner.last_result
-        return result
-
-    async def aanswer(
-        self,
-        seed: Artifact[Any] | Any,
-        *,
-        max_iterations: int = 100,
-        budget: Budget | None = None,
-        request: Mapping[str, Any] | None = None,
-    ) -> BaseModel:
-        """Compatibility shortcut for `PipelineRunner(self).aanswer(...)`."""
-        runner = self._compat_runner()
-        result = await runner.aanswer(
-            seed,
-            max_iterations=max_iterations,
-            budget=budget,
-            request=request,
-        )
-        self.last_context = runner.last_context
-        self.last_result = runner.last_result
-        return result
-
-    async def astream(
-        self,
-        seed: Artifact[Any] | Any,
-        *,
-        max_iterations: int = 1000,
-        budget: Budget | None = None,
-        request: Mapping[str, Any] | None = None,
-    ) -> AsyncIterator[Any]:
-        """Compatibility shortcut for `PipelineRunner(self).astream(...)`."""
-        runner = self._compat_runner()
-        async for event in runner.astream(
-            seed,
-            max_iterations=max_iterations,
-            budget=budget,
-            request=request,
-        ):
-            yield event
-        self.last_context = runner.last_context
-        self.last_result = runner.last_result
-
-    def close(self) -> None:
-        """Compatibility shortcut for `PipelineRunner(self).close()`."""
-        PipelineRunner(self).close()
-
-    def test_client(self, *, traces: bool = True) -> Any:
-        """Compatibility shortcut for `PipelineRunner(self).test_client()`."""
-        return PipelineRunner(self).test_client(traces=traces)
 
 
 class PipelineRunner:
@@ -415,105 +177,37 @@ class PipelineRunner:
 
     `Pipeline` owns the structure (agents/routes/steps/seed/answer); the runner
     owns resources, budget, tracer, concurrency and overrides. Pass a
-    `RunConfig` for the canonical configuration; explicit keyword arguments
-    remain as compatibility overrides. `run()`/`arun()` seed one artifact and
-    return a `RunResult`; `astream()` streams progress events and leaves the
-    final `last_result` behind.
+    `RunConfig` for resources, tracing, budget, concurrency and lifespan.
+    `run()`/`arun()` seed one artifact and return a `RunResult`; `astream()`
+    streams progress events and leaves the final `last_result` behind.
     """
 
     def __init__(
         self,
         pipeline: Pipeline,
         config: RunConfig | None = None,
-        *,
-        resources: RuntimeResources | None = None,
-        llm: LLMProvider | None = None,
-        budget: Budget | None = None,
-        tracer: Any = None,
-        max_concurrency: int | None = None,
-        isolate_errors: bool | None = None,
-        on_agent_error: Callable[[Agent, Event, BaseException], None] | None = None,
-        lifespan: Callable[[], AbstractAsyncContextManager[RuntimeResources]]
-        | None = None,
-        traces: bool | str | Path | Any | None = None,
-        trace_sample: Any = None,
     ) -> None:
         base = config or RunConfig()
         self.pipeline = pipeline
         self.config = config
-        self.resources = (
-            resources
-            if resources is not None
-            else base.resources
-            if base.resources is not None
-            else pipeline.resources
-        )
-        self.llm = (
-            llm
-            if llm is not None
-            else base.llm
-            if base.llm is not None
-            else pipeline.llm
-        )
-        self.budget = (
-            budget
-            if budget is not None
-            else base.budget
-            if base.budget is not None
-            else pipeline.budget
-        )
-        self.max_concurrency = (
-            max_concurrency
-            if max_concurrency is not None
-            else base.max_concurrency
-            if base.max_concurrency is not None
-            else pipeline.max_concurrency
-        )
-        self.isolate_errors = (
-            isolate_errors
-            if isolate_errors is not None
-            else base.isolate_errors
-            if base.isolate_errors is not None
-            else pipeline.isolate_errors
-        )
-        self.on_agent_error = (
-            on_agent_error
-            if on_agent_error is not None
-            else base.on_agent_error
-            if base.on_agent_error is not None
-            else pipeline.on_agent_error
-        )
-        self.lifespan = (
-            lifespan
-            if lifespan is not None
-            else base.lifespan
-            if base.lifespan is not None
-            else pipeline.lifespan
-        )
-        self.trace_sample = (
-            trace_sample
-            if trace_sample is not None
-            else base.trace_sample
-            if base.trace_sample is not None
-            else pipeline.trace_sample
-        )
-        self.trace_store: Any = pipeline.trace_store
-        self.tracer = (
-            tracer
-            if tracer is not None
-            else base.tracer
-            if base.tracer is not None
-            else pipeline.tracer
-        )
-        selected_traces = traces if traces is not None else base.traces
-        if selected_traces:
+        self.resources = base.resources
+        self.llm = base.llm
+        self.budget = base.budget
+        self.max_concurrency = base.max_concurrency
+        self.isolate_errors = base.isolate_errors or False
+        self.on_agent_error = base.on_agent_error
+        self.lifespan = base.lifespan
+        self.trace_sample = base.trace_sample
+        self.trace_store: Any = None
+        self.tracer = base.tracer
+        if base.traces:
             from .tracing import TraceStore
 
             self.trace_store = (
-                TraceStore(str(selected_traces))
-                if isinstance(selected_traces, (str, Path))
-                else selected_traces
-                if not isinstance(selected_traces, bool)
+                TraceStore(str(base.traces))
+                if isinstance(base.traces, (str, Path))
+                else base.traces
+                if not isinstance(base.traces, bool)
                 else TraceStore(":memory:")
             )
             if self.tracer is None:
@@ -523,7 +217,7 @@ class PipelineRunner:
                     store=self.trace_store,
                     sample=self.trace_sample,
                 )
-        self._overrides: dict[type[Any], Any] = dict(pipeline._overrides)
+        self._overrides: dict[type[Any], Any] = {}
         self._lifespan_cm: AbstractAsyncContextManager[RuntimeResources] | None = None
         self.last_context: Context | None = None
         self.last_result: RunResult | None = None
@@ -630,7 +324,7 @@ class PipelineRunner:
                 "this PipelineRunner has a lifespan; use `async with runner:` "
                 "and `await runner.arun(...)`"
             )
-        resources = self.resources
+        resources = self.resources or RuntimeResources()
         if self.llm is not None:
             resources = copy.copy(resources)
             resources.llm = self.llm
@@ -781,7 +475,7 @@ class _PipelineTool(Tool):
 
     def __init__(
         self,
-        pipeline: Pipeline | PipelineRunner,
+        pipeline: PipelineRunner,
         *,
         name: str | None,
         description: str | None,

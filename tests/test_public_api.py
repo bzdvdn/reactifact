@@ -28,10 +28,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "Context",
             "CurrentRequest",
             "IdempotentConsume",
-            "OnCreate",
-            "OnDelete",
-            "OnStale",
-            "OnUpdate",
             "ContextCheckpoint",
             "Create",
             "Daemon",
@@ -123,10 +119,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "CorrelatedConsume",
             "IdempotentConsume",
             "JoinConsume",
-            "OnCreate",
-            "OnDelete",
-            "OnStale",
-            "OnUpdate",
         }
     ),
     "reactifact.agent": frozenset(
@@ -163,26 +155,6 @@ FROZEN: dict[str, frozenset[str]] = {
             "Unscoped",
             "Wakes",
             "When",
-            "step",
-        }
-    ),
-    "reactifact.step": frozenset(
-        {
-            "Agent",
-            "Read",
-            "Drop",
-            "Edit",
-            "Emit",
-            "Ensure",
-            "Latest",
-            "Relate",
-            "Scope",
-            "Step",
-            "StepCall",
-            "Unscoped",
-            "Wakes",
-            "When",
-            "agent",
             "step",
         }
     ),
@@ -479,10 +451,3 @@ def test_every_export_exists(module_name: str) -> None:
     module = importlib.import_module(module_name)
     missing = [name for name in module.__all__ if not hasattr(module, name)]
     assert not missing, f"{module_name}.__all__ lists missing names: {missing}"
-
-
-def test_legacy_tracing_alias_stays_importable() -> None:
-    import reactifact.tracing as tracing
-
-    assert tracing.StepGroupSpan is tracing.AgentSpan  # type: ignore[attr-defined]
-    assert "StepGroupSpan" not in tracing.__all__

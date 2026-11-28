@@ -26,7 +26,7 @@ class FinalizeWithDocuments(Step[DraftAnswer]):
     `artifact_type` for both directions."""
 
     artifact_type = DraftAnswer
-    consumes = (ResolvedDocuments,)
+    reads = (ResolvedDocuments,)
 
     async def run(self, call):
         call.effects.create(
@@ -36,7 +36,7 @@ class FinalizeWithDocuments(Step[DraftAnswer]):
 
 class DirectFinalize(Step[DraftAnswer]):
     artifact_type = DraftAnswer
-    consumes = (DecisionReply,)
+    reads = (DecisionReply,)
 
     async def run(self, call):
         call.effects.create(
@@ -54,7 +54,7 @@ class FinalAgent(Agent):
 
 def test_each_produce_only_runs_for_its_own_reacts_to_type():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[FinalAgent()])
+    runtime = Runtime(ctx, agents=[FinalAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -66,7 +66,7 @@ def test_each_produce_only_runs_for_its_own_reacts_to_type():
 
 def test_the_other_reacts_to_type_runs_the_other_produce_only():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[FinalAgent()])
+    runtime = Runtime(ctx, agents=[FinalAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="final", text="reply"))
     asyncio.run(runtime.arun())
@@ -93,7 +93,7 @@ class UnrestrictedAgent(Agent):
 
 def test_reacts_to_none_is_unrestricted_by_default():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[UnrestrictedAgent()])
+    runtime = Runtime(ctx, agents=[UnrestrictedAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -109,7 +109,7 @@ class SingleTypeReactor(Step[DraftAnswer]):
     artifact_type = DraftAnswer
 
     def __init__(self):
-        super().__init__(consumes=ResolvedDocuments)
+        super().__init__(reads=ResolvedDocuments)
 
     async def run(self, call):
         call.effects.create(DraftAnswer(query_id="q1", source="single-type"))
@@ -122,7 +122,7 @@ class SingleTypeAgent(Agent):
 
 def test_consumes_accepts_a_bare_single_type_at_the_constructor():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[SingleTypeAgent()])
+    runtime = Runtime(ctx, agents=[SingleTypeAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="x", text="reply"))
     asyncio.run(runtime.arun())
@@ -133,7 +133,7 @@ def test_consumes_accepts_a_bare_single_type_at_the_constructor():
     assert len(ctx.list_artifacts(DraftAnswer)) == 1
 
 
-@step(DraftAnswer, consumes=(ResolvedDocuments,))
+@step(DraftAnswer, reads=(ResolvedDocuments,))
 def decorated_reactor(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
@@ -145,7 +145,7 @@ class DecoratedAgent(Agent):
 
 def test_produce_decorator_accepts_reacts_to():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[DecoratedAgent()])
+    runtime = Runtime(ctx, agents=[DecoratedAgent()])
 
     ctx.create(DecisionReply(query_id="q1", route_action="x", text="reply"))
     asyncio.run(runtime.arun())

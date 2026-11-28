@@ -45,7 +45,7 @@ class RefToDoc(Agent):
 
 def test_resolver_group():
     ws = Context(resources=RuntimeResources(sources={"mysource": MySource()}))
-    runtime = Runtime(ws, groups=[RefToDoc()])
+    runtime = Runtime(ws, agents=[RefToDoc()])
     ws.create(SourceRef(source_id="mysource", locator="abc"))
     asyncio.run(runtime.arun())
     docs = ws.list_artifacts(Doc)

@@ -58,27 +58,11 @@ is in how it's used, not its bare signature.
 
 ### @step
 
-::: reactifact.step
+::: reactifact.agent.step
 
 ### Consume
 
 ::: reactifact.Consume
-
-### OnCreate
-
-::: reactifact.OnCreate
-
-### OnUpdate
-
-::: reactifact.OnUpdate
-
-### OnDelete
-
-::: reactifact.OnDelete
-
-### OnStale
-
-::: reactifact.OnStale
 
 ### Runtime
 

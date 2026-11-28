@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from ...agent import Emit, Step
 from ...artifacts import Artifact
 from ...context import Context
 from ...interaction import Human
@@ -12,7 +13,6 @@ from ...interrupt import PendingQuestion
 from ...provenance import DERIVED_FROM
 from ...providers import LLMProvider
 from ...read import Read
-from ...step import Emit, Step
 from .classify import classify_approval
 from .models import APPROVAL_KINDS, Approval, ApprovalDecision
 from .policy import ApprovalPolicy

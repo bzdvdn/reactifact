@@ -1,7 +1,7 @@
 import asyncio
 
 from pydantic import BaseModel
-from reactifact import Agent, Consume, Context, Runtime
+from reactifact import Agent, Consume, Context, PipelineRunner, Runtime
 from reactifact.recipes import PlanExecute
 
 
@@ -52,7 +52,7 @@ def make_runtime(ctx: Context) -> Runtime:
         consumes = [Consume(Goal), Consume(PlanStep), Consume(StepResult)]
         produces = Flow().produces()
 
-    return Runtime(ctx, groups=[FlowAgent()])
+    return Runtime(ctx, agents=[FlowAgent()])
 
 
 def test_plan_execute_runs_steps_in_order_and_finishes():
@@ -128,7 +128,7 @@ def test_from_funcs_builds_a_pipeline_without_subclassing():
     assert agent.name == "plan-execute"
     assert flow.group() is not agent  # `group()` remains an alias
     pipeline = flow.pipeline(seed_type=Goal)
-    result = pipeline.run(Goal(text="hello"))
+    result = PipelineRunner(pipeline).run(Goal(text="hello"))
 
     final = result.context.latest(FinalAnswer)
     assert final is not None

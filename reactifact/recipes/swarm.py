@@ -83,7 +83,6 @@ async def swarm(
     parent: Context,
     agents: Mapping[str, Agent] | None = None,
     *,
-    groups: Mapping[str, Agent] | None = None,
     start: str,
     input: BaseModel | Artifact[Any],
     final_type: type[BaseModel] | None = None,
@@ -99,9 +98,7 @@ async def swarm(
     Context, links it to the previous step, and continues. `max_hops` is a hard
     cap; `allow_repeat=False` also rejects revisiting an agent.
     """
-    if agents is not None and groups is not None:
-        raise TypeError("Pass only one of agents= or groups=")
-    mapping = agents if agents is not None else groups
+    mapping = agents
     if mapping is None:
         raise TypeError("swarm requires agents=")
     if start not in mapping:

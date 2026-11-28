@@ -37,7 +37,7 @@ class FinalizeWithDocuments(Step[DraftAnswer]):
     correctly-typed artifact — no guard at all."""
 
     artifact_type = DraftAnswer
-    consumes = (ResolvedDocuments,)
+    reads = (ResolvedDocuments,)
 
     async def run(self, call):
         trigger = call.trigger
@@ -52,7 +52,7 @@ class TwoTypeReactor(Step[DraftAnswer]):
     fired, resolved per call, not a union collapsed at declaration time."""
 
     artifact_type = DraftAnswer
-    consumes = (ResolvedDocuments, DecisionReply)
+    reads = (ResolvedDocuments, DecisionReply)
 
     async def run(self, call):
         trigger = call.trigger
@@ -80,7 +80,7 @@ class FinalAgent(Agent):
 
 def test_reacts_to_with_trigger_needs_no_guard():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[FinalAgent()])
+    runtime = Runtime(ctx, agents=[FinalAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -98,7 +98,7 @@ class TwoTypeAgent(Agent):
 
 def test_reacts_to_with_several_types_resolves_whichever_fired():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[TwoTypeAgent()])
+    runtime = Runtime(ctx, agents=[TwoTypeAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -116,7 +116,7 @@ class BestEffortAgent(Agent):
 
 def test_trigger_without_reacts_to_is_best_effort_not_gating():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[BestEffortAgent()])
+    runtime = Runtime(ctx, agents=[BestEffortAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())
@@ -133,7 +133,7 @@ class DeletionAware(Step[Marker]):
     live runtime (see the unit tests below for why)."""
 
     artifact_type = Marker
-    consumes = (Consume(Marker, event_types=[EventType.ARTIFACT_DELETED]),)
+    reads = (Consume(Marker, event_types=[EventType.ARTIFACT_DELETED]),)
 
     async def run(self, call):
         call.effects.create(Marker(tag="deleted" if call.trigger is None else "alive"))
@@ -190,7 +190,7 @@ def test_resolve_produce_call_deleted_event_still_runs_with_trigger_none():
     assert trigger is None
 
 
-@step(DraftAnswer, consumes=(ResolvedDocuments,))
+@step(DraftAnswer, reads=(ResolvedDocuments,))
 def decorated_with_trigger(call):
     return DraftAnswer(query_id=call.trigger.data.query_id, source="decorated")
 
@@ -202,7 +202,7 @@ class DecoratedAgent(Agent):
 
 def test_produce_decorator_accepts_trigger():
     ctx = Context()
-    runtime = Runtime(ctx, groups=[DecoratedAgent()])
+    runtime = Runtime(ctx, agents=[DecoratedAgent()])
 
     ctx.create(ResolvedDocuments(query_id="q1", text="doc"))
     asyncio.run(runtime.arun())

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from reactifact import Pipeline, step
+from reactifact import Pipeline, PipelineRunner, RunConfig, step
 from reactifact.web import PipelineRoutes
 
 
@@ -17,7 +17,7 @@ class Answer(BaseModel):
     text: str
 
 
-@step(consumes=Question)
+@step(reads=Question)
 def answer(question: Question) -> Answer:
     return Answer(text=question.text.upper())
 
@@ -37,14 +37,14 @@ def test_describe_includes_contracts_and_type_schemas():
     report = pipeline.describe()
     payload = report.to_dict()
 
-    assert payload["groups"][0]["name"] == "answer"
+    assert payload["agents"][0]["name"] == "answer"
     assert payload["seed"]["title"] == "Question"
     assert payload["answer"]["title"] == "Answer"
     assert pipeline.validate().ok
 
 
 def test_http_run_and_openapi_are_generated_from_the_types():
-    client = TestClient(_pipeline().http())
+    client = TestClient(PipelineRunner(_pipeline()).http())
 
     response = client.post("/run", json={"text": "hello"})
 
@@ -65,7 +65,7 @@ def test_http_run_and_openapi_are_generated_from_the_types():
 
 
 def test_http_rejects_a_seed_of_the_wrong_shape():
-    client = TestClient(_pipeline().http())
+    client = TestClient(PipelineRunner(_pipeline()).http())
 
     response = client.post("/run", json={"wrong": 1})
 
@@ -73,7 +73,7 @@ def test_http_rejects_a_seed_of_the_wrong_shape():
 
 
 def test_http_streams_progress_and_done_events():
-    client = TestClient(_pipeline().http())
+    client = TestClient(PipelineRunner(_pipeline()).http())
 
     response = client.post("/stream", json={"text": "hi"})
 
@@ -83,8 +83,8 @@ def test_http_streams_progress_and_done_events():
 
 
 def test_http_mounts_contracts_and_traces():
-    pipeline = _pipeline(traces=True)
-    client = TestClient(pipeline.http())
+    runner = PipelineRunner(_pipeline(), config=RunConfig(traces=True))
+    client = TestClient(runner.http())
 
     assert client.get("/contracts").status_code == 200
     contracts = client.get("/api/contracts").json()
@@ -93,11 +93,11 @@ def test_http_mounts_contracts_and_traces():
     assert client.get("/traces").status_code == 200
     assert client.get("/api/traces").status_code == 200
 
-    pipeline.close()
+    runner.close()
 
 
 def test_http_route_paths_can_be_overridden():
-    app = _pipeline().http(
+    app = PipelineRunner(_pipeline()).http(
         prefix="/api",
         routes=PipelineRoutes(run="/chat", stream="/chat/stream"),
     )
@@ -112,11 +112,11 @@ def test_http_needs_a_typed_pipeline():
     pipeline = Pipeline(steps=[answer])
 
     with pytest.raises(ValueError):
-        pipeline.http()
+        PipelineRunner(pipeline).http()
 
 
 def test_http_fails_fast_on_a_broken_contract():
-    @step(consumes=Answer)
+    @step(reads=Answer)
     def broken(answer: Answer) -> Question:
         return Question(text=answer.text)
 
@@ -127,4 +127,4 @@ def test_http_fails_fast_on_a_broken_contract():
     )
 
     with pytest.raises(RuntimeError, match="contracts are invalid"):
-        pipeline.http()
+        PipelineRunner(pipeline).http()

@@ -77,7 +77,7 @@ def test_agent_as_tool_returns_sub_agent_final_answer():
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, groups=[MainAgent()])
+    runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="сколько будет?"))
     asyncio.run(runtime.arun())
 
@@ -138,7 +138,7 @@ def test_agent_as_tool_isolated_from_parent_history():
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, groups=[MainAgent()])
+    runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="parent question"))
     asyncio.run(runtime.arun())
 
@@ -189,7 +189,7 @@ def test_agent_as_tool_reports_unanswered_pending_question_instead_of_empty_text
         consumes = [Consume(Question)]
         produces = [BuildReport()]
 
-    runtime = Runtime(ctx, groups=[MainAgent()])
+    runtime = Runtime(ctx, agents=[MainAgent()])
     ctx.create(Question(text="почисти под"))
     asyncio.run(runtime.arun())
 

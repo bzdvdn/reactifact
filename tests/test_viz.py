@@ -62,7 +62,7 @@ class DiagramAgent(Agent):
 
 
 class FanOutStep(Step):
-    consumes = (Question,)
+    reads = (Question,)
     produces = (Answer, Turn)
 
     async def run(self, question: Question) -> Answer:

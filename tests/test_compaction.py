@@ -43,7 +43,7 @@ class IncrementAgent(Agent):
 
 def _built(max_runs: int = 6) -> Context:
     ctx = Context()
-    runtime = Runtime(ctx, groups=[IncrementAgent()], budget=Budget(max_runs=max_runs))
+    runtime = Runtime(ctx, agents=[IncrementAgent()], budget=Budget(max_runs=max_runs))
     ctx.create(Number(value=0))
     asyncio.run(runtime.arun())
     return ctx
